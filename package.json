@@ -1,0 +1,8 @@
+{
+  "name": "skkuuniverse",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
