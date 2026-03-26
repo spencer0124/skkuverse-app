@@ -11,7 +11,7 @@
  * Flutter source: lib/features/transit/ui/bus_realtime_screen.dart
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -44,11 +44,19 @@ export default function RealtimeScreen() {
 
   const {
     data: realtimeData,
+    dataUpdatedAt,
     refetch,
   } = useRealtimeData(
     screenConfig?.dataEndpoint,
     screenConfig?.refreshInterval,
   );
+
+  // Monotonic counter bumped on each successful poll — used by BusMarker
+  // to reset elapsed even when estimatedTime is unchanged between polls.
+  const pollGeneration = useRef(0);
+  useEffect(() => {
+    if (dataUpdatedAt) pollGeneration.current += 1;
+  }, [dataUpdatedAt]);
 
   // Build ETA lookup map: stationIndex → eta string
   const etaMap = useMemo(() => {
@@ -90,12 +98,10 @@ export default function RealtimeScreen() {
     <View style={styles.container}>
       <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
 
-      {realtimeData?.meta && (
-        <TopInfoBar
-          currentTime={realtimeData.meta.currentTime}
-          totalBuses={realtimeData.meta.totalBuses}
-        />
-      )}
+      <TopInfoBar
+        currentTime={realtimeData?.meta?.currentTime ?? '00:00 AM'}
+        totalBuses={realtimeData?.meta?.totalBuses ?? 0}
+      />
 
       <View style={styles.divider} />
 
@@ -114,10 +120,11 @@ export default function RealtimeScreen() {
           {/* Bus markers (positioned absolutely from realtime data) */}
           {realtimeData?.buses.map((bus, i) => (
             <BusMarker
-              key={`${i}-${bus.stationIndex}-${bus.carNumber}`}
+              key={`${bus.carNumber}-${bus.stationIndex}-${i}`}
               bus={bus}
               lastStationIndex={screenConfig?.lastStationIndex ?? 10}
               color={themeColor}
+              pollGeneration={pollGeneration.current}
             />
           ))}
         </View>

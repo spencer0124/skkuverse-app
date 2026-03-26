@@ -15,7 +15,7 @@
  * Flutter source: lib/features/transit/widgets/businfo_component.dart
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { RealtimeBus } from '@skkuuniverse/shared';
 import { LicensePlate } from './LicensePlate';
@@ -29,19 +29,19 @@ interface BusMarkerProps {
   bus: RealtimeBus;
   lastStationIndex: number;
   color: string;
+  /** Monotonic counter bumped on each poll — forces elapsed reset even when estimatedTime is unchanged. */
+  pollGeneration: number;
 }
 
-export function BusMarker({ bus, lastStationIndex, color }: BusMarkerProps) {
+export function BusMarker({ bus, lastStationIndex, color, pollGeneration }: BusMarkerProps) {
   const [elapsed, setElapsed] = useState(bus.estimatedTime);
-  const prevEstimatedTime = useRef(bus.estimatedTime);
 
-  // Reset elapsed when poll data changes
+  // Reset elapsed whenever new poll data arrives (pollGeneration changes),
+  // not just when estimatedTime differs. Covers the edge case where a bus
+  // is stationary and estimatedTime stays the same across consecutive polls.
   useEffect(() => {
-    if (bus.estimatedTime !== prevEstimatedTime.current) {
-      setElapsed(bus.estimatedTime);
-      prevEstimatedTime.current = bus.estimatedTime;
-    }
-  }, [bus.estimatedTime]);
+    setElapsed(bus.estimatedTime);
+  }, [pollGeneration, bus.estimatedTime]);
 
   // Increment elapsed every second
   useEffect(() => {
