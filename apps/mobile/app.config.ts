@@ -17,9 +17,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: false,
+    googleServicesFile: "./GoogleService-Info.plist",
   },
   android: {
     package: "com.zoyoong.skkubus",
+    googleServicesFile: "./google-services.json",
     adaptiveIcon: {
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
@@ -27,8 +29,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   plugins: [
+    "@react-native-firebase/app",
+    "@react-native-firebase/auth",
     "expo-router",
     "expo-secure-store",
+    [
+      "expo-build-properties",
+      {
+        ios: {
+          useFrameworks: "static",
+        },
+      },
+    ],
+    "./plugins/withFirebaseModularHeaders",
     [
       "expo-splash-screen",
       {

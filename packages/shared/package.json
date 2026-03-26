@@ -9,6 +9,9 @@
   "peerDependencies": {
     "axios": "*",
     "expo-constants": "*",
-    "expo-localization": "*"
+    "expo-localization": "*",
+    "zustand": ">=5.0.0",
+    "react-native-mmkv": ">=4.0.0",
+    "@tanstack/react-query": ">=5.0.0"
   }
 }

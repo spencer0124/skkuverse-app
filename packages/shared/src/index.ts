@@ -34,3 +34,83 @@ export {
   safeGetConditional,
   firePost,
 } from './api/safe-request';
+
+// ── Auth ──
+export { setAuthTokenProvider } from './api/interceptors/auth';
+
+// ── Stores ──
+export { authStore, useAuthStore } from './store/auth';
+export type { AuthState, AuthStore } from './store/auth';
+export { useSettingsStore } from './store/settings';
+export type { SettingsStore, Campus, AppLanguage } from './store/settings';
+
+// ── SDUI types ──
+export type {
+  SduiSection,
+  SduiButtonGrid,
+  SduiSectionTitle,
+  SduiNotice,
+  SduiBanner,
+  SduiSpacer,
+  SduiUnknown,
+  SduiButtonItem,
+  CampusSectionsResponse,
+} from './types/sdui';
+export { type ActionType, parseActionType } from './types/sdui';
+
+// ── Bus types ──
+export type {
+  BusListItem,
+  BusListCard,
+  BusListAction,
+  BusGroup,
+  RealtimeBusGroup,
+  ScheduleBusGroup,
+  BusGroupVisibility,
+  BusGroupCard,
+  RealtimeScreenConfig,
+  ScheduleScreenConfig,
+  RealtimeStation,
+  TransferLine,
+  BusService,
+  RouteBadge,
+  HeroCard,
+  RealtimeData,
+  RealtimeMeta,
+  RealtimeBus,
+  StationEta,
+  SmartSchedule,
+  DaySchedule,
+  ScheduleEntry,
+  ScheduleNotice,
+  CampusEta,
+} from './types/bus';
+export { hexToColor, isBusGroupVisible } from './types/bus';
+
+// ── SDUI ──
+export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
+
+// ── Bus parsers ──
+export {
+  parseTransitList,
+  parseBusGroup,
+  parseRealtimeData,
+  parseSmartSchedule,
+  parseCampusEta,
+} from './bus';
+
+// ── Hooks ──
+export {
+  useCampusSections,
+  CAMPUS_SECTIONS_KEY,
+  useTransitList,
+  TRANSIT_LIST_KEY,
+  useBusConfig,
+  BUS_CONFIG_KEY,
+  useRealtimeData,
+  REALTIME_DATA_KEY,
+  useSmartSchedule,
+  SMART_SCHEDULE_KEY,
+  useCampusEta,
+  CAMPUS_ETA_KEY,
+} from './hooks';

@@ -4,19 +4,17 @@ import {
   platformInterceptor,
   observabilityInterceptor,
   attachRetryInterceptor,
+  attachAuthInterceptor,
 } from './interceptors';
 
 /**
  * Creates a fully-configured axios instance with the interceptor chain.
  *
- * Interceptor order:
- * - Request:  platform (adds headers)
- * - Response: observability (logs request IDs in __DEV__)
- * - Retry:    axios-retry (handles 408/429/503)
+ * Interceptor execution order (request path):
+ *   auth (token) → platform (headers) → [network] → retry → observability
  *
- * Auth interceptor is added in Step 3.2. Axios request interceptors are LIFO,
- * so auth added later will run first — ensuring the token is attached before
- * platform headers.
+ * Axios request interceptors are LIFO — auth is added last so it runs first,
+ * ensuring the token is attached before platform headers.
  *
  * Flutter source: lib/core/data/dio_client.dart
  */
@@ -34,6 +32,11 @@ export function createApiClient(): AxiosInstance {
 
   // Retry interceptor: transient failure recovery
   attachRetryInterceptor(client);
+
+  // Auth interceptor: token attachment + 401 refresh
+  // Axios request interceptors are LIFO — added last, runs first on requests.
+  // This ensures the token is attached before platform headers.
+  attachAuthInterceptor(client);
 
   return client;
 }
