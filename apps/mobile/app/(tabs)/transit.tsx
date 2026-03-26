@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from "react-native";
 
-export default function CampusScreen() {
+export default function TransitScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>캠퍼스</Text>
-      <Text style={styles.subtitle}>Campus map will be here</Text>
+      <Text style={styles.title}>이동</Text>
+      <Text style={styles.subtitle}>Transit info will be here</Text>
     </View>
   );
 }
