@@ -1,0 +1,19 @@
+{
+  "name": "@skkuuniverse/sds",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@skkuuniverse/shared": "*",
+    "culori": "^4.0.1",
+    "hex-to-rgba": "^2.0.1"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.76",
+    "react-native-reanimated": ">=4",
+    "react-native-gesture-handler": ">=2",
+    "react-native-safe-area-context": ">=5",
+    "react-native-svg": ">=15"
+  }
+}

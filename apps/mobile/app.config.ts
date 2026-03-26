@@ -39,6 +39,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         ios: {
           useFrameworks: "static",
         },
+        android: {
+          extraMavenRepos: ["https://repository.map.naver.com/archive/maven"],
+        },
       },
     ],
     "./plugins/withFirebaseModularHeaders",
@@ -49,6 +52,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         imageWidth: 200,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
+      },
+    ],
+    [
+      "@mj-studio/react-native-naver-map",
+      {
+        client_id: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID ?? "",
       },
     ],
   ],

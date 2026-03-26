@@ -8,6 +8,7 @@
   "version": "1.0.0",
   "scripts": {
     "android": "cd apps/mobile && expo run:android",
-    "ios": "cd apps/mobile && expo run:ios"
+    "ios": "cd apps/mobile && expo run:ios",
+    "lint": "expo lint"
   }
 }

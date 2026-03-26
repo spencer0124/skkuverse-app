@@ -43,6 +43,8 @@ export { authStore, useAuthStore } from './store/auth';
 export type { AuthState, AuthStore } from './store/auth';
 export { useSettingsStore } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage } from './store/settings';
+export { useMapLayerStore } from './store/map';
+export type { MapLayerStore } from './store/map';
 
 // ── SDUI types ──
 export type {
@@ -87,6 +89,34 @@ export type {
 } from './types/bus';
 export { hexToColor, isBusGroupVisible } from './types/bus';
 
+// ── Map types ──
+export type {
+  NaverConfig,
+  CampusDef,
+  MapLayerStyle,
+  MapLayerDef,
+  MapConfig,
+  RawMarkerData,
+  PolylineCoord,
+} from './types/map';
+
+// ── Building types ──
+export type {
+  LocalizedText,
+  BuildingImage,
+  Accessibility,
+  Building,
+  FloorSpace,
+  FloorInfo,
+  BuildingConnection,
+  BuildingDetail,
+  SearchSpaceItem,
+  SpaceGroup,
+  BuildingSearchResult,
+  BuildingNavPayload,
+} from './types/building';
+export { getLocalizedText } from './types/building';
+
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
 
@@ -98,6 +128,21 @@ export {
   parseSmartSchedule,
   parseCampusEta,
 } from './bus';
+
+// ── Map parsers + defaults ──
+export {
+  parseMapConfig,
+  parseMarkerData,
+  parsePolylineData,
+  DEFAULT_MAP_CONFIG,
+} from './map';
+
+// ── Building parsers ──
+export {
+  parseBuildingList,
+  parseBuildingDetail,
+  parseBuildingSearchResult,
+} from './building';
 
 // ── Hooks ──
 export {
@@ -116,4 +161,14 @@ export {
   useMainNotice,
   MAIN_NOTICE_KEY,
   type NoticePlacement,
+  useMapConfig,
+  MAP_CONFIG_KEY,
+  useBuildings,
+  BUILDINGS_KEY,
+  useBuildingDetail,
+  BUILDING_DETAIL_KEY,
+  useLayerMarkers,
+  useLayerPolyline,
+  useSearchBuildings,
+  BUILDING_SEARCH_KEY,
 } from './hooks';

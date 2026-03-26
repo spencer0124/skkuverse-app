@@ -1,55 +1,53 @@
 /**
- * Campus tab — server-driven UI rendered from SDUI sections.
+ * Campus tab — Naver Map + snapping bottom sheet with SDUI content.
  *
- * Fetches sections from `GET /ui/home/campus` via `useCampusSections()`.
- * Falls back to default buttons on API failure. Pull-to-refresh supported.
- * Map overlay will be added in Phase 6.6.
+ * Phase 6: Replaced fullscreen SDUI ScrollView with map composition.
+ * The CampusScreen component handles all map/sheet/search integration.
  *
- * Flutter source: lib/features/campus_map/ui/snappingsheet/option_campus.dart
+ * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
 
-import { useCallback } from 'react';
-import { ScrollView, RefreshControl, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCampusSections, SdsColors } from '@skkuuniverse/shared';
-import { SduiSectionList } from '@/sdui/renderer';
-import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
+import { CampusScreen } from '@/features/map/CampusScreen';
+import { Pressable, Text, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 
-export default function CampusScreen() {
-  const insets = useSafeAreaInsets();
-  const { data, isLoading, isFetching, refresh } = useCampusSections();
-
-  const onRefresh = useCallback(() => {
-    refresh();
-  }, [refresh]);
-
-  if (isLoading) {
-    return <CampusSkeleton />;
-  }
-
+export default function CampusTab() {
+  const router = useRouter();
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={isFetching}
-          onRefresh={onRefresh}
-          tintColor={SdsColors.grey400}
-        />
-      }
-    >
-      {data && <SduiSectionList sections={data.sections} />}
-    </ScrollView>
+    <>
+      <CampusScreen />
+      {__DEV__ && (
+        <Pressable
+          style={styles.devFab}
+          onPress={() => router.push('/sds-preview')}
+        >
+          <Text style={styles.devFabText}>SDS</Text>
+        </Pressable>
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: SdsColors.background,
+  devFab: {
+    position: 'absolute',
+    bottom: 120,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
-  content: {
-    paddingBottom: 32,
+  devFabText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
