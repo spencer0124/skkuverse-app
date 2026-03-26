@@ -10,6 +10,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkubus",
   userInterfaceStyle: "light",
   newArchEnabled: true,
+  extra: {
+    baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
+    env: process.env.EXPO_PUBLIC_ENV,
+  },
   ios: {
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: false,
