@@ -28,10 +28,7 @@ export function useCampusEta(enabled = true) {
         return result.data;
       }
 
-      if (__DEV__) {
-        console.debug('[bus] Campus ETA failed:', result.failure);
-      }
-      return { inja: null, jain: null };
+      throw result.failure;
     },
     enabled,
     staleTime: 60_000,

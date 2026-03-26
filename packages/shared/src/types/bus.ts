@@ -76,6 +76,7 @@ export interface RealtimeScreenConfig {
   /** Index of last station for positioning calc (default: 10) */
   lastStationIndex: number;
   stations: RealtimeStation[];
+  features: Record<string, unknown>[];
 }
 
 // ── Schedule screen config ──
@@ -173,7 +174,8 @@ export interface ScheduleEntry {
 
 export interface DaySchedule {
   date: string;
-  dayOfWeek: string;
+  /** 1=Mon through 7=Sun (matches Flutter's int dayOfWeek) */
+  dayOfWeek: number;
   /** 'schedule' | 'noService' | 'hidden' */
   display: string;
   label?: string;
@@ -206,12 +208,16 @@ export interface CampusEta {
 /**
  * Normalizes hex color to `#RRGGBB` format.
  * If input already starts with `#`, returns as-is.
+ * Validates hex format — returns fallback for malformed strings.
  * @param hex - Color string, e.g. "1A7F4B" or "#1A7F4B"
- * @param fallback - Fallback color if hex is empty/undefined
+ * @param fallback - Fallback color if hex is empty/undefined/invalid (default: brand green)
  */
-export function hexToColor(hex: string | undefined, fallback = '#000000'): string {
+export function hexToColor(hex: string | undefined, fallback = '#1A7F4B'): string {
   if (!hex) return fallback;
-  return hex.startsWith('#') ? hex : `#${hex}`;
+  const normalized = hex.startsWith('#') ? hex : `#${hex}`;
+  // Validate hex format: #RGB, #RRGGBB, or #RRGGBBAA
+  if (!/^#[\dA-Fa-f]{3,8}$/.test(normalized)) return fallback;
+  return normalized;
 }
 
 /**

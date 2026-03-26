@@ -12,14 +12,16 @@ import { useCallback } from 'react';
 import { ScrollView, RefreshControl, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useTransitList, SdsColors } from '@skkuuniverse/shared';
+import { useTransitList, useMainNotice, SdsColors } from '@skkuuniverse/shared';
 import { BusListItemRow } from '@/features/bus/BusListItemRow';
+import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
 
 export default function TransitScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, isLoading, isFetching, refresh } = useTransitList();
+  const { data: notice } = useMainNotice();
 
   const onRefresh = useCallback(() => {
     refresh();
@@ -45,6 +47,8 @@ export default function TransitScreen() {
         />
       }
     >
+      {notice && <NoticeBanner notice={notice} />}
+
       {data?.map((item) => (
         <BusListItemRow
           key={item.groupId}

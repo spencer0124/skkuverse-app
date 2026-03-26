@@ -1,20 +1,23 @@
 /**
- * Notice bar — info (blue) or warning (yellow) strip with text.
+ * Notice bar — info (blue) or warning (orange) strip with text.
  *
- * Flutter source: bus_campus_screen.dart (notice banner)
+ * Flutter source: bus_campus_screen.dart (notice banner, lines 426-468)
+ *
+ * Key difference from Flutter: text color matches icon color (not grey).
  */
 
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, SdsRadius, type ScheduleNotice } from '@skkuuniverse/shared';
+import { SdsTypo, SdsRadius, type ScheduleNotice } from '@skkuuniverse/shared';
 
 interface NoticeBarProps {
   notice: ScheduleNotice;
 }
 
-const STYLE_CONFIG: Record<string, { bg: string; icon: string; iconColor: string }> = {
-  info: { bg: SdsColors.blue50, icon: 'info-outline', iconColor: SdsColors.blue500 },
-  warning: { bg: SdsColors.yellow50, icon: 'warning-amber', iconColor: SdsColors.orange500 },
+/** Flutter notice style configs (exact hex values from bus_campus_screen.dart) */
+const STYLE_CONFIG: Record<string, { bg: string; icon: string; color: string }> = {
+  warning: { bg: '#FFF3E0', icon: 'warning-amber', color: '#E65100' },
+  info: { bg: '#E3F2FD', icon: 'info-outline', color: '#1565C0' },
 };
 
 export function NoticeBar({ notice }: NoticeBarProps) {
@@ -25,9 +28,9 @@ export function NoticeBar({ notice }: NoticeBarProps) {
       <MaterialIcons
         name={config.icon as keyof typeof MaterialIcons.glyphMap}
         size={16}
-        color={config.iconColor}
+        color={config.color}
       />
-      <Text style={styles.text}>{notice.text}</Text>
+      <Text style={[styles.text, { color: config.color }]}>{notice.text}</Text>
     </View>
   );
 }
@@ -39,7 +42,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 20,
     marginTop: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: SdsRadius.sm,
   },
@@ -47,6 +50,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: SdsTypo.t7.fontSize,
     lineHeight: SdsTypo.t7.lineHeight,
-    color: SdsColors.grey700,
+    fontWeight: '500',
   },
 });

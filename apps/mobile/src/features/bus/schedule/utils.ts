@@ -1,10 +1,10 @@
 /**
  * Schedule utility functions.
  *
- * Flutter source: lib/features/transit/widgets/ (various schedule widgets)
+ * Flutter source: lib/features/transit/controller/bus_campus_controller.dart
  */
 
-import type { ScheduleEntry } from '@skkuuniverse/shared';
+import type { ScheduleEntry, RouteBadge, SmartSchedule, StationEta } from '@skkuuniverse/shared';
 
 /**
  * Finds the next departure from schedule entries.
@@ -44,7 +44,7 @@ export function isPastBus(entry: ScheduleEntry, isToday: boolean): boolean {
   const [h, m] = entry.time.split(':').map(Number);
   const entryMinutes = h * 60 + m;
 
-  return entryMinutes < nowMinutes;
+  return entryMinutes <= nowMinutes;
 }
 
 /**
@@ -78,4 +78,55 @@ export function hasMultipleRouteTypes(entries: ScheduleEntry[]): boolean {
   if (entries.length === 0) return false;
   const types = new Set(entries.map((e) => e.routeType));
   return types.size > 1;
+}
+
+/**
+ * Gets the initial day index from the server's selectedDate.
+ * Flutter source: SmartSchedule.selectedDayIndex getter
+ */
+export function getSelectedDayIndex(schedule: SmartSchedule): number {
+  if (!schedule.selectedDate || schedule.days.length === 0) return 0;
+  const idx = schedule.days.findIndex((d) => d.date === schedule.selectedDate);
+  return idx >= 0 ? idx : 0;
+}
+
+/**
+ * Finds a route badge by routeType, with grey fallback for unknown types.
+ * Flutter source: bus_campus_controller.dart (getRouteBadge)
+ */
+export function getRouteBadge(
+  badges: RouteBadge[],
+  routeType: string,
+): RouteBadge {
+  return (
+    badges.find((b) => b.id === routeType) ?? {
+      id: routeType,
+      label: routeType,
+      color: '9E9E9E',
+    }
+  );
+}
+
+/**
+ * Formats milliseconds duration as Korean time string.
+ * Flutter source: bus_campus_controller.dart (formatDuration)
+ */
+export function formatDuration(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `${minutes}분`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (remaining === 0) return `${hours}시간`;
+  return `${hours}시간 ${remaining}분`;
+}
+
+/**
+ * Looks up ETA string for a station index from stationEtas.
+ * Flutter source: bus_realtime_controller.dart (etaForStation)
+ */
+export function etaForStation(
+  stationEtas: StationEta[],
+  stationIndex: number,
+): string | undefined {
+  return stationEtas.find((e) => e.stationIndex === stationIndex)?.eta;
 }

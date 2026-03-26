@@ -1,14 +1,34 @@
 /**
  * Day selector — row of date chips for switching schedule days.
  *
- * Selected day: brand color background. Today: dot indicator.
- * Hidden days: disabled/greyed out.
+ * Flutter source: bus_campus_screen.dart (day selector, lines 299-422)
  *
- * Flutter source: bus_campus_screen.dart (day selector)
+ * Key behaviors:
+ * - If ANY day has a label, ALL chips reserve label space (transparent text)
+ * - Hidden days: opacity 0.5, disabled
+ * - Today indicator: 4x4 dot below date (only when not selected)
+ * - Date format: "M/D" (not zero-padded)
  */
 
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SdsColors, SdsRadius, type DaySchedule } from '@skkuuniverse/shared';
+import { SdsColors, type DaySchedule } from '@skkuuniverse/shared';
+
+/** 1=Mon through 7=Sun → Korean day name */
+const DAY_NAMES: Record<number, string> = {
+  1: '월',
+  2: '화',
+  3: '수',
+  4: '목',
+  5: '금',
+  6: '토',
+  7: '일',
+};
+
+/** Flutter color constants */
+const HERO_GREEN = '#1A7F4B';
+const GREY = '#9EA4AA';
+const GREY_LIGHT = '#C9CDD2';
+const GREY_BG = '#F5F6F8';
 
 interface DaySelectorProps {
   days: DaySchedule[];
@@ -17,12 +37,21 @@ interface DaySelectorProps {
   todayDate?: string;
 }
 
+/** Format "YYYY-MM-DD" → "M/D" (no zero-pad, matching Flutter) */
+function formatShortDate(dateStr: string): string {
+  const [, m, d] = dateStr.split('-');
+  return `${Number(m)}/${Number(d)}`;
+}
+
 export function DaySelector({
   days,
   selectedIndex,
   onSelect,
   todayDate,
 }: DaySelectorProps) {
+  // If any day has a label, all chips reserve label space
+  const hasAnyLabel = days.some((d) => d.label != null);
+
   return (
     <ScrollView
       horizontal
@@ -35,40 +64,78 @@ export function DaySelector({
         const isHidden = day.display === 'hidden';
         const isNoService = day.display === 'noService';
 
+        // Chip background
+        const chipBg = isSelected
+          ? isNoService
+            ? GREY_LIGHT
+            : HERO_GREEN
+          : GREY_BG;
+
+        // Text color logic (Flutter lines 350-370)
+        const chipTextColor = isHidden
+          ? GREY_LIGHT + '80' // alpha 0.5
+          : isSelected
+            ? SdsColors.background
+            : isNoService
+              ? GREY_LIGHT
+              : isToday
+                ? HERO_GREEN
+                : GREY;
+
+        const dateTextColor = isHidden
+          ? GREY_LIGHT + '80'
+          : isSelected
+            ? SdsColors.background
+            : isNoService
+              ? GREY_LIGHT
+              : isToday
+                ? HERO_GREEN
+                : GREY;
+
+        const fontWeight = isSelected || isToday ? '700' : '400';
+
         return (
           <Pressable
             key={day.date}
             style={[
               styles.chip,
-              isSelected && (isNoService ? styles.chipSelectedNoService : styles.chipSelected),
-              isHidden && styles.chipDisabled,
+              { backgroundColor: chipBg },
+              isHidden && styles.chipHidden,
             ]}
             onPress={() => !isHidden && onSelect(index)}
             disabled={isHidden}
           >
-            <Text
-              style={[
-                styles.dayOfWeek,
-                isNoService && !isSelected && styles.textNoService,
-                isSelected && styles.textSelected,
-                isHidden && styles.textDisabled,
-                isToday && !isSelected && !isNoService && styles.textToday,
-              ]}
-            >
-              {day.dayOfWeek}
+            {/* Date: "M/D" */}
+            <Text style={[styles.dateText, { color: dateTextColor, fontWeight: fontWeight as '400' | '700' }]}>
+              {formatShortDate(day.date)}
             </Text>
-            <Text
-              style={[
-                styles.dateText,
-                isNoService && !isSelected && styles.textNoService,
-                isSelected && styles.textSelected,
-                isHidden && styles.textDisabled,
-                isToday && !isSelected && !isNoService && styles.textToday,
-              ]}
-            >
-              {day.date.slice(8)} {/* DD from YYYY-MM-DD */}
+
+            {/* Day name: "월", "화", ... */}
+            <Text style={[styles.dayOfWeek, { color: chipTextColor, fontWeight: fontWeight as '400' | '700' }]}>
+              {DAY_NAMES[day.dayOfWeek] ?? String(day.dayOfWeek)}
             </Text>
-            {isToday && <View style={[styles.todayDot, isSelected && styles.todayDotSelected]} />}
+
+            {/* Today indicator dot (only when not selected) */}
+            {isToday && !isSelected && <View style={styles.todayDot} />}
+
+            {/* Label line — reserve space if any day has label */}
+            {hasAnyLabel && (
+              <Text
+                style={[
+                  styles.labelText,
+                  {
+                    color: day.label != null
+                      ? isSelected
+                        ? 'rgba(255,255,255,0.7)'
+                        : GREY
+                      : 'transparent',
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {day.label ?? ''}
+              </Text>
+            )}
           </Pressable>
         );
       })}
@@ -79,56 +146,41 @@ export function DaySelector({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 6,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 12,
+    gap: 4,
   },
   chip: {
-    minWidth: 44,
+    flex: 1,
+    paddingVertical: 10,
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: SdsRadius.sm,
+    marginHorizontal: 2,
+    borderRadius: 10,
     alignItems: 'center',
     gap: 2,
   },
-  chipSelected: {
-    backgroundColor: SdsColors.brand,
-  },
-  chipSelectedNoService: {
-    backgroundColor: SdsColors.grey300,
-  },
-  chipDisabled: {
-    opacity: 0.3,
-  },
-  dayOfWeek: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: SdsColors.grey600,
+  chipHidden: {
+    opacity: 0.5,
   },
   dateText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
-    color: SdsColors.grey900,
   },
-  textSelected: {
-    color: SdsColors.background,
-  },
-  textNoService: {
-    color: SdsColors.grey300,
-  },
-  textToday: {
-    color: SdsColors.brand,
-  },
-  textDisabled: {
-    color: SdsColors.grey400,
+  dayOfWeek: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   todayDot: {
+    position: 'absolute',
+    bottom: -4,
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: SdsColors.brand,
+    backgroundColor: HERO_GREEN,
   },
-  todayDotSelected: {
-    backgroundColor: SdsColors.background,
+  labelText: {
+    fontSize: 8,
+    maxWidth: '100%',
   },
 });

@@ -30,10 +30,7 @@ export function useTransitList() {
         return result.data;
       }
 
-      if (__DEV__) {
-        console.debug('[transit] API failed, using empty list:', result.failure);
-      }
-      return [];
+      throw result.failure;
     },
     staleTime: 60_000,
   });

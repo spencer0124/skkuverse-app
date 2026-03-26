@@ -1,4 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
+import type { AppStateStatus } from 'react-native';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 /**
@@ -10,6 +13,9 @@ import type { ReactNode } from 'react';
  *
  * gcTime: 5 min — garbage-collect inactive queries after 5 minutes.
  * retry: 1 — one retry (network layer already has axios-retry for transient errors).
+ *
+ * AppState integration: wires React Native AppState to TanStack's focusManager
+ * so that queries refetch on app resume — replaces Flutter's WidgetsBindingObserver.
  */
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +28,16 @@ const queryClient = new QueryClient({
   },
 });
 
+function onAppStateChange(status: AppStateStatus) {
+  focusManager.setFocused(status === 'active');
+}
+
 export function QueryProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );

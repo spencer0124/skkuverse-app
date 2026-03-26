@@ -11,9 +11,9 @@
  * Flutter source: lib/features/transit/ui/bus_realtime_screen.dart
  */
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   useBusConfig,
   useRealtimeData,
@@ -27,8 +27,15 @@ import { BusMarker } from '@/features/bus/realtime/BusMarker';
 import { RefreshFab } from '@/features/bus/realtime/RefreshFab';
 import { RealtimeSkeleton } from '@/features/bus/realtime/RealtimeSkeleton';
 
+/** Extract info feature URL from config features array */
+function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
+  const info = features.find((f) => f.type === 'info');
+  return info?.url as string | undefined;
+}
+
 export default function RealtimeScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const router = useRouter();
   const { data: config, isLoading: configLoading } = useBusConfig(groupId);
 
   // Only fetch realtime data when config is loaded and is realtime type
@@ -55,6 +62,21 @@ export default function RealtimeScreen() {
     ? hexToColor(config.card.themeColor, SdsColors.brand)
     : SdsColors.brand;
 
+  // Info button — opens webview with feature info URL
+  const infoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+
+  const handleInfoPress = useCallback(() => {
+    if (!infoUrl || !config) return;
+    router.push({
+      pathname: '/webview',
+      params: {
+        title: config.label,
+        color: config.card.themeColor,
+        url: infoUrl,
+      },
+    } as never);
+  }, [infoUrl, config, router]);
+
   if (configLoading || !config) {
     return (
       <View style={styles.container}>
@@ -66,7 +88,7 @@ export default function RealtimeScreen() {
 
   return (
     <View style={styles.container}>
-      <NavigationBar title={config.label} />
+      <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
 
       {realtimeData?.meta && (
         <TopInfoBar

@@ -124,6 +124,7 @@ function parseRealtimeScreenConfig(raw: Raw): RealtimeScreenConfig {
     refreshInterval: (raw.refreshInterval as number) ?? 15,
     lastStationIndex: (raw.lastStationIndex as number) ?? 10,
     stations: ((raw.stations as Raw[]) ?? []).map(parseRealtimeStation),
+    features: (raw.features as Record<string, unknown>[]) ?? [],
   };
 }
 
@@ -254,7 +255,7 @@ function parseScheduleEntry(raw: Raw): ScheduleEntry {
 function parseDaySchedule(raw: Raw): DaySchedule {
   return {
     date: raw.date as string,
-    dayOfWeek: raw.dayOfWeek as string,
+    dayOfWeek: raw.dayOfWeek as number,
     display: raw.display as string,
     ...(raw.label != null && { label: raw.label as string }),
     notices: ((raw.notices as Raw[]) ?? []).map(parseScheduleNotice),

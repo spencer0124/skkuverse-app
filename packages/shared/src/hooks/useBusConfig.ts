@@ -16,7 +16,7 @@ import type { BusGroup } from '../types/bus';
 export const BUS_CONFIG_KEY = ['bus', 'config'] as const;
 
 export function useBusConfig(groupId: string | undefined) {
-  return useQuery<BusGroup | undefined>({
+  return useQuery<BusGroup>({
     queryKey: [...BUS_CONFIG_KEY, groupId],
     queryFn: async () => {
       const result = await safeGet(
@@ -28,10 +28,7 @@ export function useBusConfig(groupId: string | undefined) {
         return result.data;
       }
 
-      if (__DEV__) {
-        console.debug('[bus] Config fetch failed:', result.failure);
-      }
-      return undefined;
+      throw result.failure;
     },
     enabled: !!groupId,
     staleTime: 5 * 60_000,

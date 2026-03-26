@@ -15,7 +15,7 @@ import type { SmartSchedule } from '../types/bus';
 export const SMART_SCHEDULE_KEY = ['bus', 'schedule'] as const;
 
 export function useSmartSchedule(endpoint: string | undefined) {
-  return useQuery<SmartSchedule | null>({
+  return useQuery<SmartSchedule>({
     queryKey: [...SMART_SCHEDULE_KEY, endpoint],
     queryFn: async () => {
       const result = await safeGet(endpoint!, parseSmartSchedule);
@@ -24,10 +24,7 @@ export function useSmartSchedule(endpoint: string | undefined) {
         return result.data;
       }
 
-      if (__DEV__) {
-        console.debug('[bus] Schedule fetch failed:', result.failure);
-      }
-      return null;
+      throw result.failure;
     },
     enabled: !!endpoint,
     staleTime: 30_000,

@@ -1,5 +1,8 @@
 /**
- * Hero card — next departure with ETA and route badge.
+ * Hero card — next departure with ETA, bus count column, and badge row.
+ *
+ * Layout matches Flutter: large time (52px) + separate "운영대수" column,
+ * badges in a Wrap (ETA, route, notes), decorative circles.
  *
  * Flutter source: bus_campus_screen.dart (hero card widget)
  */
@@ -7,27 +10,26 @@
 import { View, Text, StyleSheet } from 'react-native';
 import {
   SdsColors,
-  SdsTypo,
   SdsRadius,
   type ScheduleEntry,
   type RouteBadge,
-  hexToColor,
 } from '@skkuuniverse/shared';
 import { formatETA, getMinutesUntil } from './utils';
 
 /** Grey for ended, blue-grey for future days, brand green for today */
 const HERO_COLOR_TODAY = SdsColors.brand;
 const HERO_COLOR_FUTURE = '#8A9AA0';
-const HERO_COLOR_ENDED = SdsColors.grey500;
+const HERO_COLOR_ENDED = '#9EA4AA';
 
 interface HeroCardProps {
   entry?: ScheduleEntry;
   routeBadges: RouteBadge[];
   showBadge: boolean;
   isToday: boolean;
+  serviceLabel?: string;
 }
 
-export function HeroCard({ entry, routeBadges, showBadge, isToday }: HeroCardProps) {
+export function HeroCard({ entry, routeBadges, showBadge, isToday, serviceLabel }: HeroCardProps) {
   const hasNextBus = entry != null;
 
   const cardColor = !hasNextBus
@@ -37,16 +39,21 @@ export function HeroCard({ entry, routeBadges, showBadge, isToday }: HeroCardPro
       : HERO_COLOR_FUTURE;
 
   const heroLabel = isToday ? '다음 셔틀' : '첫 운행';
+  const fullLabel = serviceLabel ? `${heroLabel} · ${serviceLabel}` : heroLabel;
 
   return (
     <View style={[styles.container, { backgroundColor: cardColor }]}>
+      {/* Decorative circles */}
+      <View style={styles.circleTop} />
+      <View style={styles.circleBottom} />
+
       {hasNextBus ? (
         <HeroContent
           entry={entry}
           routeBadges={routeBadges}
           showBadge={showBadge}
           isToday={isToday}
-          label={heroLabel}
+          label={fullLabel}
         />
       ) : (
         <HeroEnded />
@@ -73,28 +80,36 @@ function HeroContent({
 
   return (
     <>
+      {/* Top label */}
       <Text style={styles.heroLabel}>{label}</Text>
-      <View style={styles.row}>
+
+      {/* Main row: time + bus count column */}
+      <View style={styles.mainRow}>
         <Text style={styles.timeText}>{entry.time}</Text>
-        {entry.busCount > 1 && (
-          <Text style={styles.countText}>{entry.busCount}대</Text>
+        <View style={styles.countColumn}>
+          <Text style={styles.countLabel}>운영대수</Text>
+          <Text style={styles.countValue}>{entry.busCount}대</Text>
+        </View>
+      </View>
+
+      {/* Badge row: ETA, route badge, notes */}
+      <View style={styles.badgeWrap}>
+        {isToday && minutes != null && (
+          <View style={styles.heroBadge}>
+            <Text style={styles.heroBadgeText}>{formatETA(minutes)} 출발</Text>
+          </View>
         )}
         {showBadge && badge && (
-          <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Text style={styles.badgeText}>{badge.label}</Text>
+          <View style={[styles.heroBadge, styles.heroBadgeLight]}>
+            <Text style={styles.heroBadgeText}>{badge.label}</Text>
+          </View>
+        )}
+        {entry.notes != null && entry.notes.length > 0 && (
+          <View style={[styles.heroBadge, styles.heroBadgeLight]}>
+            <Text style={styles.heroBadgeText}>{entry.notes}</Text>
           </View>
         )}
       </View>
-      {isToday && minutes != null && (
-        <View style={styles.etaRow}>
-          <View style={styles.etaBadge}>
-            <Text style={styles.etaText}>{formatETA(minutes)}</Text>
-          </View>
-        </View>
-      )}
-      {entry.notes != null && (
-        <Text style={styles.notes}>{entry.notes}</Text>
-      )}
     </>
   );
 }
@@ -102,7 +117,7 @@ function HeroContent({
 function HeroEnded() {
   return (
     <>
-      <Text style={styles.heroLabel}>오늘의 운행</Text>
+      <Text style={styles.heroLabel}>다음 셔틀</Text>
       <Text style={styles.endedText}>운행 종료</Text>
     </>
   );
@@ -119,61 +134,85 @@ const styles = StyleSheet.create({
     minHeight: 120,
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+  },
+  /* Decorative circles — positioned absolutely, semi-transparent white */
+  circleTop: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  circleBottom: {
+    position: 'absolute',
+    bottom: -20,
+    right: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   heroLabel: {
-    fontSize: SdsTypo.sub12.fontSize,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.75)',
   },
-  row: {
+  /* Main content row: time + count column */
+  mainRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
   timeText: {
-    fontSize: SdsTypo.t2.fontSize,
-    lineHeight: SdsTypo.t2.lineHeight,
-    fontWeight: '700',
+    fontSize: 52,
+    fontWeight: '800',
+    letterSpacing: -1.5,
+    lineHeight: 52,
     color: SdsColors.background,
   },
-  countText: {
-    fontSize: SdsTypo.t6.fontSize,
-    lineHeight: SdsTypo.t6.lineHeight,
-    color: 'rgba(255,255,255,0.7)',
+  countColumn: {
+    alignItems: 'flex-end',
+    gap: 2,
   },
-  badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  badgeText: {
+  countLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
+  },
+  countValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 28,
     color: SdsColors.background,
   },
-  etaRow: {
+  /* Badge row (Wrap) */
+  badgeWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
   },
-  etaBadge: {
+  heroBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: SdsRadius.xs,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
-  etaText: {
-    fontSize: SdsTypo.sub12.fontSize,
-    fontWeight: '700',
+  heroBadgeLight: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: SdsColors.background,
   },
-  notes: {
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
-    color: 'rgba(255,255,255,0.7)',
-  },
   endedText: {
-    fontSize: SdsTypo.t2.fontSize,
-    lineHeight: SdsTypo.t2.lineHeight,
-    fontWeight: '700',
+    fontSize: 52,
+    fontWeight: '800',
+    letterSpacing: -1.5,
+    lineHeight: 52,
     color: SdsColors.background,
   },
 });

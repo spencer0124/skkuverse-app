@@ -11,9 +11,9 @@
  * Flutter source: lib/features/transit/ui/bus_campus_screen.dart
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   useBusConfig,
   useSmartSchedule,
@@ -31,13 +31,34 @@ import { ScheduleSkeleton } from '@/features/bus/schedule/ScheduleSkeleton';
 import { useMinuteTicker } from '@/features/bus/hooks/useMinuteTicker';
 import { getHeroBus, hasMultipleRouteTypes } from '@/features/bus/schedule/utils';
 
+/** Extract info feature URL from config features array */
+function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
+  const info = features.find((f) => f.type === 'info');
+  return info?.url as string | undefined;
+}
+
 export default function ScheduleScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
+  const router = useRouter();
   const { data: config, isLoading: configLoading } = useBusConfig(groupId);
 
   // Extract schedule config
   const isSchedule = config?.screenType === 'schedule';
   const screenConfig = isSchedule ? config.screen : undefined;
+
+  // Info button — opens webview with feature info URL
+  const infoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+  const handleInfoPress = useCallback(() => {
+    if (!infoUrl || !config) return;
+    router.push({
+      pathname: '/webview',
+      params: {
+        title: config.label,
+        color: config.card.themeColor,
+        url: infoUrl,
+      },
+    } as never);
+  }, [infoUrl, config, router]);
 
   // Service tab state — default to config's defaultServiceId
   const defaultIndex = useMemo(() => {
@@ -52,13 +73,13 @@ export default function ScheduleScreen() {
   const currentService = screenConfig?.services[selectedServiceIndex];
 
   // Smart schedule data
-  const { data: schedule } = useSmartSchedule(currentService?.endpoint);
+  const { data: schedule, isError: scheduleError, refetch: refetchSchedule } = useSmartSchedule(currentService?.endpoint);
 
   // Campus ETA (conditional — only if heroCard exists)
   useCampusEta(!!screenConfig?.heroCard);
 
   // Minute ticker for live ETA updates
-  useMinuteTicker();
+  const tick = useMinuteTicker();
 
   // Day selector state — default to server's selectedDate, fallback to 0
   const initialDayIndex = useMemo(() => {
@@ -85,7 +106,8 @@ export default function ScheduleScreen() {
       isToday,
       screenConfig?.heroCard?.showUntilMinutesBefore ?? 0,
     );
-  }, [selectedDay, isToday, screenConfig?.heroCard?.showUntilMinutesBefore]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tick forces re-computation every minute
+  }, [selectedDay, isToday, screenConfig?.heroCard?.showUntilMinutesBefore, tick]);
 
   // Loading state
   if (configLoading || !config) {
@@ -99,9 +121,9 @@ export default function ScheduleScreen() {
 
   return (
     <View style={styles.container}>
-      <NavigationBar title={config.label} />
+      <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} bounces={false}>
         {/* Service tabs */}
         {screenConfig && (
           <ServiceTabs
@@ -112,7 +134,9 @@ export default function ScheduleScreen() {
         )}
 
         {/* Schedule content based on status */}
-        {!schedule ? (
+        {scheduleError && !schedule ? (
+          <ErrorCard onRetry={() => refetchSchedule()} />
+        ) : !schedule ? (
           <ScheduleSkeleton />
         ) : schedule.status === 'suspended' ? (
           <SuspendedCard resumeDate={schedule.resumeDate} message={schedule.message} />
@@ -145,6 +169,7 @@ export default function ScheduleScreen() {
                     routeBadges={screenConfig.routeBadges}
                     showBadge={hasMultipleRouteTypes(selectedDay.schedule)}
                     isToday={isToday}
+                    serviceLabel={currentService?.label}
                   />
                 )}
 
@@ -159,7 +184,7 @@ export default function ScheduleScreen() {
             ) : null}
           </>
         ) : (
-          <ErrorCard />
+          <ErrorCard onRetry={() => refetchSchedule()} />
         )}
       </ScrollView>
     </View>

@@ -1,13 +1,14 @@
 /**
- * Schedule list — timetable with timeline dots.
+ * Schedule list — timetable with column header, timeline dots, and row separators.
  *
  * Renders ScheduleRow for each entry, highlighting the next departure.
+ * Wrapped in a white rounded card with header and footer.
  *
  * Flutter source: bus_campus_screen.dart (schedule list)
  */
 
-import { View, StyleSheet } from 'react-native';
-import type { ScheduleEntry, RouteBadge } from '@skkuuniverse/shared';
+import { View, Text, StyleSheet } from 'react-native';
+import { SdsColors, SdsTypo, type ScheduleEntry, type RouteBadge } from '@skkuuniverse/shared';
 import { ScheduleRow } from './ScheduleRow';
 import { isPastBus, hasMultipleRouteTypes } from './utils';
 
@@ -27,24 +28,86 @@ export function ScheduleList({
   const showBadge = hasMultipleRouteTypes(entries);
 
   return (
-    <View style={styles.container}>
-      {entries.map((entry) => (
-        <ScheduleRow
-          key={entry.index}
-          entry={entry}
-          isPast={isPastBus(entry, isToday)}
-          isNext={entry.index === nextEntryIndex}
-          routeBadges={routeBadges}
-          showBadge={showBadge}
-        />
+    <View style={styles.card}>
+      {/* Column header — widths must match ScheduleRow columns */}
+      <View style={styles.header}>
+        <View style={styles.dotColumnHeader} />
+        <Text style={[styles.headerText, styles.headerTime]}>시간</Text>
+        <View style={styles.headerBadgeSlot} />
+        {showBadge && <Text style={styles.headerText}>노선</Text>}
+        <Text style={styles.headerText}>대수</Text>
+        <Text style={[styles.headerText, styles.headerNotes]}>특이사항</Text>
+      </View>
+
+      {/* Schedule rows */}
+      {entries.map((entry, index) => (
+        <View key={entry.index}>
+          <ScheduleRow
+            entry={entry}
+            isPast={isPastBus(entry, isToday)}
+            isNext={isToday && entry.index === nextEntryIndex}
+            isToday={isToday}
+            routeBadges={routeBadges}
+            showBadge={showBadge}
+          />
+          {/* Row separator (except last) */}
+          {index < entries.length - 1 && <View style={styles.separator} />}
+        </View>
       ))}
+
+      {/* Footer count */}
+      <Text style={styles.footer}>
+        시간표 · 총 {entries.length}편
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: 8,
-    paddingBottom: 32,
+  card: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    backgroundColor: SdsColors.background,
+    borderRadius: 16,
+    overflow: 'hidden',
+    paddingBottom: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: SdsColors.grey100,
+    gap: 10,
+  },
+  dotColumnHeader: {
+    width: 16,
+  },
+  headerTime: {
+    minWidth: 44,
+  },
+  headerBadgeSlot: {
+    width: 42,
+  },
+  headerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: SdsColors.grey400,
+  },
+  headerNotes: {
+    flex: 1,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#F5F6F8',
+    marginLeft: 20,
+  },
+  footer: {
+    textAlign: 'center',
+    paddingVertical: 12,
+    fontSize: SdsTypo.sub12.fontSize,
+    color: SdsColors.grey400,
   },
 });

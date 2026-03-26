@@ -19,7 +19,7 @@ export function useRealtimeData(
   dataEndpoint: string | undefined,
   refreshInterval = 15,
 ) {
-  return useQuery<RealtimeData | null>({
+  return useQuery<RealtimeData>({
     queryKey: [...REALTIME_DATA_KEY, dataEndpoint],
     queryFn: async () => {
       const result = await safeGet(dataEndpoint!, parseRealtimeData);
@@ -28,10 +28,7 @@ export function useRealtimeData(
         return result.data;
       }
 
-      if (__DEV__) {
-        console.debug('[bus] Realtime poll failed:', result.failure);
-      }
-      return null;
+      throw result.failure;
     },
     enabled: !!dataEndpoint,
     refetchInterval: refreshInterval * 1000,

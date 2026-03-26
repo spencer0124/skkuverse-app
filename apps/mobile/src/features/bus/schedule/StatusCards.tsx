@@ -9,9 +9,9 @@
  * Flutter source: bus_campus_screen.dart (status widgets)
  */
 
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsRadius } from '@skkuuniverse/shared';
 
 interface StatusCardProps {
   icon: string;
@@ -77,14 +77,27 @@ export function NoServiceCard({ label }: NoServiceCardProps) {
   );
 }
 
-export function ErrorCard() {
+interface ErrorCardProps {
+  onRetry?: () => void;
+}
+
+export function ErrorCard({ onRetry }: ErrorCardProps) {
   return (
-    <StatusCard
-      icon="error-outline"
-      iconColor={SdsColors.red500}
-      title="시간표를 불러올 수 없어요"
-      subtitle="잠시 후 다시 시도해주세요"
-    />
+    <View style={styles.container}>
+      <MaterialIcons
+        name="error-outline"
+        size={40}
+        color={SdsColors.grey400}
+      />
+      <Text style={styles.title}>데이터를 불러올 수 없어요</Text>
+      {onRetry ? (
+        <Pressable style={styles.retryButton} onPress={onRetry}>
+          <Text style={styles.retryText}>다시 시도</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.subtitle}>잠시 후 다시 시도해주세요</Text>
+      )}
+    </View>
   );
 }
 
@@ -111,5 +124,17 @@ const styles = StyleSheet.create({
     lineHeight: SdsTypo.t7.lineHeight,
     color: SdsColors.grey500,
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: SdsRadius.md,
+    backgroundColor: SdsColors.brand,
+  },
+  retryText: {
+    fontSize: SdsTypo.t7.fontSize,
+    fontWeight: '600',
+    color: SdsColors.background,
   },
 });

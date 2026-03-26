@@ -113,4 +113,7 @@ export {
   SMART_SCHEDULE_KEY,
   useCampusEta,
   CAMPUS_ETA_KEY,
+  useMainNotice,
+  MAIN_NOTICE_KEY,
+  type NoticePlacement,
 } from './hooks';
