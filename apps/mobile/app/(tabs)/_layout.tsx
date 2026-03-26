@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Text } from "react-native";
 
 export default function TabLayout() {
   return (
@@ -11,15 +12,6 @@ export default function TabLayout() {
           backgroundColor: "#FFFFFF",
           borderTopColor: "#E5E8EB",
           borderTopWidth: 0.5,
-          height: 52 + 34, // 52px content + safe area (estimated)
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "500",
-        },
-        tabBarIconStyle: {
-          marginBottom: -2,
         },
         headerShown: false,
       }}
@@ -28,12 +20,20 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "캠퍼스",
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialIcons
-              name={focused ? "map" : "map"}
-              size={22}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="map" size={22} color={color} />
+          ),
+          tabBarLabel: ({ focused, color }) => (
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: focused ? "500" : "400",
+                color,
+                lineHeight: 10,
+              }}
+            >
+              캠퍼스
+            </Text>
           ),
         }}
       />
@@ -41,12 +41,20 @@ export default function TabLayout() {
         name="transit"
         options={{
           title: "이동",
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialIcons
-              name={focused ? "near-me" : "near-me"}
-              size={22}
-              color={color}
-            />
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons name="near-me" size={22} color={color} />
+          ),
+          tabBarLabel: ({ focused, color }) => (
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: focused ? "500" : "400",
+                color,
+                lineHeight: 10,
+              }}
+            >
+              이동
+            </Text>
           ),
         }}
       />
