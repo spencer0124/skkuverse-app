@@ -107,7 +107,34 @@ packages/sds/                       # @skkuuniverse/sds
 │   │   ├── border/Border.tsx        # ✅ beautify→TS
 │   │   ├── switch/Switch.tsx        # ✅ beautify→TS
 │   │   ├── checkbox/Checkbox.tsx    # ✅ beautify→TS
-│   │   └── list-row/ListRow.tsx     # ✅ beautify→TS
+│   │   ├── list-row/ListRow.tsx     # ✅ beautify→TS
+│   │   ├── accordion-list/          # ✅ 재구현
+│   │   ├── text-button/TextButton.tsx    # ✅ Tier 2
+│   │   ├── icon-button/IconButton.tsx    # ✅ Tier 2
+│   │   ├── list-header/ListHeader.tsx    # ✅ Tier 2
+│   │   ├── list-footer/ListFooter.tsx    # ✅ Tier 2
+│   │   ├── skeleton/Skeleton.tsx         # ✅ Tier 2
+│   │   ├── loader/Loader.tsx             # ✅ Tier 2
+│   │   ├── progress-bar/ProgressBar.tsx  # ✅ Tier 2
+│   │   ├── search-field/SearchField.tsx  # ✅ Tier 2
+│   │   ├── text-field/TextField.tsx      # ✅ Tier 2
+│   │   ├── dialog/Dialog.tsx             # ✅ Tier 2
+│   │   ├── toast/Toast.tsx               # ✅ Tier 2
+│   │   ├── shadow/Shadow.tsx            # ✅ Tier 3
+│   │   ├── radio/Radio.tsx              # ✅ Tier 3
+│   │   ├── rating/Rating.tsx            # ✅ Tier 3
+│   │   ├── dropdown/Dropdown.tsx        # ✅ Tier 3
+│   │   ├── segmented-control/           # ✅ Tier 3
+│   │   ├── tab/Tab.tsx                  # ✅ Tier 3
+│   │   ├── numeric-spinner/             # ✅ Tier 3
+│   │   ├── stepper-row/StepperRow.tsx   # ✅ Tier 3
+│   │   ├── bottom-cta/BottomCTA.tsx     # ✅ Tier 3
+│   │   ├── fixed-bottom-cta/           # ✅ Tier 3
+│   │   ├── bottom-sheet/BottomSheet.tsx # ✅ Tier 3
+│   │   ├── navbar/Navbar.tsx            # ✅ Tier 3
+│   │   ├── gradient/Gradient.tsx        # ✅ Tier 3
+│   │   ├── error-page/ErrorPage.tsx    # ✅ Tier 4
+│   │   └── result/Result.tsx           # ✅ Tier 4
 │   └── utils/
 │       ├── useControlled.ts         # controlled/uncontrolled 패턴
 │       └── mergeRefs.ts            # 다중 ref 병합
@@ -115,7 +142,7 @@ packages/sds/                       # @skkuuniverse/sds
 └── tsconfig.json
 ```
 
-### Tier 1 — 완료 (7개 + Provider)
+### Tier 1 — 완료 (8개 + Provider)
 
 | 컴포넌트 | 전략 | 애니메이션 | 상태 |
 |----------|------|-----------|------|
@@ -127,60 +154,89 @@ packages/sds/                       # @skkuuniverse/sds
 | **Switch** | beautify→TS | knob spring + 배경색 transition | ✅ 완료 |
 | **Checkbox** | beautify→TS | wiggle + scale bounce | ✅ 완료 |
 | **ListRow** | beautify→TS | press underlay | ✅ 완료 |
+| **AccordionList** | 재구현 | expand/collapse height spring | ✅ 완료 |
+
+### Tier 2 — 완료 (11개)
+
+TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일치.
+
+| 컴포넌트 | 전략 | 핵심 기능 | 상태 |
+|----------|------|-----------|------|
+| **TextButton** | beautify→TS | variant(arrow/underline/clear), fontWeight 제한, GestureResponderEvent | ✅ 완료 |
+| **IconButton** | beautify→TS | variant default='clear'(TDS), scale spring, label a11y, useAdaptive | ✅ 완료 |
+| **ListHeader** | beautify→TS | TitleParagraph, RightText, **RightArrow**, DescriptionParagraph, titleViewStyle/rightViewStyle | ✅ 완료 |
+| **ListFooter** | beautify→TS | Title(blue500/medium), Right, borderType(full/none) | ✅ 완료 |
+| **Skeleton** | beautify→TS | Animate(shimmer context), borderRadius default=6(TDS) | ✅ 완료 |
+| **Loader** | beautify→TS | size default='large'(TDS), customStrokeColor/customSize/style, Delay/Centered/FullScreen | ✅ 완료 |
+| **ProgressBar** | beautify→TS | withAnimation default=false(TDS), onLayout 기반 pixel 애니메이션 | ✅ 완료 |
+| **SearchField** | .d.ts 재구현 | hasClearButton default=false(TDS), useControlled | ✅ 완료 |
+| **TextField** | .d.ts 재구현 | labelOption(appear/sustain), floating label, box/line, Clearable compound | ✅ 완료 |
+| **Dialog** | .d.ts 재구현 | Alert/Confirm, title=ReactNode, closeOnDimmerClick, onEntered/onExited | ✅ 완료 |
+| **Toast** | .d.ts 재구현 | Icon(check/warning/error/info), Button, position(top/bottom), auto-dismiss | ✅ 완료 |
+
+**TDS 비교 검증에서 수정된 항목:**
+- IconButton: default variant `fill` → `clear` (TDS 일치)
+- ListHeader: `RightArrow` compound 추가, `RightText` color grey500 → `grey700`
+- Skeleton: borderRadius default 8 → 6
+- Loader: default size `medium` → `large`, `customStrokeColor`/`customSize`/`style` 추가
+- ProgressBar: withAnimation default `true` → `false`
+- SearchField: hasClearButton default `true` → `false`
+- TextField: `labelOption` prop 추가, line variant label left 16 → 0
+- Dialog: `closeOnDimmerClick`, `onEntered` 추가, `title` string → ReactNode
 
 **검증:**
-- TypeScript 컴파일: `npx tsc --noEmit` 통과
-- preview 화면: `apps/mobile/app/sds-preview.tsx`
+- TypeScript 컴파일: `npx tsc --noEmit` 통과 (SDS + mobile 모두 0 에러)
+- preview 화면: `apps/mobile/app/sds-preview.tsx` — 모든 상태 커버
 - SDSProvider: `apps/mobile/app/_layout.tsx`에 통합
 
 ---
 
 ## 로드맵
 
-### Tier 2 — 핵심 확장 (11개)
-
-가장 많이 쓸 컴포넌트. Dialog/Toast는 OverlayProvider와 연동 필요.
+### Tier 2 — ✅ 완료 (11개)
 
 | 컴포넌트 | 난독화 | 전략 | 난이도 | 용도 |
 |----------|--------|------|--------|------|
-| **Dialog** | 부분 | .d.ts 재구현 | 중 | Alert/Confirm 다이얼로그 |
-| **Toast** | 부분 | .d.ts 재구현 | 중 | 피드백 알림 |
-| **Skeleton** | readable | beautify→TS | 하 | 로딩 플레이스홀더 |
-| **Loader** | readable | beautify→TS | 하 | 로딩 스피너 |
-| **ProgressBar** | readable | beautify→TS | 하 | 진행률 바 |
-| **SearchField** | 부분 | .d.ts 재구현 | 중 | 검색 입력 |
-| **TextField** | XOR 암호화 | .d.ts 재구현 | 상 | 텍스트 입력 |
-| **TextButton** | readable | beautify→TS | 하 | 텍스트만 있는 버튼 |
-| **IconButton** | readable | beautify→TS | 하 | 아이콘 버튼 |
-| **ListHeader** | readable | beautify→TS | 하 | 리스트 섹션 헤더 |
-| **ListFooter** | readable | beautify→TS | 하 | 리스트 섹션 푸터 |
+| **Dialog** | 부분 | .d.ts 재구현 | 중 | ✅ Alert/Confirm 다이얼로그 |
+| **Toast** | 부분 | .d.ts 재구현 | 중 | ✅ 피드백 알림 |
+| **Skeleton** | readable | beautify→TS | 하 | ✅ 로딩 플레이스홀더 |
+| **Loader** | readable | beautify→TS | 하 | ✅ 로딩 스피너 |
+| **ProgressBar** | readable | beautify→TS | 하 | ✅ 진행률 바 |
+| **SearchField** | 부분 | .d.ts 재구현 | 중 | ✅ 검색 입력 |
+| **TextField** | XOR 암호화 | .d.ts 재구현 | 상 | ✅ 텍스트 입력 |
+| **TextButton** | readable | beautify→TS | 하 | ✅ 텍스트만 있는 버튼 |
+| **IconButton** | readable | beautify→TS | 하 | ✅ 아이콘 버튼 |
+| **ListHeader** | readable | beautify→TS | 하 | ✅ 리스트 섹션 헤더 |
+| **ListFooter** | readable | beautify→TS | 하 | ✅ 리스트 섹션 푸터 |
 
-### Tier 3 — 고급 UI (13개)
+### Tier 3 — 완료 (13개)
 
 복합 인터랙션이 필요한 컴포넌트. 대부분 부분 난독화 → .d.ts 재구현.
 
-| 컴포넌트 | 난독화 | 전략 | 난이도 | 비고 |
-|----------|--------|------|--------|------|
-| **BottomSheet** | 부분 | .d.ts 재구현 | 중 | 기존 @gorhom/bottom-sheet 활용 |
-| **BottomCTA** | 부분 | .d.ts 재구현 | 중 | 하단 고정 CTA |
-| **FixedBottomCTA** | 부분 | .d.ts 재구현 | 중 | 키보드 위 고정 CTA |
-| **Tab** | 부분 | .d.ts 재구현 | 중 | 탭 네비게이션 |
-| **SegmentedControl** | 부분 | .d.ts 재구현 | 중 | 세그먼트 선택 |
-| **Radio** | readable | beautify→TS | 하 | 라디오 버튼 |
-| **Rating** | readable | beautify→TS | 하 | 별점 |
-| **Dropdown** | 부분 | .d.ts 재구현 | 상 | 드롭다운 선택 |
-| **Top** | 부분 | .d.ts 재구현 | 중 | 상단 네비게이션 바 |
-| **Shadow** | readable | beautify→TS | 하 | 그림자 래퍼 |
-| **Gradient** | granite 의존 | expo-linear-gradient | 중 | 그라데이션 |
-| **NumericSpinner** | 부분 | .d.ts 재구현 | 중 | 숫자 증감 |
-| **StepperRow** | 부분 | .d.ts 재구현 | 중 | 스텝 컨트롤 행 |
+| 컴포넌트 | 전략 | 핵심 기능 | 상태 |
+|----------|------|-----------|------|
+| **Shadow** | beautify→TS | useShadow hook, presets (weak/medium/strong), iOS shadow/Android elevation | ✅ 완료 |
+| **Radio** | .d.ts 재구현 | Radio + Radio.Option compound, scale bounce animation, SVG circles | ✅ 완료 |
+| **Rating** | .d.ts 재구현 | editable + readOnly, variant(full/compact/iconOnly), SVG star | ✅ 완료 |
+| **Dropdown** | .d.ts 재구현 | Dropdown + Dropdown.Item, opacity fade animation, controlled/uncontrolled | ✅ 완료 |
+| **SegmentedControl** | .d.ts 재구현 | spring indicator slide, pill background, equal width items | ✅ 완료 |
+| **Tab** | .d.ts 재구현 | spring indicator, fluid scroll mode, useControlled, redBean dot | ✅ 완료 |
+| **NumericSpinner** | .d.ts 재구현 | [-] number [+], useControlled, min/max limits, 4 sizes | ✅ 완료 |
+| **StepperRow** | .d.ts 재구현 | NumberIcon + Texts(A/B/C) + RightArrow + RightButton, connector line | ✅ 완료 |
+| **BottomCTA** | .d.ts 재구현 | safe area bottom, shadow, absolute positioning | ✅ 완료 |
+| **FixedBottomCTA** | .d.ts 재구현 | BottomCTA + KeyboardAvoidingView (iOS: padding, Android: height) | ✅ 완료 |
+| **BottomSheet** | .d.ts 재구현 | @gorhom/bottom-sheet wrapper, SDS handle/backdrop, Header compound | ✅ 완료 |
+| **Navbar** | .d.ts 재구현 | BackButton/CloseButton/Title/TextButton compounds, 56px height | ✅ 완료 |
+| **Gradient** | .d.ts 재구현 | Linear + Radial via react-native-svg, degree/position support | ✅ 완료 |
 
-### Tier 4 — 필요시 구현 (10개)
+### Tier 4 — 부분 완료 (2/10개)
 
 특수 목적. 대부분 XOR 암호화 → 완전 재구현 필요.
 
-| 컴포넌트 | 난독화 | 난이도 | 비고 |
+| 컴포넌트 | 난독화 | 난이도 | 상태 |
 |----------|--------|--------|------|
+| **ErrorPage** | XOR | 중 | ✅ 완료 — statusCode(400/404/500) 기반 에러 화면, SVG 아이콘, 좌/우 버튼 |
+| **Result** | XOR | 중 | ✅ 완료 — figure/title/description/button 결과 화면, Result.Button compound |
 | **Carousel** | XOR | 상 | 슬라이드 갤러리 |
 | **BarChart** | XOR | 상 | 막대 차트 |
 | **Keypad** | XOR | 상 | 숫자/보안 키패드 |
@@ -189,8 +245,6 @@ packages/sds/                       # @skkuuniverse/sds
 | **Tooltip** | 부분 | 중 | 일반 툴팁 |
 | **FullTooltip** | 부분 | 중 | 전체화면 툴팁 |
 | **Highlight** | 부분 | 중 | 스팟라이트 오버레이 |
-| **ErrorPage** | XOR | 중 | 에러 화면 |
-| **Result** | XOR | 중 | 완료/결과 화면 |
 
 ---
 

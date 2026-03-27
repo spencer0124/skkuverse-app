@@ -27,6 +27,20 @@ import {
   TextField,
   Dialog,
   Toast,
+  // Tier 3
+  Shadow,
+  Radio,
+  Rating,
+  Dropdown,
+  SegmentedControl,
+  Tab,
+  NumericSpinner,
+  StepperRow,
+  Navbar,
+  Gradient,
+  // Tier 4
+  ErrorPage,
+  Result,
 } from '@skkuuniverse/sds';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -80,6 +94,14 @@ export default function SDSPreviewScreen() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [alertCustomOpen, setAlertCustomOpen] = useState(false);
   const [confirmNoDimmerOpen, setConfirmNoDimmerOpen] = useState(false);
+
+  // Tier 3 state
+  const [radioValue, setRadioValue] = useState('a');
+  const [ratingValue, setRatingValue] = useState(3);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [segmentValue, setSegmentValue] = useState('first');
+  const [tabValue, setTabValue] = useState('home');
+  const [spinnerValue, setSpinnerValue] = useState(5);
 
   // Toast
   const [toastCheck, setToastCheck] = useState(false);
@@ -688,6 +710,278 @@ export default function SDSPreviewScreen() {
             <View style={styles.row}>
               <Button size="tiny" onPress={() => setToastWithButton(true)}>With Button</Button>
               <Button size="tiny" style="weak" onPress={() => setToastTop(true)}>Top Position</Button>
+            </View>
+          </SubSection>
+        </Section>
+
+        {/* ════════════════════════════════════════════
+            TIER 3 COMPONENTS
+            ════════════════════════════════════════════ */}
+
+        {/* ── Shadow ── */}
+        <Section title="Shadow">
+          <SubSection label="presets: weak / medium / strong">
+            <View style={styles.row}>
+              {(['weak', 'medium', 'strong'] as const).map((preset) => (
+                <Shadow key={preset} shadow={preset}>
+                  <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+                    <Txt typography="t7">{preset}</Txt>
+                  </View>
+                </Shadow>
+              ))}
+            </View>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Radio ── */}
+        <Section title="Radio">
+          <SubSection label="controlled radio group">
+            <Radio value={radioValue} onChange={setRadioValue}>
+              <Radio.Option value="a">
+                <Txt typography="t5">Option A</Txt>
+              </Radio.Option>
+              <Radio.Option value="b">
+                <Txt typography="t5">Option B</Txt>
+              </Radio.Option>
+              <Radio.Option value="c" disabled>
+                <Txt typography="t5" color={SdsColors.grey400}>Option C (disabled)</Txt>
+              </Radio.Option>
+            </Radio>
+            <Txt typography="t7" color={SdsColors.grey500}>{`Selected: ${radioValue}`}</Txt>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Rating ── */}
+        <Section title="Rating">
+          <SubSection label="editable (tap stars)">
+            <Rating value={ratingValue} onValueChange={setRatingValue} size="large" />
+            <Txt typography="t7" color={SdsColors.grey500}>{`Value: ${ratingValue}`}</Txt>
+          </SubSection>
+          <SubSection label="readOnly: full / compact / iconOnly">
+            <View style={styles.row}>
+              <Rating value={4.5} readOnly variant="full" size="small" />
+              <Rating value={4.5} readOnly variant="compact" size="small" />
+              <Rating value={4.5} readOnly variant="iconOnly" size="small" />
+            </View>
+          </SubSection>
+          <SubSection label="disabled editable">
+            <Rating value={2} disabled size="medium" />
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Dropdown ── */}
+        <Section title="Dropdown">
+          <SubSection label="trigger + items">
+            <Dropdown
+              open={dropdownOpen}
+              onToggle={setDropdownOpen}
+              trigger={
+                <Button size="medium" style="weak" type="dark" onPress={() => {}}>
+                  {dropdownOpen ? 'Close' : 'Open Dropdown'}
+                </Button>
+              }
+            >
+              <Dropdown.Item onPress={() => setDropdownOpen(false)}>Option 1</Dropdown.Item>
+              <Dropdown.Item onPress={() => setDropdownOpen(false)}>Option 2</Dropdown.Item>
+              <Dropdown.Item disabled>Disabled Option</Dropdown.Item>
+            </Dropdown>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── SegmentedControl ── */}
+        <Section title="SegmentedControl">
+          <SubSection label="indicator spring animation">
+            <SegmentedControl value={segmentValue} onValueChange={setSegmentValue}>
+              <SegmentedControl.Item value="first">First</SegmentedControl.Item>
+              <SegmentedControl.Item value="second">Second</SegmentedControl.Item>
+              <SegmentedControl.Item value="third">Third</SegmentedControl.Item>
+            </SegmentedControl>
+            <Txt typography="t7" color={SdsColors.grey500}>{`Selected: ${segmentValue}`}</Txt>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Tab ── */}
+        <Section title="Tab">
+          <SubSection label="equal width (default)">
+            <Tab value={tabValue} onChange={setTabValue}>
+              <Tab.Item value="home">Home</Tab.Item>
+              <Tab.Item value="search">Search</Tab.Item>
+              <Tab.Item value="profile" redBean>Profile</Tab.Item>
+            </Tab>
+            <Txt typography="t7" color={SdsColors.grey500}>{`Active: ${tabValue}`}</Txt>
+          </SubSection>
+          <SubSection label="fluid (scroll)">
+            <Tab defaultValue="tab1" fluid size="small">
+              <Tab.Item value="tab1">Tab 1</Tab.Item>
+              <Tab.Item value="tab2">Tab 2</Tab.Item>
+              <Tab.Item value="tab3">Tab 3</Tab.Item>
+              <Tab.Item value="tab4">Tab 4</Tab.Item>
+              <Tab.Item value="tab5">Tab 5</Tab.Item>
+            </Tab>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── NumericSpinner ── */}
+        <Section title="NumericSpinner">
+          <SubSection label="controlled, minNumber=0, maxNumber=10">
+            <NumericSpinner
+              number={spinnerValue}
+              onNumberChange={setSpinnerValue}
+              minNumber={0}
+              maxNumber={10}
+              size="medium"
+            />
+            <Txt typography="t7" color={SdsColors.grey500}>{`Value: ${spinnerValue}`}</Txt>
+          </SubSection>
+          <SubSection label="sizes: tiny / small / medium / large">
+            <View style={styles.row}>
+              <NumericSpinner defaultNumber={3} size="tiny" />
+              <NumericSpinner defaultNumber={5} size="small" />
+              <NumericSpinner defaultNumber={7} size="large" />
+            </View>
+          </SubSection>
+          <SubSection label="disabled">
+            <NumericSpinner defaultNumber={3} size="medium" disable />
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── StepperRow ── */}
+        <Section title="StepperRow">
+          <StepperRow
+            left={<StepperRow.NumberIcon number={1} />}
+            center={<StepperRow.Texts type="A" title="Step 1" description="First step description" />}
+            right={<StepperRow.RightButton onPress={() => {}}>Action</StepperRow.RightButton>}
+          />
+          <StepperRow
+            left={<StepperRow.NumberIcon number={2} />}
+            center={<StepperRow.Texts type="B" title="Step 2" description="Second step" />}
+            right={<StepperRow.RightArrow label="Next" onPress={() => {}} />}
+          />
+          <StepperRow
+            left={<StepperRow.NumberIcon number={3} />}
+            center={<StepperRow.Texts type="C" title="Final" description="Last step" />}
+            hideLine
+          />
+        </Section>
+
+        <Border />
+
+        {/* ── Navbar ── */}
+        <Section title="Navbar">
+          <SubSection label="back + title + text button">
+            <Navbar
+              left={<Navbar.BackButton onPress={() => {}} />}
+              title="Page Title"
+              right={<Navbar.TextButton onPress={() => {}}>Save</Navbar.TextButton>}
+            />
+          </SubSection>
+          <SubSection label="close + title">
+            <Navbar
+              left={<Navbar.CloseButton onPress={() => {}} />}
+              title="Modal Title"
+            />
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Gradient ── */}
+        <Section title="Gradient">
+          <SubSection label="Linear: blue → purple (180deg)">
+            <Gradient.Linear
+              colors={[SdsColors.blue500, '#9333ea']}
+              degree="135deg"
+              style={{ height: 80, borderRadius: 12 }}
+            />
+          </SubSection>
+          <SubSection label="Radial: yellow center → transparent">
+            <Gradient.Radial
+              colors={[SdsColors.yellow400, 'transparent']}
+              cx={0.5}
+              cy={0.5}
+              r={0.5}
+              style={{ height: 80, borderRadius: 12, backgroundColor: SdsColors.grey100 }}
+            />
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ════════════════════════════════════════════
+            TIER 4 COMPONENTS
+            ════════════════════════════════════════════ */}
+
+        {/* ── ErrorPage ── */}
+        <Section title="ErrorPage">
+          <SubSection label="statusCode: 404">
+            <View style={{ height: 300, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <ErrorPage
+                statusCode={404}
+                onPressRightButton={() => {}}
+                onPressLeftButton={() => {}}
+              />
+            </View>
+          </SubSection>
+          <SubSection label="statusCode: 500 (default)">
+            <View style={{ height: 300, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <ErrorPage
+                onPressRightButton={() => {}}
+              />
+            </View>
+          </SubSection>
+          <SubSection label="custom title + subtitle">
+            <View style={{ height: 300, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <ErrorPage
+                statusCode={500}
+                title="서비스 점검 중이에요"
+                subtitle="더 나은 서비스를 위해 잠시 점검 중이에요."
+                onPressRightButton={() => {}}
+              />
+            </View>
+          </SubSection>
+        </Section>
+
+        <Border />
+
+        {/* ── Result ── */}
+        <Section title="Result">
+          <SubSection label="success: figure + title + description + button">
+            <View style={{ height: 280, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <Result
+                figure={<Txt typography="t1">✅</Txt>}
+                title="송금을 완료했어요"
+                description="10,000원을 홍길동님에게 보냈어요"
+                button={<Result.Button onPress={() => {}}>확인</Result.Button>}
+              />
+            </View>
+          </SubSection>
+          <SubSection label="error: retry button">
+            <View style={{ height: 280, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <Result
+                figure={<Txt typography="t1">⚠️</Txt>}
+                title="다시 시도해주세요"
+                description={'시스템에 잠깐 문제가 생겨\n화면을 불러오지 못했어요.'}
+                button={<Result.Button onPress={() => {}}>재시도</Result.Button>}
+              />
+            </View>
+          </SubSection>
+          <SubSection label="minimal: title only">
+            <View style={{ height: 160, borderWidth: 1, borderColor: SdsColors.grey200, borderRadius: 12, overflow: 'hidden' }}>
+              <Result title="처리 중이에요" />
             </View>
           </SubSection>
         </Section>
