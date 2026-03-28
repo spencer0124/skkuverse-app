@@ -26,6 +26,7 @@ import { StationRow } from '@/features/bus/realtime/StationRow';
 import { BusMarker } from '@/features/bus/realtime/BusMarker';
 import { RefreshFab } from '@/features/bus/realtime/RefreshFab';
 import { RealtimeSkeleton } from '@/features/bus/realtime/RealtimeSkeleton';
+import { devRewriteInfoUrl } from '@/utils/dev-webview';
 
 /** Extract info feature URL from config features array */
 function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
@@ -71,7 +72,8 @@ export default function RealtimeScreen() {
     : SdsColors.brand;
 
   // Info button — opens webview with feature info URL
-  const infoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+  const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info');
 
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;

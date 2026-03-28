@@ -8,8 +8,22 @@ export type AppToWebMessage =
 
 // ── WebView → App messages ──
 
+export interface MapSelectPayload {
+  action: 'add' | 'delete';
+  placename: string;
+  buildingname: string;
+  previousplace: string | null;
+  afterplace: string | null;
+  placeinfo: string | null;
+  time: string | null;
+  leftColor: string;
+  rightColor: string;
+}
+
 export type WebToAppMessage =
   | { type: 'web:ready' }
   | { type: 'web:navigate'; path: string }
   | { type: 'web:analytics'; event: string; params?: Record<string, unknown> }
-  | { type: 'web:haptic'; style: 'light' | 'medium' | 'heavy' };
+  | { type: 'web:haptic'; style: 'light' | 'medium' | 'heavy' }
+  | { type: 'web:open-url'; url: string }
+  | { type: 'web:map-select'; payload: MapSelectPayload };

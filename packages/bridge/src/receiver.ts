@@ -1,17 +1,19 @@
-import type { AppToWebMessage } from './types';
+import type { WebToAppMessage } from './types';
 
 const VALID_TYPES = new Set([
-  'app:auth-token',
-  'app:navigate',
-  'app:theme-changed',
-  'app:locale-changed',
+  'web:ready',
+  'web:navigate',
+  'web:analytics',
+  'web:haptic',
+  'web:open-url',
+  'web:map-select',
 ]);
 
 /**
  * Safely parse a raw string from WebView's `onMessage` into a typed message.
  * Returns `null` for malformed or unknown messages.
  */
-export function parseWebMessage(raw: string): AppToWebMessage | null {
+export function parseWebMessage(raw: string): WebToAppMessage | null {
   try {
     const parsed = JSON.parse(raw);
     if (
@@ -20,7 +22,7 @@ export function parseWebMessage(raw: string): AppToWebMessage | null {
       typeof parsed.type === 'string' &&
       VALID_TYPES.has(parsed.type)
     ) {
-      return parsed as AppToWebMessage;
+      return parsed as WebToAppMessage;
     }
     return null;
   } catch {

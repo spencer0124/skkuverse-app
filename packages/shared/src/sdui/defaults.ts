@@ -20,8 +20,10 @@ export const DEFAULT_CAMPUS_SECTIONS: CampusSectionsResponse = {
           id: 'building_map',
           title: '건물지도',
           emoji: '\u{1F3E2}',
-          actionType: 'route',
-          actionValue: '/map/hssc',
+          actionType: 'webview',
+          actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
+          webviewTitle: '건물지도',
+          webviewColor: '003626',
         },
         {
           id: 'building_code',
