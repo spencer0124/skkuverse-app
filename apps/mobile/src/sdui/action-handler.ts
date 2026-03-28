@@ -7,8 +7,8 @@
  * Flutter source: lib/core/utils/sdui_action_handler.dart
  */
 
-import { Linking } from 'react-native';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import type { ActionType } from '@skkuuniverse/shared';
 
 interface SduiAction {
@@ -30,7 +30,6 @@ export function handleSduiAction({
       break;
 
     case 'webview':
-      // Webview screen doesn't exist yet — will be added in Phase 7.3
       router.push({
         pathname: '/webview',
         params: {
@@ -42,7 +41,7 @@ export function handleSduiAction({
       break;
 
     case 'external':
-      Linking.openURL(actionValue);
+      WebBrowser.openBrowserAsync(actionValue);
       break;
   }
 }

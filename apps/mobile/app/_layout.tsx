@@ -37,6 +37,8 @@ export default function RootLayout() {
                     animation: 'slide_from_bottom',
                   }}
                 />
+                <Stack.Screen name="map/hssc" options={{ headerShown: false }} />
+                <Stack.Screen name="map/hssc-credit" options={{ headerShown: false }} />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="sds-preview"
