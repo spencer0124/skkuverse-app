@@ -31,7 +31,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
-    "@react-native-firebase/analytics",
     "@react-native-firebase/crashlytics",
     "expo-router",
     "expo-secure-store",
