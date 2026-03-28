@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { SdsColors, SdsTypo, SdsSpacing, SdsRadius } from '@skkuuniverse/shared';
+import { recordError } from '@/services/crashlytics';
 
 interface Props {
   children: ReactNode;
@@ -17,7 +18,7 @@ interface State {
  * Renders a friendly fallback UI with retry button.
  * In __DEV__, also shows the error message for debugging.
  *
- * Crashlytics integration will be added in Phase 8.
+ * Crashlytics: errors reported via recordError() in componentDidCatch.
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -33,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (__DEV__) {
       console.error('[ErrorBoundary]', error, errorInfo.componentStack);
     }
-    // TODO Phase 8: crashlytics().recordError(error)
+    recordError(error, errorInfo.componentStack);
   }
 
   private handleRetry = () => {

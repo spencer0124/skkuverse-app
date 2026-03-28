@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
 import auth from '@react-native-firebase/auth';
+import { getLocales } from 'expo-localization';
 import {
   setAuthTokenProvider,
   getApiClient,
   authStore,
 } from '@skkuuniverse/shared';
+import { setCrashlyticsUserId } from '@/services/crashlytics';
+import {
+  setAnalyticsUserId,
+  setAppLanguage,
+  setPreferredCampus,
+} from '@/services/analytics';
 
 /**
  * App initialization hook — runs once on mount.
@@ -43,14 +50,20 @@ export function useAppInit() {
         // 3. Force-create API client singleton (interceptors attached)
         getApiClient();
 
-        // 4. Sync Firebase auth state → Zustand store
+        // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
         unsubscribe = auth().onAuthStateChanged((user) => {
           if (user) {
             authStore.getState().setAuthenticated(user.uid);
+            setAnalyticsUserId(user.uid);
+            setCrashlyticsUserId(user.uid);
           } else {
             authStore.getState().setUnauthenticated();
           }
         });
+
+        // 5. Set initial analytics user properties
+        setAppLanguage(getLocales()[0]?.languageCode ?? 'ko');
+        setPreferredCampus('hssc');
 
         setIsReady(true);
       } catch (e) {
