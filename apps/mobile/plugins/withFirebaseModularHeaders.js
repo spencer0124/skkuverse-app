@@ -1,12 +1,13 @@
 /**
- * Expo config plugin: allow non-modular header includes in framework modules.
+ * Expo config plugin: fix Firebase modular header issues on iOS.
  *
- * Fixes: "include of non-modular header inside framework module 'RNFBApp'"
- * when using `useFrameworks: "static"` with @react-native-firebase.
+ * Fixes:
+ * 1. "include of non-modular header inside framework module 'RNFBApp'"
+ * 2. "declaration of 'RCTBridgeModule' must be imported from module
+ *    'RNFBApp.RNFBAppModule'" (Crashlytics + New Arch + static frameworks)
  *
- * The build setting must be applied in the Podfile post_install hook
- * (not just the main xcodeproj) because the error originates in CocoaPods
- * targets (RNFBApp, RNFBAuth), which have their own build configurations.
+ * Applied in the Podfile post_install hook because errors originate in
+ * CocoaPods targets which have their own build configurations.
  */
 const { withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
@@ -22,9 +23,18 @@ module.exports = function withFirebaseModularHeaders(config) {
       );
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
-      // Inject into post_install hook to set the flag on ALL pod targets
+      // 1. Set $RNFirebaseAsStaticFramework before targets
+      const staticFrameworkSnippet = `$RNFirebaseAsStaticFramework = true\n`;
+      if (!podfile.includes("$RNFirebaseAsStaticFramework")) {
+        podfile = podfile.replace(
+          /platform :ios/,
+          `${staticFrameworkSnippet}platform :ios`,
+        );
+      }
+
+      // 2. Inject into post_install hook
       const snippet = `
-    # [withFirebaseModularHeaders] Allow non-modular includes for Firebase
+    # [withFirebaseModularHeaders] Fix Firebase + New Architecture modular header issues
     installer.pods_project.build_configurations.each do |config|
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
@@ -32,9 +42,16 @@ module.exports = function withFirebaseModularHeaders(config) {
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       end
+      # Disable Clang modules for RNFB targets to fix
+      # "declaration of 'RCTBridgeModule' must be imported from module" error
+      if target.name.start_with?('RNFB')
+        target.build_configurations.each do |config|
+          config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+        end
+      end
     end`;
 
-      // Insert before the closing 'end' of post_install
+      // Insert after post_install opening
       if (podfile.includes("post_install do |installer|")) {
         podfile = podfile.replace(
           /post_install do \|installer\|/,
