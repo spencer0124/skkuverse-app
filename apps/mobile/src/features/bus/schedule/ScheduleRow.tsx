@@ -8,13 +8,13 @@
  * - Today future: medium green dot, dark text
  */
 
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import {
-  SdsTypo,
   type ScheduleEntry,
   type RouteBadge,
   hexToColor,
 } from '@skkuuniverse/shared';
+import { Txt, Badge } from '@skkuuniverse/sds';
 import { getRouteBadge } from './utils';
 
 /** Flutter color constants */
@@ -67,58 +67,55 @@ export function ScheduleRow({
       </View>
 
       {/* Time */}
-      <Text style={[styles.time, { color: textColor, fontWeight: isNext ? '700' : '500' }]}>
+      <Txt
+        typography="st10"
+        fontWeight={isNext ? 'bold' : 'medium'}
+        color={textColor}
+        style={styles.time}
+      >
         {entry.time}
-      </Text>
+      </Txt>
 
       {/* "다음" badge — always reserve space to prevent layout shift */}
       <View style={styles.nextBadgeSlot}>
         {isNext && (
-          <View style={styles.nextBadge}>
-            <Text style={styles.nextBadgeText}>다음</Text>
-          </View>
+          <Badge
+            size="small"
+            color={GREEN_BADGE_TEXT}
+            backgroundColor={GREEN_BADGE_BG}
+            style={{ borderRadius: 20 }}
+          >
+            다음
+          </Badge>
         )}
       </View>
 
       {/* Route badge */}
       {showBadge && (
-        <View
-          style={[
-            styles.badge,
-            {
-              backgroundColor: isPast ? '#F5F6F8' : hexToColor(badge.color) + '1F',
-            },
-          ]}
+        <Badge
+          size="tiny"
+          color={isPast ? GREY_LIGHT : hexToColor(badge.color)}
+          backgroundColor={isPast ? '#F5F6F8' : hexToColor(badge.color) + '1F'}
         >
-          <Text
-            style={[
-              styles.badgeText,
-              { color: isPast ? GREY_LIGHT : hexToColor(badge.color) },
-            ]}
-          >
-            {badge.label}
-          </Text>
-        </View>
+          {badge.label}
+        </Badge>
       )}
 
       {/* Bus count */}
-      <Text style={[styles.count, { color: isPast ? GREY_LIGHT : TEXT_COLOR }]}>
+      <Txt typography="t7" fontWeight="semiBold" color={isPast ? GREY_LIGHT : TEXT_COLOR}>
         {entry.busCount}대
-      </Text>
+      </Txt>
 
       {/* Notes */}
-      <Text
-        style={[
-          styles.notes,
-          {
-            color: isPast ? GREY_LIGHT : notes ? '#E87A3B' : GREY_LIGHT,
-            fontWeight: notes ? '600' : '400',
-          },
-        ]}
+      <Txt
+        typography="st12"
+        color={isPast ? GREY_LIGHT : notes ? '#E87A3B' : GREY_LIGHT}
+        fontWeight={notes ? 'semiBold' : 'regular'}
         numberOfLines={2}
+        style={styles.notes}
       >
         {notes ?? '—'}
-      </Text>
+      </Txt>
     </View>
   );
 }
@@ -141,40 +138,13 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
   },
   time: {
-    fontSize: 16,
     minWidth: 44,
   },
   nextBadgeSlot: {
     width: 42,
     alignItems: 'center',
   },
-  nextBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-    backgroundColor: GREEN_BADGE_BG,
-  },
-  nextBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: GREEN_BADGE_TEXT,
-  },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  count: {
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
-    fontWeight: '600',
-  },
   notes: {
     flex: 1,
-    fontSize: 12,
   },
 });

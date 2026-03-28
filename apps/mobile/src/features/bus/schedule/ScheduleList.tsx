@@ -7,8 +7,9 @@
  * Flutter source: bus_campus_screen.dart (schedule list)
  */
 
-import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, type ScheduleEntry, type RouteBadge } from '@skkuuniverse/shared';
+import { View, StyleSheet } from 'react-native';
+import { SdsColors, type ScheduleEntry, type RouteBadge } from '@skkuuniverse/shared';
+import { Txt } from '@skkuuniverse/sds';
 import { ScheduleRow } from './ScheduleRow';
 import { isPastBus, hasMultipleRouteTypes } from './utils';
 
@@ -32,11 +33,21 @@ export function ScheduleList({
       {/* Column header — widths must match ScheduleRow columns */}
       <View style={styles.header}>
         <View style={styles.dotColumnHeader} />
-        <Text style={[styles.headerText, styles.headerTime]}>시간</Text>
+        <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={styles.headerTime}>
+          시간
+        </Txt>
         <View style={styles.headerBadgeSlot} />
-        {showBadge && <Text style={styles.headerText}>노선</Text>}
-        <Text style={styles.headerText}>대수</Text>
-        <Text style={[styles.headerText, styles.headerNotes]}>특이사항</Text>
+        {showBadge && (
+          <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400}>
+            노선
+          </Txt>
+        )}
+        <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400}>
+          대수
+        </Txt>
+        <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={styles.headerNotes}>
+          특이사항
+        </Txt>
       </View>
 
       {/* Schedule rows */}
@@ -56,9 +67,9 @@ export function ScheduleList({
       ))}
 
       {/* Footer count */}
-      <Text style={styles.footer}>
+      <Txt typography="st12" color={SdsColors.grey400} textAlign="center" style={styles.footer}>
         시간표 · 총 {entries.length}편
-      </Text>
+      </Txt>
     </View>
   );
 }
@@ -91,11 +102,6 @@ const styles = StyleSheet.create({
   headerBadgeSlot: {
     width: 42,
   },
-  headerText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: SdsColors.grey400,
-  },
   headerNotes: {
     flex: 1,
   },
@@ -105,9 +111,6 @@ const styles = StyleSheet.create({
     marginLeft: 20,
   },
   footer: {
-    textAlign: 'center',
     paddingVertical: 12,
-    fontSize: SdsTypo.sub12.fontSize,
-    color: SdsColors.grey400,
   },
 });

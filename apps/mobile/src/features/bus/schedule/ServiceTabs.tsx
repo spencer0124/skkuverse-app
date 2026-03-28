@@ -4,8 +4,8 @@
  * Flutter source: bus_campus_screen.dart (service selector)
  */
 
-import { Text, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, SdsRadius, type BusService } from '@skkuuniverse/shared';
+import { type BusService } from '@skkuuniverse/shared';
+import { Tab } from '@skkuuniverse/sds';
 
 interface ServiceTabsProps {
   services: BusService[];
@@ -16,53 +16,23 @@ interface ServiceTabsProps {
 export function ServiceTabs({ services, selectedIndex, onSelect }: ServiceTabsProps) {
   if (services.length <= 1) return null;
 
+  const selectedValue = services[selectedIndex]?.serviceId ?? services[0].serviceId;
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.container}
+    <Tab
+      value={selectedValue}
+      onChange={(value) => {
+        const idx = services.findIndex((s) => s.serviceId === value);
+        if (idx >= 0) onSelect(idx);
+      }}
+      fluid
+      size="small"
     >
-      {services.map((service, index) => {
-        const isSelected = index === selectedIndex;
-        return (
-          <Pressable
-            key={service.serviceId}
-            style={[styles.tab, isSelected && styles.tabSelected]}
-            onPress={() => onSelect(index)}
-          >
-            <Text style={[styles.tabText, isSelected && styles.tabTextSelected]}>
-              {service.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+      {services.map((service) => (
+        <Tab.Item key={service.serviceId} value={service.serviceId}>
+          {service.label}
+        </Tab.Item>
+      ))}
+    </Tab>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: SdsRadius.full,
-    backgroundColor: SdsColors.grey100,
-  },
-  tabSelected: {
-    backgroundColor: SdsColors.grey900,
-  },
-  tabText: {
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
-    fontWeight: '600',
-    color: SdsColors.grey600,
-  },
-  tabTextSelected: {
-    color: SdsColors.background,
-  },
-});

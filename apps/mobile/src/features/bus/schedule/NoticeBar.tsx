@@ -6,9 +6,10 @@
  * Key difference from Flutter: text color matches icon color (not grey).
  */
 
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsTypo, SdsRadius, type ScheduleNotice } from '@skkuuniverse/shared';
+import { SdsRadius, type ScheduleNotice } from '@skkuuniverse/shared';
+import { Txt } from '@skkuuniverse/sds';
 
 interface NoticeBarProps {
   notice: ScheduleNotice;
@@ -30,7 +31,9 @@ export function NoticeBar({ notice }: NoticeBarProps) {
         size={16}
         color={config.color}
       />
-      <Text style={[styles.text, { color: config.color }]}>{notice.text}</Text>
+      <Txt typography="t7" fontWeight="medium" color={config.color} style={{ flex: 1 }}>
+        {notice.text}
+      </Txt>
     </View>
   );
 }
@@ -45,11 +48,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: SdsRadius.sm,
-  },
-  text: {
-    flex: 1,
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
-    fontWeight: '500',
   },
 });

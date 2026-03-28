@@ -7,13 +7,13 @@
  * Flutter source: bus_campus_screen.dart (hero card widget)
  */
 
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import {
   SdsColors,
-  SdsRadius,
   type ScheduleEntry,
   type RouteBadge,
 } from '@skkuuniverse/shared';
+import { Txt, Badge } from '@skkuuniverse/sds';
 import { formatETA, getMinutesUntil } from './utils';
 
 /** Grey for ended, blue-grey for future days, brand green for today */
@@ -81,33 +81,63 @@ function HeroContent({
   return (
     <>
       {/* Top label */}
-      <Text style={styles.heroLabel}>{label}</Text>
+      <Txt typography="st12" fontWeight="medium" color="rgba(255,255,255,0.75)">
+        {label}
+      </Txt>
 
       {/* Main row: time + bus count column */}
       <View style={styles.mainRow}>
-        <Text style={styles.timeText}>{entry.time}</Text>
+        <Txt
+          typography="t1"
+          fontWeight="extraBold"
+          color={SdsColors.background}
+          style={{ fontSize: 52, lineHeight: 52, letterSpacing: -1.5 }}
+        >
+          {entry.time}
+        </Txt>
         <View style={styles.countColumn}>
-          <Text style={styles.countLabel}>운영대수</Text>
-          <Text style={styles.countValue}>{entry.busCount}대</Text>
+          <Txt typography="st13" color="rgba(255,255,255,0.75)">
+            운영대수
+          </Txt>
+          <Txt
+            typography="st1"
+            fontWeight="extraBold"
+            color={SdsColors.background}
+            style={{ lineHeight: 28 }}
+          >
+            {entry.busCount}대
+          </Txt>
         </View>
       </View>
 
       {/* Badge row: ETA, route badge, notes */}
       <View style={styles.badgeWrap}>
         {isToday && minutes != null && (
-          <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>{formatETA(minutes)} 출발</Text>
-          </View>
+          <Badge
+            size="small"
+            color={SdsColors.background}
+            backgroundColor="rgba(255,255,255,0.22)"
+          >
+            {`${formatETA(minutes)} 출발`}
+          </Badge>
         )}
         {showBadge && badge && (
-          <View style={[styles.heroBadge, styles.heroBadgeLight]}>
-            <Text style={styles.heroBadgeText}>{badge.label}</Text>
-          </View>
+          <Badge
+            size="small"
+            color={SdsColors.background}
+            backgroundColor="rgba(255,255,255,0.15)"
+          >
+            {badge.label}
+          </Badge>
         )}
         {entry.notes != null && entry.notes.length > 0 && (
-          <View style={[styles.heroBadge, styles.heroBadgeLight]}>
-            <Text style={styles.heroBadgeText}>{entry.notes}</Text>
-          </View>
+          <Badge
+            size="small"
+            color={SdsColors.background}
+            backgroundColor="rgba(255,255,255,0.15)"
+          >
+            {entry.notes}
+          </Badge>
         )}
       </View>
     </>
@@ -117,8 +147,17 @@ function HeroContent({
 function HeroEnded() {
   return (
     <>
-      <Text style={styles.heroLabel}>다음 셔틀</Text>
-      <Text style={styles.endedText}>운행 종료</Text>
+      <Txt typography="st12" fontWeight="medium" color="rgba(255,255,255,0.75)">
+        다음 셔틀
+      </Txt>
+      <Txt
+        typography="t1"
+        fontWeight="extraBold"
+        color={SdsColors.background}
+        style={{ fontSize: 52, lineHeight: 52, letterSpacing: -1.5 }}
+      >
+        운행 종료
+      </Txt>
     </>
   );
 }
@@ -155,37 +194,15 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  heroLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.75)',
-  },
   /* Main content row: time + count column */
   mainRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
   },
-  timeText: {
-    fontSize: 52,
-    fontWeight: '800',
-    letterSpacing: -1.5,
-    lineHeight: 52,
-    color: SdsColors.background,
-  },
   countColumn: {
     alignItems: 'flex-end',
     gap: 2,
-  },
-  countLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.75)',
-  },
-  countValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    lineHeight: 28,
-    color: SdsColors.background,
   },
   /* Badge row (Wrap) */
   badgeWrap: {
@@ -193,26 +210,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 4,
-  },
-  heroBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: SdsRadius.xs,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  heroBadgeLight: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  heroBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: SdsColors.background,
-  },
-  endedText: {
-    fontSize: 52,
-    fontWeight: '800',
-    letterSpacing: -1.5,
-    lineHeight: 52,
-    color: SdsColors.background,
   },
 });

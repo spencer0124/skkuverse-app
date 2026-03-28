@@ -9,9 +9,10 @@
  * Flutter source: bus_campus_screen.dart (status widgets)
  */
 
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuuniverse/shared';
+import { Txt, Button } from '@skkuuniverse/sds';
 
 interface StatusCardProps {
   icon: string;
@@ -28,8 +29,14 @@ function StatusCard({ icon, iconColor, title, subtitle }: StatusCardProps) {
         size={40}
         color={iconColor}
       />
-      <Text style={styles.title}>{title}</Text>
-      {subtitle != null && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <Txt typography="t5" fontWeight="semiBold" textAlign="center">
+        {title}
+      </Txt>
+      {subtitle != null && (
+        <Txt typography="t7" color={SdsColors.grey500} textAlign="center">
+          {subtitle}
+        </Txt>
+      )}
     </View>
   );
 }
@@ -70,9 +77,15 @@ interface NoServiceCardProps {
 export function NoServiceCard({ label }: NoServiceCardProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🚌</Text>
-      <Text style={styles.title}>운행하지 않아요</Text>
-      {label != null && <Text style={styles.subtitle}>{label}</Text>}
+      <Text style={styles.emoji}>{'\ud83d\ude8c'}</Text>
+      <Txt typography="t5" fontWeight="semiBold" textAlign="center">
+        운행하지 않아요
+      </Txt>
+      {label != null && (
+        <Txt typography="t7" color={SdsColors.grey500} textAlign="center">
+          {label}
+        </Txt>
+      )}
     </View>
   );
 }
@@ -89,13 +102,17 @@ export function ErrorCard({ onRetry }: ErrorCardProps) {
         size={40}
         color={SdsColors.grey400}
       />
-      <Text style={styles.title}>데이터를 불러올 수 없어요</Text>
+      <Txt typography="t5" fontWeight="semiBold" textAlign="center">
+        데이터를 불러올 수 없어요
+      </Txt>
       {onRetry ? (
-        <Pressable style={styles.retryButton} onPress={onRetry}>
-          <Text style={styles.retryText}>다시 시도</Text>
-        </Pressable>
+        <Button type="primary" size="medium" onPress={onRetry} viewStyle={{ marginTop: 4 }}>
+          다시 시도
+        </Button>
       ) : (
-        <Text style={styles.subtitle}>잠시 후 다시 시도해주세요</Text>
+        <Txt typography="t7" color={SdsColors.grey500} textAlign="center">
+          잠시 후 다시 시도해주세요
+        </Txt>
       )}
     </View>
   );
@@ -111,30 +128,5 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 40,
-  },
-  title: {
-    fontSize: SdsTypo.t5.fontSize,
-    lineHeight: SdsTypo.t5.lineHeight,
-    fontWeight: '600',
-    color: SdsColors.grey900,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
-    color: SdsColors.grey500,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 4,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: SdsRadius.md,
-    backgroundColor: SdsColors.brand,
-  },
-  retryText: {
-    fontSize: SdsTypo.t7.fontSize,
-    fontWeight: '600',
-    color: SdsColors.background,
   },
 });

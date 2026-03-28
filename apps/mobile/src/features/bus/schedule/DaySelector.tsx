@@ -10,8 +10,9 @@
  * - Date format: "M/D" (not zero-padded)
  */
 
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SdsColors, type DaySchedule } from '@skkuuniverse/shared';
+import { Txt } from '@skkuuniverse/sds';
 
 /** 1=Mon through 7=Sun → Korean day name */
 const DAY_NAMES: Record<number, string> = {
@@ -92,7 +93,7 @@ export function DaySelector({
                 ? HERO_GREEN
                 : GREY;
 
-        const fontWeight = isSelected || isToday ? '700' : '400';
+        const fontWeight = (isSelected || isToday ? 'bold' : 'regular') as 'bold' | 'regular';
 
         return (
           <Pressable
@@ -106,35 +107,34 @@ export function DaySelector({
             disabled={isHidden}
           >
             {/* Date: "M/D" */}
-            <Text style={[styles.dateText, { color: dateTextColor, fontWeight: fontWeight as '400' | '700' }]}>
+            <Txt typography="t7" fontWeight={fontWeight} color={dateTextColor}>
               {formatShortDate(day.date)}
-            </Text>
+            </Txt>
 
             {/* Day name: "월", "화", ... */}
-            <Text style={[styles.dayOfWeek, { color: chipTextColor, fontWeight: fontWeight as '400' | '700' }]}>
+            <Txt typography="st11" fontWeight={fontWeight} color={chipTextColor}>
               {DAY_NAMES[day.dayOfWeek] ?? String(day.dayOfWeek)}
-            </Text>
+            </Txt>
 
             {/* Today indicator dot (only when not selected) */}
             {isToday && !isSelected && <View style={styles.todayDot} />}
 
             {/* Label line — reserve space if any day has label */}
             {hasAnyLabel && (
-              <Text
-                style={[
-                  styles.labelText,
-                  {
-                    color: day.label != null
-                      ? isSelected
-                        ? 'rgba(255,255,255,0.7)'
-                        : GREY
-                      : 'transparent',
-                  },
-                ]}
+              <Txt
+                typography="st13"
+                color={
+                  day.label != null
+                    ? isSelected
+                      ? 'rgba(255,255,255,0.7)'
+                      : GREY
+                    : 'transparent'
+                }
                 numberOfLines={1}
+                style={{ fontSize: 8, lineHeight: 12 }}
               >
                 {day.label ?? ''}
-              </Text>
+              </Txt>
             )}
           </Pressable>
         );
@@ -163,14 +163,6 @@ const styles = StyleSheet.create({
   chipHidden: {
     opacity: 0.5,
   },
-  dateText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dayOfWeek: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
   todayDot: {
     position: 'absolute',
     bottom: -4,
@@ -178,9 +170,5 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: HERO_GREEN,
-  },
-  labelText: {
-    fontSize: 8,
-    maxWidth: '100%',
   },
 });

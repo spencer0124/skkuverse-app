@@ -1,14 +1,15 @@
 /**
- * Bus schedule screen — timetable with service tabs and day selector.
+ * Bus schedule screen — timetable with segmented control and week navigation.
  *
  * Flow:
  * 1. useBusConfig(groupId) → BusGroup (screenType 'schedule')
  * 2. useState for selectedServiceIndex (default from config.screen.defaultServiceId)
  * 3. useSmartSchedule(currentService.endpoint) → SmartSchedule
- * 4. useCampusEta(!!config.screen.heroCard) → CampusEta (conditional)
- * 5. useMinuteTicker() — re-render every minute for live ETA
+ * 4. groupDaysByWeek(schedule.days) → WeekGroup[] for week navigation
+ * 5. useCampusEta(!!config.screen.heroCard) → CampusEta (conditional)
+ * 6. useMinuteTicker() — re-render every minute for live ETA
  *
- * Flutter source: lib/features/transit/ui/bus_campus_screen.dart
+ * Design source: shuttle-v3.html
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -20,9 +21,12 @@ import {
   useCampusEta,
   SdsColors,
 } from '@skkuuniverse/shared';
+import { SegmentedControl } from '@skkuuniverse/sds';
 import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
-import { ServiceTabs } from '@/features/bus/schedule/ServiceTabs';
-import { DaySelector } from '@/features/bus/schedule/DaySelector';
+import { InfoBanner } from '@/features/bus/schedule/InfoBanner';
+import { WeekHeader } from '@/features/bus/schedule/WeekHeader';
+import { DayGrid } from '@/features/bus/schedule/DayGrid';
+import { SectionCard } from '@/features/bus/schedule/SectionCard';
 import { HeroCard } from '@/features/bus/schedule/HeroCard';
 import { ScheduleList } from '@/features/bus/schedule/ScheduleList';
 import { NoticeBar } from '@/features/bus/schedule/NoticeBar';
@@ -30,6 +34,8 @@ import { SuspendedCard, NoDataCard, NoServiceCard, ErrorCard } from '@/features/
 import { ScheduleSkeleton } from '@/features/bus/schedule/ScheduleSkeleton';
 import { useMinuteTicker } from '@/features/bus/hooks/useMinuteTicker';
 import { getHeroBus, hasMultipleRouteTypes } from '@/features/bus/schedule/utils';
+import { groupDaysByWeek, findWeekAndDayIndex } from '@/features/bus/schedule/weekUtils';
+import { devRewriteInfoUrl } from '@/utils/dev-webview';
 
 /** Extract info feature URL from config features array */
 function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
@@ -47,7 +53,8 @@ export default function ScheduleScreen() {
   const screenConfig = isSchedule ? config.screen : undefined;
 
   // Info button — opens webview with feature info URL
-  const infoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+  const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
+  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info');
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
     router.push({
@@ -60,7 +67,7 @@ export default function ScheduleScreen() {
     } as never);
   }, [infoUrl, config, router]);
 
-  // Service tab state — default to config's defaultServiceId
+  // Service state — default to config's defaultServiceId
   const defaultIndex = useMemo(() => {
     if (!screenConfig?.defaultServiceId || !screenConfig.services) return 0;
     const idx = screenConfig.services.findIndex(
@@ -81,22 +88,50 @@ export default function ScheduleScreen() {
   // Minute ticker for live ETA updates
   const tick = useMinuteTicker();
 
-  // Day selector state — default to server's selectedDate, fallback to 0
-  const initialDayIndex = useMemo(() => {
-    if (!schedule?.selectedDate || !schedule.days.length) return 0;
-    const idx = schedule.days.findIndex((d) => d.date === schedule.selectedDate);
-    return idx >= 0 ? idx : 0;
-  }, [schedule?.selectedDate, schedule?.days]);
+  // --- Week-based day navigation ---
+  const weeks = useMemo(() => {
+    if (!schedule?.days.length) return [];
+    return groupDaysByWeek(schedule.days);
+  }, [schedule?.days]);
 
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const selectedDay = schedule?.days[selectedDayIndex];
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
+  const [selectedDayInWeekIndex, setSelectedDayInWeekIndex] = useState(0);
 
-  // Sync with server's selectedDate when schedule loads
+  // Sync with server's selectedDate when schedule loads or changes
   useEffect(() => {
-    setSelectedDayIndex(initialDayIndex);
-  }, [initialDayIndex]);
+    if (!schedule?.days.length || weeks.length === 0) return;
+    const serverIndex = schedule.selectedDate
+      ? schedule.days.findIndex((d) => d.date === schedule.selectedDate)
+      : 0;
+    const flatIndex = serverIndex >= 0 ? serverIndex : 0;
+    const { weekIndex, dayInWeekIndex } = findWeekAndDayIndex(weeks, flatIndex);
+    setCurrentWeekIndex(weekIndex);
+    setSelectedDayInWeekIndex(dayInWeekIndex);
+  }, [schedule?.selectedDate, schedule?.days, weeks]);
+
+  const currentWeek = weeks[currentWeekIndex];
+  const selectedDayIndex = currentWeek
+    ? currentWeek.startIndex + selectedDayInWeekIndex
+    : 0;
+  const selectedDay = schedule?.days[selectedDayIndex];
   const todayDate = new Date().toISOString().slice(0, 10);
   const isToday = selectedDay?.date === todayDate;
+
+  // Week navigation
+  const handleWeekChange = useCallback((direction: -1 | 1) => {
+    const newIndex = currentWeekIndex + direction;
+    if (newIndex < 0 || newIndex >= weeks.length) return;
+    setCurrentWeekIndex(newIndex);
+    setSelectedDayInWeekIndex(0);
+  }, [currentWeekIndex, weeks.length]);
+
+  // Banner state — first notice promoted to top-level dismissable banner
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const bannerNotice = selectedDay?.notices?.[0];
+
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [selectedDayIndex]);
 
   // Hero bus (next departure)
   const heroBus = useMemo(() => {
@@ -123,46 +158,81 @@ export default function ScheduleScreen() {
     <View style={styles.container}>
       <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
 
-      <ScrollView style={styles.scrollView} bounces={false}>
-        {/* Service tabs */}
-        {screenConfig && (
-          <ServiceTabs
-            services={screenConfig.services}
-            selectedIndex={selectedServiceIndex}
-            onSelect={setSelectedServiceIndex}
-          />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+      >
+        {/* Banner section */}
+        {bannerNotice && !bannerDismissed && (
+          <SectionCard style={styles.bannerSection}>
+            <InfoBanner
+              text={bannerNotice.text}
+              onDismiss={() => setBannerDismissed(true)}
+            />
+          </SectionCard>
         )}
 
-        {/* Schedule content based on status */}
-        {scheduleError && !schedule ? (
-          <ErrorCard onRetry={() => refetchSchedule()} />
-        ) : !schedule ? (
-          <ScheduleSkeleton />
-        ) : schedule.status === 'suspended' ? (
-          <SuspendedCard resumeDate={schedule.resumeDate} message={schedule.message} />
-        ) : schedule.status === 'noData' ? (
-          <NoDataCard />
-        ) : schedule.status === 'active' ? (
-          <>
-            {/* Day selector */}
-            <DaySelector
-              days={schedule.days}
-              selectedIndex={selectedDayIndex}
-              onSelect={setSelectedDayIndex}
-              todayDate={todayDate}
-            />
+        {/* Controls section */}
+        <SectionCard style={styles.controlsSection}>
+          {/* SegmentedControl for service selection */}
+          {screenConfig && screenConfig.services.length > 1 && (
+            <SegmentedControl
+              value={currentService?.serviceId ?? ''}
+              onValueChange={(value) => {
+                const idx = screenConfig.services.findIndex((s) => s.serviceId === value);
+                if (idx >= 0) setSelectedServiceIndex(idx);
+              }}
+            >
+              {screenConfig.services.map((service) => (
+                <SegmentedControl.Item key={service.serviceId} value={service.serviceId}>
+                  {service.label}
+                </SegmentedControl.Item>
+              ))}
+            </SegmentedControl>
+          )}
 
-            {/* Day content */}
+          {/* Week header + Day grid (only when active schedule loaded) */}
+          {schedule?.status === 'active' && currentWeek && (
+            <>
+              <DayGrid
+                days={currentWeek.days}
+                selectedIndex={selectedDayInWeekIndex}
+                onSelect={setSelectedDayInWeekIndex}
+              />
+            </>
+          )}
+        </SectionCard>
+
+        {/* Timetable section — status dependent */}
+        {scheduleError && !schedule ? (
+          <SectionCard style={styles.timetableSection}>
+            <ErrorCard onRetry={() => refetchSchedule()} />
+          </SectionCard>
+        ) : !schedule ? (
+          <SectionCard style={styles.timetableSection}>
+            <ScheduleSkeleton />
+          </SectionCard>
+        ) : schedule.status === 'suspended' ? (
+          <SectionCard style={styles.timetableSection}>
+            <SuspendedCard resumeDate={schedule.resumeDate} message={schedule.message} />
+          </SectionCard>
+        ) : schedule.status === 'noData' ? (
+          <SectionCard style={styles.timetableSection}>
+            <NoDataCard />
+          </SectionCard>
+        ) : schedule.status === 'active' ? (
+          <SectionCard style={styles.timetableSection}>
             {selectedDay?.display === 'noService' ? (
               <NoServiceCard label={selectedDay.label} />
             ) : selectedDay?.display === 'schedule' ? (
               <>
-                {/* Day notices */}
-                {selectedDay.notices.map((notice, i) => (
+                {/* Day notices — skip first (shown as banner) */}
+                {selectedDay.notices.slice(1).map((notice, i) => (
                   <NoticeBar key={i} notice={notice} />
                 ))}
 
-                {/* Hero card — always shown when day has schedule */}
+                {/* Hero card */}
                 {screenConfig?.heroCard && (
                   <HeroCard
                     entry={heroBus}
@@ -182,9 +252,11 @@ export default function ScheduleScreen() {
                 />
               </>
             ) : null}
-          </>
+          </SectionCard>
         ) : (
-          <ErrorCard onRetry={() => refetchSchedule()} />
+          <SectionCard style={styles.timetableSection}>
+            <ErrorCard onRetry={() => refetchSchedule()} />
+          </SectionCard>
         )}
       </ScrollView>
     </View>
@@ -194,9 +266,26 @@ export default function ScheduleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: SdsColors.background,
+    backgroundColor: SdsColors.grey50,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    gap: 8,
+    paddingBottom: 20,
+  },
+  bannerSection: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  controlsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 18,
+  },
+  timetableSection: {
+    // Child components (HeroCard, ScheduleList) manage their own marginHorizontal
   },
 });
