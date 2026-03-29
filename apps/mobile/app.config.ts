@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "스꾸버스",
   slug: "skkubus",
-  version: "1.0.0",
+  version: "3.5.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "skkubus",
@@ -16,8 +16,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     bundleIdentifier: "com.example.skkumap",
-    supportsTablet: false,
+    supportsTablet: true,
+    buildNumber: "68",
     googleServicesFile: "./GoogleService-Info.plist",
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     package: "com.zoyoong.skkubus",
