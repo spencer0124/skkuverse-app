@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, RefreshControl, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, {
   BottomSheetScrollView,
@@ -56,8 +56,6 @@ export function CampusScreen() {
   const {
     data: campusData,
     isLoading: campusLoading,
-    isFetching,
-    refresh: refreshCampus,
   } = useCampusSections();
 
   // ── Store ──
@@ -203,16 +201,7 @@ export function CampusScreen() {
           handleComponent={SheetHandle}
           index={0}
         >
-          <BottomSheetScrollView
-            style={styles.sheetContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={isFetching}
-                onRefresh={refreshCampus}
-                tintColor={SdsColors.grey400}
-              />
-            }
-          >
+          <BottomSheetScrollView style={styles.sheetContent}>
             {campusLoading ? (
               <CampusSkeleton />
             ) : (

@@ -13,11 +13,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
     env: process.env.EXPO_PUBLIC_ENV,
+    eas: {
+      projectId: "43e326a2-2f25-4317-a341-a107a52c5405",
+    },
   },
   ios: {
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: true,
-    buildNumber: "68",
+    buildNumber: "69",
     googleServicesFile: "./GoogleService-Info.plist",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
