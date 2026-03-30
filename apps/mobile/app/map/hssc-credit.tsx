@@ -9,7 +9,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo } from '@skkuverse/shared';
 
 export default function HSSCCreditScreen() {
   const insets = useSafeAreaInsets();

@@ -13,7 +13,7 @@ import {
   type BuildingConnection,
   getLocalizedText,
   useSettingsStore,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 
 interface ConnectionsSectionProps {
   connections: BuildingConnection[];

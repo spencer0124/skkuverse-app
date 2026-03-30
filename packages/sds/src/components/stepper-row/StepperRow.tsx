@@ -10,7 +10,7 @@
  */
 import React, { type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
 import { Button, type ButtonProps } from '../button';

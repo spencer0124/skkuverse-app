@@ -33,7 +33,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { ThemeProvider, useTheme } from '../../core';
 import { springConfig, timingConfig } from '../../foundation/easings';
 import { Txt } from '../txt';

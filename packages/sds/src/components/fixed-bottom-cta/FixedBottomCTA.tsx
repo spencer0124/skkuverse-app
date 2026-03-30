@@ -16,7 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 export interface FixedBottomCTAProps {
   children: ReactNode;

@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import type { BuildingNavPayload } from '@skkuuniverse/shared';
+import type { BuildingNavPayload } from '@skkuverse/shared';
 
 interface SearchResultState {
   pendingNavPayload: BuildingNavPayload | null;

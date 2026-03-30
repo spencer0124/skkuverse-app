@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { SdsColors, SdsTypo, SdsSpacing } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsSpacing } from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 
 /**

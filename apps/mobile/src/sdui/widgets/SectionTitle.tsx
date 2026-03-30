@@ -5,7 +5,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, type SduiSectionTitle as SectionTitleType } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, type SduiSectionTitle as SectionTitleType } from '@skkuverse/shared';
 
 interface Props {
   section: SectionTitleType;

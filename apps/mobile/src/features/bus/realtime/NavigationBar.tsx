@@ -8,8 +8,8 @@ import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors } from '@skkuuniverse/shared';
-import { Navbar } from '@skkuuniverse/sds';
+import { SdsColors } from '@skkuverse/shared';
+import { Navbar } from '@skkuverse/sds';
 
 interface NavigationBarProps {
   title: string;

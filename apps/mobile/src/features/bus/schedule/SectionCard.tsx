@@ -6,7 +6,7 @@
 
 import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 interface SectionCardProps {
   children: ReactNode;

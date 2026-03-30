@@ -9,7 +9,7 @@
 
 import { Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { type SduiBanner as BannerType } from '@skkuuniverse/shared';
+import { type SduiBanner as BannerType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 
 interface Props {

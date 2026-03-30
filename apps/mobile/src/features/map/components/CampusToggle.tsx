@@ -6,7 +6,7 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { useMapLayerStore, type CampusDef, SdsShadows } from '@skkuuniverse/shared';
+import { useMapLayerStore, type CampusDef, SdsShadows } from '@skkuverse/shared';
 import { FilterPill } from './FilterPill';
 
 interface CampusToggleProps {

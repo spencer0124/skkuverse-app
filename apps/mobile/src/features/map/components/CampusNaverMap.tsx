@@ -13,7 +13,7 @@ import {
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import type { ViewStyle, StyleProp } from 'react-native';
-import type { MapConfig } from '@skkuuniverse/shared';
+import type { MapConfig } from '@skkuverse/shared';
 
 interface CampusNaverMapProps {
   mapConfig: MapConfig;

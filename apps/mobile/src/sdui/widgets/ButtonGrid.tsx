@@ -8,7 +8,7 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, SdsRadius, type SduiButtonGrid as ButtonGridType } from '@skkuuniverse/shared';
+import { SdsColors, SdsRadius, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 
 interface Props {

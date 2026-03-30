@@ -17,7 +17,7 @@
 
 import { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import type { RealtimeBus } from '@skkuuniverse/shared';
+import type { RealtimeBus } from '@skkuverse/shared';
 import { LicensePlate } from './LicensePlate';
 import { PulseAnimation } from './PulseAnimation';
 import { STATION_ROW_HEIGHT, LEFT_PADDING } from './StationRow';

@@ -6,8 +6,8 @@
 
 import { View, Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors } from '@skkuuniverse/shared';
-import { Txt } from '@skkuuniverse/sds';
+import { SdsColors } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 
 interface InfoBannerProps {
   text: string;

@@ -12,8 +12,8 @@ import {
   SdsColors,
   type ScheduleEntry,
   type RouteBadge,
-} from '@skkuuniverse/shared';
-import { Txt, Badge } from '@skkuuniverse/sds';
+} from '@skkuverse/shared';
+import { Txt, Badge } from '@skkuverse/sds';
 import { formatETA, getMinutesUntil } from './utils';
 
 /** Grey for ended, blue-grey for future days, brand green for today */

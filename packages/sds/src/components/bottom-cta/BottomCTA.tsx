@@ -9,7 +9,7 @@
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 export interface BottomCTAProps {
   children: ReactNode;

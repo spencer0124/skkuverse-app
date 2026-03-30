@@ -5,7 +5,7 @@
  * Provides theme context to all SDS components.
  */
 import React, { createContext, useContext, useMemo, type PropsWithChildren } from 'react';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { colorSeeds, type ColorSeeds } from '../foundation/colors';
 
 // ── Seed Token ──

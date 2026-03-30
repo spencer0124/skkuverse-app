@@ -11,8 +11,8 @@
 
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors } from '@skkuuniverse/shared';
-import { Txt, Button } from '@skkuuniverse/sds';
+import { SdsColors } from '@skkuverse/shared';
+import { Txt, Button } from '@skkuverse/sds';
 
 interface StatusCardProps {
   icon: string;

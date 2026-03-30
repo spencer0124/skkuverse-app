@@ -6,8 +6,8 @@
  */
 
 import { View, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, type DaySchedule } from '@skkuuniverse/shared';
-import { Txt } from '@skkuuniverse/sds';
+import { SdsColors, type DaySchedule } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 
 const DAY_NAMES: Record<number, string> = {
   1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일',

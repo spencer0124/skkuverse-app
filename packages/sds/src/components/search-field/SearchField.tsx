@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
 import { Txt } from '../txt';
 

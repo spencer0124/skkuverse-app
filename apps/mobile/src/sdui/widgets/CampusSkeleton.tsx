@@ -14,7 +14,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
-import { SdsColors, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors, SdsRadius } from '@skkuverse/shared';
 
 const BUTTON_SIZE = 77;
 

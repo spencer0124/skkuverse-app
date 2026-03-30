@@ -23,7 +23,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { springConfig } from '../../foundation/easings';
 import { Txt } from '../txt';
 import { Button, type ButtonProps } from '../button';

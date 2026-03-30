@@ -13,7 +13,7 @@ import {
   type Building,
   getLocalizedText,
   useSettingsStore,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 
 interface BuildingHeaderProps {
   building: Building;

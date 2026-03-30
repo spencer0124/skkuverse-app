@@ -7,7 +7,7 @@
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, SdsShadows } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsShadows } from '@skkuverse/shared';
 
 export function SearchBar() {
   const router = useRouter();

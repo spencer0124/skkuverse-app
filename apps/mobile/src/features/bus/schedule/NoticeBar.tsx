@@ -8,8 +8,8 @@
 
 import { View, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsRadius, type ScheduleNotice } from '@skkuuniverse/shared';
-import { Txt } from '@skkuuniverse/sds';
+import { SdsRadius, type ScheduleNotice } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 
 interface NoticeBarProps {
   notice: ScheduleNotice;

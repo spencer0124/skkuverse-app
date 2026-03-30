@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import {
   Txt,
   Button,
@@ -41,7 +41,7 @@ import {
   // Tier 4
   ErrorPage,
   Result,
-} from '@skkuuniverse/sds';
+} from '@skkuverse/sds';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

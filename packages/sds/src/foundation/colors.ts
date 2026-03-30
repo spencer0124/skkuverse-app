@@ -5,7 +5,7 @@
  * - Adaptive color maps for light/dark mode
  * - Semantic color seeds for the theme provider
  */
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 export type ColorPreference = 'light' | 'dark';
 

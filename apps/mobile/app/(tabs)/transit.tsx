@@ -12,7 +12,7 @@ import { useCallback } from 'react';
 import { ScrollView, RefreshControl, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useTransitList, useMainNotice, SdsColors } from '@skkuuniverse/shared';
+import { useTransitList, useMainNotice, SdsColors } from '@skkuverse/shared';
 import { BusListItemRow } from '@/features/bus/BusListItemRow';
 import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';

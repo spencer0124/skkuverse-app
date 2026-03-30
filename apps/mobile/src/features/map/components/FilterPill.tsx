@@ -5,7 +5,7 @@
  */
 
 import { Pressable, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsRadius } from '@skkuverse/shared';
 
 interface FilterPillProps {
   label: string;

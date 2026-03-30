@@ -30,7 +30,7 @@ import {
   type Building,
   type SpaceGroup,
   type BuildingNavPayload,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 import { useSearchResultStore } from './store';
 import { BuildingResultRow } from './components/BuildingResultRow';
 import { SpaceResultRow } from './components/SpaceResultRow';

@@ -20,8 +20,8 @@ import {
   useSmartSchedule,
   useCampusEta,
   SdsColors,
-} from '@skkuuniverse/shared';
-import { SegmentedControl } from '@skkuuniverse/sds';
+} from '@skkuverse/shared';
+import { SegmentedControl } from '@skkuverse/sds';
 import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
 import { InfoBanner } from '@/features/bus/schedule/InfoBanner';
 import { WeekHeader } from '@/features/bus/schedule/WeekHeader';

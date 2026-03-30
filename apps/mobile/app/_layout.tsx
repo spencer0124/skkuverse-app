@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
-import { SDSProvider } from '@skkuuniverse/sds';
+import { SDSProvider } from '@skkuverse/sds';
 
 /**
  * Root layout — provider hierarchy:

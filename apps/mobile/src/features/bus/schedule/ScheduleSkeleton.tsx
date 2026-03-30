@@ -5,8 +5,8 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { SdsColors, SdsRadius } from '@skkuuniverse/shared';
-import { Skeleton } from '@skkuuniverse/sds';
+import { SdsColors, SdsRadius } from '@skkuverse/shared';
+import { Skeleton } from '@skkuverse/sds';
 
 export function ScheduleSkeleton() {
   return (

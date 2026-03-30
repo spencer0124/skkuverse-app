@@ -7,7 +7,7 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 export function SheetHandle() {
   return (

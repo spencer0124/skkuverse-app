@@ -9,7 +9,7 @@
  */
 
 import { View } from 'react-native';
-import type { SduiSection } from '@skkuuniverse/shared';
+import type { SduiSection } from '@skkuverse/shared';
 import { ButtonGrid } from './widgets/ButtonGrid';
 import { SectionTitle } from './widgets/SectionTitle';
 import { Notice } from './widgets/Notice';

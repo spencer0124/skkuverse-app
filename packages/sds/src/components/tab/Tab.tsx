@@ -32,7 +32,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
 import { useControlled } from '../../utils';
 import { springConfig } from '../../foundation/easings';

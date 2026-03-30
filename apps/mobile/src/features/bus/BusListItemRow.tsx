@@ -11,7 +11,7 @@
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, type BusListItem, hexToColor } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, type BusListItem, hexToColor } from '@skkuverse/shared';
 import { BusIcon } from './BusIcon';
 
 interface BusListItemRowProps {

@@ -5,7 +5,7 @@ import {
   setAuthTokenProvider,
   getApiClient,
   authStore,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 import { setCrashlyticsUserId } from '@/services/crashlytics';
 import {
   setAnalyticsUserId,

@@ -14,7 +14,7 @@ import {
   type FloorInfo,
   getLocalizedText,
   useSettingsStore,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 
 interface FloorTileProps {
   floor: FloorInfo;

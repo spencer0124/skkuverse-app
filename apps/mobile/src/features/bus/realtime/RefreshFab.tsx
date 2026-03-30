@@ -6,7 +6,7 @@
 
 import { Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsShadows } from '@skkuuniverse/shared';
+import { SdsColors, SdsShadows } from '@skkuverse/shared';
 
 interface RefreshFabProps {
   color: string;

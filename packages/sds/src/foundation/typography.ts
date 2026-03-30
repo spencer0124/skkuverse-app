@@ -4,7 +4,7 @@
  * TDS uses string keys like 't1', 't2', ... 't7' + sub-types 'st1'–'st13'.
  * SDS maps these to the existing SdsTypo tokens.
  */
-import { SdsTypo, type SdsTextStyle } from '@skkuuniverse/shared';
+import { SdsTypo, type SdsTextStyle } from '@skkuverse/shared';
 
 // ── Font Weight Map (TDS-compatible) ──
 

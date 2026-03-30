@@ -15,7 +15,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
-import { SdsColors, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors, SdsRadius } from '@skkuverse/shared';
 
 function SkeletonRow({ opacity }: { opacity: SharedValue<number> }) {
   const animatedStyle = useAnimatedStyle(() => ({

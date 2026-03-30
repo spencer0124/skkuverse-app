@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import { NaverMapPathOverlay } from '@mj-studio/react-native-naver-map';
-import { useLayerPolyline, type MapLayerDef } from '@skkuuniverse/shared';
+import { useLayerPolyline, type MapLayerDef } from '@skkuverse/shared';
 
 interface MapPolylineLayerProps {
   layer: MapLayerDef;

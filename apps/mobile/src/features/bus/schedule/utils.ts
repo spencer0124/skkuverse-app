@@ -4,7 +4,7 @@
  * Flutter source: lib/features/transit/controller/bus_campus_controller.dart
  */
 
-import type { ScheduleEntry, RouteBadge, SmartSchedule, StationEta } from '@skkuuniverse/shared';
+import type { ScheduleEntry, RouteBadge, SmartSchedule, StationEta } from '@skkuverse/shared';
 
 /**
  * Finds the next departure from schedule entries.

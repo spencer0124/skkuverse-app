@@ -13,7 +13,7 @@ import {
   SdsColors,
   SdsTypo,
   SdsSpacing,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 import { FilterPill } from './FilterPill';
 
 interface FilterSheetProps {

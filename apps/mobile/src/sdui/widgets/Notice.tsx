@@ -8,7 +8,7 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, SdsRadius, SdsTypo, type SduiNotice as NoticeType } from '@skkuuniverse/shared';
+import { SdsColors, SdsRadius, SdsTypo, type SduiNotice as NoticeType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 
 interface Props {

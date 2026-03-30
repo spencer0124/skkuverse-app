@@ -11,8 +11,8 @@
  */
 
 import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SdsColors, type DaySchedule } from '@skkuuniverse/shared';
-import { Txt } from '@skkuuniverse/sds';
+import { SdsColors, type DaySchedule } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 
 /** 1=Mon through 7=Sun → Korean day name */
 const DAY_NAMES: Record<number, string> = {

@@ -13,7 +13,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
-import { SdsColors, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors, SdsRadius } from '@skkuverse/shared';
 
 export function RealtimeSkeleton() {
   const opacity = useSharedValue(1);

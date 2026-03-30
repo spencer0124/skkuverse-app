@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { SdsColors, SdsTypo, SdsSpacing, SdsRadius } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsSpacing, SdsRadius } from '@skkuverse/shared';
 import { recordError } from '@/services/crashlytics';
 
 interface Props {

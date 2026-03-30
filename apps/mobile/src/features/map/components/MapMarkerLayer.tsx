@@ -12,7 +12,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
-import { useLayerMarkers, type MapLayerDef, useSettingsStore } from '@skkuuniverse/shared';
+import { useLayerMarkers, type MapLayerDef, useSettingsStore } from '@skkuverse/shared';
 
 const MARKER_ICON = require('../../../../assets/images/line_blank.png');
 

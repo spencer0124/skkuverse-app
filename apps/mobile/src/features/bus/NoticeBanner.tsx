@@ -9,7 +9,7 @@
 
 import { Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, SdsRadius, type NoticePlacement } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, SdsRadius, type NoticePlacement } from '@skkuverse/shared';
 
 interface NoticeBannerProps {
   notice: NoticePlacement;

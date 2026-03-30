@@ -21,8 +21,8 @@ import {
   getLocalizedText,
   useSettingsStore,
   type FloorSpace,
-} from '@skkuuniverse/shared';
-import { AccordionList, Badge, Txt, type AccordionSection } from '@skkuuniverse/sds';
+} from '@skkuverse/shared';
+import { AccordionList, Badge, Txt, type AccordionSection } from '@skkuverse/sds';
 import { BuildingHeader } from './BuildingHeader';
 import { ConnectionsSection } from './ConnectionsSection';
 

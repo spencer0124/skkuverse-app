@@ -12,8 +12,8 @@ import { useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo } from '@skkuuniverse/shared';
-import { parseWebMessage } from '@skkuuniverse/bridge';
+import { SdsColors, SdsTypo } from '@skkuverse/shared';
+import { parseWebMessage } from '@skkuverse/bridge';
 
 const WEBVIEW_URL = 'https://webview.skkuuniverse.com/#/map/hssc';
 

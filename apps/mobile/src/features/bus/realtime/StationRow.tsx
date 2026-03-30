@@ -9,7 +9,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, type RealtimeStation, hexToColor } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo, type RealtimeStation, hexToColor } from '@skkuverse/shared';
 
 const STATION_ROW_HEIGHT = 66;
 const LEFT_PADDING = 70;

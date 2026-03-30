@@ -12,7 +12,7 @@ import {
   type SpaceGroup,
   getLocalizedText,
   useSettingsStore,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 
 interface SpaceResultRowProps {
   space: SearchSpaceItem;

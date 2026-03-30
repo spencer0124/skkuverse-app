@@ -31,7 +31,7 @@ import {
   useCampusSections,
   useMapLayerStore,
   SdsColors,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';

@@ -4,8 +4,8 @@
  * Flutter source: bus_campus_screen.dart (service selector)
  */
 
-import { type BusService } from '@skkuuniverse/shared';
-import { Tab } from '@skkuuniverse/sds';
+import { type BusService } from '@skkuverse/shared';
+import { Tab } from '@skkuverse/sds';
 
 interface ServiceTabsProps {
   services: BusService[];

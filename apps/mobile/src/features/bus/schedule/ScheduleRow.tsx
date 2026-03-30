@@ -13,8 +13,8 @@ import {
   type ScheduleEntry,
   type RouteBadge,
   hexToColor,
-} from '@skkuuniverse/shared';
-import { Txt, Badge } from '@skkuuniverse/sds';
+} from '@skkuverse/shared';
+import { Txt, Badge } from '@skkuverse/sds';
 import { getRouteBadge } from './utils';
 
 /** Flutter color constants */

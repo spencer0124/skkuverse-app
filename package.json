@@ -1,5 +1,5 @@
 {
-  "name": "skkuuniverse",
+  "name": "skkuverse",
   "private": true,
   "workspaces": [
     "apps/*",

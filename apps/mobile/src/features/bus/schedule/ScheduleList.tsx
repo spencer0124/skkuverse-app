@@ -8,8 +8,8 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { SdsColors, type ScheduleEntry, type RouteBadge } from '@skkuuniverse/shared';
-import { Txt } from '@skkuuniverse/sds';
+import { SdsColors, type ScheduleEntry, type RouteBadge } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 import { ScheduleRow } from './ScheduleRow';
 import { isPastBus, hasMultipleRouteTypes } from './utils';
 

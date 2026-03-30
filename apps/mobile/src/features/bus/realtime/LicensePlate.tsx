@@ -5,7 +5,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 
 interface LicensePlateProps {
   carNumber: string;

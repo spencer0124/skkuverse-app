@@ -21,7 +21,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { SdsColors } from '@skkuuniverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
 import { Txt, type TxtProps } from '../txt';
 import type { FontWeightKeys, TypographyKeys } from '../../foundation/typography';

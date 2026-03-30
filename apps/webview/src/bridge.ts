@@ -1,5 +1,5 @@
-import { postToApp } from '@skkuuniverse/bridge';
-import type { MapSelectPayload } from '@skkuuniverse/bridge';
+import { postToApp } from '@skkuverse/bridge';
+import type { MapSelectPayload } from '@skkuverse/bridge';
 
 /**
  * Open a URL in the native app (replaces flutterCommunicate).

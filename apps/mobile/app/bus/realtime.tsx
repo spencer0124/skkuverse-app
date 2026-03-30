@@ -19,7 +19,7 @@ import {
   useRealtimeData,
   hexToColor,
   SdsColors,
-} from '@skkuuniverse/shared';
+} from '@skkuverse/shared';
 import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
 import { TopInfoBar } from '@/features/bus/realtime/TopInfoBar';
 import { StationRow } from '@/features/bus/realtime/StationRow';

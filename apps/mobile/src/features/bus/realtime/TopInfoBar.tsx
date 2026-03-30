@@ -5,7 +5,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo } from '@skkuuniverse/shared';
+import { SdsColors, SdsTypo } from '@skkuverse/shared';
 
 interface TopInfoBarProps {
   currentTime: string;

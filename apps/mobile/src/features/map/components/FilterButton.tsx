@@ -4,7 +4,7 @@
 
 import { Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SdsColors, SdsShadows } from '@skkuuniverse/shared';
+import { SdsColors, SdsShadows } from '@skkuverse/shared';
 
 interface FilterButtonProps {
   onPress: () => void;

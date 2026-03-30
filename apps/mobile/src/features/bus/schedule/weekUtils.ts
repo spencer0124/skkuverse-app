@@ -2,7 +2,7 @@
  * Week grouping + Korean label utilities for schedule day navigation.
  */
 
-import type { DaySchedule } from '@skkuuniverse/shared';
+import type { DaySchedule } from '@skkuverse/shared';
 
 export interface WeekGroup {
   /** Korean label, e.g. "3월 넷째 주" */

@@ -1,10 +1,10 @@
 {
-  "name": "@skkuuniverse/sds",
+  "name": "@skkuverse/sds",
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts",
   "dependencies": {
-    "@skkuuniverse/shared": "*",
+    "@skkuverse/shared": "*",
     "culori": "^4.0.1",
     "hex-to-rgba": "^2.0.1"
   },
