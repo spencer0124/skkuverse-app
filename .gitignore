@@ -14,6 +14,10 @@ android/
 .env.local
 .env.*.local
 
+# Firebase credentials
+GoogleService-Info.plist
+google-services.json
+
 # IDE
 .vscode/settings.json
 .idea/
