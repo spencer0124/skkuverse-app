@@ -29,6 +29,7 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+credentials.json
 
 # local env files
 .env*.local
@@ -37,6 +38,10 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# build artifacts
+*.ipa
+fastlane/report.xml
 
 # generated native folders
 /ios

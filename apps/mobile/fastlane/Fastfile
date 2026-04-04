@@ -1,0 +1,35 @@
+default_platform(:ios)
+
+platform :ios do
+
+  before_all do
+    app_store_connect_api_key(
+      key_id: "VL6TWU5ST5",
+      issuer_id: "97e30026-b115-4ce3-8939-a98af36dcf3b",
+      key_filepath: File.expand_path("AuthKey_VL6TWU5ST5.p8", __dir__),
+    )
+  end
+
+  # ─── TestFlight Upload ───────────────────────────────────────────
+  desc "Upload .ipa to TestFlight"
+  lane :upload_beta do |options|
+    upload_to_testflight(
+      ipa: options[:ipa],
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  # ─── App Store Upload ────────────────────────────────────────────
+  desc "Upload .ipa to App Store"
+  lane :upload_release do |options|
+    deliver(
+      ipa: options[:ipa],
+      submit_for_review: false,
+      automatic_release: false,
+      force: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+    )
+  end
+
+end
