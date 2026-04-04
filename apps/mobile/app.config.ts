@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkubus",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "1.0.0",
+  runtimeVersion: { policy: "fingerprint" },
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
