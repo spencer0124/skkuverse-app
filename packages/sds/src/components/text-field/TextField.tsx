@@ -22,30 +22,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import { XCircle } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
 import { Txt } from '../txt';
 import type { ReactNode } from 'react';
-
-// ── Clear icon ──
-
-function ClearIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
-        fill={SdsColors.grey300}
-      />
-      <Path
-        d="M8 8L16 16M16 8L8 16"
-        stroke="#FFFFFF"
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
 
 // ── Types ──
 
@@ -212,7 +193,7 @@ const TextFieldInner = forwardRef<TextInput, TextFieldProps & { showClear?: bool
             )}
             {showClear && hasValue && (
               <Pressable onPress={onClear} hitSlop={8} style={styles.clearButton}>
-                <ClearIcon />
+                <XCircle size={20} color={SdsColors.grey300} fill={SdsColors.grey300} />
               </Pressable>
             )}
             {right}

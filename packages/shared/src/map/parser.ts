@@ -53,7 +53,7 @@ function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
     label: raw.label as string,
     defaultVisible: (raw.defaultVisible as boolean) ?? false,
     endpoint: raw.endpoint as string,
-    markerStyle: (raw.markerStyle as 'numberCircle' | 'textLabel') ?? undefined,
+    markerStyle: (raw.markerStyle as 'numberCircle' | 'numberDot' | 'textLabel') ?? undefined,
     style: raw.style
       ? parseLayerStyle(raw.style as Record<string, unknown>)
       : undefined,

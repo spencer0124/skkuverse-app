@@ -38,7 +38,7 @@ export interface MapLayerDef {
   label: string;
   defaultVisible: boolean;
   endpoint: string;
-  markerStyle?: 'numberCircle' | 'textLabel';
+  markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel';
   style?: MapLayerStyle;
 }
 

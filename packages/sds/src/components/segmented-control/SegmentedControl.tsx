@@ -43,10 +43,11 @@ const SegmentedContext = createContext<SegmentedContextValue | null>(null);
 export interface SegmentedControlItemProps {
   value: string;
   children: ReactNode;
+  typography?: import('../../foundation/typography').TypographyKeys;
   style?: StyleProp<ViewStyle>;
 }
 
-function SegmentedControlItem({ value, children, style }: SegmentedControlItemProps) {
+function SegmentedControlItem({ value, children, typography = 't6', style }: SegmentedControlItemProps) {
   const ctx = useContext(SegmentedContext);
   if (!ctx) throw new Error('SegmentedControl.Item must be used within <SegmentedControl>');
 
@@ -60,7 +61,7 @@ function SegmentedControlItem({ value, children, style }: SegmentedControlItemPr
   return (
     <Pressable onPress={handlePress} style={[styles.item, style]}>
       <Txt
-        typography="t6"
+        typography={typography}
         fontWeight={isActive ? 'semiBold' : 'regular'}
         color={isActive ? adaptive.grey900 : adaptive.grey500}
       >

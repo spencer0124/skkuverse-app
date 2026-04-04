@@ -14,32 +14,10 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { Search, XCircle } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
 import { Txt } from '../txt';
-
-// ── Search icon ──
-
-function SearchIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Circle cx={11} cy={11} r={7} stroke={SdsColors.grey400} strokeWidth={2} />
-      <Line x1={16.5} y1={16.5} x2={21} y2={21} stroke={SdsColors.grey400} strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-// ── Clear icon ──
-
-function ClearIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={10} fill={SdsColors.grey300} />
-      <Path d="M8 8L16 16M16 8L8 16" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
 
 export interface SearchFieldProps extends Omit<TextInputProps, 'style'> {
   value?: string;
@@ -85,7 +63,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
   return (
     <View style={[styles.container, style]}>
       <View style={styles.iconLeft}>
-        <SearchIcon />
+        <Search size={20} color={SdsColors.grey400} />
       </View>
       <TextInput
         ref={ref}
@@ -100,7 +78,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
       />
       {showClear && (
         <Pressable onPress={handleClear} style={styles.clearButton} hitSlop={8}>
-          <ClearIcon />
+          <XCircle size={20} color={SdsColors.grey300} fill={SdsColors.grey300} />
         </Pressable>
       )}
     </View>

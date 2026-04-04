@@ -21,7 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { CircleCheck, CircleX, CircleAlert, Info } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { springConfig } from '../../foundation/easings';
 import { Txt } from '../txt';
@@ -142,35 +142,17 @@ const iconColors: Record<IconType, string> = {
   info: SdsColors.blue500,
 };
 
+const iconComponents: Record<IconType, typeof CircleCheck> = {
+  check: CircleCheck,
+  error: CircleX,
+  warning: CircleAlert,
+  info: Info,
+};
+
 function ToastIcon({ type, size = 20 }: ToastIconProps) {
   const color = iconColors[type];
-
-  if (type === 'check') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <Circle cx={12} cy={12} r={10} fill={color} />
-        <Path d="M8 12L11 15L16 9" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      </Svg>
-    );
-  }
-
-  if (type === 'error') {
-    return (
-      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <Circle cx={12} cy={12} r={10} fill={color} />
-        <Path d="M8 8L16 16M16 8L8 16" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" />
-      </Svg>
-    );
-  }
-
-  // warning / info — exclamation mark
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={10} fill={color} />
-      <Path d="M12 8V13" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" />
-      <Circle cx={12} cy={16.5} r={1.2} fill="#FFFFFF" />
-    </Svg>
-  );
+  const IconComponent = iconComponents[type];
+  return <IconComponent size={size} color="#FFFFFF" fill={color} />;
 }
 
 // ── Toast.Button ──

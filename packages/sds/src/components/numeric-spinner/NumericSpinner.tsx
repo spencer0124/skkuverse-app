@@ -6,7 +6,7 @@
  */
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Minus, Plus } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
 import { useControlled } from '../../utils';
@@ -22,24 +22,6 @@ const sizeConfig: Record<SpinnerSize, { button: number; iconSize: number; fontSi
   medium: { button: 36, iconSize: 18, fontSize: 't6' },
   large: { button: 40, iconSize: 20, fontSize: 't5' },
 };
-
-// ── Icons ──
-
-function MinusIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path d="M5 12h14" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function PlusIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
 
 // ── Props ──
 
@@ -113,7 +95,7 @@ export default function NumericSpinner({
         accessibilityLabel="Decrease"
         accessibilityState={{ disabled: disable || isMinReached }}
       >
-        <MinusIcon
+        <Minus
           size={config.iconSize}
           color={isMinReached ? buttonDisabledColor : buttonActiveColor}
         />
@@ -147,7 +129,7 @@ export default function NumericSpinner({
         accessibilityLabel="Increase"
         accessibilityState={{ disabled: disable || isMaxReached }}
       >
-        <PlusIcon
+        <Plus
           size={config.iconSize}
           color={isMaxReached ? buttonDisabledColor : buttonActiveColor}
         />

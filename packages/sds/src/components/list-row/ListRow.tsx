@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SdsColors } from '@skkuverse/shared';
+import { ChevronRight } from 'lucide-react-native';
 import { useAdaptive } from '../../core';
 import { Txt, type TxtProps } from '../txt';
 import type { FontWeightKeys, TypographyKeys } from '../../foundation/typography';
@@ -66,9 +67,9 @@ function resolveVerticalPadding(vp?: ListRowProps['verticalPadding']): number {
 
 function RightArrow() {
   return (
-    <Txt typography="t6" color={SdsColors.grey400} style={{ marginLeft: 4 }}>
-      {'>'}
-    </Txt>
+    <View style={{ marginLeft: 4 }}>
+      <ChevronRight size={18} color={SdsColors.grey400} />
+    </View>
   );
 }
 

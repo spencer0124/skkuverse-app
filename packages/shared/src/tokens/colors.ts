@@ -68,6 +68,6 @@ export const SdsColors = {
   floatedBackground: '#FFFFFF',
 
   // ── Brand ──
-  brand: '#1A7F4B',
+  brand: '#1A8A5C',
   brandLight: '#E8F5EE',
 } as const;

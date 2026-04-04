@@ -78,6 +78,19 @@ function applyEasing(
   return result;
 }
 
+// ── Split rgba into color + opacity for SVG <Stop> ──
+
+function splitColorOpacity(color: string): { color: string; opacity: number } {
+  const rgba = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (rgba) {
+    return {
+      color: `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`,
+      opacity: rgba[4] != null ? parseFloat(rgba[4]) : 1,
+    };
+  }
+  return { color, opacity: 1 };
+}
+
 // ── Helpers ──
 
 function degreeToPoints(deg: number) {
@@ -120,7 +133,8 @@ function LinearGradientComponent({
   const deg = typeof degree === 'number' ? degree : parseDegree(degree);
   const points = degreeToPoints(deg);
 
-  const stops = applyEasing(colors, positions, easing, colorStopCount);
+  const rawStops = applyEasing(colors, positions, easing, colorStopCount);
+  const stops = rawStops.map((s) => ({ ...splitColorOpacity(s.color), offset: s.offset }));
 
   return (
     <View style={[styles.container, style]}>
@@ -128,7 +142,7 @@ function LinearGradientComponent({
         <Defs>
           <SvgLinearGradient id="lg" x1={points.x1} y1={points.y1} x2={points.x2} y2={points.y2}>
             {stops.map((stop, i) => (
-              <Stop key={i} offset={stop.offset} stopColor={stop.color} />
+              <Stop key={i} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />
             ))}
           </SvgLinearGradient>
         </Defs>
@@ -168,7 +182,8 @@ function RadialGradientComponent({
   style,
   children,
 }: RadialGradientProps) {
-  const stops = applyEasing(colors, positions, easing, colorStopCount);
+  const rawStops = applyEasing(colors, positions, easing, colorStopCount);
+  const stops = rawStops.map((s) => ({ ...splitColorOpacity(s.color), offset: s.offset }));
 
   return (
     <View style={[styles.container, style]}>
@@ -181,7 +196,7 @@ function RadialGradientComponent({
             r={`${r * 100}%`}
           >
             {stops.map((stop, i) => (
-              <Stop key={i} offset={stop.offset} stopColor={stop.color} />
+              <Stop key={i} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />
             ))}
           </SvgRadialGradient>
         </Defs>

@@ -17,6 +17,7 @@ export interface BadgeProps {
   color?: string;
   backgroundColor?: string;
   fontWeight?: FontWeightKeys;
+  numberOfLines?: number;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -47,6 +48,7 @@ export default function Badge({
   color,
   backgroundColor,
   fontWeight: fontWeightProp,
+  numberOfLines,
   style,
 }: BadgeProps) {
   const adaptive = useAdaptive();
@@ -68,6 +70,7 @@ export default function Badge({
         typography={sizeVariant[size]}
         fontWeight={resolvedFontWeight}
         color={color ?? adaptive.grey600}
+        numberOfLines={numberOfLines}
       >
         {children}
       </Txt>

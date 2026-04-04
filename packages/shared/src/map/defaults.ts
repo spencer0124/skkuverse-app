@@ -35,7 +35,7 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       label: '건물번호',
       defaultVisible: true,
       endpoint: '/building/list',
-      markerStyle: 'numberCircle',
+      markerStyle: 'numberDot',
     },
   ],
 };

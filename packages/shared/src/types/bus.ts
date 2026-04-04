@@ -209,10 +209,10 @@ export interface CampusEta {
  * Normalizes hex color to `#RRGGBB` format.
  * If input already starts with `#`, returns as-is.
  * Validates hex format — returns fallback for malformed strings.
- * @param hex - Color string, e.g. "1A7F4B" or "#1A7F4B"
+ * @param hex - Color string, e.g. "1A8A5C" or "#1A8A5C"
  * @param fallback - Fallback color if hex is empty/undefined/invalid (default: brand green)
  */
-export function hexToColor(hex: string | undefined, fallback = '#1A7F4B'): string {
+export function hexToColor(hex: string | undefined, fallback = '#1A8A5C'): string {
   if (!hex) return fallback;
   const normalized = hex.startsWith('#') ? hex : `#${hex}`;
   // Validate hex format: #RGB, #RRGGBB, or #RRGGBBAA

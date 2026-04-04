@@ -38,6 +38,10 @@ export {
 // ── Auth ──
 export { setAuthTokenProvider } from './api/interceptors/auth';
 
+// ── i18n ──
+export { t, tpl, useT, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from './i18n';
+export type { TranslationKey } from './i18n';
+
 // ── Stores ──
 export { authStore, useAuthStore } from './store/auth';
 export type { AuthState, AuthStore } from './store/auth';
@@ -115,7 +119,7 @@ export type {
   BuildingSearchResult,
   BuildingNavPayload,
 } from './types/building';
-export { getLocalizedText } from './types/building';
+export { getLocalizedText, floorBadge } from './types/building';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';

@@ -7,7 +7,7 @@
  */
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { CircleAlert } from 'lucide-react-native';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
 import { Button } from '../button';
@@ -52,23 +52,6 @@ export interface ErrorPageProps {
   style?: StyleProp<ViewStyle>;
 }
 
-// ── Warning Icon ──
-
-function WarningIcon({ color, size = 64 }: { color: string; size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <Circle cx={32} cy={32} r={28} stroke={color} strokeWidth={3} />
-      <Path
-        d="M32 20V38"
-        stroke={color}
-        strokeWidth={3.5}
-        strokeLinecap="round"
-      />
-      <Circle cx={32} cy={46} r={2.5} fill={color} />
-    </Svg>
-  );
-}
-
 // ── ErrorPage ──
 
 export function ErrorPage({
@@ -89,7 +72,7 @@ export function ErrorPage({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.content}>
-        <WarningIcon color={adaptive.grey400} />
+        <CircleAlert size={64} color={adaptive.grey400} />
         <Txt
           typography="t3"
           fontWeight="bold"

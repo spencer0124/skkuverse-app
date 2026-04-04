@@ -30,6 +30,7 @@ import Animated, {
   FadeOut,
 } from 'react-native-reanimated';
 import { SdsColors } from '@skkuverse/shared';
+import { ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
 
@@ -69,6 +70,8 @@ export interface AccordionListProps<T = unknown> {
   showMoreLabel?: (remaining: number) => string;
   /** Right slot for each section header */
   renderRight?: (section: AccordionSection<T>, index: number) => ReactNode;
+  /** Accent color for "show more" text. @default SdsColors.blue500 */
+  accentColor?: string;
 }
 
 // ── AccordionBadge (40×40 animated badge) ──
@@ -111,6 +114,7 @@ export interface AccordionTileProps<T = unknown> {
   onShowAll?: () => void;
   showMoreLabel: (remaining: number) => string;
   renderRight?: ReactNode;
+  accentColor?: string;
 }
 
 function AccordionTile<T>({
@@ -126,6 +130,7 @@ function AccordionTile<T>({
   onShowAll,
   showMoreLabel,
   renderRight,
+  accentColor,
 }: AccordionTileProps<T>) {
   const adaptive = useAdaptive();
   const underlayOpacity = useSharedValue(0);
@@ -135,7 +140,7 @@ function AccordionTile<T>({
 
   const { items } = section;
   const badgeText = section.badge ?? section.title.charAt(0);
-  const subtitle = section.subtitle ?? `${items.length}개`;
+  const subtitle = section.subtitle;
   const visibleItems = showAll ? items : items.slice(0, maxVisible);
   const remaining = items.length - maxVisible;
 
@@ -172,12 +177,19 @@ function AccordionTile<T>({
             <Txt typography="t5" fontWeight="regular">
               {section.title}
             </Txt>
-            <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
-              {subtitle}
-            </Txt>
+            {subtitle != null && (
+              <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
+                {subtitle}
+              </Txt>
+            )}
           </View>
           {renderRight != null && (
             <View style={styles.tileRight}>{renderRight}</View>
+          )}
+          {expanded ? (
+            <ChevronDown size={18} color={SdsColors.grey400} />
+          ) : (
+            <ChevronRight size={18} color={SdsColors.grey400} />
           )}
         </View>
       </Pressable>
@@ -202,7 +214,7 @@ function AccordionTile<T>({
           {/* Show more */}
           {!showAll && remaining > 0 && (
             <Pressable onPress={onShowAll} style={styles.showMoreButton}>
-              <Txt typography="st12" fontWeight="semiBold" color={SdsColors.blue500}>
+              <Txt typography="st12" fontWeight="semiBold" color={accentColor ?? SdsColors.blue500}>
                 {showMoreLabel(remaining)}
               </Txt>
             </Pressable>
@@ -231,6 +243,7 @@ function AccordionListInner<T>({
   onShowAll,
   showMoreLabel = defaultShowMoreLabel,
   renderRight,
+  accentColor,
 }: AccordionListProps<T>) {
   const handleToggle = useCallback(
     (index: number) => {
@@ -259,6 +272,7 @@ function AccordionListInner<T>({
           onShowAll={onShowAll ? () => onShowAll(i) : undefined}
           showMoreLabel={showMoreLabel}
           renderRight={renderRight?.(section, i)}
+          accentColor={accentColor}
         />
       ))}
     </View>
@@ -297,6 +311,7 @@ const styles = StyleSheet.create({
   },
   tileRight: {
     marginLeft: 16,
+    marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
