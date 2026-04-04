@@ -18,6 +18,12 @@ android/
 GoogleService-Info.plist
 google-services.json
 
+# App Store Connect API key
+AuthKey_*.p8
+
+# Build artifacts
+build.ipa
+
 # IDE
 .vscode/settings.json
 .idea/

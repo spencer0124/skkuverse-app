@@ -17,6 +17,7 @@
       "channel": "preview"
     },
     "production": {
+      "credentialsSource": "local",
       "channel": "production"
     }
   }

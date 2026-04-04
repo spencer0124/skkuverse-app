@@ -4,6 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "스꾸버스",
   slug: "skkubus",
+  owner: "seungyongcho",
   version: "3.5.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -74,9 +75,33 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      "expo-font",
+      {
+        fonts: [
+          "./assets/fonts/WantedSans-Regular.otf",
+          "./assets/fonts/WantedSans-Medium.otf",
+          "./assets/fonts/WantedSans-Bold.otf",
+          "./assets/fonts/TossFaceFontMac.ttf",
+        ],
+      },
+    ],
+    [
+      "expo-localization",
+      {
+        supportedLocales: ["en", "ko", "zh"],
+      },
+    ],
+    [
       "@mj-studio/react-native-naver-map",
       {
         client_id: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID ?? "",
+      },
+    ],
+    [
+      "react-native-google-mobile-ads",
+      {
+        androidAppId: "ca-app-pub-5619947536545679~7806829793",
+        iosAppId: "ca-app-pub-5619947536545679~7068085893",
       },
     ],
   ],
