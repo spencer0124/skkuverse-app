@@ -33,3 +33,39 @@ platform :ios do
   end
 
 end
+
+platform :android do
+
+  # ─── Internal Testing Upload ──────────────────────────────────────
+  desc "Upload .aab to Google Play internal testing track"
+  lane :upload_beta do |options|
+    upload_to_play_store(
+      aab: options[:aab],
+      track: "internal",
+      release_status: "completed",
+      json_key: File.expand_path("play-store-key.json", __dir__),
+      package_name: "com.zoyoong.skkubus",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  # ─── Production Upload ────────────────────────────────────────────
+  desc "Upload .aab to Google Play production track"
+  lane :upload_release do |options|
+    upload_to_play_store(
+      aab: options[:aab],
+      track: "production",
+      release_status: "draft",
+      json_key: File.expand_path("play-store-key.json", __dir__),
+      package_name: "com.zoyoong.skkubus",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+end

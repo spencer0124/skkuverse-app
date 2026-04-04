@@ -102,6 +102,22 @@ cd apps/mobile
 - `.easignore`가 `.gitignore` 대신 적용됨 — Firebase 설정, `.env`, `certs/certificate.pem`이 빌드에 포함되어야 함
 - `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
 
+## Android Build (로컬 빌드)
+
+iOS와 동일하게 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포.
+
+```bash
+cd apps/mobile
+./scripts/android-beta.sh      # 빌드 + Google Play internal testing
+./scripts/android-release.sh   # 빌드 + Google Play production (draft)
+```
+
+**Android 빌드 주의사항:**
+- `credentials.json`의 `android.keystore` 섹션이 `./certs/upload-keystore.jks` 경로를 참조 (Flutter에서 가져온 동일 키)
+- Fastlane `supply`는 `fastlane/play-store-key.json` (Google Play 서비스 계정 키) 필요
+- `autoIncrement`는 `--local` 빌드에서 동작하지 않으므로, 빌드 스크립트에서 `eas build:version:get/set`으로 수동 증가
+- Android package: `com.zoyoong.skkubus`
+
 ## OTA 업데이트
 
 셀프호스팅 expo-open-ota 서버 (`https://ota.skkuverse.com`). 자세한 내용은 `docs/ota-update.md` 참조.
