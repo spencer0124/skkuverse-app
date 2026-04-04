@@ -1,12 +1,21 @@
 /**
- * Refresh FAB — floating action button for manual data refresh.
+ * Refresh FAB — floating action button with Lottie animation.
  *
- * Flutter source: bus_realtime_screen.dart (refresh FAB)
+ * Lottie asset from skkumap: assets/lottie/refresh.json
  */
 
-import { Pressable, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsShadows } from '@skkuverse/shared';
+import { useRef } from 'react';
+import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
+import { SdsShadows } from '@skkuverse/shared';
+
+/** Estimate adaptive banner height from screen width (must match AdaptiveBanner). */
+function estimateBannerHeight(screenWidth: number): number {
+  if (screenWidth <= 400) return 50;
+  if (screenWidth <= 728) return 60;
+  return 90;
+}
 
 interface RefreshFabProps {
   color: string;
@@ -14,15 +23,32 @@ interface RefreshFabProps {
 }
 
 export function RefreshFab({ color, onPress }: RefreshFabProps) {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const bottomOffset = estimateBannerHeight(width) + insets.bottom + 16;
+  const lottieRef = useRef<LottieView>(null);
+
+  const handlePress = () => {
+    lottieRef.current?.reset();
+    lottieRef.current?.play();
+    onPress();
+  };
+
   return (
     <Pressable
       style={({ pressed }) => [
         styles.fab,
-        { backgroundColor: color, opacity: pressed ? 0.8 : 1 },
+        { backgroundColor: color, opacity: pressed ? 0.8 : 1, bottom: bottomOffset },
       ]}
-      onPress={onPress}
+      onPress={handlePress}
     >
-      <MaterialIcons name="refresh" size={24} color={SdsColors.background} />
+      <LottieView
+        ref={lottieRef}
+        source={require('../../../../assets/lottie/refresh.json')}
+        style={styles.lottie}
+        autoPlay={false}
+        loop={false}
+      />
     </Pressable>
   );
 }
@@ -30,7 +56,6 @@ export function RefreshFab({ color, onPress }: RefreshFabProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 24,
     right: 20,
     width: 52,
     height: 52,
@@ -38,5 +63,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...SdsShadows.elevated,
+  },
+  lottie: {
+    width: 35,
+    height: 35,
   },
 });

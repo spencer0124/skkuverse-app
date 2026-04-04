@@ -4,28 +4,29 @@
  * Flutter source: lib/features/campus_map/widgets/searchbar.dart
  */
 
-import { Pressable, Text, View, StyleSheet } from 'react-native';
+import { Pressable, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo, SdsShadows } from '@skkuverse/shared';
+import { Search } from 'lucide-react-native';
+import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
 
 export function SearchBar() {
   const router = useRouter();
+  const { t } = useT();
 
   return (
     <Pressable
       style={styles.container}
       onPress={() => router.push('/search')}
     >
-      <Ionicons name="search" size={18} color={SdsColors.grey500} />
-      <Text style={styles.placeholder}>건물, 강의실 검색</Text>
-      <View style={styles.spacer} />
+      <Search size={18} color={SdsColors.grey500} />
+      <Text style={styles.placeholder} numberOfLines={1} ellipsizeMode="tail">{t('search.placeholder')}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -39,8 +40,5 @@ const styles = StyleSheet.create({
     ...SdsTypo.t6,
     color: SdsColors.grey400,
     flex: 1,
-  },
-  spacer: {
-    width: 18,
   },
 });

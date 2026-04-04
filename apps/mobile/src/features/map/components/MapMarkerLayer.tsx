@@ -1,8 +1,9 @@
 /**
  * Renders markers for a single map layer, filtered by selected campus.
  *
- * Three marker styles from MapLayerDef.markerStyle:
- * - numberCircle: circle icon + building number caption centered on icon
+ * Four marker styles from MapLayerDef.markerStyle:
+ * - numberDot: filled circle with number, building name caption (default)
+ * - numberCircle: circle icon + pin point + building number caption
  * - textLabel: localized text, tiny dot, caption with collision hiding
  * - default: small dot marker, no caption
  *
@@ -12,7 +13,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
-import { useLayerMarkers, type MapLayerDef, useSettingsStore } from '@skkuverse/shared';
+import { useLayerMarkers, type MapLayerDef, useSettingsStore, SdsColors } from '@skkuverse/shared';
 
 const MARKER_ICON = require('../../../../assets/images/line_blank.png');
 
@@ -38,6 +39,20 @@ const NumberCircleMarker = React.memo(function NumberCircleMarker({
         <Text style={styles.numberText}>{displayNo}</Text>
       </View>
       <View style={styles.pinPoint} />
+    </View>
+  );
+});
+
+const DOT_SIZE = 16;
+
+const NumberDotMarker = React.memo(function NumberDotMarker({
+  displayNo,
+}: {
+  displayNo: string;
+}) {
+  return (
+    <View collapsable={false} style={styles.dotMarker}>
+      <Text style={styles.dotText}>{displayNo}</Text>
     </View>
   );
 });
@@ -94,47 +109,56 @@ export function MapMarkerLayer({
           );
         }
 
-        if (layer.markerStyle === 'numberCircle') {
-          const markerSize = layer.style?.size ?? 25;
+        // Default: numberDot (filled green circle with white number + building name caption)
+        {
+          const text =
+            lang === 'en'
+              ? marker.text?.en || marker.text?.ko || ''
+              : marker.text?.ko || '';
           return (
             <NaverMapMarkerOverlay
               key={key}
               latitude={marker.lat}
               longitude={marker.lng}
-              width={markerSize}
-              height={markerSize}
-              anchor={{ x: 0.5, y: 1 }}
+              width={DOT_SIZE}
+              height={DOT_SIZE}
+              anchor={{ x: 0.5, y: 1.0 }}
+              caption={{
+                text,
+                textSize: 9,
+                color: '#333333',
+                requestedWidth: 200,
+                offset: 40,
+              }}
               onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
             >
-              <NumberCircleMarker
-                displayNo={marker.displayNo ?? ''}
-                markerSize={markerSize}
-              />
+              <NumberDotMarker displayNo={marker.displayNo ?? ''} />
             </NaverMapMarkerOverlay>
           );
         }
-
-        // Default: small marker with icon, no caption
-        const markerSize = layer.style?.size ?? 25;
-        return (
-          <NaverMapMarkerOverlay
-            key={key}
-            latitude={marker.lat}
-            longitude={marker.lng}
-            width={markerSize}
-            height={markerSize}
-            image={MARKER_ICON}
-            onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
-          />
-        );
       })}
     </>
   );
 }
 
-const PIN_COLOR = '#0A3D2C';
+const PIN_COLOR = SdsColors.brand;
+const DOT_COLOR = SdsColors.brand;
 
 const styles = StyleSheet.create({
+  dotMarker: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: DOT_SIZE / 2,
+    backgroundColor: DOT_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dotText: {
+    fontSize: 7,
+    fontFamily: 'WantedSans',
+    color: 'white',
+    fontWeight: '700',
+  },
   numberMarker: {
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -158,10 +182,11 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: PIN_COLOR,
-    marginTop: -1,
+    marginTop: -4,
   },
   numberText: {
     fontSize: 7,
+    fontFamily: 'WantedSans',
     color: 'black',
     fontWeight: '600',
   },

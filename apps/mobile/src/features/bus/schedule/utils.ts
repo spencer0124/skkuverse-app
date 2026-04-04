@@ -4,7 +4,7 @@
  * Flutter source: lib/features/transit/controller/bus_campus_controller.dart
  */
 
-import type { ScheduleEntry, RouteBadge, SmartSchedule, StationEta } from '@skkuverse/shared';
+import type { ScheduleEntry, RouteBadge, SmartSchedule, StationEta, TranslationKey } from '@skkuverse/shared';
 
 /**
  * Finds the next departure from schedule entries.
@@ -60,15 +60,18 @@ export function getMinutesUntil(entry: ScheduleEntry): number {
 }
 
 /**
- * Formats minutes until departure as Korean string.
+ * Formats minutes until departure using translation keys.
  */
-export function formatETA(minutes: number): string {
-  if (minutes <= 0) return '곧 출발';
-  if (minutes < 60) return `${minutes}분 후`;
+export function formatETA(
+  minutes: number,
+  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
+): string {
+  if (minutes <= 0) return tpl('eta.imminent');
+  if (minutes < 60) return tpl('eta.minutesLater', minutes);
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
-  if (remaining === 0) return `${hours}시간 후`;
-  return `${hours}시간 ${remaining}분 후`;
+  if (remaining === 0) return tpl('eta.hoursLater', hours);
+  return tpl('eta.hoursMinutesLater', hours, remaining);
 }
 
 /**
@@ -108,16 +111,19 @@ export function getRouteBadge(
 }
 
 /**
- * Formats milliseconds duration as Korean time string.
+ * Formats milliseconds duration using translation keys.
  * Flutter source: bus_campus_controller.dart (formatDuration)
  */
-export function formatDuration(ms: number): string {
+export function formatDuration(
+  ms: number,
+  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
+): string {
   const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) return `${minutes}분`;
+  if (minutes < 60) return tpl('eta.minutes', minutes);
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
-  if (remaining === 0) return `${hours}시간`;
-  return `${hours}시간 ${remaining}분`;
+  if (remaining === 0) return tpl('eta.hours', hours);
+  return tpl('eta.hoursMinutes', hours, remaining);
 }
 
 /**

@@ -9,7 +9,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo, type RealtimeStation, hexToColor } from '@skkuverse/shared';
+import { SdsColors, SdsTypo, useT, type RealtimeStation, hexToColor } from '@skkuverse/shared';
 
 const STATION_ROW_HEIGHT = 66;
 const LEFT_PADDING = 70;
@@ -23,6 +23,7 @@ interface StationRowProps {
 }
 
 export function StationRow({ station, themeColor, eta }: StationRowProps) {
+  const { t } = useT();
   const color = hexToColor(themeColor);
 
   return (
@@ -40,7 +41,7 @@ export function StationRow({ station, themeColor, eta }: StationRowProps) {
         {/* Station dot */}
         {station.isRotationStation ? (
           <View style={[styles.rotationBadge, { borderColor: color }]}>
-            <Text style={[styles.rotationText, { color }]}>회차</Text>
+            <Text style={[styles.rotationText, { color }]}>{t('transit.turn')}</Text>
           </View>
         ) : (
           <View style={[styles.dot, { borderColor: color }]}>
@@ -127,6 +128,7 @@ const styles = StyleSheet.create({
   },
   rotationText: {
     fontSize: 9,
+    fontFamily: 'WantedSans',
     fontWeight: '700',
   },
   infoContainer: {
@@ -140,8 +142,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   stationName: {
-    fontSize: SdsTypo.t6.fontSize,
-    lineHeight: SdsTypo.t6.lineHeight,
+    ...SdsTypo.t6,
     fontWeight: '700',
     color: SdsColors.grey900,
   },
@@ -154,11 +155,13 @@ const styles = StyleSheet.create({
   },
   transferText: {
     fontSize: 9,
+    fontFamily: 'WantedSans',
     fontWeight: '700',
     color: SdsColors.background,
   },
   detailText: {
     fontSize: 11,
+    fontFamily: 'WantedSans',
     color: SdsColors.grey500,
   },
 });

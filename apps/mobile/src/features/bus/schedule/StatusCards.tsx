@@ -10,25 +10,21 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors } from '@skkuverse/shared';
+import { CirclePause, Info, CircleAlert } from 'lucide-react-native';
+import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt, Button } from '@skkuverse/sds';
+import type { ReactNode } from 'react';
 
 interface StatusCardProps {
-  icon: string;
-  iconColor: string;
+  icon: ReactNode;
   title: string;
   subtitle?: string;
 }
 
-function StatusCard({ icon, iconColor, title, subtitle }: StatusCardProps) {
+function StatusCard({ icon, title, subtitle }: StatusCardProps) {
   return (
     <View style={styles.container}>
-      <MaterialIcons
-        name={icon as keyof typeof MaterialIcons.glyphMap}
-        size={40}
-        color={iconColor}
-      />
+      {icon}
       <Txt typography="t5" fontWeight="semiBold" textAlign="center">
         {title}
       </Txt>
@@ -47,25 +43,25 @@ interface SuspendedCardProps {
 }
 
 export function SuspendedCard({ resumeDate, message }: SuspendedCardProps) {
+  const { t, tpl } = useT();
   return (
     <StatusCard
-      icon="pause-circle-outline"
-      iconColor={SdsColors.orange500}
-      title="운행이 중단되었어요"
+      icon={<CirclePause size={40} color={SdsColors.orange500} />}
+      title={t('schedule.suspended')}
       subtitle={
         message ??
-        (resumeDate ? `${resumeDate}부터 다시 운행할 예정이에요` : undefined)
+        (resumeDate ? tpl('schedule.resumeDate', resumeDate) : undefined)
       }
     />
   );
 }
 
 export function NoDataCard() {
+  const { t } = useT();
   return (
     <StatusCard
-      icon="info-outline"
-      iconColor={SdsColors.grey400}
-      title="시간표 정보가 없어요"
+      icon={<Info size={40} color={SdsColors.grey400} />}
+      title={t('schedule.noScheduleData')}
     />
   );
 }
@@ -75,11 +71,12 @@ interface NoServiceCardProps {
 }
 
 export function NoServiceCard({ label }: NoServiceCardProps) {
+  const { t } = useT();
   return (
     <View style={styles.container}>
       <Text style={styles.emoji}>{'\ud83d\ude8c'}</Text>
       <Txt typography="t5" fontWeight="semiBold" textAlign="center">
-        운행하지 않아요
+        {t('transit.noService')}
       </Txt>
       {label != null && (
         <Txt typography="t7" color={SdsColors.grey500} textAlign="center">
@@ -95,23 +92,20 @@ interface ErrorCardProps {
 }
 
 export function ErrorCard({ onRetry }: ErrorCardProps) {
+  const { t } = useT();
   return (
     <View style={styles.container}>
-      <MaterialIcons
-        name="error-outline"
-        size={40}
-        color={SdsColors.grey400}
-      />
+      <CircleAlert size={40} color={SdsColors.grey400} />
       <Txt typography="t5" fontWeight="semiBold" textAlign="center">
-        데이터를 불러올 수 없어요
+        {t('schedule.dataLoadFailed')}
       </Txt>
       {onRetry ? (
         <Button type="primary" size="medium" onPress={onRetry} viewStyle={{ marginTop: 4 }}>
-          다시 시도
+          {t('common.retry')}
         </Button>
       ) : (
         <Txt typography="t7" color={SdsColors.grey500} textAlign="center">
-          잠시 후 다시 시도해주세요
+          {t('error.tryLater')}
         </Txt>
       )}
     </View>
@@ -127,6 +121,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emoji: {
+    fontFamily: 'TossFaceFontMac',
     fontSize: 40,
   },
 });

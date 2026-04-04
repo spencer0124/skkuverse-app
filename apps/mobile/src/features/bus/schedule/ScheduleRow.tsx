@@ -13,6 +13,8 @@ import {
   type ScheduleEntry,
   type RouteBadge,
   hexToColor,
+  SdsColors,
+  useT,
 } from '@skkuverse/shared';
 import { Txt, Badge } from '@skkuverse/sds';
 import { getRouteBadge } from './utils';
@@ -20,10 +22,10 @@ import { getRouteBadge } from './utils';
 /** Flutter color constants */
 const DOT_NON_TODAY = '#C9CDD2';
 const DOT_PAST = '#E4E6E8';
-const DOT_NEXT = '#1A7F4B';
+const DOT_NEXT = SdsColors.brand;
 const DOT_FUTURE = '#1BC47D';
 const GREEN_BADGE_BG = '#D9F2E6';
-const GREEN_BADGE_TEXT = '#1A7F4B';
+const GREEN_BADGE_TEXT = SdsColors.brand;
 const NEXT_ROW_BG = '#F0FAF4';
 const TEXT_COLOR = '#191F28';
 const GREY_LIGHT = '#C9CDD2';
@@ -45,6 +47,7 @@ export function ScheduleRow({
   routeBadges,
   showBadge,
 }: ScheduleRowProps) {
+  const { t, tpl } = useT();
   const badge = getRouteBadge(routeBadges, entry.routeType);
   const textColor = isPast ? GREY_LIGHT : isNext ? DOT_NEXT : TEXT_COLOR;
   // Interpret literal \n in notes
@@ -85,25 +88,29 @@ export function ScheduleRow({
             backgroundColor={GREEN_BADGE_BG}
             style={{ borderRadius: 20 }}
           >
-            다음
+            {t('transit.next')}
           </Badge>
         )}
       </View>
 
       {/* Route badge */}
       {showBadge && (
-        <Badge
-          size="tiny"
-          color={isPast ? GREY_LIGHT : hexToColor(badge.color)}
-          backgroundColor={isPast ? '#F5F6F8' : hexToColor(badge.color) + '1F'}
-        >
-          {badge.label}
-        </Badge>
+        <View style={styles.routeBadgeSlot}>
+          <Badge
+            size="tiny"
+            color={isPast ? GREY_LIGHT : hexToColor(badge.color)}
+            backgroundColor={isPast ? '#F5F6F8' : hexToColor(badge.color) + '1F'}
+            numberOfLines={1}
+            style={badgeStretchStyle}
+          >
+            {badge.label}
+          </Badge>
+        </View>
       )}
 
       {/* Bus count */}
       <Txt typography="t7" fontWeight="semiBold" color={isPast ? GREY_LIGHT : TEXT_COLOR}>
-        {entry.busCount}대
+        {tpl('schedule.busUnit', entry.busCount)}
       </Txt>
 
       {/* Notes */}
@@ -112,13 +119,15 @@ export function ScheduleRow({
         color={isPast ? GREY_LIGHT : notes ? '#E87A3B' : GREY_LIGHT}
         fontWeight={notes ? 'semiBold' : 'regular'}
         numberOfLines={2}
-        style={styles.notes}
+        style={[styles.notes, !showBadge && styles.notesExtraMargin]}
       >
         {notes ?? '—'}
       </Txt>
     </View>
   );
 }
+
+const badgeStretchStyle = { alignSelf: 'stretch' as const };
 
 const styles = StyleSheet.create({
   container: {
@@ -144,7 +153,14 @@ const styles = StyleSheet.create({
     width: 42,
     alignItems: 'center',
   },
+  routeBadgeSlot: {
+    width: 56,
+    alignItems: 'center',
+  },
   notes: {
     flex: 1,
+  },
+  notesExtraMargin: {
+    marginLeft: 14,
   },
 });

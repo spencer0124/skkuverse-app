@@ -18,6 +18,7 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { RealtimeBus } from '@skkuverse/shared';
+import { Bus } from 'lucide-react-native';
 import { LicensePlate } from './LicensePlate';
 import { PulseAnimation } from './PulseAnimation';
 import { STATION_ROW_HEIGHT, LEFT_PADDING } from './StationRow';
@@ -73,7 +74,9 @@ export function BusMarker({ bus, lastStationIndex, color, pollGeneration }: BusM
       <View style={styles.spacer} />
       <View style={styles.pulseContainer}>
         <PulseAnimation color={color} size={PULSE_SIZE} />
-        <View style={[styles.innerDot, { backgroundColor: color }]} />
+        <View style={[styles.innerDot, { backgroundColor: color }]}>
+          <Bus size={14} color="#FFFFFF" />
+        </View>
       </View>
     </View>
   );
@@ -99,5 +102,7 @@ const styles = StyleSheet.create({
     width: PULSE_SIZE,
     height: PULSE_SIZE,
     borderRadius: PULSE_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

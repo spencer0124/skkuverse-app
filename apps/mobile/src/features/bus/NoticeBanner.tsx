@@ -8,7 +8,7 @@
  */
 
 import { Text, Pressable, Linking, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Megaphone, ChevronRight } from 'lucide-react-native';
 import { SdsColors, SdsTypo, SdsRadius, type NoticePlacement } from '@skkuverse/shared';
 
 interface NoticeBannerProps {
@@ -33,12 +33,12 @@ export function NoticeBanner({ notice }: NoticeBannerProps) {
       onPress={hasLink ? handlePress : undefined}
       disabled={!hasLink}
     >
-      <MaterialIcons name="campaign" size={16} color={SdsColors.grey500} />
+      <Megaphone size={16} color={SdsColors.grey500} />
       <Text style={styles.text} numberOfLines={1}>
         {notice.text}
       </Text>
       {hasLink && (
-        <MaterialIcons name="chevron-right" size={16} color={SdsColors.grey400} />
+        <ChevronRight size={16} color={SdsColors.grey400} />
       )}
     </Pressable>
   );
@@ -58,8 +58,7 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    fontSize: SdsTypo.t7.fontSize,
-    lineHeight: SdsTypo.t7.lineHeight,
+    ...SdsTypo.t7,
     fontWeight: '500',
     color: SdsColors.grey600,
   },

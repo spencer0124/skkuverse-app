@@ -7,7 +7,7 @@
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Info } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Navbar } from '@skkuverse/sds';
 
@@ -28,7 +28,7 @@ export function NavigationBar({ title, onInfoPress }: NavigationBarProps) {
         right={
           onInfoPress ? (
             <Navbar.TextButton onPress={onInfoPress}>
-              <MaterialIcons name="info-outline" size={24} color={SdsColors.grey900} />
+              <Info size={24} color={SdsColors.grey900} />
             </Navbar.TextButton>
           ) : undefined
         }

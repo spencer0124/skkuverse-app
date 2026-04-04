@@ -10,7 +10,7 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { ChevronRight } from 'lucide-react-native';
 import { SdsColors, SdsTypo, type BusListItem, hexToColor } from '@skkuverse/shared';
 import { BusIcon } from './BusIcon';
 
@@ -58,11 +58,7 @@ export function BusListItemRow({ item, onPress }: BusListItemRowProps) {
           )}
         </View>
 
-        <MaterialIcons
-          name="chevron-right"
-          size={20}
-          color={SdsColors.grey400}
-        />
+        <ChevronRight size={20} color={SdsColors.grey400} />
       </Pressable>
       <View style={styles.divider} />
     </>

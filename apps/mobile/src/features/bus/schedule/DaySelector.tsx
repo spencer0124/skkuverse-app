@@ -11,22 +11,22 @@
  */
 
 import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { SdsColors, type DaySchedule } from '@skkuverse/shared';
+import { SdsColors, useT, type DaySchedule, type TranslationKey } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
-/** 1=Mon through 7=Sun → Korean day name */
-const DAY_NAMES: Record<number, string> = {
-  1: '월',
-  2: '화',
-  3: '수',
-  4: '목',
-  5: '금',
-  6: '토',
-  7: '일',
+/** 1=Mon through 7=Sun → translation key */
+const DAY_KEYS: Record<number, TranslationKey> = {
+  1: 'day.mon',
+  2: 'day.tue',
+  3: 'day.wed',
+  4: 'day.thu',
+  5: 'day.fri',
+  6: 'day.sat',
+  7: 'day.sun',
 };
 
 /** Flutter color constants */
-const HERO_GREEN = '#1A7F4B';
+const HERO_GREEN = SdsColors.brand;
 const GREY = '#9EA4AA';
 const GREY_LIGHT = '#C9CDD2';
 const GREY_BG = '#F5F6F8';
@@ -50,6 +50,7 @@ export function DaySelector({
   onSelect,
   todayDate,
 }: DaySelectorProps) {
+  const { t } = useT();
   // If any day has a label, all chips reserve label space
   const hasAnyLabel = days.some((d) => d.label != null);
 
@@ -113,7 +114,7 @@ export function DaySelector({
 
             {/* Day name: "월", "화", ... */}
             <Txt typography="st11" fontWeight={fontWeight} color={chipTextColor}>
-              {DAY_NAMES[day.dayOfWeek] ?? String(day.dayOfWeek)}
+              {DAY_KEYS[day.dayOfWeek] ? t(DAY_KEYS[day.dayOfWeek]) : String(day.dayOfWeek)}
             </Txt>
 
             {/* Today indicator dot (only when not selected) */}

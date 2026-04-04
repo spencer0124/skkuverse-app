@@ -8,7 +8,7 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { SdsColors, type ScheduleEntry, type RouteBadge } from '@skkuverse/shared';
+import { SdsColors, useT, type ScheduleEntry, type RouteBadge } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { ScheduleRow } from './ScheduleRow';
 import { isPastBus, hasMultipleRouteTypes } from './utils';
@@ -26,6 +26,7 @@ export function ScheduleList({
   isToday,
   nextEntryIndex,
 }: ScheduleListProps) {
+  const { t, tpl } = useT();
   const showBadge = hasMultipleRouteTypes(entries);
 
   return (
@@ -34,19 +35,19 @@ export function ScheduleList({
       <View style={styles.header}>
         <View style={styles.dotColumnHeader} />
         <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={styles.headerTime}>
-          시간
+          {t('transit.time')}
         </Txt>
         <View style={styles.headerBadgeSlot} />
         {showBadge && (
-          <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400}>
-            노선
+          <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={styles.headerRoute}>
+            {t('transit.route')}
           </Txt>
         )}
         <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400}>
-          대수
+          {t('transit.buses')}
         </Txt>
-        <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={styles.headerNotes}>
-          특이사항
+        <Txt typography="st13" fontWeight="semiBold" color={SdsColors.grey400} style={[styles.headerNotes, !showBadge && styles.headerNotesExtraMargin]}>
+          {t('transit.notes')}
         </Txt>
       </View>
 
@@ -68,7 +69,7 @@ export function ScheduleList({
 
       {/* Footer count */}
       <Txt typography="st12" color={SdsColors.grey400} textAlign="center" style={styles.footer}>
-        시간표 · 총 {entries.length}편
+        {tpl('schedule.footer', entries.length)}
       </Txt>
     </View>
   );
@@ -102,8 +103,15 @@ const styles = StyleSheet.create({
   headerBadgeSlot: {
     width: 42,
   },
+  headerRoute: {
+    width: 56,
+    textAlign: 'center',
+  },
   headerNotes: {
     flex: 1,
+  },
+  headerNotesExtraMargin: {
+    marginLeft: 14,
   },
   separator: {
     height: StyleSheet.hairlineWidth,

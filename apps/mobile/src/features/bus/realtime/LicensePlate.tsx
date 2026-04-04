@@ -5,7 +5,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors } from '@skkuverse/shared';
+import { SdsColors, useT } from '@skkuverse/shared';
 
 interface LicensePlateProps {
   carNumber: string;
@@ -13,7 +13,8 @@ interface LicensePlateProps {
 }
 
 export function LicensePlate({ carNumber, color }: LicensePlateProps) {
-  const displayNumber = carNumber === '0000' ? '번호 없음' : carNumber;
+  const { t } = useT();
+  const displayNumber = carNumber === '0000' ? t('transit.noNumber') : carNumber;
 
   return (
     <View style={[styles.plate, { backgroundColor: color }]}>
@@ -32,6 +33,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 10,
+    fontFamily: 'WantedSans',
     fontWeight: '700',
     color: SdsColors.background,
   },

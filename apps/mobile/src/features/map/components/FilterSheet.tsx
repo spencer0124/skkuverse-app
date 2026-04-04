@@ -9,12 +9,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
 import {
   useMapLayerStore,
+  useT,
   type MapConfig,
   SdsColors,
   SdsTypo,
   SdsSpacing,
 } from '@skkuverse/shared';
 import { FilterPill } from './FilterPill';
+import { logLayerToggle } from '@/services/analytics';
 
 interface FilterSheetProps {
   mapConfig: MapConfig;
@@ -34,10 +36,12 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
       [setSelectedCampus],
     );
 
+    const { t } = useT();
+
     return (
       <BottomSheetModal ref={ref} snapPoints={['40%']} enableDynamicSizing={false}>
         <BottomSheetView style={styles.content}>
-          <Text style={styles.sectionTitle}>캠퍼스</Text>
+          <Text style={styles.sectionTitle}>{t('filter.campus')}</Text>
           <View style={styles.pillRow}>
             {mapConfig.campuses.map((campus) => (
               <FilterPill
@@ -50,7 +54,7 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
           </View>
 
           <Text style={[styles.sectionTitle, styles.sectionMargin]}>
-            레이어
+            {t('filter.layer')}
           </Text>
           <View style={styles.pillRow}>
             {mapConfig.layers.map((layer) => (
@@ -58,7 +62,11 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
                 key={layer.id}
                 label={layer.label}
                 selected={layers[layer.id]?.visible ?? false}
-                onPress={() => toggleLayer(layer.id)}
+                onPress={() => {
+                  const newVisible = !(layers[layer.id]?.visible ?? false);
+                  toggleLayer(layer.id);
+                  logLayerToggle(layer.id, newVisible);
+                }}
               />
             ))}
           </View>

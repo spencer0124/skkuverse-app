@@ -1,52 +1,65 @@
 /**
  * Building detail bottom sheet modal.
  *
- * Shows photo + header + accessibility tags + floor accordion + connections.
+ * Shows photo + header + accessibility tags + floor accordion + description + connections.
  * Opened via ref: detailSheetRef.current?.present()
  *
  * Flutter source: lib/features/building/ui/building_detail_sheet.dart
  */
 
-import { forwardRef, useState, useMemo } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { forwardRef, useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
+import { useRouter } from 'expo-router';
+import { Map } from 'lucide-react-native';
 import {
   useBuildingDetail,
   SdsColors,
   SdsSpacing,
-  SdsTypo,
   getLocalizedText,
+  floorBadge,
   useSettingsStore,
+  useT,
   type FloorSpace,
 } from '@skkuverse/shared';
-import { AccordionList, Badge, Txt, type AccordionSection } from '@skkuverse/sds';
+import { AccordionList, Badge, Gradient, ListHeader, ListRow, Txt, type AccordionSection } from '@skkuverse/sds';
 import { BuildingHeader } from './BuildingHeader';
 import { ConnectionsSection } from './ConnectionsSection';
+import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMapping';
+import {
+  logBuildingView,
+  logFloorExpand,
+  logSpaceShowAll,
+  logConnectionMapOpen,
+} from '@/services/analytics';
 
 interface BuildingDetailSheetProps {
   skkuId: number | null;
   highlightSpaceCd?: string;
+  source?: string;
   onConnectionTap: (targetSkkuId: number) => void;
 }
 
-/** Convert Korean floor name to short badge code: "1층" → "1F", "지하 2층" → "B2" */
-function floorBadge(name: string): string {
-  const basement = name.match(/지하\s*(\d+)/);
-  if (basement) return `B${basement[1]}`;
-  const num = name.match(/(\d+)/);
-  if (num) return `${num[1]}F`;
-  return name.length > 3 ? name.substring(0, 3) : name;
+/** 8px grey50 section divider */
+function SectionDivider() {
+  return <View style={styles.sectionDivider} />;
 }
 
 export const BuildingDetailSheet = forwardRef<
   BottomSheetModal,
   BuildingDetailSheetProps
->(function BuildingDetailSheet({ skkuId, highlightSpaceCd, onConnectionTap }, ref) {
+>(function BuildingDetailSheet({ skkuId, highlightSpaceCd, source, onConnectionTap }, ref) {
   const { data, isLoading } = useBuildingDetail(skkuId);
   const lang = useSettingsStore((s) => s.appLanguage);
+  const { t, tpl } = useT();
+  const router = useRouter();
+  // Description expand/truncation state
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [descNeedsMore, setDescNeedsMore] = useState(false);
+  const descMeasuredRef = useRef(false);
 
   // Accordion state
   const initialExpanded = useMemo(() => {
@@ -60,6 +73,44 @@ export const BuildingDetailSheet = forwardRef<
   const [expandedIndex, setExpandedIndex] = useState<number | null>(initialExpanded);
   const [showAllMap, setShowAllMap] = useState<Record<number, boolean>>({});
 
+  // Reset all local UI state when building or highlight changes
+  useEffect(() => {
+    setDescExpanded(false);
+    setDescNeedsMore(false);
+    descMeasuredRef.current = false;
+    setExpandedIndex(initialExpanded ?? null);
+    setShowAllMap({});
+  }, [skkuId, initialExpanded]);
+
+  const description = data?.building.description
+    ? getLocalizedText(data.building.description, lang)
+    : null;
+
+  // Re-measure description when text changes (e.g. language switch)
+  useEffect(() => {
+    descMeasuredRef.current = false;
+    setDescNeedsMore(false);
+  }, [description]);
+
+  // Build floor badge→connection chip data (e.g. "1F" → chips with label + skkuId)
+  const floorConnectionMap = useMemo(() => {
+    const map = Object.create(null) as Record<
+      string,
+      Array<{ label: string; targetSkkuId: number }>
+    >;
+    if (!data) return map;
+    for (const conn of data.connections) {
+      const fromFloorText = getLocalizedText(conn.fromFloor, lang);
+      const fromBadge = floorBadge(fromFloorText);
+      const targetName = getLocalizedText(conn.targetName, lang);
+      const toFloor = getLocalizedText(conn.toFloor, lang);
+      const label = `${targetName} ${floorBadge(toFloor)}`;
+      if (!map[fromBadge]) map[fromBadge] = [];
+      map[fromBadge].push({ label, targetSkkuId: conn.targetSkkuId });
+    }
+    return map;
+  }, [data, lang]);
+
   // Convert FloorInfo[] → AccordionSection<FloorSpace>[]
   const sections: AccordionSection<FloorSpace>[] = useMemo(() => {
     if (!data) return [];
@@ -67,18 +118,56 @@ export const BuildingDetailSheet = forwardRef<
       const name = getLocalizedText(f.floor, lang);
       return {
         title: name,
+        subtitle: tpl('building.unitCount', f.spaces.length),
         badge: floorBadge(name),
-        subtitle: `호실 ${f.spaces.length}개`,
         items: f.spaces,
       };
     });
   }, [data, lang]);
 
+  // ── Analytics: building view ──
+  useEffect(() => {
+    if (!data || skkuId == null) return;
+    logBuildingView({
+      skkuId: data.building.skkuId,
+      buildingName: getLocalizedText(data.building.name, lang),
+      campus: data.building.campus,
+      source: source ?? 'direct',
+    });
+  }, [data?.building.skkuId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDescLayout = useCallback(
+    (e: { nativeEvent: { lines: unknown[] } }) => {
+      if (descMeasuredRef.current) return;
+      descMeasuredRef.current = true;
+      setDescNeedsMore(e.nativeEvent.lines.length > 3);
+    },
+    [],
+  );
+
+  // Check if this building exists on the HSSC floor map
+  const hsscMapName = useMemo(() => {
+    if (!data) return null;
+    const nameKo = getLocalizedText(data.building.name, 'ko');
+    return getHsscBuildingName(nameKo);
+  }, [data]);
+
+  const handleFloorMapPress = useCallback(() => {
+    if (!hsscMapName) return;
+    logConnectionMapOpen('hssc');
+    // Dismiss sheet before navigating
+    if (ref && typeof ref === 'object' && ref.current) {
+      ref.current.dismiss();
+    }
+    router.push(`/map/hssc?building=${encodeURIComponent(hsscMapName)}` as never);
+  }, [hsscMapName, ref, router]);
+
   return (
     <BottomSheetModal
       ref={ref}
-      snapPoints={['55%', '85%']}
+      snapPoints={['85%']}
       enableDynamicSizing={false}
+      handleIndicatorStyle={styles.handleIndicator}
     >
       <BottomSheetScrollView style={styles.container}>
         {isLoading && (
@@ -91,19 +180,139 @@ export const BuildingDetailSheet = forwardRef<
           <>
             <BuildingHeader building={data.building} />
 
+            {/* ══ Section: 건물 설명 ══ */}
+            {description && (
+              <>
+                <SectionDivider />
+                <ListHeader
+                  title={
+                    <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                      {t('building.buildingInfo')}
+                    </ListHeader.TitleParagraph>
+                  }
+                />
+                <View style={styles.descriptionContainer}>
+                  {descExpanded ? (
+                    <>
+                      <Txt
+                        typography="t6"
+                        fontWeight="regular"
+                        color={SdsColors.grey700}
+                      >
+                        {description}
+                      </Txt>
+                      <Pressable
+                        onPress={() => setDescExpanded(false)}
+                        style={styles.descToggle}
+                      >
+                        <Txt
+                          typography="t7"
+                          fontWeight="semiBold"
+                          color={SdsColors.brand}
+                        >
+                          {t('building.collapse')}
+                        </Txt>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <View>
+                      {/* Hidden text without numberOfLines for accurate line count */}
+                      {!descMeasuredRef.current && (
+                        <Txt
+                          typography="t6"
+                          fontWeight="regular"
+                          onTextLayout={handleDescLayout}
+                          style={styles.hiddenMeasure}
+                        >
+                          {description}
+                        </Txt>
+                      )}
+                      <Txt
+                        typography="t6"
+                        fontWeight="regular"
+                        color={SdsColors.grey700}
+                        numberOfLines={3}
+                      >
+                        {description}
+                      </Txt>
+                      {descNeedsMore && (
+                        <Pressable
+                          onPress={() => setDescExpanded(true)}
+                          style={styles.inlineMoreOverlay}
+                        >
+                          <Gradient.Linear
+                            colors={['rgba(255,255,255,0)', SdsColors.background]}
+                            degree="90deg"
+                            style={styles.inlineMoreGradient}
+                          />
+                          <View style={styles.inlineMoreLabel}>
+                            <Txt
+                              typography="t6"
+                              fontWeight="semiBold"
+                              color={SdsColors.brand}
+                            >
+                              {t('building.showMore')}
+                            </Txt>
+                          </View>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* ══ Section: 층별 안내 ══ */}
             {sections.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>층별 안내</Text>
+              <>
+                <SectionDivider />
+                <ListHeader
+                  title={
+                    <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                      {t('building.floorGuide')}
+                    </ListHeader.TitleParagraph>
+                  }
+                />
                 <AccordionList
                   sections={sections}
                   expandedIndex={expandedIndex}
-                  onToggle={setExpandedIndex}
+                  onToggle={(i) => {
+                    setExpandedIndex(i);
+                    if (i != null && skkuId != null) {
+                      const floorName = sections[i]?.title ?? '';
+                      logFloorExpand(skkuId, floorName);
+                    }
+                  }}
                   showAllMap={showAllMap}
-                  onShowAll={(i) =>
-                    setShowAllMap((prev) => ({ ...prev, [i]: true }))
-                  }
+                  accentColor={SdsColors.brand}
+                  onShowAll={(i) => {
+                    setShowAllMap((prev) => ({ ...prev, [i]: true }));
+                    if (skkuId != null) {
+                      const floorName = sections[i]?.title ?? '';
+                      logSpaceShowAll(skkuId, floorName);
+                    }
+                  }}
                   keyExtractor={(space) => space.spaceCd}
                   highlightKey={highlightSpaceCd}
+                  renderRight={(section) => {
+                    const chips = floorConnectionMap[section.badge ?? ''];
+                    if (!chips) return null;
+                    return (
+                      <View style={styles.connChipRow}>
+                        {chips.map((chip) => (
+                          <Pressable
+                            key={chip.targetSkkuId}
+                            style={styles.connChip}
+                            onPress={() => onConnectionTap(chip.targetSkkuId)}
+                          >
+                            <Txt typography="st12" fontWeight="medium" color={SdsColors.grey700}>
+                              {'→ ' + chip.label}
+                            </Txt>
+                          </Pressable>
+                        ))}
+                      </View>
+                    );
+                  }}
                   renderItem={(space, _i, highlighted) => (
                     <View
                       style={[
@@ -115,7 +324,7 @@ export const BuildingDetailSheet = forwardRef<
                         typography="t7"
                         fontWeight={highlighted ? 'medium' : 'regular'}
                         color={
-                          highlighted ? SdsColors.blue500 : SdsColors.grey700
+                          highlighted ? SdsColors.brand : SdsColors.grey700
                         }
                         style={styles.spaceName}
                       >
@@ -124,24 +333,59 @@ export const BuildingDetailSheet = forwardRef<
                       <Badge
                         size="tiny"
                         color={
-                          highlighted ? SdsColors.blue500 : SdsColors.grey400
+                          highlighted ? SdsColors.brand : SdsColors.grey400
                         }
                         backgroundColor={
-                          highlighted ? SdsColors.blue50 : SdsColors.grey100
+                          highlighted ? SdsColors.brandLight : SdsColors.grey100
                         }
+                        style={{ minWidth: 64 }}
                       >
                         {space.spaceCd}
                       </Badge>
                     </View>
                   )}
                 />
-              </View>
+              </>
             )}
 
-            <ConnectionsSection
-              connections={data.connections}
-              onConnectionTap={onConnectionTap}
-            />
+            {/* ══ Section: 연결 건물 ══ */}
+            {(data.connections.length > 0 || hsscMapName) && (
+              <>
+                <SectionDivider />
+                <ListHeader
+                  title={
+                    <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                      {t('building.connectedBuildings')}
+                    </ListHeader.TitleParagraph>
+                  }
+                />
+                {hsscMapName && (
+                  <ListRow
+                    left={
+                      <View style={styles.floorMapIcon}>
+                        <Map size={20} color={SdsColors.brand} />
+                      </View>
+                    }
+                    contents={
+                      <ListRow.Texts
+                        type="2RowTypeE"
+                        top={t('building.floorMap')}
+                        bottom={t('building.floorMapDesc')}
+                      />
+                    }
+                    withArrow
+                    verticalPadding="small"
+                    onPress={handleFloorMapPress}
+                  />
+                )}
+                {data.connections.length > 0 && (
+                  <ConnectionsSection
+                    connections={data.connections}
+                    onConnectionTap={onConnectionTap}
+                  />
+                )}
+              </>
+            )}
 
             <View style={styles.bottomPad} />
           </>
@@ -151,23 +395,27 @@ export const BuildingDetailSheet = forwardRef<
   );
 });
 
+const DESC_LINE_HEIGHT = 22.5; // t6 lineHeight (packages/sds/src/foundation/typography.ts)
+const FADE_WIDTH = 48; // gradient fade region width
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  handleIndicator: {
+    backgroundColor: SdsColors.grey300,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
   },
   loading: {
     padding: 40,
     alignItems: 'center',
   },
-  section: {
-    paddingTop: SdsSpacing.md,
-  },
-  sectionTitle: {
-    ...SdsTypo.t5,
-    fontWeight: '700',
-    color: SdsColors.grey900,
-    paddingHorizontal: SdsSpacing.base,
-    marginBottom: SdsSpacing.xs,
+  sectionDivider: {
+    height: SdsSpacing.sm,
+    backgroundColor: SdsColors.grey50,
+    marginTop: SdsSpacing.lg,
   },
   spaceRow: {
     flexDirection: 'row',
@@ -175,10 +423,62 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   spaceHighlight: {
-    backgroundColor: SdsColors.blue50,
+    backgroundColor: SdsColors.brandLight,
   },
   spaceName: {
     flex: 1,
+  },
+  descriptionContainer: {
+    paddingHorizontal: SdsSpacing.xl,
+  },
+  descToggle: {
+    marginTop: SdsSpacing.sm,
+  },
+  hiddenMeasure: {
+    position: 'absolute',
+    opacity: 0,
+    left: 0,
+    right: 0,
+  },
+  inlineMoreOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: DESC_LINE_HEIGHT,
+  },
+  inlineMoreGradient: {
+    width: FADE_WIDTH,
+    height: DESC_LINE_HEIGHT,
+  },
+  inlineMoreLabel: {
+    backgroundColor: SdsColors.background,
+    height: DESC_LINE_HEIGHT,
+    justifyContent: 'center' as const,
+    paddingLeft: 2,
+  },
+
+  connChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  connChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: SdsColors.grey100,
+  },
+  floorMapIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: SdsColors.brandLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomPad: {
     height: 40,

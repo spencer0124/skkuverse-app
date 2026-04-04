@@ -2,65 +2,90 @@
  * Building/space search screen.
  *
  * SearchHeader (back + TextInput, autoFocus, 500ms debounce)
- * SummaryBar ("건물 N건, 공간 N건")
- * CampusTabBar (전체 / 인사캠 / 자과캠)
- * FlatList with BuildingResultRow / SpaceResultRow
+ * SegmentedControl (전체 / 인사캠 / 자과캠)
+ * Collapsible sections with ListHeader: 건물 / 공간
  *
  * On item tap: set BuildingNavPayload in store, call router.back()
  */
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
-  FlatList,
+  ScrollView,
   Pressable,
   StyleSheet,
-  type ListRenderItem,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  XCircle,
+  Search,
+  MapPin,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react-native';
 import {
   useSearchBuildings,
   SdsColors,
   SdsTypo,
   SdsSpacing,
+  useT,
   type Building,
   type SpaceGroup,
+  type SearchSpaceItem,
   type BuildingNavPayload,
+  getLocalizedText,
+  floorBadge,
+  useSettingsStore,
 } from '@skkuverse/shared';
+import { Badge, ListHeader, Navbar, SegmentedControl, Txt } from '@skkuverse/sds';
 import { useSearchResultStore } from './store';
-import { BuildingResultRow } from './components/BuildingResultRow';
-import { SpaceResultRow } from './components/SpaceResultRow';
+import {
+  logSearchPerform,
+  logSearchResultTap,
+  logSearchFilterChange,
+} from '@/services/analytics';
 
 type CampusFilter = 'all' | 'hssc' | 'nsc';
-type ResultItem =
-  | { type: 'building'; data: Building }
-  | { type: 'space'; data: { space: SpaceGroup; itemIndex: number } };
 
-const CAMPUS_TABS: { key: CampusFilter; label: string }[] = [
-  { key: 'all', label: '전체' },
-  { key: 'hssc', label: '인사캠' },
-  { key: 'nsc', label: '자과캠' },
-];
+/** Flattened space item with parent group reference */
+type FlatSpaceItem = SearchSpaceItem & { group: SpaceGroup };
 
 const DEBOUNCE_MS = 500;
 
 export function SearchScreen() {
+  const { t, tpl } = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const lang = useSettingsStore((s) => s.appLanguage);
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [campusFilter, setCampusFilter] = useState<CampusFilter>('all');
+
+  const [buildingExpanded, setBuildingExpanded] = useState(true);
+  const [spaceExpanded, setSpaceExpanded] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setPendingNavPayload = useSearchResultStore(
     (s) => s.setPendingNavPayload,
   );
 
+  const [campusFilter, setCampusFilter] = useState<CampusFilter>('all');
   const campus = campusFilter === 'all' ? undefined : campusFilter;
   const { data } = useSearchBuildings(debouncedQuery, campus);
+  const lastLoggedQuery = useRef<string>('');
+
+  // ── Analytics: log search when results arrive ──
+  useEffect(() => {
+    if (!debouncedQuery || !data || debouncedQuery === lastLoggedQuery.current) return;
+    lastLoggedQuery.current = debouncedQuery;
+    logSearchPerform({
+      query: debouncedQuery,
+      buildingResults: data.buildings.length,
+      spaceResults: data.spaces.reduce((sum, g) => sum + g.items.length, 0),
+      campusFilter: campusFilter,
+    });
+  }, [debouncedQuery, data, campusFilter]);
 
   const handleTextChange = useCallback((text: string) => {
     setInputValue(text);
@@ -72,6 +97,12 @@ export function SearchScreen() {
 
   const handleBuildingTap = useCallback(
     (building: Building) => {
+      logSearchResultTap({
+        resultType: 'building',
+        resultName: getLocalizedText(building.name, lang),
+        campus: building.campus,
+        skkuId: building.skkuId,
+      });
       const payload: BuildingNavPayload = {
         skkuId: building.skkuId,
         lat: building.lat,
@@ -81,15 +112,21 @@ export function SearchScreen() {
       setPendingNavPayload(payload);
       router.back();
     },
-    [setPendingNavPayload, router],
+    [setPendingNavPayload, router, lang],
   );
 
   const handleSpaceTap = useCallback(
     (group: SpaceGroup, spaceCd: string, floor: string) => {
       if (group.skkuId == null) return;
+      logSearchResultTap({
+        resultType: 'space',
+        resultName: getLocalizedText(group.buildingName, lang),
+        campus: group.campus,
+        skkuId: group.skkuId,
+      });
       const payload: BuildingNavPayload = {
         skkuId: group.skkuId,
-        lat: 0, // Will be resolved from building detail
+        lat: 0,
         lng: 0,
         campus: group.campus,
         highlightSpaceCd: spaceCd,
@@ -98,125 +135,219 @@ export function SearchScreen() {
       setPendingNavPayload(payload);
       router.back();
     },
-    [setPendingNavPayload, router],
+    [setPendingNavPayload, router, lang],
   );
 
-  const items = useMemo<ResultItem[]>(() => {
+  const flatSpaces = useMemo<FlatSpaceItem[]>(() => {
     if (!data) return [];
-    const result: ResultItem[] = [];
-    for (const b of data.buildings) {
-      result.push({ type: 'building', data: b });
-    }
-    for (const group of data.spaces) {
-      for (let i = 0; i < group.items.length; i++) {
-        result.push({ type: 'space', data: { space: group, itemIndex: i } });
-      }
-    }
-    return result;
+    return data.spaces.flatMap((group) =>
+      group.items.map((item) => ({ ...item, group })),
+    );
   }, [data]);
 
-  const renderItem: ListRenderItem<ResultItem> = useCallback(
-    ({ item }) => {
-      if (item.type === 'building') {
-        return (
-          <BuildingResultRow
-            building={item.data}
-            onPress={() => handleBuildingTap(item.data)}
-          />
-        );
-      }
-      const { space: group, itemIndex } = item.data;
-      const spaceItem = group.items[itemIndex]!;
-      return (
-        <SpaceResultRow
-          space={spaceItem}
-          group={group}
-          onPress={() =>
-            handleSpaceTap(group, spaceItem.spaceCd, spaceItem.floor.ko)
-          }
-        />
-      );
-    },
-    [handleBuildingTap, handleSpaceTap],
-  );
+  const hasBuildings = data && data.buildings.length > 0;
+  const hasSpaces = data && flatSpaces.length > 0;
+  const noQuery = debouncedQuery.length === 0;
+  const noResults = !noQuery && data && !hasBuildings && !hasSpaces;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Search header */}
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="arrow-back" size={24} color={SdsColors.grey900} />
-        </Pressable>
-        <TextInput
-          style={styles.input}
-          placeholder="건물, 강의실 검색"
-          placeholderTextColor={SdsColors.grey400}
-          value={inputValue}
-          onChangeText={handleTextChange}
-          autoFocus
-          returnKeyType="search"
-        />
-        {inputValue.length > 0 && (
-          <Pressable
-            onPress={() => {
-              setInputValue('');
-              setDebouncedQuery('');
-            }}
-            hitSlop={8}
-          >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color={SdsColors.grey400}
-            />
-          </Pressable>
-        )}
+      {/* Search field */}
+      <View style={styles.searchFieldWrapper}>
+        <View style={styles.searchField}>
+          <Search size={18} color={SdsColors.grey500} />
+          <TextInput
+            style={styles.input}
+            placeholder={t('search.placeholder')}
+            placeholderTextColor={SdsColors.grey400}
+            value={inputValue}
+            onChangeText={handleTextChange}
+            autoFocus
+            returnKeyType="search"
+          />
+          {inputValue.length > 0 && (
+            <Pressable
+              onPress={() => {
+                setInputValue('');
+                setDebouncedQuery('');
+              }}
+              hitSlop={8}
+            >
+              <XCircle size={18} color={SdsColors.grey400} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
-      {/* Summary bar */}
-      {data && debouncedQuery.length > 0 && (
-        <View style={styles.summary}>
-          <Text style={styles.summaryText}>
-            건물 {data.buildingCount}건, 공간 {data.spaceCount}건
-          </Text>
+      {/* Campus tab bar */}
+      <View style={styles.segmentedWrapper}>
+        <SegmentedControl
+          value={campusFilter}
+          onValueChange={(v) => {
+            const filter = v as CampusFilter;
+            logSearchFilterChange(filter);
+            setCampusFilter(filter);
+          }}
+          items={[
+            { value: 'all', label: t('search.all') },
+            { value: 'hssc', label: t('search.hssc') },
+            { value: 'nsc', label: t('search.nsc') },
+          ]}
+        />
+      </View>
+
+      {/* Empty states */}
+      {noQuery && (
+        <View style={styles.emptyContainer}>
+          <MapPin size={40} color={SdsColors.grey300} strokeWidth={1.5} />
+          <Txt typography="t6" fontWeight="regular" color={SdsColors.grey400} style={styles.emptyText}>
+            {t('search.emptyPrompt')}
+          </Txt>
         </View>
       )}
 
-      {/* Campus tab bar */}
-      <View style={styles.tabBar}>
-        {CAMPUS_TABS.map((tab) => (
-          <Pressable
-            key={tab.key}
-            style={[
-              styles.tab,
-              campusFilter === tab.key && styles.tabActive,
-            ]}
-            onPress={() => setCampusFilter(tab.key)}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                campusFilter === tab.key && styles.tabTextActive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      {noResults && (
+        <View style={styles.emptyContainer}>
+          <Search size={48} color={SdsColors.grey300} />
+          <Txt typography="t6" fontWeight="medium" color={SdsColors.grey400} style={styles.emptyText}>
+            {tpl('search.noResult', debouncedQuery)}
+          </Txt>
+          <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
+            {t('search.noResultHint')}
+          </Txt>
+        </View>
+      )}
 
       {/* Results */}
-      <FlatList
-        data={items}
-        renderItem={renderItem}
-        keyExtractor={(item, index) =>
-          item.type === 'building'
-            ? `b-${item.data.skkuId}`
-            : `s-${item.data.space.buildNo}-${item.data.itemIndex}`
-        }
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.list}
-      />
+      {!noQuery && !noResults && (
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          contentContainerStyle={styles.list}
+        >
+          {/* ── Building section ── */}
+          {hasBuildings && (
+            <>
+              <ListHeader
+                title={
+                  <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                    {t('building.building')}
+                  </ListHeader.TitleParagraph>
+                }
+                right={
+                  <View style={styles.sectionRight}>
+                    <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
+                      {data.buildingCount}
+                    </Txt>
+                    {buildingExpanded ? (
+                      <ChevronDown size={16} color={SdsColors.grey400} />
+                    ) : (
+                      <ChevronRight size={16} color={SdsColors.grey400} />
+                    )}
+                  </View>
+                }
+                onPress={() => setBuildingExpanded((prev) => !prev)}
+              />
+              {buildingExpanded && (
+                <Animated.View
+                  entering={FadeIn.duration(150)}
+                  exiting={FadeOut.duration(100)}
+                >
+                  {data.buildings.map((building) => (
+                    <Pressable
+                      key={building.skkuId}
+                      style={styles.resultRow}
+                      onPress={() => handleBuildingTap(building)}
+                    >
+                      <View style={styles.buildingBadge}>
+                        <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
+                          {building.displayNo ?? '#'}
+                        </Txt>
+                      </View>
+                      <View style={styles.resultTexts}>
+                        <Txt typography="t6" fontWeight="regular">
+                          {getLocalizedText(building.name, lang)}
+                        </Txt>
+                        <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
+                          {building.campusLabel}
+                        </Txt>
+                      </View>
+                    </Pressable>
+                  ))}
+                </Animated.View>
+              )}
+            </>
+          )}
+
+          {/* ── Space section ── */}
+          {hasSpaces && (
+            <>
+              <View style={styles.sectionDivider} />
+              <ListHeader
+                title={
+                  <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                    {t('building.space')}
+                  </ListHeader.TitleParagraph>
+                }
+                right={
+                  <View style={styles.sectionRight}>
+                    <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
+                      {data.spaceCount}
+                    </Txt>
+                    {spaceExpanded ? (
+                      <ChevronDown size={16} color={SdsColors.grey400} />
+                    ) : (
+                      <ChevronRight size={16} color={SdsColors.grey400} />
+                    )}
+                  </View>
+                }
+                onPress={() => setSpaceExpanded((prev) => !prev)}
+              />
+              {spaceExpanded && (
+                <Animated.View
+                  entering={FadeIn.duration(150)}
+                  exiting={FadeOut.duration(100)}
+                >
+                  {flatSpaces.map((space, i) => (
+                    <Pressable
+                      key={`${space.group.buildNo}-${space.spaceCd}-${i}`}
+                      style={styles.resultRow}
+                      onPress={() =>
+                        handleSpaceTap(
+                          space.group,
+                          space.spaceCd,
+                          space.floor.ko,
+                        )
+                      }
+                    >
+                      <View style={styles.buildingBadge}>
+                        <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
+                          {floorBadge(getLocalizedText(space.floor, lang))}
+                        </Txt>
+                      </View>
+                      <View style={styles.resultTexts}>
+                        <Txt typography="t6" fontWeight="regular">
+                          {getLocalizedText(space.name, lang)}
+                        </Txt>
+                        <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
+                          {getLocalizedText(space.group.buildingName, lang)}
+                        </Txt>
+                      </View>
+                      <Badge
+                        size="tiny"
+                        color={SdsColors.grey400}
+                        backgroundColor={SdsColors.grey100}
+                      >
+                        {space.spaceCd}
+                      </Badge>
+                    </Pressable>
+                  ))}
+                </Animated.View>
+              )}
+            </>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -226,54 +357,73 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
+  searchFieldWrapper: {
+    paddingHorizontal: SdsSpacing.base,
+    paddingBottom: SdsSpacing.sm,
+  },
+  searchField: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SdsSpacing.base,
-    paddingVertical: SdsSpacing.sm,
+    backgroundColor: SdsColors.grey50,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: SdsColors.grey100,
   },
   input: {
     flex: 1,
-    ...SdsTypo.t5,
+    fontFamily: SdsTypo.t5.fontFamily,
+    fontSize: SdsTypo.t5.fontSize,
+    fontWeight: SdsTypo.t5.fontWeight,
     color: SdsColors.grey900,
     padding: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
-  summary: {
+
+  segmentedWrapper: {
     paddingHorizontal: SdsSpacing.base,
     paddingVertical: SdsSpacing.sm,
-    backgroundColor: SdsColors.grey50,
-  },
-  summaryText: {
-    ...SdsTypo.t7,
-    color: SdsColors.grey500,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    paddingHorizontal: SdsSpacing.base,
-    paddingVertical: SdsSpacing.sm,
-    gap: 6,
-  },
-  tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: SdsColors.grey100,
-  },
-  tabActive: {
-    backgroundColor: SdsColors.brand,
-  },
-  tabText: {
-    ...SdsTypo.t7,
-    color: SdsColors.grey600,
-  },
-  tabTextActive: {
-    color: '#fff',
-    fontWeight: '600',
   },
   list: {
     paddingBottom: 40,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SdsSpacing.base,
+    gap: 8,
+    flexGrow: 1,
+  },
+  emptyText: {
+    marginTop: 12,
+  },
+  sectionRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sectionDivider: {
+    height: SdsSpacing.sm,
+    backgroundColor: SdsColors.grey50,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 16,
+  },
+  buildingBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: SdsColors.grey100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultTexts: {
+    flex: 1,
+    gap: 2,
   },
 });

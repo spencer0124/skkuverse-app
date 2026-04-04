@@ -14,6 +14,7 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import type { ViewStyle, StyleProp } from 'react-native';
 import type { MapConfig } from '@skkuverse/shared';
+import { useSettingsStore } from '@skkuverse/shared';
 
 interface CampusNaverMapProps {
   mapConfig: MapConfig;
@@ -40,6 +41,7 @@ const LAYER_GROUPS = {
 
 export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
   function CampusNaverMap({ mapConfig, selectedCampus, style, children, onTapMap }, ref) {
+    const lang = useSettingsStore((s) => s.appLanguage);
     const campus = useMemo(() => {
       return (
         mapConfig.campuses.find((c) => c.id === selectedCampus) ??
@@ -68,6 +70,7 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         isShowCompass={false}
         isExtentBoundedInKorea
         mapType="Basic"
+        locale={lang}
         layerGroups={LAYER_GROUPS}
         {...(mapConfig.naver.styleId && {
           customStyleId: mapConfig.naver.styleId,

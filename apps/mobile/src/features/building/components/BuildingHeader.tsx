@@ -1,117 +1,146 @@
 /**
- * Building detail header — name + campus badge + displayNo.
+ * Building detail header — thumbnail + name + campus · displayNo + accessibility.
+ *
+ * Layout: [60×60 rounded thumbnail] [name + subtitle]
+ *         [accessibility badges row]
  *
  * Flutter source: lib/features/building/ui/building_detail_sheet.dart
  */
 
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import {
   SdsColors,
-  SdsTypo,
   SdsSpacing,
   type Building,
   getLocalizedText,
   useSettingsStore,
+  useT,
 } from '@skkuverse/shared';
+import { Badge, Txt } from '@skkuverse/sds';
+import { Building2, ArrowUpDown, Accessibility } from 'lucide-react-native';
 
 interface BuildingHeaderProps {
   building: Building;
+  onClose?: () => void;
 }
 
 export function BuildingHeader({ building }: BuildingHeaderProps) {
   const lang = useSettingsStore((s) => s.appLanguage);
+  const { t } = useT();
   const name = getLocalizedText(building.name, lang);
 
+  const subtitleParts: string[] = [building.campusLabel];
+  if (building.displayNo) subtitleParts.push(`${t('building.buildingNo')} ${building.displayNo}`);
+  const subtitle = subtitleParts.join(' · ');
+
   return (
-    <View>
-      {building.image && (
-        <Image
-          source={{
-            uri: building.image.url,
-            headers: { Referer: 'https://www.skku.edu/' },
-          }}
-          style={styles.image}
-          contentFit="cover"
-        />
-      )}
-      <View style={styles.header}>
-        <Text style={styles.name}>{name}</Text>
-        <View style={styles.badges}>
-          <View style={styles.campusBadge}>
-            <Text style={styles.campusBadgeText}>{building.campusLabel}</Text>
+    <View style={styles.container}>
+      {/* ── Thumbnail + Name row ── */}
+      <View style={styles.topRow}>
+        {building.image ? (
+          <Image
+            source={{
+              uri: building.image.url,
+              headers: { Referer: 'https://www.skku.edu/' },
+            }}
+            style={styles.thumbnail}
+            contentFit="cover"
+          />
+        ) : (
+          <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
+            <Building2 size={24} color={SdsColors.grey400} />
           </View>
-          {building.displayNo && (
-            <Text style={styles.displayNo}>{building.displayNo}</Text>
-          )}
+        )}
+
+        <View style={styles.nameBlock}>
+          <Txt
+            typography="t3"
+            fontWeight="bold"
+            color={SdsColors.grey900}
+            numberOfLines={2}
+          >
+            {name}
+          </Txt>
+          <Txt
+            typography="t7"
+            fontWeight="regular"
+            color={SdsColors.grey500}
+            style={styles.subtitle}
+          >
+            {subtitle}
+          </Txt>
         </View>
-        {building.accessibility && (building.accessibility.elevator || building.accessibility.toilet) && (
+      </View>
+
+      {/* ── Accessibility tags ── */}
+      {building.accessibility &&
+        (building.accessibility.elevator || building.accessibility.toilet) && (
           <View style={styles.accessRow}>
             {building.accessibility.elevator && (
               <View style={styles.accessBadge}>
-                <Text style={styles.accessText}>엘리베이터</Text>
+                <ArrowUpDown size={14} color={SdsColors.grey600} />
+                <Txt typography="t7" fontWeight="regular" color={SdsColors.grey600}>
+                  {t('building.elevator')}
+                </Txt>
               </View>
             )}
             {building.accessibility.toilet && (
               <View style={styles.accessBadge}>
-                <Text style={styles.accessText}>장애인화장실</Text>
+                <Accessibility size={14} color={SdsColors.grey600} />
+                <Txt typography="t7" fontWeight="regular" color={SdsColors.grey600}>
+                  {t('building.accessibleRestroom')}
+                </Txt>
               </View>
             )}
           </View>
         )}
-      </View>
     </View>
   );
 }
 
+const THUMB_SIZE = 60;
+
 const styles = StyleSheet.create({
-  image: {
-    width: '100%',
-    height: 180,
-    backgroundColor: SdsColors.grey100,
+  container: {
+    paddingHorizontal: SdsSpacing.xl,
+    paddingTop: SdsSpacing.base,
   },
-  header: {
-    padding: SdsSpacing.base,
-  },
-  name: {
-    ...SdsTypo.t3,
-    fontWeight: '700',
-    color: SdsColors.grey900,
-  },
-  badges: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
+    gap: SdsSpacing.base,
   },
-  campusBadge: {
-    backgroundColor: SdsColors.brand,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  thumbnail: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 14,
+    backgroundColor: SdsColors.grey100,
   },
-  campusBadgeText: {
-    ...SdsTypo.t7,
-    color: '#fff',
-    fontWeight: '600',
+  thumbnailPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  displayNo: {
-    ...SdsTypo.t6,
-    color: SdsColors.grey500,
+  nameBlock: {
+    flex: 1,
+  },
+  subtitle: {
+    marginTop: 2,
   },
   accessRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: SdsSpacing.sm,
+    gap: SdsSpacing.sm,
+    marginTop: SdsSpacing.md,
   },
   accessBadge: {
-    backgroundColor: SdsColors.blue500 + '1A', // 10% opacity
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  accessText: {
-    ...SdsTypo.t7,
-    color: SdsColors.blue500,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: SdsColors.grey200,
+    backgroundColor: SdsColors.background,
   },
 });

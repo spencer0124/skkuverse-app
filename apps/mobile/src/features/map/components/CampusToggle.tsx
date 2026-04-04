@@ -1,41 +1,43 @@
 /**
- * Floating campus toggle — 인사캠/자과캠 switch.
+ * Campus segment toggle — compact 인사캠/자과캠 tabs.
  *
- * Reads/writes from useMapLayerStore.selectedCampus.
- * Positioned absolutely below the search bar.
+ * Uses SDS SegmentedControl for visual consistency.
  */
 
-import { View, StyleSheet } from 'react-native';
+import { SegmentedControl } from '@skkuverse/sds';
 import { useMapLayerStore, type CampusDef, SdsShadows } from '@skkuverse/shared';
-import { FilterPill } from './FilterPill';
+import { logCampusSwitch } from '@/services/analytics';
 
 interface CampusToggleProps {
   campuses: CampusDef[];
+  onReselect?: (campus: CampusDef) => void;
 }
 
-export function CampusToggle({ campuses }: CampusToggleProps) {
+export function CampusToggle({ campuses, onReselect }: CampusToggleProps) {
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
   const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
 
+  const handleValueChange = (value: string) => {
+    if (value === selectedCampus) {
+      const campus = campuses.find((c) => c.id === value);
+      if (campus) onReselect?.(campus);
+    } else {
+      setSelectedCampus(value);
+      logCampusSwitch(value);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <SegmentedControl
+      value={selectedCampus}
+      onValueChange={handleValueChange}
+      style={{ width: 140, flexShrink: 0, ...SdsShadows.elevated.legacy }}
+    >
       {campuses.map((campus) => (
-        <FilterPill
-          key={campus.id}
-          label={campus.label}
-          selected={campus.id === selectedCampus}
-          onPress={() => setSelectedCampus(campus.id)}
-        />
+        <SegmentedControl.Item key={campus.id} value={campus.id} typography="t7">
+          {campus.label}
+        </SegmentedControl.Item>
       ))}
-    </View>
+    </SegmentedControl>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    ...SdsShadows.elevated.legacy,
-  },
-});

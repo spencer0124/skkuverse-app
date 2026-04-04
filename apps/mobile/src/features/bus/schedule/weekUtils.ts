@@ -2,10 +2,10 @@
  * Week grouping + Korean label utilities for schedule day navigation.
  */
 
-import type { DaySchedule } from '@skkuverse/shared';
+import type { DaySchedule, TranslationKey } from '@skkuverse/shared';
 
 export interface WeekGroup {
-  /** Korean label, e.g. "3월 넷째 주" */
+  /** Localized label, e.g. "3월 넷째 주" / "4th week of 3" */
   label: string;
   /** DaySchedule entries for this week (1–7 items) */
   days: DaySchedule[];
@@ -13,26 +13,30 @@ export interface WeekGroup {
   startIndex: number;
 }
 
-const KOREAN_ORDINALS: Record<number, string> = {
-  1: '첫째',
-  2: '둘째',
-  3: '셋째',
-  4: '넷째',
-  5: '다섯째',
+const ORDINAL_KEYS: Record<number, TranslationKey> = {
+  1: 'week.ordinal1',
+  2: 'week.ordinal2',
+  3: 'week.ordinal3',
+  4: 'week.ordinal4',
+  5: 'week.ordinal5',
 };
 
 /**
- * Generate Korean week label from a date string.
+ * Generate localized week label from a date string.
  * Uses the date's day-of-month to determine the ordinal week.
  * e.g., March 24 → "3월 넷째 주" (day 24 → ceil(24/7) = 4)
  */
-function getKoreanWeekLabel(dateStr: string): string {
+function getWeekLabel(
+  dateStr: string,
+  t: (key: TranslationKey) => string,
+  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
+): string {
   const [, monthStr, dayStr] = dateStr.split('-');
   const month = Number(monthStr);
   const dayOfMonth = Number(dayStr);
   const weekNum = Math.ceil(dayOfMonth / 7);
-  const ordinal = KOREAN_ORDINALS[weekNum] ?? `${weekNum}째`;
-  return `${month}월 ${ordinal} 주`;
+  const ordinal = ORDINAL_KEYS[weekNum] ? t(ORDINAL_KEYS[weekNum]) : `${weekNum}`;
+  return tpl('week.weekLabel', month, ordinal);
 }
 
 /**
@@ -40,7 +44,11 @@ function getKoreanWeekLabel(dateStr: string): string {
  * A new week starts when dayOfWeek <= previous day's dayOfWeek
  * (i.e., we crossed a Sun→Mon boundary or the array starts).
  */
-export function groupDaysByWeek(days: DaySchedule[]): WeekGroup[] {
+export function groupDaysByWeek(
+  days: DaySchedule[],
+  t: (key: TranslationKey) => string,
+  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
+): WeekGroup[] {
   if (days.length === 0) return [];
 
   const groups: WeekGroup[] = [];
@@ -52,7 +60,7 @@ export function groupDaysByWeek(days: DaySchedule[]): WeekGroup[] {
     // Start new week when dayOfWeek resets (Mon after Sun)
     if (currentDays.length > 0 && day.dayOfWeek <= currentDays[currentDays.length - 1].dayOfWeek) {
       groups.push({
-        label: getKoreanWeekLabel(currentDays[0].date),
+        label: getWeekLabel(currentDays[0].date, t, tpl),
         days: currentDays,
         startIndex,
       });
@@ -65,7 +73,7 @@ export function groupDaysByWeek(days: DaySchedule[]): WeekGroup[] {
   // Push the last group
   if (currentDays.length > 0) {
     groups.push({
-      label: getKoreanWeekLabel(currentDays[0].date),
+      label: getWeekLabel(currentDays[0].date, t, tpl),
       days: currentDays,
       startIndex,
     });

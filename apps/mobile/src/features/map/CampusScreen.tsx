@@ -31,6 +31,7 @@ import {
   useCampusSections,
   useMapLayerStore,
   SdsColors,
+  SdsShadows,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
@@ -39,11 +40,11 @@ import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
 import { SearchBar } from './components/SearchBar';
 import { CampusToggle } from './components/CampusToggle';
-import { FilterButton } from './components/FilterButton';
 import { FilterSheet } from './components/FilterSheet';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useSearchResultStore } from '@/features/search/store';
+import { logMarkerTap, logConnectionTap } from '@/services/analytics';
 
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
@@ -67,9 +68,10 @@ export function CampusScreen() {
   // ── Building detail state ──
   const [selectedSkkuId, setSelectedSkkuId] = useState<number | null>(null);
   const [highlightSpaceCd, setHighlightSpaceCd] = useState<string | undefined>();
+  const [buildingSource, setBuildingSource] = useState<string>('marker');
 
   // ── Sheet snap points ──
-  const snapPoints = useMemo(() => ['15%', '50%', '83%'], []);
+  const snapPoints = useMemo(() => ['25%', '50%', '85%'], []);
 
   // ── Init layers from config ──
   useEffect(() => {
@@ -120,6 +122,7 @@ export function CampusScreen() {
     }
 
     // 3. Open building detail after camera settles
+    setBuildingSource('search');
     setSelectedSkkuId(payload.skkuId);
     setHighlightSpaceCd(payload.highlightSpaceCd);
     setTimeout(() => {
@@ -129,6 +132,8 @@ export function CampusScreen() {
 
   // ── Marker tap ──
   const handleMarkerTap = useCallback((skkuId: number) => {
+    logMarkerTap(skkuId);
+    setBuildingSource('marker');
     setSelectedSkkuId(skkuId);
     setHighlightSpaceCd(undefined);
     detailSheetRef.current?.present();
@@ -136,63 +141,71 @@ export function CampusScreen() {
 
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
+    if (selectedSkkuId != null) logConnectionTap(selectedSkkuId, targetSkkuId);
+    setBuildingSource('connection');
     setSelectedSkkuId(targetSkkuId);
     setHighlightSpaceCd(undefined);
     // Sheet is already open, just switch building
-  }, []);
+  }, [selectedSkkuId]);
+
+  // ── Campus reselect (same toggle tapped again) ──
+  const handleCampusReselect = useCallback(
+    (campus: { centerLat: number; centerLng: number; defaultZoom: number }) => {
+      mapRef.current?.animateCameraTo({
+        latitude: campus.centerLat,
+        longitude: campus.centerLng,
+        zoom: campus.defaultZoom,
+        duration: 500,
+      });
+    },
+    [],
+  );
 
   // ── Filter button ──
   const handleFilterPress = useCallback(() => {
     filterSheetRef.current?.present();
   }, []);
 
-  if (!mapConfig) {
-    return <CampusSkeleton />;
-  }
-
   return (
     <BottomSheetModalProvider>
       <View style={styles.root}>
         {/* Map (behind everything) */}
-        <CampusNaverMap
-          ref={mapRef}
-          mapConfig={mapConfig}
-          selectedCampus={selectedCampus}
-          style={StyleSheet.absoluteFill}
-        >
-          {mapConfig.layers.map((layer) => {
-            const layerState = layers[layer.id];
-            if (!layerState?.visible) return null;
+        {mapConfig && (
+          <CampusNaverMap
+            ref={mapRef}
+            mapConfig={mapConfig}
+            selectedCampus={selectedCampus}
+            style={StyleSheet.absoluteFill}
+          >
+            {mapConfig.layers.map((layer) => {
+              const layerState = layers[layer.id];
+              if (!layerState?.visible) return null;
 
-            if (layer.type === 'polyline') {
-              return <MapPolylineLayer key={layer.id} layer={layer} />;
-            }
-            return (
-              <MapMarkerLayer
-                key={layer.id}
-                layer={layer}
-                selectedCampus={selectedCampus}
-                onMarkerTap={handleMarkerTap}
-              />
-            );
-          })}
-        </CampusNaverMap>
+              if (layer.type === 'polyline') {
+                return <MapPolylineLayer key={layer.id} layer={layer} />;
+              }
+              return (
+                <MapMarkerLayer
+                  key={layer.id}
+                  layer={layer}
+                  selectedCampus={selectedCampus}
+                  onMarkerTap={handleMarkerTap}
+                />
+              );
+            })}
+          </CampusNaverMap>
+        )}
 
-        {/* Floating controls */}
-        <View
-          style={[styles.searchBarContainer, { top: insets.top + 8 }]}
-          pointerEvents="box-none"
-        >
-          <SearchBar />
-        </View>
-
-        <View
-          style={[styles.toggleContainer, { top: insets.top + 56 }]}
-          pointerEvents="box-none"
-        >
-          <CampusToggle campuses={mapConfig.campuses} />
-          <FilterButton onPress={handleFilterPress} />
-        </View>
+        {/* Floating controls — single row */}
+        {mapConfig && (
+          <View
+            style={[styles.controlRow, { top: insets.top + 8 }]}
+            pointerEvents="box-none"
+          >
+            <SearchBar />
+            <CampusToggle campuses={mapConfig.campuses} onReselect={handleCampusReselect} />
+          </View>
+        )}
 
         {/* Snapping bottom sheet with SDUI */}
         <BottomSheet
@@ -202,7 +215,7 @@ export function CampusScreen() {
           index={0}
         >
           <BottomSheetScrollView style={styles.sheetContent}>
-            {campusLoading ? (
+            {!mapConfig || campusLoading ? (
               <CampusSkeleton />
             ) : (
               campusData && (
@@ -213,14 +226,18 @@ export function CampusScreen() {
         </BottomSheet>
 
         {/* Modal sheets */}
-        <BuildingDetailSheet
-          ref={detailSheetRef}
-          skkuId={selectedSkkuId}
-          highlightSpaceCd={highlightSpaceCd}
-          onConnectionTap={handleConnectionTap}
-        />
-
-        <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
+        {mapConfig && (
+          <>
+            <BuildingDetailSheet
+              ref={detailSheetRef}
+              skkuId={selectedSkkuId}
+              highlightSpaceCd={highlightSpaceCd}
+              source={buildingSource}
+              onConnectionTap={handleConnectionTap}
+            />
+            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
+          </>
+        )}
       </View>
     </BottomSheetModalProvider>
   );
@@ -231,18 +248,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.background,
   },
-  searchBarContainer: {
+  controlRow: {
     position: 'absolute',
     left: 16,
     right: 16,
-  },
-  toggleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    gap: 8,
   },
   sheetContent: {
     flex: 1,

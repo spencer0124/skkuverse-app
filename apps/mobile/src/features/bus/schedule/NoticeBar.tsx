@@ -7,7 +7,7 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { TriangleAlert, Info } from 'lucide-react-native';
 import { SdsRadius, type ScheduleNotice } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
@@ -16,21 +16,18 @@ interface NoticeBarProps {
 }
 
 /** Flutter notice style configs (exact hex values from bus_campus_screen.dart) */
-const STYLE_CONFIG: Record<string, { bg: string; icon: string; color: string }> = {
-  warning: { bg: '#FFF3E0', icon: 'warning-amber', color: '#E65100' },
-  info: { bg: '#E3F2FD', icon: 'info-outline', color: '#1565C0' },
+const STYLE_CONFIG: Record<string, { bg: string; color: string }> = {
+  warning: { bg: '#FFF3E0', color: '#E65100' },
+  info: { bg: '#E3F2FD', color: '#1565C0' },
 };
 
 export function NoticeBar({ notice }: NoticeBarProps) {
   const config = STYLE_CONFIG[notice.style] ?? STYLE_CONFIG.info;
+  const IconComponent = notice.style === 'warning' ? TriangleAlert : Info;
 
   return (
     <View style={[styles.container, { backgroundColor: config.bg }]}>
-      <MaterialIcons
-        name={config.icon as keyof typeof MaterialIcons.glyphMap}
-        size={16}
-        color={config.color}
-      />
+      <IconComponent size={16} color={config.color} />
       <Txt typography="t7" fontWeight="medium" color={config.color} style={{ flex: 1 }}>
         {notice.text}
       </Txt>

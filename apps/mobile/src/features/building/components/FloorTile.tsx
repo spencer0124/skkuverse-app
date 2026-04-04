@@ -6,7 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ChevronUp, ChevronDown } from 'lucide-react-native';
 import {
   SdsColors,
   SdsTypo,
@@ -14,6 +14,7 @@ import {
   type FloorInfo,
   getLocalizedText,
   useSettingsStore,
+  useT,
 } from '@skkuverse/shared';
 
 interface FloorTileProps {
@@ -23,6 +24,7 @@ interface FloorTileProps {
 
 export function FloorTile({ floor, highlightSpaceCd }: FloorTileProps) {
   const lang = useSettingsStore((s) => s.appLanguage);
+  const { tpl } = useT();
   const [expanded, setExpanded] = useState(
     // Auto-expand if a space in this floor is highlighted
     highlightSpaceCd
@@ -39,12 +41,12 @@ export function FloorTile({ floor, highlightSpaceCd }: FloorTileProps) {
       <Pressable style={styles.header} onPress={toggle}>
         <Text style={styles.floorLabel}>{floorLabel}</Text>
         <View style={styles.headerRight}>
-          <Text style={styles.count}>{floor.spaces.length}개</Text>
-          <Ionicons
-            name={expanded ? 'chevron-up' : 'chevron-down'}
-            size={16}
-            color={SdsColors.grey400}
-          />
+          <Text style={styles.count}>{tpl('building.unitCount', floor.spaces.length)}</Text>
+          {expanded ? (
+            <ChevronUp size={16} color={SdsColors.grey400} />
+          ) : (
+            <ChevronDown size={16} color={SdsColors.grey400} />
+          )}
         </View>
       </Pressable>
 
@@ -60,7 +62,9 @@ export function FloorTile({ floor, highlightSpaceCd }: FloorTileProps) {
                 <Text style={styles.spaceName}>
                   {getLocalizedText(space.name, lang)}
                 </Text>
-                <Text style={styles.spaceCd}>{space.spaceCd}</Text>
+                <View style={styles.spaceCdBox}>
+                  <Text style={styles.spaceCd}>{space.spaceCd}</Text>
+                </View>
               </View>
             );
           })}
@@ -115,9 +119,14 @@ const styles = StyleSheet.create({
     color: SdsColors.grey800,
     flex: 1,
   },
+  spaceCdBox: {
+    width: 80,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   spaceCd: {
     ...SdsTypo.t7,
     color: SdsColors.grey400,
-    marginLeft: 8,
   },
 });

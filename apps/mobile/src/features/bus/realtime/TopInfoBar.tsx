@@ -5,7 +5,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { SdsColors, SdsTypo } from '@skkuverse/shared';
+import { SdsColors, SdsTypo, useT } from '@skkuverse/shared';
 
 interface TopInfoBarProps {
   currentTime: string;
@@ -13,10 +13,11 @@ interface TopInfoBarProps {
 }
 
 export function TopInfoBar({ currentTime, totalBuses }: TopInfoBarProps) {
+  const { tpl } = useT();
   return (
     <View style={styles.container}>
       <Text style={styles.text}>
-        {currentTime} 기준 · {totalBuses}대 운행 중
+        {tpl('realtime.infoBar', currentTime, totalBuses)}
       </Text>
     </View>
   );

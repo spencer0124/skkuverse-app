@@ -6,11 +6,12 @@
  */
 
 import { View, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, type DaySchedule } from '@skkuverse/shared';
+import { SdsColors, useT, type DaySchedule } from '@skkuverse/shared';
+import type { TranslationKey } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
-const DAY_NAMES: Record<number, string> = {
-  1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일',
+const DAY_KEYS: Record<number, TranslationKey> = {
+  1: 'day.mon', 2: 'day.tue', 3: 'day.wed', 4: 'day.thu', 5: 'day.fri', 6: 'day.sat', 7: 'day.sun',
 };
 
 interface DayGridProps {
@@ -20,6 +21,7 @@ interface DayGridProps {
 }
 
 export function DayGrid({ days, selectedIndex, onSelect }: DayGridProps) {
+  const { t } = useT();
   return (
     <View style={styles.container}>
       {days.map((day, index) => {
@@ -45,7 +47,7 @@ export function DayGrid({ days, selectedIndex, onSelect }: DayGridProps) {
               fontWeight="medium"
               color={isSelected ? 'rgba(255,255,255,0.55)' : SdsColors.grey500}
             >
-              {DAY_NAMES[day.dayOfWeek] ?? String(day.dayOfWeek)}
+              {DAY_KEYS[day.dayOfWeek] ? t(DAY_KEYS[day.dayOfWeek]) : String(day.dayOfWeek)}
             </Txt>
           </Pressable>
         );
