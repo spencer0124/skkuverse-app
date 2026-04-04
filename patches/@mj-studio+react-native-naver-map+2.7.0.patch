@@ -1,0 +1,17 @@
+diff --git a/node_modules/@mj-studio/react-native-naver-map/ios/Overlay/Marker/RNCNaverMapMarker.mm b/node_modules/@mj-studio/react-native-naver-map/ios/Overlay/Marker/RNCNaverMapMarker.mm
+index fa12209..32e0265 100644
+--- a/node_modules/@mj-studio/react-native-naver-map/ios/Overlay/Marker/RNCNaverMapMarker.mm
++++ b/node_modules/@mj-studio/react-native-naver-map/ios/Overlay/Marker/RNCNaverMapMarker.mm
+@@ -99,8 +99,10 @@ using namespace facebook::react;
+ 
+   _imageCanceller = nmap::getImage([self bridge], image, ^(NMFOverlayImage* _Nullable image) {
+     dispatch_async(dispatch_get_main_queue(), [self, image]() {
+-      self.inner.alpha = 1;
+-      self.inner.iconImage = image;
++      if (image) {
++        self.inner.alpha = 1;
++        self.inner.iconImage = image;
++      }
+       self->_imageCanceller = nil;
+       [self ensureTouchHandler]; // Re-ensure touch handler after image is set
+     });

@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
-    fallbackToCacheTimeout: 30000,
+    fallbackToCacheTimeout: 0,
     requestHeaders: {
       "expo-channel-name": "production",
     },

@@ -11,11 +11,11 @@
  */
 
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import { useLayerMarkers, type MapLayerDef, useSettingsStore, SdsColors } from '@skkuverse/shared';
 
-const MARKER_ICON = require('../../../../assets/images/line_blank.png');
+const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
 /**
  * Pure View/Text pin marker for numberCircle style.
@@ -115,6 +115,31 @@ export function MapMarkerLayer({
             lang === 'en'
               ? marker.text?.en || marker.text?.ko || ''
               : marker.text?.ko || '';
+
+          // Android: custom view markers are unreliable due to bitmap snapshot
+          // race condition (RNCNaverMapMarker.kt #120, #143).
+          // Use image-based markers with caption instead.
+          if (Platform.OS === 'android') {
+            return (
+              <NaverMapMarkerOverlay
+                key={key}
+                latitude={marker.lat}
+                longitude={marker.lng}
+                width={DOT_SIZE}
+                height={DOT_SIZE}
+                anchor={{ x: 0.5, y: 0.5 }}
+                image={MARKER_ICON}
+                caption={{
+                  text,
+                  textSize: 9,
+                  color: '#333333',
+                  requestedWidth: 200,
+                }}
+                onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
+              />
+            );
+          }
+
           return (
             <NaverMapMarkerOverlay
               key={key}
