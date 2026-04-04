@@ -8,7 +8,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
+import { ArrowLeft } from 'lucide-react-native';
 import { SdsColors, SdsTypo } from '@skkuverse/shared';
 
 export default function HSSCCreditScreen() {
@@ -24,7 +24,7 @@ export default function HSSCCreditScreen() {
           style={styles.iconButton}
           hitSlop={8}
         >
-          <MaterialIcons name="arrow-back" size={24} color={SdsColors.grey900} />
+          <ArrowLeft size={24} color={SdsColors.grey900} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           인사캠 건물지도

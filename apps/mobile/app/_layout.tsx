@@ -1,4 +1,5 @@
-import { Stack } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -7,6 +8,30 @@ import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
 import { SDSProvider } from '@skkuverse/sds';
+import { logScreenView } from '@/services/analytics';
+
+// ── Screen View tracking ──────────────────────────────────────────
+const SCREEN_NAMES: Record<string, string> = {
+  '/campus': 'campus_screen',
+  '/transit': 'transit_screen',
+  '/search': 'search_screen',
+  '/bus/realtime': 'bus_realtime_screen',
+  '/bus/schedule': 'bus_schedule_screen',
+  '/map/hssc': 'map_hssc_screen',
+  '/map/hssc-credit': 'map_hssc_credit_screen',
+};
+
+function resolveScreenName(
+  pathname: string,
+  params: Record<string, string | string[]>,
+): string | null {
+  if (pathname === '/webview') {
+    const title = typeof params.title === 'string' ? params.title : '';
+    const slug = title.toLowerCase().replace(/\s+/g, '_');
+    return slug ? `webview_${slug}_screen` : 'webview_screen';
+  }
+  return SCREEN_NAMES[pathname] ?? null;
+}
 
 /**
  * Root layout — provider hierarchy:
@@ -21,6 +46,18 @@ import { SDSProvider } from '@skkuverse/sds';
  * Flutter source: lib/main.dart (runApp wrapping)
  */
 export default function RootLayout() {
+  // ── Centralized screen view logging ──
+  const pathname = usePathname();
+  const params = useGlobalSearchParams<Record<string, string>>();
+  const lastLoggedScreen = useRef<string>('');
+
+  useEffect(() => {
+    const screenName = resolveScreenName(pathname, params);
+    if (screenName && screenName !== lastLoggedScreen.current) {
+      lastLoggedScreen.current = screenName;
+      logScreenView(screenName);
+    }
+  }, [pathname, params]);
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -34,7 +71,7 @@ export default function RootLayout() {
                   name="search"
                   options={{
                     headerShown: false,
-                    animation: 'slide_from_bottom',
+                    animation: 'none',
                   }}
                 />
                 <Stack.Screen name="map/hssc" options={{ headerShown: false }} />

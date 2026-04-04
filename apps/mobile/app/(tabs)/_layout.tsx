@@ -1,10 +1,25 @@
 import { Tabs } from "expo-router";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import type { NavigationState } from "@react-navigation/native";
+import { /* Home, */ Map, Navigation } from "lucide-react-native";
 import { Text } from "react-native";
+import { useT } from "@skkuverse/shared";
+import { logTabSwitch } from "@/services/analytics";
 
 export default function TabLayout() {
+  const { t } = useT();
+
   return (
     <Tabs
+      initialRouteName="campus"
+      screenListeners={{
+        state: (e) => {
+          const state = (e.data as { state: NavigationState }).state;
+          const route = state.routes[state.index];
+          if (route?.name === 'campus' || route?.name === 'transit') {
+            logTabSwitch(route.name);
+          }
+        },
+      }}
       screenOptions={{
         tabBarActiveTintColor: "#191F28",
         tabBarInactiveTintColor: "#B0B8C1",
@@ -16,12 +31,12 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="index"
         options={{
-          title: "캠퍼스",
+          title: t("nav.home"),
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="map" size={22} color={color} />
+            <Home size={22} color={color} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text
@@ -32,7 +47,32 @@ export default function TabLayout() {
                 lineHeight: 10,
               }}
             >
-              캠퍼스
+              {t("nav.home")}
+            </Text>
+          ),
+        }}
+      /> */}
+      <Tabs.Screen
+        name="index"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="campus"
+        options={{
+          title: t("nav.campus"),
+          tabBarIcon: ({ color }) => (
+            <Map size={22} color={color} />
+          ),
+          tabBarLabel: ({ focused, color }) => (
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: focused ? "500" : "400",
+                color,
+                lineHeight: 10,
+              }}
+            >
+              {t("nav.campus")}
             </Text>
           ),
         }}
@@ -40,9 +80,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="transit"
         options={{
-          title: "이동",
+          title: t("nav.transit"),
           tabBarIcon: ({ color }) => (
-            <MaterialIcons name="near-me" size={22} color={color} />
+            <Navigation size={22} color={color} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text
@@ -53,7 +93,7 @@ export default function TabLayout() {
                 lineHeight: 10,
               }}
             >
-              이동
+              {t("nav.transit")}
             </Text>
           ),
         }}

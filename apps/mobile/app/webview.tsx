@@ -6,13 +6,14 @@
  */
 
 import { useRef, useCallback } from 'react';
-import { View, Pressable, Text, StyleSheet, Linking } from 'react-native';
+import { View, StyleSheet, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
-import { MaterialIcons } from '@expo/vector-icons';
-import { SdsColors, SdsTypo } from '@skkuverse/shared';
+import { SdsColors } from '@skkuverse/shared';
+import { Navbar } from '@skkuverse/sds';
+import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { parseWebMessage } from '@skkuverse/bridge';
 
 export default function WebViewScreen() {
@@ -47,20 +48,10 @@ export default function WebViewScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Navigation bar */}
-      <View style={styles.bar}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.iconButton}
-          hitSlop={8}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={SdsColors.grey900} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        <View style={styles.iconButton} />
-      </View>
+      <Navbar
+        left={<Navbar.BackButton onPress={() => router.back()} />}
+        title={title}
+      />
 
       {/* WebView */}
       <WebView
@@ -72,6 +63,8 @@ export default function WebViewScreen() {
         domStorageEnabled
         startInLoadingState
       />
+
+      <AdaptiveBanner />
     </View>
   );
 }
@@ -80,27 +73,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SdsColors.background,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
-    paddingHorizontal: 4,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: SdsTypo.t6.fontSize,
-    lineHeight: SdsTypo.t6.lineHeight,
-    fontWeight: '700',
-    color: SdsColors.grey900,
   },
   webview: {
     flex: 1,

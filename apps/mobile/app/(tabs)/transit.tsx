@@ -8,8 +8,7 @@
  * Flutter source: lib/features/transit/ui/transit_tab.dart
  */
 
-import { useCallback } from 'react';
-import { ScrollView, RefreshControl, View, StyleSheet } from 'react-native';
+import { ScrollView, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTransitList, useMainNotice, SdsColors } from '@skkuverse/shared';
@@ -20,12 +19,8 @@ import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
 export default function TransitScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { data, isLoading, isFetching, refresh } = useTransitList();
+  const { data, isLoading } = useTransitList();
   const { data: notice } = useMainNotice();
-
-  const onRefresh = useCallback(() => {
-    refresh();
-  }, [refresh]);
 
   if (isLoading) {
     return (
@@ -39,13 +34,8 @@ export default function TransitScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={isFetching}
-          onRefresh={onRefresh}
-          tintColor={SdsColors.grey400}
-        />
-      }
+      alwaysBounceVertical={false}
+      overScrollMode="never"
     >
       {notice && <NoticeBanner notice={notice} />}
 

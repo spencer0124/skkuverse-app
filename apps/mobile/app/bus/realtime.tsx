@@ -27,6 +27,8 @@ import { BusMarker } from '@/features/bus/realtime/BusMarker';
 import { RefreshFab } from '@/features/bus/realtime/RefreshFab';
 import { RealtimeSkeleton } from '@/features/bus/realtime/RealtimeSkeleton';
 import { devRewriteInfoUrl } from '@/utils/dev-webview';
+import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
+import { logBusRouteOpen } from '@/services/analytics';
 
 /** Extract info feature URL from config features array */
 function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
@@ -42,6 +44,12 @@ export default function RealtimeScreen() {
   // Only fetch realtime data when config is loaded and is realtime type
   const isRealtime = config?.screenType === 'realtime';
   const screenConfig = isRealtime ? config.screen : undefined;
+
+  // ── Analytics: log route open ──
+  useEffect(() => {
+    if (!config || !groupId) return;
+    logBusRouteOpen({ routeId: groupId, routeLabel: config.label, screenType: 'realtime' });
+  }, [config?.label, groupId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     data: realtimeData,
@@ -107,7 +115,7 @@ export default function RealtimeScreen() {
 
       <View style={styles.divider} />
 
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View>
           {/* Station rows (static from config) */}
           {screenConfig?.stations.map((station) => (
@@ -133,6 +141,8 @@ export default function RealtimeScreen() {
       </ScrollView>
 
       <RefreshFab color={themeColor} onPress={() => refetch()} />
+
+      <AdaptiveBanner />
     </View>
   );
 }
@@ -148,5 +158,8 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
 });

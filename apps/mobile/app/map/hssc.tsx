@@ -1,46 +1,20 @@
 /**
- * HSSC Building Map — webview wrapper for the deployed building map.
+ * HSSC Building Map — native SVG render.
  *
  * Route: /map/hssc
- * URL: https://webview.skkuuniverse.com/#/map/hssc
+ * Params: ?building=건물명 (optional, centers map on that building)
  */
 
-import { useRef, useCallback } from 'react';
-import { View, Pressable, Text, StyleSheet, Linking } from 'react-native';
+import { View, Pressable, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { WebView } from 'react-native-webview';
-import type { WebViewMessageEvent } from 'react-native-webview';
-import { MaterialIcons } from '@expo/vector-icons';
+import { ArrowLeft, Info } from 'lucide-react-native';
 import { SdsColors, SdsTypo } from '@skkuverse/shared';
-import { parseWebMessage } from '@skkuverse/bridge';
+import { HsscMapScreen } from '@/features/map/hssc/HsscMapScreen';
 
-const WEBVIEW_URL = 'https://webview.skkuuniverse.com/#/map/hssc';
-
-export default function HSSCMapScreen() {
+export default function HSSCMapRoute() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const webViewRef = useRef<WebView>(null);
-
-  const handleMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      const msg = parseWebMessage(event.nativeEvent.data);
-      if (!msg) return;
-
-      switch (msg.type) {
-        case 'web:open-url':
-          Linking.openURL(msg.url);
-          break;
-        case 'web:navigate':
-          router.push(msg.path as never);
-          break;
-        case 'web:map-select':
-          // TODO: show place info bottom sheet
-          break;
-      }
-    },
-    [router],
-  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -50,7 +24,7 @@ export default function HSSCMapScreen() {
           style={styles.iconButton}
           hitSlop={8}
         >
-          <MaterialIcons name="arrow-back" size={24} color={SdsColors.grey900} />
+          <ArrowLeft size={24} color={SdsColors.grey900} />
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>
           인사캠 건물지도
@@ -60,19 +34,14 @@ export default function HSSCMapScreen() {
           style={styles.iconButton}
           hitSlop={8}
         >
-          <MaterialIcons name="info-outline" size={24} color={SdsColors.grey900} />
+          <Info size={24} color={SdsColors.grey900} />
         </Pressable>
       </View>
 
-      <WebView
-        ref={webViewRef}
-        source={{ uri: WEBVIEW_URL }}
-        style={styles.webview}
-        onMessage={handleMessage}
-        javaScriptEnabled
-        domStorageEnabled
-        startInLoadingState
-      />
+      <HsscMapScreen />
+
+      {/* Bottom ad banner space */}
+      <View style={{ height: 50 + insets.bottom }} />
     </View>
   );
 }
@@ -102,8 +71,5 @@ const styles = StyleSheet.create({
     lineHeight: SdsTypo.t6.lineHeight,
     fontWeight: '700',
     color: SdsColors.grey900,
-  },
-  webview: {
-    flex: 1,
   },
 });
