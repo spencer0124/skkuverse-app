@@ -10,6 +10,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkubus",
   userInterfaceStyle: "light",
   newArchEnabled: true,
+  runtimeVersion: "1.0.0",
+  updates: {
+    url: "https://ota.skkuuniverse.com/manifest",
+    enabled: true,
+    fallbackToCacheTimeout: 30000,
+    codeSigningCertificate: "./certs/certificate.pem",
+    codeSigningMetadata: {
+      keyid: "main",
+      alg: "rsa-v1_5-sha256",
+    },
+  },
   extra: {
     baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
     env: process.env.EXPO_PUBLIC_ENV,
