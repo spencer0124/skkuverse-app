@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { SdsColors, SdsTypo, SdsSpacing } from '@skkuverse/shared';
+import { SdsColors, SdsTypo, SdsSpacing, useT } from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 
 /**
@@ -14,13 +14,14 @@ import { useAppInit } from '@/hooks/useAppInit';
  */
 export function InitGate({ children }: { children: ReactNode }) {
   const { isReady, error } = useAppInit();
+  const { t } = useT();
 
   if (error) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>앱을 시작할 수 없어요</Text>
+        <Text style={styles.title}>{t('error.appStart')}</Text>
         <Text style={styles.subtitle}>
-          네트워크 연결을 확인하고 다시 시도해 주세요
+          {t('error.checkNetwork')}
         </Text>
         {__DEV__ && <Text style={styles.debug}>{error}</Text>}
       </View>

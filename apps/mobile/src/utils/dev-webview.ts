@@ -10,22 +10,6 @@ export function devRewriteInfoUrl(
   serverUrl: string | undefined,
   fallbackHash = '#/bus/hssc/info',
 ): string {
-  if (!__DEV__) {
-    return serverUrl ?? `${PROD_WEBVIEW_BASE}/${fallbackHash}`;
-  }
-
-  if (serverUrl) {
-    const hashIdx = serverUrl.indexOf('#');
-    if (hashIdx >= 0) return `${DEV_WEBVIEW_BASE}/${serverUrl.slice(hashIdx)}`;
-    // URL without hash — just swap the base
-    try {
-      const u = new URL(serverUrl);
-      return `${DEV_WEBVIEW_BASE}${u.pathname}${u.hash}`;
-    } catch {
-      return `${DEV_WEBVIEW_BASE}/${fallbackHash}`;
-    }
-  }
-
-  // No server URL at all — show fallback so ⓘ button appears in dev
-  return `${DEV_WEBVIEW_BASE}/${fallbackHash}`;
+  // TODO: 개발 모드에서 localhost Vite 서버로 리다이렉트 복원 예정
+  return serverUrl ?? `${PROD_WEBVIEW_BASE}/${fallbackHash}`;
 }

@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        'deep-green': { DEFAULT: '#003626' },
+        'deep-green': { DEFAULT: '#1A8A5C' },
       },
       fontFamily: {
         sans: ['WantedSans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],

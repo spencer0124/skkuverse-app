@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { SdsColors, SdsTypo, SdsSpacing, SdsRadius } from '@skkuverse/shared';
+import { SdsColors, SdsTypo, SdsSpacing, SdsRadius, t as translate, useSettingsStore } from '@skkuverse/shared';
 import { recordError } from '@/services/crashlytics';
 
 interface Props {
@@ -48,13 +48,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>문제가 발생했어요</Text>
-        <Text style={styles.subtitle}>잠시 후 다시 시도해 주세요</Text>
+        <Text style={styles.title}>{translate(useSettingsStore.getState().appLanguage, 'error.somethingWrong')}</Text>
+        <Text style={styles.subtitle}>{translate(useSettingsStore.getState().appLanguage, 'error.tryLater')}</Text>
         {__DEV__ && this.state.error && (
           <Text style={styles.debug}>{this.state.error.message}</Text>
         )}
         <Pressable style={styles.button} onPress={this.handleRetry}>
-          <Text style={styles.buttonText}>다시 시도</Text>
+          <Text style={styles.buttonText}>{translate(useSettingsStore.getState().appLanguage, 'common.retry')}</Text>
         </Pressable>
       </View>
     );

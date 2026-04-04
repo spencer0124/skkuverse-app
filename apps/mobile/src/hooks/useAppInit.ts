@@ -1,17 +1,32 @@
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import auth from '@react-native-firebase/auth';
 import { getLocales } from 'expo-localization';
 import {
   setAuthTokenProvider,
   getApiClient,
   authStore,
+  useSettingsStore,
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+  t as translate,
 } from '@skkuverse/shared';
+import type { AppLanguage } from '@skkuverse/shared';
+import mobileAds from 'react-native-google-mobile-ads';
 import { setCrashlyticsUserId } from '@/services/crashlytics';
 import {
+  disableAnalyticsInDev,
   setAnalyticsUserId,
   setAppLanguage,
   setPreferredCampus,
 } from '@/services/analytics';
+
+function resolveAppLanguage(): AppLanguage {
+  const deviceLang = getLocales()[0]?.languageCode;
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(deviceLang ?? '')
+    ? (deviceLang as AppLanguage)
+    : DEFAULT_LANGUAGE;
+}
 
 /**
  * App initialization hook — runs once on mount.
@@ -35,6 +50,9 @@ export function useAppInit() {
 
     async function init() {
       try {
+        // 0. Disable Analytics collection in dev builds
+        await disableAnalyticsInDev();
+
         // 1. Register token provider (decouples shared pkg from Firebase)
         setAuthTokenProvider(async (forceRefresh) => {
           const user = auth().currentUser;
@@ -50,6 +68,9 @@ export function useAppInit() {
         // 3. Force-create API client singleton (interceptors attached)
         getApiClient();
 
+        // 3.5. Initialize Google Mobile Ads SDK
+        await mobileAds().initialize();
+
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
         unsubscribe = auth().onAuthStateChanged((user) => {
           if (user) {
@@ -61,14 +82,16 @@ export function useAppInit() {
           }
         });
 
-        // 5. Set initial analytics user properties
-        setAppLanguage(getLocales()[0]?.languageCode ?? 'ko');
+        // 5. Sync OS locale → Zustand store + analytics
+        const lang = resolveAppLanguage();
+        useSettingsStore.getState().setAppLanguage(lang);
+        setAppLanguage(lang);
         setPreferredCampus('hssc');
 
         setIsReady(true);
       } catch (e) {
         const message =
-          e instanceof Error ? e.message : '앱을 시작할 수 없어요';
+          e instanceof Error ? e.message : translate(resolveAppLanguage(), 'error.appStart');
         authStore.getState().setError(message);
         setError(message);
       }
@@ -76,8 +99,21 @@ export function useAppInit() {
 
     init();
 
+    // Re-sync locale when app returns to foreground (Android can change locale without restart)
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (state) => {
+        if (state === 'active') {
+          const lang = resolveAppLanguage();
+          useSettingsStore.getState().setAppLanguage(lang);
+          setAppLanguage(lang);
+        }
+      },
+    );
+
     return () => {
       unsubscribe?.();
+      appStateSubscription.remove();
     };
   }, []);
 

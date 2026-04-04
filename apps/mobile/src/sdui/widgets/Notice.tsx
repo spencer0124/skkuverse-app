@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
     borderRadius: SdsRadius.sm,
   },
   emoji: {
+    fontFamily: 'TossFaceFontMac',
     fontSize: 16,
   },
   spacer: {

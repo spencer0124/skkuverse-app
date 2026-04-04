@@ -11,6 +11,14 @@ import analytics from '@react-native-firebase/analytics';
  * Flutter source: lib/core/services/analytics_service.dart
  */
 
+// ── Init ──────────────────────────────────────────────────────────
+
+/** 개발 모드에서 Analytics 자동 수집 비활성화. 앱 초기화 시 1회 호출. */
+export async function disableAnalyticsInDev() {
+  if (!__DEV__) return;
+  await analytics().setAnalyticsCollectionEnabled(false);
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 function truncate(s: string, maxLen = 100): string {

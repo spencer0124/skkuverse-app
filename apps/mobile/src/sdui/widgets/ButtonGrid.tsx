@@ -7,8 +7,8 @@
  * Flutter source: sdui_button_grid_widget.dart + option_campus_service_button.dart
  */
 
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, SdsRadius, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
+import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { SdsColors, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 
 interface Props {
@@ -32,7 +32,7 @@ export function ButtonGrid({ section }: Props) {
           }
         >
           <Text style={styles.emoji}>{item.emoji}</Text>
-          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+          <Text style={styles.title} numberOfLines={1}>
             {item.title}
           </Text>
         </Pressable>
@@ -41,35 +41,39 @@ export function ButtonGrid({ section }: Props) {
   );
 }
 
-const BUTTON_SIZE = 77;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const GRID_MARGIN = 16;
+const GRID_GAP = 8;
+const GRID_COLS = 4;
+const GRID_ITEM_SIZE =
+  (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 18,
-    paddingVertical: 4,
+    marginHorizontal: 16,
     gap: 8,
   },
   button: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    padding: 10,
+    width: GRID_ITEM_SIZE,
+    height: GRID_ITEM_SIZE,
+    borderRadius: 16,
+    backgroundColor: SdsColors.grey50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: SdsColors.grey100,
-    borderRadius: SdsRadius.md,
+    gap: 8,
     borderWidth: 1,
     borderColor: SdsColors.grey200,
   },
   emoji: {
-    fontSize: 30,
-    lineHeight: 30,
-    height: 30,
+    fontFamily: 'TossFaceFontMac',
+    fontSize: 26,
+    lineHeight: 32,
   },
   title: {
-    marginTop: 5,
     fontSize: 12,
-    color: SdsColors.grey900,
+    fontWeight: '500',
+    color: SdsColors.grey800,
   },
 });
