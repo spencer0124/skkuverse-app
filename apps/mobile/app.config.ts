@@ -13,7 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   newArchEnabled: true,
   runtimeVersion: "1.0.0",
   updates: {
-    url: "https://ota.skkuuniverse.com/manifest",
+    url: "https://ota.skkuverse.com/manifest",
     enabled: true,
     fallbackToCacheTimeout: 30000,
     codeSigningCertificate: "./certs/certificate.pem",

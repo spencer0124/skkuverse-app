@@ -73,7 +73,16 @@ export function SearchScreen() {
   const [campusFilter, setCampusFilter] = useState<CampusFilter>('all');
   const campus = campusFilter === 'all' ? undefined : campusFilter;
   const { data } = useSearchBuildings(debouncedQuery, campus);
+  // Fetch without campus filter to get per-campus counts for tab badges.
+  // When campusFilter is 'all', this shares the same queryKey → no extra request.
+  const { data: countData } = useSearchBuildings(debouncedQuery, undefined);
   const lastLoggedQuery = useRef<string>('');
+
+  // Reset collapse state when search query or campus filter changes
+  useEffect(() => {
+    setBuildingExpanded(true);
+    setSpaceExpanded(true);
+  }, [debouncedQuery, campusFilter]);
 
   // ── Analytics: log search when results arrive ──
   useEffect(() => {
@@ -188,12 +197,23 @@ export function SearchScreen() {
             logSearchFilterChange(filter);
             setCampusFilter(filter);
           }}
-          items={[
-            { value: 'all', label: t('search.all') },
-            { value: 'hssc', label: t('search.hssc') },
-            { value: 'nsc', label: t('search.nsc') },
-          ]}
-        />
+        >
+          <SegmentedControl.Item value="all" typography="t7" style={styles.segmentedItem}>
+            {countData && debouncedQuery
+              ? `${t('common.total')} ${countData.counts.building.total + countData.counts.space.total}`
+              : t('common.total')}
+          </SegmentedControl.Item>
+          <SegmentedControl.Item value="hssc" typography="t7" style={styles.segmentedItem}>
+            {countData && debouncedQuery
+              ? `${t('campus.hssc')} ${countData.counts.building.hssc + countData.counts.space.hssc}`
+              : t('campus.hssc')}
+          </SegmentedControl.Item>
+          <SegmentedControl.Item value="nsc" typography="t7" style={styles.segmentedItem}>
+            {countData && debouncedQuery
+              ? `${t('campus.nsc')} ${countData.counts.building.nsc + countData.counts.space.nsc}`
+              : t('campus.nsc')}
+          </SegmentedControl.Item>
+        </SegmentedControl>
       </View>
 
       {/* Empty states */}
@@ -384,6 +404,9 @@ const styles = StyleSheet.create({
   segmentedWrapper: {
     paddingHorizontal: SdsSpacing.base,
     paddingVertical: SdsSpacing.sm,
+  },
+  segmentedItem: {
+    paddingVertical: 5,
   },
   list: {
     paddingBottom: 40,

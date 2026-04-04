@@ -103,12 +103,24 @@ export interface SpaceGroup {
   items: SearchSpaceItem[];
 }
 
+export interface CampusCounts {
+  hssc: number;
+  nsc: number;
+  total: number;
+}
+
+export interface SearchCounts {
+  building: CampusCounts;
+  space: CampusCounts;
+}
+
 export interface BuildingSearchResult {
   keyword: string;
   buildingCount: number;
   spaceCount: number;
   buildings: Building[];
   spaces: SpaceGroup[];
+  counts: SearchCounts;
 }
 
 // ── Floor badge ──

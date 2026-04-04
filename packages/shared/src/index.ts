@@ -117,6 +117,8 @@ export type {
   SearchSpaceItem,
   SpaceGroup,
   BuildingSearchResult,
+  CampusCounts,
+  SearchCounts,
   BuildingNavPayload,
 } from './types/building';
 export { getLocalizedText, floorBadge } from './types/building';

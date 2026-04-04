@@ -154,11 +154,19 @@ export function parseBuildingDetail(
   };
 }
 
+function parseCampusCounts(raw: unknown): { hssc: number; nsc: number; total: number } {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const hssc = (obj.hssc as number) ?? 0;
+  const nsc = (obj.nsc as number) ?? 0;
+  return { hssc, nsc, total: (obj.total as number) ?? hssc + nsc };
+}
+
 export function parseBuildingSearchResult(
   envelope: ApiEnvelope<unknown>,
 ): BuildingSearchResult {
   const meta = envelope.meta as Record<string, unknown>;
   const data = envelope.data as Record<string, unknown>;
+  const countsRaw = (meta.counts ?? {}) as Record<string, unknown>;
   return {
     keyword: (meta.keyword as string) ?? '',
     buildingCount: (meta.buildingCount as number) ?? 0,
@@ -169,5 +177,9 @@ export function parseBuildingSearchResult(
     spaces: ((data.spaces as unknown[]) ?? []).map((s) =>
       parseSpaceGroup(s as Record<string, unknown>),
     ),
+    counts: {
+      building: parseCampusCounts(countsRaw.building),
+      space: parseCampusCounts(countsRaw.space),
+    },
   };
 }

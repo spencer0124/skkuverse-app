@@ -106,6 +106,8 @@ const styles = StyleSheet.create({
     fontSize: SdsTypo.t7.fontSize,
     lineHeight: SdsTypo.t7.lineHeight,
     color: SdsColors.grey500,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   divider: {
     height: 0.5,
