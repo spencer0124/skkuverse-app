@@ -16,6 +16,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
     fallbackToCacheTimeout: 30000,
+    requestHeaders: {
+      "expo-channel-name": "production",
+    },
     codeSigningCertificate: "./certs/certificate.pem",
     codeSigningMetadata: {
       keyid: "main",
