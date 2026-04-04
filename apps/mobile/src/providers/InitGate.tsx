@@ -73,23 +73,21 @@ export function InitGate({ children }: { children: ReactNode }) {
       if (state === 'active' && backgroundAt.current > 0) {
         const elapsed = Date.now() - backgroundAt.current;
         backgroundAt.current = 0;
+        const longBackground = elapsed >= BACKGROUND_THRESHOLD_MS;
 
-        if (elapsed >= BACKGROUND_THRESHOLD_MS) {
-          // Long background → show splash + check OTA
-          setPhase('ota');
-          setStatusText('업데이트 확인 중...');
-          (async () => {
-            const hasUpdate = await ota.checkAndDownload();
-            if (hasUpdate) {
-              setStatusText('업데이트 적용 중...');
-              await ota.applyUpdate();
-            }
-            setPhase(isReady ? 'ready' : 'init');
-          })();
-        } else {
-          // Short background → silent download
-          ota.checkAndDownload();
-        }
+        // Always check silently first (no splash)
+        (async () => {
+          const hasUpdate = await ota.checkAndDownload();
+          if (!hasUpdate) return;
+
+          if (longBackground) {
+            // 5min+ → show splash overlay → download already done → reload
+            setPhase('ota');
+            setStatusText('업데이트 적용 중...');
+            await ota.applyUpdate();
+          }
+          // 5min- → download done, apply on next cold start or 5min+ resume
+        })();
       }
     });
 
