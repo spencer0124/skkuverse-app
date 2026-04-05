@@ -68,6 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "./plugins/withFirebaseModularHeaders",
+    "./plugins/withLocalizedAppName",
     [
       "expo-splash-screen",
       {
