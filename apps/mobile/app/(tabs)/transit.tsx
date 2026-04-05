@@ -37,7 +37,7 @@ export default function TransitScreen() {
       alwaysBounceVertical={false}
       overScrollMode="never"
     >
-      <Text style={{ textAlign: 'center', padding: 8, color: '#888' }}>OTA v9 - beta channel OTA 테스트</Text>
+      <Text style={{ textAlign: 'center', padding: 8, color: '#888' }}>OTA v10 - beta channel OTA 테스트</Text>
       {notice && <NoticeBanner notice={notice} />}
 
       {data?.map((item) => (
