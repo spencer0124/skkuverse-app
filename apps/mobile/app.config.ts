@@ -17,8 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     enabled: true,
     fallbackToCacheTimeout: 0,
     requestHeaders: {
-      "expo-channel-name":
-        process.env.EAS_BUILD_PROFILE === "beta" ? "beta" : "production",
+      "expo-channel-name": "production",
     },
     codeSigningCertificate: "./certs/certificate.pem",
     codeSigningMetadata: {
