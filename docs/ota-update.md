@@ -13,21 +13,22 @@
 ```bash
 cd apps/mobile
 
-# beta 발행 (TestFlight/Internal Testing 사용자에게만)
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
+# beta (TestFlight/Internal Testing 사용자에게만)
+./scripts/ota-beta.sh
 
-# 프로덕션 발행 (App Store/Play Store 사용자에게만)
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
+# production (App Store/Play Store 사용자에게만)
+./scripts/ota-release.sh
 ```
 
 **채널 분리:**
 - `beta` 채널: `ios-beta.sh` / `android-beta.sh`로 빌드된 앱이 받음 (TestFlight/Internal Testing)
 - `production` 채널: `ios-release.sh` / `android-release.sh`로 빌드된 앱이 받음 (App Store/Play Store)
+- 채널은 `app.config.ts`에서 `EAS_BUILD_PROFILE` 환경변수로 빌드 시점에 결정됨
 - **권장 워크플로우:** beta에 먼저 OTA 발행 → 검증 → production에 발행
 
 **주의:**
 - 워킹 트리가 clean해야 함 (커밋 필요)
-- `EXPO_TOKEN` 필수 (expo.dev에서 발급한 access token)
+- `EXPO_TOKEN`은 `.env.ota.local`에 저장 (gitignored). 스크립트가 자동으로 읽음
 - `--platform ios`는 lottie-react-native web export 이슈 회피용
 - 채널은 빌드 시점에 결정됨 — 기존 빌드의 채널은 변경 불가
 
@@ -94,13 +95,14 @@ OCI A1 (ARM64, 4 OCPU, 24GB)
 ## app.config.ts 설정
 
 ```typescript
-runtimeVersion: "1.0.0",
+runtimeVersion: "3.5.0",  // 고정 문자열. 네이티브 변경 시에만 수동 bump
 updates: {
   url: "https://ota.skkuverse.com/manifest",
   enabled: true,
   fallbackToCacheTimeout: 0,
   requestHeaders: {
-    "expo-channel-name": "production",  // 로컬 빌드에서는 이게 필수
+    // EAS_BUILD_PROFILE=beta → "beta", 그 외 �� "production"
+    "expo-channel-name": process.env.EAS_BUILD_PROFILE === "beta" ? "beta" : "production",
   },
   codeSigningCertificate: "./certs/certificate.pem",
   codeSigningMetadata: {
@@ -110,17 +112,23 @@ updates: {
 },
 ```
 
-**중요:** `requestHeaders`의 `expo-channel-name`은 EAS 클라우드 빌드에서는 자동 주입되지만, **로컬 빌드(`--local`)에서는 수동 설정 필수**. 없으면 서버가 400 반환. `app.config.ts`에서 `EAS_BUILD_PROFILE` 환경변수 기반으로 beta/production 자동 결정.
+**runtimeVersion:** 고정 문자열 사용. `{ policy: "fingerprint" }`는 EAS build와 eoas 간 해시 불일치 이슈로 사용하지 않음. 네이티브 코드 변경 시 수동으로 올려야 함.
+
+**expo-channel-name:** `EAS_BUILD_PROFILE` 환경변수로 빌드 시 자동 결정. `--profile beta` → `"beta"`, `--profile production` → `"production"`. 없으면 서버가 400 반환.
 
 ## Troubleshooting
 
 ### OTA 발행 시 "Error validating expo auth"
-`EXPO_TOKEN` 환경변수 누락. 발행 커맨드에 포함해야 함.
+`EXPO_TOKEN` 환경변수 누락. `.env.ota.local` 파일에 토큰이 있는지 확인. 없으면 [expo.dev](https://expo.dev) → Settings → Access tokens에서 발급 후 `.env.ota.local`에 `EXPO_TOKEN=<토큰>` 추가.
 
 ### 서버 로그에 "No channel name provided" (400)
 앱이 `expo-channel-name` 헤더를 안 보냄. `app.config.ts`의 `updates.requestHeaders`에 추가하고 네이티브 리빌드 필요.
 
 ### 앱에서 업데이트 안 받아짐
 1. 서버 헬스체크: `curl https://ota.skkuverse.com/hc`
-2. manifest 응답: `curl -H "expo-channel-name: production" -H "expo-platform: ios" -H "expo-runtime-version: 1.0.0" -H "expo-protocol-version: 1" https://ota.skkuverse.com/manifest`
+2. manifest 응답: `curl -H "expo-channel-name: beta" -H "expo-platform: ios" -H "expo-runtime-version: 3.5.0" -H "expo-protocol-version: 1" https://ota.skkuverse.com/manifest`
 3. 서버 로그: `ssh oracle "docker compose -f /opt/skkuverse-codepush/docker-compose.yml logs --tail 20"`
+4. 앱이 요청하는 채널/runtimeVersion 확인: 서버 로그에서 `Expo-Channel-Name`과 `Expo-Runtime-Version` 헤더 확인
+
+### runtimeVersion 불일치 (No update found)
+서버에 올라간 OTA의 runtimeVersion과 앱의 runtimeVersion이 다르면 업데이트가 안 됨. `app.config.ts`의 `runtimeVersion`을 확인하���, 네이티브 리빌드 후 새 빌드를 TestFlight/Play Store에 올려야 함.

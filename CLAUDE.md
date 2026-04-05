@@ -75,7 +75,7 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 ## Deep Link
 
-커스텀 스킴 `skkuverse://`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링.
+커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com`으로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
 
 - **허용:** `/`, `/campus`, `/transit`, `/map/hssc`, `/search`
 - **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈으로 리다이렉트
@@ -134,13 +134,15 @@ cd apps/mobile
 cd apps/mobile
 
 # beta (TestFlight/Internal Testing 사용자에게만)
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
+./scripts/ota-beta.sh
 
 # production (App Store/Play Store 사용자에게만)
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
+./scripts/ota-release.sh
 ```
 
-- **채널 분리:** beta 스크립트(`*-beta.sh`)로 빌드 → "beta" 채널, release 스크립트(`*-release.sh`)로 빌드 → "production" 채널
+- **채널 분리:** beta 스크립트(`*-beta.sh`)로 빌드 → "beta" 채널, release 스크립트(`*-release.sh`)로 빌드 → "production" 채널. `app.config.ts`에서 `EAS_BUILD_PROFILE` 환경변수로 채널 자동 결정
+- **runtimeVersion:** 고정 문자열 (현재 `"3.5.0"`). 네이티브 코드 변경 시에만 수동으로 올려야 함. fingerprint 방식은 EAS build와 eoas 간 불일치 이슈로 사용하지 않음
+- **EXPO_TOKEN:** `.env.ota.local`에 저장 (gitignored). OTA 스크립트가 자동으로 읽음
 - **권장 워크플로우:** beta에 먼저 OTA → 검증 → production에 OTA
 - **OTA로 배포 가능:** UI 변경, 비즈니스 로직, 에셋 추가 등 JS-only 변경
-- **네이티브 리빌드 필요:** 새 네이티브 모듈, SDK 업그레이드, app.config.ts plugins 변경
+- **네이티브 리빌드 필요:** 새 네이티브 모듈, SDK 업그레이드, app.config.ts plugins 변경 → `runtimeVersion` bump 필수
