@@ -41,3 +41,6 @@ Thumbs.db
 
 # Turborepo (future)
 .turbo/
+
+# Claude Code workflows
+.github/
