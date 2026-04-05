@@ -91,7 +91,8 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 - **Bottom sheets:** `@gorhom/bottom-sheet`
 - **Icons:** `lucide-react-native`
 - **TypeScript strict mode** enabled across the monorepo
-- **iOS bundle ID:** `com.sonah5009.skkuuniverse` / **Android package:** `com.zoyoong.skkubus`
+- **iOS bundle ID:** `com.example.skkumap` / **Android package:** `com.zoyoong.skkubus`
+- **개발 실행:** Expo Go, expo-dev-client 사용하지 않음. `yarn ios` (`expo run:ios`)로 네이티브 빌드 직접 실행
 - **EAS Build:** Configured in `apps/mobile/eas.json` (dev/preview/production profiles)
 - **Naver Map patch:** `patches/@mj-studio+react-native-naver-map+2.7.0.patch` (nil iconImage crash fix)
 - **Android dev environment:** CLI-only SDK (no Android Studio IDE), JDK 17, `ANDROID_HOME=~/Library/Android/sdk`
@@ -121,7 +122,7 @@ cd apps/mobile
 - `autoIncrement`는 `--local` 빌드에서 동작하지 않음 — EAS remote version은 플랫폼별 독립 관리
 - `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
 - Android 빌드 스크립트에 `JAVA_HOME`(JDK 17), `ANDROID_HOME` 자동 설정 포함
-- iOS bundle ID: `com.sonah5009.skkuuniverse` / Android package: `com.zoyoong.skkubus`
+- iOS bundle ID: `com.example.skkumap` / Android package: `com.zoyoong.skkubus`
 - **Release Notes**: 배포 전에 `fastlane/metadata/` 아래 locale별 파일 수정 → 업로드 시 자동 포함
   - Android: `metadata/android/{ko-KR,en-US,zh-CN}/changelogs/default.txt` (최대 500자)
   - iOS: `metadata/ios/{ko,en-US,zh-Hans}/release_notes.txt` (최대 4000자)
