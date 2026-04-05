@@ -1,5 +1,10 @@
 const ALLOWED_PATHS = ['/campus', '/transit', '/map/hssc', '/search'];
 
+const TAB_PATHS: Record<string, string> = {
+  '/campus': '/(tabs)/campus',
+  '/transit': '/(tabs)/transit',
+};
+
 export function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   try {
     let pathname = path;
@@ -37,13 +42,18 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     }
 
     // 루트("/")는 허용 — 기존 로직대로 홈으로 감
-    if (pathname === '/') return path;
+    if (pathname === '/') return '/(tabs)/campus';
 
     // 화이트리스트 체크
-    if (ALLOWED_PATHS.some((allowed) => pathname === allowed)) return path;
+    if (!ALLOWED_PATHS.some((allowed) => pathname === allowed)) {
+      return '/(tabs)/campus';
+    }
 
-    // 그 외 전부 홈으로
-    return '/(tabs)/campus';
+    // 탭 경로는 명시적 그룹 경로로 반환
+    if (TAB_PATHS[pathname]) return TAB_PATHS[pathname];
+
+    // 비탭 경로 (search, map/hssc) — unstable_settings가 (tabs)를 스택 아래에 삽입
+    return pathname;
   } catch {
     return '/(tabs)/campus';
   }
