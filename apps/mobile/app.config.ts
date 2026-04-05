@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "3.5.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
-  scheme: "skkubus",
+  scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
   runtimeVersion: { policy: "fingerprint" },

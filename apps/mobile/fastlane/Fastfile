@@ -16,6 +16,7 @@ platform :ios do
     upload_to_testflight(
       ipa: options[:ipa],
       skip_waiting_for_build_processing: true,
+      changelog: File.read(File.expand_path("metadata/ios/ko/release_notes.txt", __dir__)),
     )
   end
 
@@ -29,6 +30,11 @@ platform :ios do
       force: true,
       skip_metadata: true,
       skip_screenshots: true,
+      release_notes: {
+        'ko' => File.read(File.expand_path("metadata/ios/ko/release_notes.txt", __dir__)),
+        'en-US' => File.read(File.expand_path("metadata/ios/en-US/release_notes.txt", __dir__)),
+        'zh-Hans' => File.read(File.expand_path("metadata/ios/zh-Hans/release_notes.txt", __dir__)),
+      },
     )
   end
 
@@ -46,7 +52,8 @@ platform :android do
       json_key: File.expand_path("play-store-key.json", __dir__),
       package_name: "com.zoyoong.skkubus",
       skip_upload_metadata: true,
-      skip_upload_changelogs: true,
+      skip_upload_changelogs: false,
+      metadata_path: File.expand_path("metadata/android", __dir__),
       skip_upload_images: true,
       skip_upload_screenshots: true,
     )
@@ -62,7 +69,8 @@ platform :android do
       json_key: File.expand_path("play-store-key.json", __dir__),
       package_name: "com.zoyoong.skkubus",
       skip_upload_metadata: true,
-      skip_upload_changelogs: true,
+      skip_upload_changelogs: false,
+      metadata_path: File.expand_path("metadata/android", __dir__),
       skip_upload_images: true,
       skip_upload_screenshots: true,
     )

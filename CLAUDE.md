@@ -59,7 +59,7 @@ ErrorBoundary → GestureHandlerRootView → SDSProvider → QueryProvider → I
 ### Data Layer (in `@skkuverse/shared`)
 
 - **API client:** Axios with auth interceptor and retry. Requests wrapped in `Result<T>` (success/failure union).
-- **Stores:** `useAuthStore` (Firebase auth), `useSettingsStore` (campus, language), `useMapLayerStore`.
+- **Stores:** `useAuthStore` (Firebase auth), `useSettingsStore` (campus, language, lastTab), `useMapLayerStore`.
 - **React Query hooks:** `useCampusSections`, `useTransitList`, `useBusConfig`, `useMapConfig`, `useBuildings`, etc.
 - **i18n:** `useT()` hook, `SUPPORTED_LANGUAGES`.
 
@@ -75,48 +75,47 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 ## Key Technical Details
 
-- **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`
+- **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/android-naver-map-markers.md`)
 - **Auth/Analytics:** Firebase (auth, analytics, crashlytics)
 - **Local storage:** `react-native-mmkv` for general state, `expo-secure-store` for sensitive data
 - **Animations:** React Native Reanimated 4 + Gesture Handler 2
 - **Bottom sheets:** `@gorhom/bottom-sheet`
 - **Icons:** `lucide-react-native`
 - **TypeScript strict mode** enabled across the monorepo
-- **iOS bundle ID:** `com.example.skkumap`
+- **iOS bundle ID:** `com.sonah5009.skkuuniverse` / **Android package:** `com.zoyoong.skkubus`
 - **EAS Build:** Configured in `apps/mobile/eas.json` (dev/preview/production profiles)
 - **Naver Map patch:** `patches/@mj-studio+react-native-naver-map+2.7.0.patch` (nil iconImage crash fix)
+- **Android dev environment:** CLI-only SDK (no Android Studio IDE), JDK 17, `ANDROID_HOME=~/Library/Android/sdk`
 
-## iOS Build (로컬 빌드)
+## Build & Deploy (로컬 빌드)
 
-이 프로젝트는 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포함. EAS 클라우드 빌드 안 씀.
-
-```bash
-cd apps/mobile
-./scripts/ios-beta.sh      # 빌드 + TestFlight
-./scripts/ios-release.sh   # 빌드 + App Store
-```
-
-**로컬 빌드 주의사항:**
-- `credentials.json`이 `./certs/dist.p12` + `./certs/dist.mobileprovision` 경로를 참조
-- `eas.json`의 `production` 프로필에 `"credentialsSource": "local"` 필수
-- `.easignore`가 `.gitignore` 대신 적용됨 — Firebase 설정, `.env`, `certs/certificate.pem`이 빌드에 포함되어야 함
-- `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
-
-## Android Build (로컬 빌드)
-
-iOS와 동일하게 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포.
+이 프로젝트는 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포함. EAS 클라우드 빌드 안 씀. 자세한 내용은 `docs/ios-build-deploy.md`, `docs/android-build-deploy.md` 참조.
 
 ```bash
 cd apps/mobile
+
+# iOS
+./scripts/ios-build.sh         # .ipa 빌드만
+./scripts/ios-beta.sh          # 빌드 + TestFlight
+./scripts/ios-release.sh       # 빌드 + App Store
+
+# Android
+./scripts/android-build.sh     # .aab 빌드만
 ./scripts/android-beta.sh      # 빌드 + Google Play internal testing
 ./scripts/android-release.sh   # 빌드 + Google Play production (draft)
 ```
 
-**Android 빌드 주의사항:**
-- `credentials.json`의 `android.keystore` 섹션이 `./certs/upload-keystore.jks` 경로를 참조 (Flutter에서 가져온 동일 키)
-- Fastlane `supply`는 `fastlane/play-store-key.json` (Google Play 서비스 계정 키) 필요
-- `autoIncrement`는 `--local` 빌드에서 동작하지 않으므로, 빌드 스크립트에서 `eas build:version:get/set`으로 수동 증가
-- Android package: `com.zoyoong.skkubus`
+**공통 주의사항:**
+- `credentials.json`에 iOS(dist.p12 + mobileprovision)와 Android(upload-keystore.jks) 인증 설정
+- `eas.json`의 `production` 프로필에 `"credentialsSource": "local"` 필수
+- `.easignore`가 `.gitignore` 대신 적용됨 — Firebase 설정, `.env`, `certs/certificate.pem`이 빌드에 포함되어야 함
+- `autoIncrement`는 `--local` 빌드에서 동작하지 않음 — EAS remote version은 플랫폼별 독립 관리
+- `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
+- Android 빌드 스크립트에 `JAVA_HOME`(JDK 17), `ANDROID_HOME` 자동 설정 포함
+- iOS bundle ID: `com.sonah5009.skkuuniverse` / Android package: `com.zoyoong.skkubus`
+- **Release Notes**: 배포 전에 `fastlane/metadata/` 아래 locale별 파일 수정 → 업로드 시 자동 포함
+  - Android: `metadata/android/{ko-KR,en-US,zh-CN}/changelogs/default.txt` (최대 500자)
+  - iOS: `metadata/ios/{ko,en-US,zh-Hans}/release_notes.txt` (최대 4000자)
 
 ## OTA 업데이트
 
