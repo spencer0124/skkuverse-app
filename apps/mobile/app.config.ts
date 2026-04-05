@@ -17,7 +17,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     enabled: true,
     fallbackToCacheTimeout: 0,
     requestHeaders: {
-      "expo-channel-name": "production",
+      "expo-channel-name":
+        process.env.EAS_BUILD_PROFILE === "beta" ? "beta" : "production",
     },
     codeSigningCertificate: "./certs/certificate.pem",
     codeSigningMetadata: {
@@ -37,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     buildNumber: "69",
     googleServicesFile: "./GoogleService-Info.plist",
+    associatedDomains: ["applinks:skkuverse.com"],
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
@@ -49,6 +51,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundImage: "./assets/images/android-icon-background.png",
       backgroundColor: "#ffffff",
     },
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [{ scheme: "https", host: "skkuverse.com" }],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
   },
   plugins: [
     "@react-native-firebase/app",

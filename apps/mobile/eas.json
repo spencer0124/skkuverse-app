@@ -16,6 +16,10 @@
       },
       "channel": "preview"
     },
+    "beta": {
+      "credentialsSource": "local",
+      "channel": "beta"
+    },
     "production": {
       "credentialsSource": "local",
       "channel": "production",

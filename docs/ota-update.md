@@ -13,17 +13,23 @@
 ```bash
 cd apps/mobile
 
-# 프로덕션 발행
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
+# beta 발행 (TestFlight/Internal Testing 사용자에게만)
+EXPO_TOKEN=<토큰> RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
 
-# 프리뷰 발행
-EXPO_TOKEN=<토큰> RELEASE_CHANNEL=preview npx eoas publish --branch preview --nonInteractive --platform ios
+# 프로덕션 발행 (App Store/Play Store 사용자에게만)
+EXPO_TOKEN=<토큰> RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
 ```
+
+**채널 분리:**
+- `beta` 채널: `ios-beta.sh` / `android-beta.sh`로 빌드된 앱이 받음 (TestFlight/Internal Testing)
+- `production` 채널: `ios-release.sh` / `android-release.sh`로 빌드된 앱이 받음 (App Store/Play Store)
+- **권장 워크플로우:** beta에 먼저 OTA 발행 → 검증 → production에 발행
 
 **주의:**
 - 워킹 트리가 clean해야 함 (커밋 필요)
 - `EXPO_TOKEN` 필수 (expo.dev에서 발급한 access token)
 - `--platform ios`는 lottie-react-native web export 이슈 회피용
+- 채널은 빌드 시점에 결정됨 — 기존 빌드의 채널은 변경 불가
 
 ## 업데이트 전략
 
@@ -104,7 +110,7 @@ updates: {
 },
 ```
 
-**중요:** `requestHeaders`의 `expo-channel-name`은 EAS 클라우드 빌드에서는 자동 주입되지만, **로컬 빌드(`--local`)에서는 수동 설정 필수**. 없으면 서버가 400 반환.
+**중요:** `requestHeaders`의 `expo-channel-name`은 EAS 클라우드 빌드에서는 자동 주입되지만, **로컬 빌드(`--local`)에서는 수동 설정 필수**. 없으면 서버가 400 반환. `app.config.ts`에서 `EAS_BUILD_PROFILE` 환경변수 기반으로 beta/production 자동 결정.
 
 ## Troubleshooting
 

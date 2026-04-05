@@ -3,5 +3,5 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 IPA="./build.ipa"
 rm -f "$IPA"
-eas build --platform ios --profile production --local --non-interactive --output "$IPA"
+eas build --platform ios --profile beta --local --non-interactive --output "$IPA"
 bundle exec fastlane ios upload_beta ipa:"$IPA"

@@ -122,10 +122,16 @@ cd apps/mobile
 셀프호스팅 expo-open-ota 서버 (`https://ota.skkuverse.com`). 자세한 내용은 `docs/ota-update.md` 참조.
 
 ```bash
-# OTA 발행 (JS 변경만, 네이티브 리빌드 불필요)
 cd apps/mobile
+
+# beta (TestFlight/Internal Testing 사용자에게만)
+EXPO_TOKEN=<토큰> RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
+
+# production (App Store/Play Store 사용자에게만)
 EXPO_TOKEN=<토큰> RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
 ```
 
-**OTA로 배포 가능:** UI 변경, 비즈니스 로직, 에셋 추가 등 JS-only 변경
-**네이티브 리빌드 필요:** 새 네이티브 모듈, SDK 업그레이드, app.config.ts plugins 변경
+- **채널 분리:** beta 스크립트(`*-beta.sh`)로 빌드 → "beta" 채널, release 스크립트(`*-release.sh`)로 빌드 → "production" 채널
+- **권장 워크플로우:** beta에 먼저 OTA → 검증 → production에 OTA
+- **OTA로 배포 가능:** UI 변경, 비즈니스 로직, 에셋 추가 등 JS-only 변경
+- **네이티브 리빌드 필요:** 새 네이티브 모듈, SDK 업그레이드, app.config.ts plugins 변경
