@@ -41,6 +41,11 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
       pathname = pathname.substring(0, qIndex);
     }
 
+    // Strip /p/ prefix (universal link path namespace)
+    if (pathname.startsWith('/p/')) {
+      pathname = pathname.substring(2); // "/p/search" → "/search"
+    }
+
     // 루트("/")는 허용 — 기존 로직대로 홈으로 감
     if (pathname === '/') return '/(tabs)/campus';
 

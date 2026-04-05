@@ -75,8 +75,9 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 ## Deep Link
 
-커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com`으로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
+커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com/p/...`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
 
+- **유니버셜 링크 prefix:** `/p/` (예: `skkuverse.com/p/search`) — 앱에서 자동 스트립
 - **허용:** `/`, `/campus`, `/transit`, `/map/hssc`, `/search`
 - **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈으로 리다이렉트
 - **앱 내부 네비게이션(`router.push`)은 영향 없음**
