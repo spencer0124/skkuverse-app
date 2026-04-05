@@ -11,7 +11,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: { policy: "fingerprint" },
+  // runtimeVersion is set per-platform below (ios/android) to ensure
+  // EAS build and eoas publish use matching platform-specific fingerprints
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -33,6 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   ios: {
+    runtimeVersion: { policy: "fingerprint" },
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: true,
     buildNumber: "69",
@@ -43,6 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
+    runtimeVersion: { policy: "fingerprint" },
     package: "com.zoyoong.skkubus",
     googleServicesFile: "./google-services.json",
     adaptiveIcon: {
