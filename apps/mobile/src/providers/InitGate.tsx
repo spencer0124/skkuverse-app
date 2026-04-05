@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, AppState, Image, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { SdsColors, SdsTypo, SdsSpacing, useT } from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useOTAUpdate } from '@/hooks/useOTAUpdate';
+import { SKKUverseSplash } from './SKKUverseSplash';
 
 const OTA_TIMEOUT_MS = 10_000;
 const BACKGROUND_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const splashIcon = require('../../assets/images/splash-icon.png');
 
 type Phase = 'ota' | 'init' | 'ready' | 'error';
 
@@ -30,7 +28,7 @@ export function InitGate({ children }: { children: ReactNode }) {
   const ota = useOTAUpdate();
 
   const [phase, setPhase] = useState<Phase>('ota');
-  const [statusText, setStatusText] = useState('');
+  const [showSplash, setShowSplash] = useState(true);
   const backgroundAt = useRef<number>(0);
   const otaDone = useRef(false);
 
@@ -46,14 +44,12 @@ export function InitGate({ children }: { children: ReactNode }) {
     }, OTA_TIMEOUT_MS);
 
     (async () => {
-      setStatusText('업데이트 확인 중...');
       const hasUpdate = await ota.checkAndDownload();
 
       if (timedOut) return; // already moved on
       clearTimeout(timeout);
 
       if (hasUpdate) {
-        setStatusText('업데이트 적용 중...');
         await ota.applyUpdate(); // reloads app — won't return
       }
 
@@ -82,8 +78,8 @@ export function InitGate({ children }: { children: ReactNode }) {
 
           if (longBackground) {
             // 5min+ → show splash overlay → download already done → reload
+            setShowSplash(true);
             setPhase('ota');
-            setStatusText('업데이트 적용 중...');
             await ota.applyUpdate();
           }
           // 5min- → download done, apply on next cold start or 5min+ resume
@@ -103,19 +99,6 @@ export function InitGate({ children }: { children: ReactNode }) {
 
   // ── Render ──
 
-  if (phase === 'ota' || (phase === 'init' && !isReady && !error)) {
-    return (
-      <View style={styles.splash}>
-        <Image source={splashIcon} style={styles.splashIcon} resizeMode="contain" />
-        {statusText ? (
-          <Text style={styles.statusText}>{statusText}</Text>
-        ) : (
-          <ActivityIndicator size="small" color={SdsColors.grey400} style={styles.indicator} />
-        )}
-      </View>
-    );
-  }
-
   if (phase === 'error') {
     return (
       <View style={styles.container}>
@@ -126,30 +109,20 @@ export function InitGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showSplash && (
+        <SKKUverseSplash
+          isReady={phase === 'ready'}
+          onDismiss={() => setShowSplash(false)}
+        />
+      )}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-  },
-  splashIcon: {
-    width: 200,
-    height: 200,
-  },
-  statusText: {
-    position: 'absolute',
-    bottom: 80,
-    fontSize: 13,
-    color: SdsColors.grey400,
-  },
-  indicator: {
-    position: 'absolute',
-    bottom: 80,
-  },
   container: {
     flex: 1,
     justifyContent: 'center',
