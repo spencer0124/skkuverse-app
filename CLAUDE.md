@@ -73,6 +73,15 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 Provides themed components via `SDSProvider`. Design tokens (colors, typography, spacing, radius, shadows) are centralized in `@skkuverse/shared/tokens/`.
 
+## Deep Link
+
+커스텀 스킴 `skkuverse://`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링.
+
+- **허용:** `/`, `/campus`, `/transit`, `/map/hssc`, `/search`
+- **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈으로 리다이렉트
+- **앱 내부 네비게이션(`router.push`)은 영향 없음**
+- 자세한 내용은 `docs/deep-link.md` 참조
+
 ## Key Technical Details
 
 - **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/android-naver-map-markers.md`)
