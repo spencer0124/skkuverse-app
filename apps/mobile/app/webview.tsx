@@ -14,6 +14,7 @@ import type { WebViewMessageEvent } from 'react-native-webview';
 import { SdsColors } from '@skkuverse/shared';
 import { Navbar } from '@skkuverse/sds';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
+import { AdUnitIds } from '@/utils/ad-helper';
 import { parseWebMessage } from '@skkuverse/bridge';
 
 export default function WebViewScreen() {
@@ -64,7 +65,7 @@ export default function WebViewScreen() {
         startInLoadingState
       />
 
-      <AdaptiveBanner />
+      <AdaptiveBanner unitId={AdUnitIds.webviewBanner} />
     </View>
   );
 }

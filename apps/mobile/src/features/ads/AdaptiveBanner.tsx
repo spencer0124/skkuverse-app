@@ -6,7 +6,6 @@ import {
   BannerAdSize,
   useForeground,
 } from 'react-native-google-mobile-ads';
-import { AdUnitIds } from '@/utils/ad-helper';
 
 /** Estimate adaptive banner height from screen width (Google sizing rules). */
 function estimateBannerHeight(screenWidth: number): number {
@@ -19,7 +18,7 @@ function estimateBannerHeight(screenWidth: number): number {
  * Adaptive banner ad anchored to the bottom of a screen.
  * Pre-reserves height to avoid layout pop-in, fades in on load.
  */
-export function AdaptiveBanner() {
+export function AdaptiveBanner({ unitId }: { unitId: string }) {
   const bannerRef = useRef<BannerAd>(null);
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -50,7 +49,7 @@ export function AdaptiveBanner() {
       <Animated.View style={{ flex: 1, opacity }}>
         <BannerAd
           ref={bannerRef}
-          unitId={AdUnitIds.banner}
+          unitId={unitId}
           size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
           onAdLoaded={handleAdLoaded}
         />
