@@ -73,7 +73,6 @@ export function SKKUverseSplash({
   const glowSize = Math.min(600, screenW * 0.8);
   const lineTargetW = fontSize * 5;
   const subtitleFontSize = Math.min(Math.max(screenW * 0.02, 10.4), 13.6);
-  const taglineFontSize = Math.min(Math.max(screenW * 0.016, 8.8), 11.5);
   const EM_BASE = 16;
 
   // ── Shared values ──────────────────────────────────────────
@@ -89,7 +88,6 @@ export function SKKUverseSplash({
   const blurOverlay = useSharedValue(1);
   const line = useSharedValue(0);
   const sub = useSharedValue(0);
-  const tag = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
   const glowScale = useSharedValue(0.5);
   const hint = useSharedValue(0);
@@ -116,7 +114,6 @@ export function SKKUverseSplash({
     blurOverlay.value = 1;
     line.value = 0;
     sub.value = 0;
-    tag.value = 0;
     glowOpacity.value = 0;
     glowScale.value = 0.5;
     hint.value = 0;
@@ -128,13 +125,9 @@ export function SKKUverseSplash({
     setSettled(false);
 
     // Step 1 — split
-    // Web: transform 0.85s cubic-bezier(0.34, 1.56, 0.64, 1), 버스 50ms delay
+    // 스꾸만 왼쪽으로 이동 (gap), 버스는 이동 없음 (유니와 붙음)
     splitL.value = withDelay(
       T.SPLIT,
-      withTiming(1, { duration: 850, easing: TOSS_SPRING }),
-    );
-    splitR.value = withDelay(
-      T.SPLIT + 50,
       withTiming(1, { duration: 850, easing: TOSS_SPRING }),
     );
 
@@ -177,7 +170,9 @@ export function SKKUverseSplash({
     );
     sub.value = withDelay(
       T.SETTLE + 250,
-      withTiming(1, { duration: 800, easing: SMOOTH }),
+      withTiming(1, { duration: 800, easing: SMOOTH }, (fin) => {
+        if (fin) runOnJS(markSettled)();
+      }),
     );
     glowOpacity.value = withDelay(
       T.SETTLE,
@@ -186,14 +181,6 @@ export function SKKUverseSplash({
     glowScale.value = withDelay(
       T.SETTLE,
       withTiming(1, { duration: 1600, easing: SMOOTH }),
-    );
-
-    // Step 4 — tagline
-    tag.value = withDelay(
-      T.FINAL + 100,
-      withTiming(1, { duration: 800, easing: SMOOTH }, (fin) => {
-        if (fin) runOnJS(markSettled)();
-      }),
     );
 
     if (showReplayHint) {
@@ -317,13 +304,6 @@ export function SKKUverseSplash({
     ],
   }));
 
-  const tagAnim = useAnimatedStyle(() => ({
-    opacity: tag.value,
-    transform: [
-      { translateY: interpolate(tag.value, [0, 1], [EM_BASE * 0.5, 0]) },
-    ],
-  }));
-
   const hintAnim = useAnimatedStyle(() => ({ opacity: hint.value }));
   const waitingAnim = useAnimatedStyle(() => ({ opacity: waitingOpacity.value }));
   const dot1Anim = useAnimatedStyle(() => ({ opacity: dot1.value }));
@@ -431,20 +411,6 @@ export function SKKUverseSplash({
           SKKUverse
         </Animated.Text>
 
-        {/* ── Tagline ── */}
-        <Animated.Text
-          style={[
-            s.tagline,
-            {
-              fontSize: taglineFontSize,
-              letterSpacing: taglineFontSize * 0.06,
-              marginTop: EM_BASE * 0.5,
-            },
-            tagAnim,
-          ]}
-        >
-          Campus, Connected.
-        </Animated.Text>
       </Pressable>
 
       {/* ── Waiting dots ── */}
@@ -515,13 +481,6 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color: GREEN_LIGHT,
     textTransform: 'uppercase',
-  },
-
-  // Tagline
-  tagline: {
-    textAlign: 'center',
-    fontWeight: '400',
-    color: 'rgba(43, 90, 58, 0.45)',
   },
 
   // Waiting dots
