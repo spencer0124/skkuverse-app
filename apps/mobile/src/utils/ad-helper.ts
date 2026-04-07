@@ -1,4 +1,12 @@
 import { Platform } from 'react-native';
+import mobileAds from 'react-native-google-mobile-ads';
+
+/** Open Ad Inspector in dev builds to verify mediation adapter status. */
+export function openAdInspector() {
+  if (__DEV__) {
+    mobileAds().openAdInspector();
+  }
+}
 
 /** AdMob banner unit IDs — debug uses Google test ads, release uses production IDs. */
 export const AdUnitIds = {

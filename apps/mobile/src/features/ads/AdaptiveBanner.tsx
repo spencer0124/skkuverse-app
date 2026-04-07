@@ -51,7 +51,13 @@ export function AdaptiveBanner({ unitId }: { unitId: string }) {
           ref={bannerRef}
           unitId={unitId}
           size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          onAdLoaded={handleAdLoaded}
+          onAdLoaded={(dimensions) => {
+            if (__DEV__) console.log('[AdMob] Banner loaded:', unitId, dimensions);
+            handleAdLoaded(dimensions);
+          }}
+          onAdFailedToLoad={(error) => {
+            if (__DEV__) console.log('[AdMob] Banner failed:', unitId, error.message);
+          }}
         />
       </Animated.View>
     </View>

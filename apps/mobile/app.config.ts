@@ -71,9 +71,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           useFrameworks: "static",
+          extraPods: [
+            { name: "GoogleMobileAdsMediationFacebook" },
+          ],
         },
         android: {
           extraMavenRepos: ["https://repository.map.naver.com/archive/maven"],
+          dependencies: [
+            "com.google.ads.mediation:facebook:6.21.0.1",
+          ],
         },
       },
     ],
