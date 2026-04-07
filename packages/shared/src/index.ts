@@ -123,6 +123,13 @@ export type {
 } from './types/building';
 export { getLocalizedText, floorBadge } from './types/building';
 
+// ── App config ──
+export type { PlatformConfig, AppConfig } from './app/parser';
+export { parseAppConfig } from './app/parser';
+
+// ── Version utils ──
+export { isVersionLessThan } from './utils/version';
+
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
 

@@ -3,12 +3,14 @@ import { AppState, StyleSheet, Text, View } from 'react-native';
 import { SdsColors, SdsTypo, SdsSpacing, useT } from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useOTAUpdate } from '@/hooks/useOTAUpdate';
+import { checkForceUpdate } from '@/hooks/checkForceUpdate';
 import { SKKUverseSplash } from './SKKUverseSplash';
+import { ForceUpdateScreen } from './ForceUpdateScreen';
 
 const OTA_TIMEOUT_MS = 10_000;
 const BACKGROUND_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
-type Phase = 'ota' | 'init' | 'ready' | 'error';
+type Phase = 'ota' | 'init' | 'forceUpdate' | 'ready' | 'error';
 
 /**
  * Init gate — OTA update check → app initialization → render children.
@@ -29,8 +31,10 @@ export function InitGate({ children }: { children: ReactNode }) {
 
   const [phase, setPhase] = useState<Phase>('ota');
   const [showSplash, setShowSplash] = useState(true);
+  const [forceUpdateUrl, setForceUpdateUrl] = useState<string | null>(null);
   const backgroundAt = useRef<number>(0);
   const otaDone = useRef(false);
+  const isChecking = useRef(false);
 
   // ── Cold start OTA check ──
   useEffect(() => {
@@ -90,14 +94,29 @@ export function InitGate({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [isReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Transition from init → ready/error when useAppInit resolves ──
+  // ── Transition from init → forceUpdate check → ready/error ──
   useEffect(() => {
     if (phase !== 'init') return;
-    if (error) setPhase('error');
-    else if (isReady) setPhase('ready');
+    if (error) { setPhase('error'); return; }
+    if (!isReady || isChecking.current) return;
+
+    isChecking.current = true;
+    (async () => {
+      const { required, updateUrl } = await checkForceUpdate();
+      if (required) {
+        setForceUpdateUrl(updateUrl);
+        setPhase('forceUpdate');
+      } else {
+        setPhase('ready');
+      }
+    })();
   }, [phase, isReady, error]);
 
   // ── Render ──
+
+  if (phase === 'forceUpdate') {
+    return <ForceUpdateScreen updateUrl={forceUpdateUrl} />;
+  }
 
   if (phase === 'error') {
     return (
