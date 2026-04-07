@@ -109,24 +109,45 @@ RN에는 CSS gradient가 없음. `react-native-svg`로 정확히 재현:
 </SvgRadialGradient>
 ```
 
-### 5. CSS `filter: blur()` → expo-blur `BlurView` overlay
+### 5. CSS `filter: blur()` → `textShadowRadius` 애니메이션
 
-CSS `filter: blur(0.8px)`는 텍스트 픽셀만 부드럽게 만듦. RN에서 시도한 접근들:
+웹의 `filter: blur(0.8px)`는 텍스트 픽셀 자체를 부드럽게 만듦. RN에서 여러 접근을 시도한 끝에 `textShadowRadius` 애니메이션으로 결정.
+
+#### 시도한 접근들과 실패 이유
 
 | 접근 | 결과 |
 |------|------|
-| `filter: "blur(Xpx)"` (string) | RN이 CSS string 문법 무시 — 아예 적용 안 됨 |
-| `filter: [{ blur: X }]` (array) | 적용되지만 bounding box 전체를 blur → **흰 배경 번짐 아티팩트** |
-| `textShadowRadius` fallback | 그림자 추가일 뿐, blur 아님 → **녹색 얼룩** |
-| **`expo-blur` BlurView overlay** | **채택** — backdrop blur로 텍스트를 frosted glass처럼 blur |
+| `expo-blur` BlurView overlay | iOS의 frosted glass 효과 (UIVisualEffectView). CSS filter blur와 근본적으로 다른 효과. 직사각형 경계선이 뚜렷하게 보이고, 텍스트 자체를 흐리게 하는 게 아니라 위에 유리를 올리는 방식 |
+| └ overlay opacity 애니메이션 | BlurView를 감싼 부모의 opacity를 1→0으로 내리면 blur 강도가 줄어드는 게 아니라 레이어 전체가 투명해져 blur가 거의 안 보임 |
+| └ intensity 직접 애니메이션 | `Animated.createAnimatedComponent(BlurView)` + `animatedProps`로 intensity 100→0 애니메이트. blur는 강하게 보이지만 **직사각형 경계선 문제**는 해결 불가 — frosted glass의 구조적 한계 |
+| └ tint 변경 ("light" → "default") | 흰 배경 위에서 tint 색상 차이는 미미. 경계선 문제는 동일 |
+| `filter: [{ blur: X }]` (RN 0.76+) | RN의 filter blur는 Text 뷰의 자체 픽셀(텍스트 + **투명 배경**)만 blur. CSS는 부모의 렌더링 컨텍스트(흰 배경)에서 blur하므로 자연스럽지만, RN은 투명 배경이 반투명으로 변하며 **회색/흰색 사각형 아티팩트** 발생 |
+| **`textShadowRadius` 애니메이션** | **채택** — 글자 주변에 glow가 생겼다가 사라지는 효과로 "흐릿→선명" 전환을 자연스럽게 재현. bounding box 아티팩트 없음 |
 
-최종 구현: BlurView를 reveal 컨테이너 안에 `absoluteFillObject` overlay로 배치, opacity 1→0 애니메이션:
+#### 최종 구현
+
+글자별 `textShadowRadius`를 Reanimated shared value로 애니메이트 (8→0):
 
 ```tsx
-<Animated.View style={[StyleSheet.absoluteFillObject, blurOverlayAnim]} pointerEvents="none">
-  <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFillObject} />
-</Animated.View>
+// shared values
+const c1Shadow = useSharedValue(8);
+const c2Shadow = useSharedValue(8);
+
+// play() 내부 — 웹의 filter 0.5s ease에 대응
+c1Shadow.value = withDelay(T.CHAR_1, withTiming(0, { duration: 500, easing: Easing.ease }));
+c2Shadow.value = withDelay(T.CHAR_2, withTiming(0, { duration: 500, easing: Easing.ease }));
+
+// animated style
+const c1Anim = useAnimatedStyle(() => ({
+  opacity: c1Opacity.value,
+  textShadowColor: 'rgba(43, 90, 58, 0.5)',  // GREEN 계열, 반투명
+  textShadowOffset: { width: 0, height: 0 },
+  textShadowRadius: c1Shadow.value,
+  transform: [...],
+}));
 ```
+
+기존 opacity 0→1 + transform slide 애니메이션과 결합되어, 글자가 glow와 함께 나타났다가 선명해지는 웹과 유사한 효과.
 
 ### 6. CSS `em` units → 명시적 계산
 
@@ -230,9 +251,10 @@ withRepeat(
 
 | 파라미터 | 현재 값 | 조정 방법 |
 |----------|---------|----------|
-| `revealTargetW` | `fontSize * 2.1` | Pretendard 폰트 로드 후 실기기에서 확인, 잘리면 올리기 |
-| BlurView `intensity` | `20` | 높이면 blur 강함, 낮추면 약함 (0-100) |
-| Blur overlay duration | `1000ms` | 길면 blur 오래 유지, 짧으면 빨리 선명해짐 |
+| `revealTargetW` | `fontSize * 2.1` | IBM Plex Sans KR 폰트 기준, 실기기에서 잘리면 올리기 |
+| `textShadowRadius` 초기값 | `8` | 높이면 glow 넓음, 낮추면 미세. 웹 blur(0.8px) 대응 |
+| `textShadowColor` opacity | `0.5` | 높이면 glow 진하고, 낮추면 연함 |
+| Shadow duration | `500ms` | 웹의 `filter 0.5s ease`와 동일 |
 | `TOSS_SPRING` bezier | `(0.34, 1.56, 0.64, 1)` | y1=1.56이 overshoot 크기 결정 |
 | Split distance | `fontSize * 0.12` | 웹 동일 (0.12em) |
 | Char slide distance | `fontSize * 0.6` | 웹 동일 (0.6em) |
@@ -241,10 +263,9 @@ withRepeat(
 
 ## Native Build Requirement
 
-`expo-blur`는 네이티브 모듈 → Expo Go에서는 동작하지 않음. 반드시 `expo run:ios` / `expo run:android`로 네이티브 빌드 필요.
+스플래시 자체는 JS-only 코드라 OTA 업데이트 가능. 단, 폰트(IBM Plex Sans KR) 변경 시에는 `expo-font` 플러그인이 네이티브에 폰트를 임베딩하므로 네이티브 리빌드 필요:
 
 ```bash
-npx expo install expo-blur   # 설치 (이미 완료)
 npx expo prebuild --clean    # 네이티브 코드 재생성
 npx expo run:ios             # 빌드 + 실행
 ```

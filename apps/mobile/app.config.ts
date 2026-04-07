@@ -99,6 +99,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "./assets/fonts/WantedSans-Medium.otf",
           "./assets/fonts/WantedSans-Bold.otf",
           "./assets/fonts/TossFaceFontMac.ttf",
+          "./assets/fonts/IBMPlexSansKR-Bold.ttf",
+          "./assets/fonts/IBMPlexSansKR-SemiBold.ttf",
         ],
       },
     ],

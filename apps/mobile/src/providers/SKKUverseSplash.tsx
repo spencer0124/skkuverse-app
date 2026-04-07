@@ -19,7 +19,7 @@ import Animated, {
   interpolate,
   type SharedValue,
 } from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
+
 import Svg, {
   Rect,
   Circle as SvgCircle,
@@ -85,7 +85,8 @@ export function SKKUverseSplash({
   const c1Transform = useSharedValue(0);
   const c2Opacity = useSharedValue(0);
   const c2Transform = useSharedValue(0);
-  const blurOverlay = useSharedValue(1);
+  const c1Shadow = useSharedValue(8);
+  const c2Shadow = useSharedValue(8);
   const line = useSharedValue(0);
   const sub = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
@@ -111,7 +112,8 @@ export function SKKUverseSplash({
     c1Transform.value = 0;
     c2Opacity.value = 0;
     c2Transform.value = 0;
-    blurOverlay.value = 1;
+    c1Shadow.value = 8;
+    c2Shadow.value = 8;
     line.value = 0;
     sub.value = 0;
     glowOpacity.value = 0;
@@ -156,12 +158,14 @@ export function SKKUverseSplash({
       withTiming(1, { duration: 850, easing: TOSS_SPRING }),
     );
 
-    // Step 3 — settle
-    // BlurView overlay: fade out from char appearance → settle
-    // Matches web's blur(0.8px) → blur(0) lifecycle
-    blurOverlay.value = withDelay(
+    // Step 3 — per-char shadow: simulates web's filter blur(0.8px) → blur(0)
+    c1Shadow.value = withDelay(
       T.CHAR_1,
-      withTiming(0, { duration: 1000, easing: Easing.ease }),
+      withTiming(0, { duration: 500, easing: Easing.ease }),
+    );
+    c2Shadow.value = withDelay(
+      T.CHAR_2,
+      withTiming(0, { duration: 500, easing: Easing.ease }),
     );
 
     line.value = withDelay(
@@ -263,9 +267,12 @@ export function SKKUverseSplash({
     maxWidth: interpolate(reveal.value, [0, 1], [0, revealTargetW]),
   }));
 
-  // 유 — opacity + transform
+  // 유 — opacity + transform + textShadow (simulates web blur)
   const c1Anim = useAnimatedStyle(() => ({
     opacity: c1Opacity.value,
+    textShadowColor: 'rgba(43, 90, 58, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: c1Shadow.value,
     transform: [
       { translateX: interpolate(c1Transform.value, [0, 1], [-(fontSize * 0.6), 0]) },
       { translateY: interpolate(c1Transform.value, [0, 1], [fontSize * 0.05, 0]) },
@@ -276,16 +283,14 @@ export function SKKUverseSplash({
   // 니 — same, 80ms later
   const c2Anim = useAnimatedStyle(() => ({
     opacity: c2Opacity.value,
+    textShadowColor: 'rgba(43, 90, 58, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: c2Shadow.value,
     transform: [
       { translateX: interpolate(c2Transform.value, [0, 1], [-(fontSize * 0.6), 0]) },
       { translateY: interpolate(c2Transform.value, [0, 1], [fontSize * 0.05, 0]) },
       { scale: interpolate(c2Transform.value, [0, 1], [0.88, 1]) },
     ],
-  }));
-
-  // BlurView overlay — fades out as text appears
-  const blurOverlayAnim = useAnimatedStyle(() => ({
-    opacity: blurOverlay.value,
   }));
 
   const lineAnim = useAnimatedStyle(() => ({
@@ -317,7 +322,7 @@ export function SKKUverseSplash({
     {
       fontSize,
       letterSpacing: fontSize * -0.04,
-      lineHeight: fontSize * 1.1,
+      lineHeight: fontSize * 1.3,
     },
   ] as const;
 
@@ -359,17 +364,6 @@ export function SKKUverseSplash({
               <Animated.Text style={[...textBase, c1Anim]}>유</Animated.Text>
               <Animated.Text style={[...textBase, c2Anim]}>니</Animated.Text>
             </View>
-            {/* Blur overlay — frosted glass over text, fades out as chars appear */}
-            <Animated.View
-              style={[StyleSheet.absoluteFillObject, blurOverlayAnim]}
-              pointerEvents="none"
-            >
-              <BlurView
-                intensity={20}
-                tint="light"
-                style={StyleSheet.absoluteFillObject}
-              />
-            </Animated.View>
           </Animated.View>
 
           <Animated.Text style={[...textBase, rightAnim]}>버스</Animated.Text>
@@ -456,9 +450,9 @@ const s = StyleSheet.create({
     alignItems: 'baseline',
   },
   mainText: {
-    fontWeight: '800',
+    fontFamily: 'IBMPlexSansKR-Bold',
+    fontWeight: '700',
     color: GREEN,
-    // fontFamily: 'Pretendard-ExtraBold',
   },
   reveal: {
     overflow: 'hidden',
@@ -478,6 +472,7 @@ const s = StyleSheet.create({
   // Subtitle
   subtitle: {
     textAlign: 'center',
+    fontFamily: 'IBMPlexSansKR-SemiBold',
     fontWeight: '600',
     color: GREEN_LIGHT,
     textTransform: 'uppercase',
