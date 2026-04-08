@@ -125,7 +125,7 @@ export default function ScheduleScreen() {
     ? currentWeek.startIndex + selectedDayInWeekIndex
     : 0;
   const selectedDay = schedule?.days[selectedDayIndex];
-  const todayDate = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   const isToday = selectedDay?.date === todayDate;
 
   // Week navigation
