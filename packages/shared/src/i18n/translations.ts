@@ -183,6 +183,11 @@ const ko = {
   // ── Realtime ──
   'realtime.infoBar': '{0} 기준 · {1}대 운행 중',
 
+  // ── Force Update ──
+  'update.required': '업데이트가 필요해요',
+  'update.message': '최신 버전으로 업데이트해야\n앱을 사용할 수 있어요',
+  'update.goToStore': '업데이트하기',
+
   // ── Error / Network ──
   'error.buildingLoad': '건물 정보를 불러오지 못했어요',
   'error.openLink': '링크를 열 수 없어요',
@@ -338,6 +343,11 @@ const en: TranslationMap = {
   // ── Realtime ──
   'realtime.infoBar': 'As of {0} · {1} buses running',
 
+  // ── Force Update ──
+  'update.required': 'Update Required',
+  'update.message': 'Please update to the latest version\nto continue using the app',
+  'update.goToStore': 'Update Now',
+
   // ── Error / Network ──
   'error.buildingLoad': 'Could not load building info',
   'error.openLink': 'Could not open link',
@@ -490,6 +500,11 @@ const zh: TranslationMap = {
 
   // ── Realtime ──
   'realtime.infoBar': '截至{0} · {1}台运行中',
+
+  // ── Force Update ──
+  'update.required': '需要更新',
+  'update.message': '请更新至最新版本\n以继续使用',
+  'update.goToStore': '立即更新',
 
   // ── Error / Network ──
   'error.buildingLoad': '无法加载建筑信息',

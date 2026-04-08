@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, AppState, Image, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { SdsColors, SdsTypo, SdsSpacing, useT } from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useOTAUpdate } from '@/hooks/useOTAUpdate';
+import { checkForceUpdate } from '@/hooks/checkForceUpdate';
+import { SKKUverseSplash } from './SKKUverseSplash';
+import { ForceUpdateScreen } from './ForceUpdateScreen';
 
 const OTA_TIMEOUT_MS = 10_000;
 const BACKGROUND_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const splashIcon = require('../../assets/images/splash-icon.png');
-
-type Phase = 'ota' | 'init' | 'ready' | 'error';
+type Phase = 'ota' | 'init' | 'forceUpdate' | 'ready' | 'error';
 
 /**
  * Init gate — OTA update check → app initialization → render children.
@@ -30,9 +30,11 @@ export function InitGate({ children }: { children: ReactNode }) {
   const ota = useOTAUpdate();
 
   const [phase, setPhase] = useState<Phase>('ota');
-  const [statusText, setStatusText] = useState('');
+  const [showSplash, setShowSplash] = useState(true);
+  const [forceUpdateUrl, setForceUpdateUrl] = useState<string | null>(null);
   const backgroundAt = useRef<number>(0);
   const otaDone = useRef(false);
+  const isChecking = useRef(false);
 
   // ── Cold start OTA check ──
   useEffect(() => {
@@ -46,14 +48,12 @@ export function InitGate({ children }: { children: ReactNode }) {
     }, OTA_TIMEOUT_MS);
 
     (async () => {
-      setStatusText('업데이트 확인 중...');
       const hasUpdate = await ota.checkAndDownload();
 
       if (timedOut) return; // already moved on
       clearTimeout(timeout);
 
       if (hasUpdate) {
-        setStatusText('업데이트 적용 중...');
         await ota.applyUpdate(); // reloads app — won't return
       }
 
@@ -73,49 +73,49 @@ export function InitGate({ children }: { children: ReactNode }) {
       if (state === 'active' && backgroundAt.current > 0) {
         const elapsed = Date.now() - backgroundAt.current;
         backgroundAt.current = 0;
+        const longBackground = elapsed >= BACKGROUND_THRESHOLD_MS;
 
-        if (elapsed >= BACKGROUND_THRESHOLD_MS) {
-          // Long background → show splash + check OTA
-          setPhase('ota');
-          setStatusText('업데이트 확인 중...');
-          (async () => {
-            const hasUpdate = await ota.checkAndDownload();
-            if (hasUpdate) {
-              setStatusText('업데이트 적용 중...');
-              await ota.applyUpdate();
-            }
-            setPhase(isReady ? 'ready' : 'init');
-          })();
-        } else {
-          // Short background → silent download
-          ota.checkAndDownload();
-        }
+        // Always check silently first (no splash)
+        (async () => {
+          const hasUpdate = await ota.checkAndDownload();
+          if (!hasUpdate) return;
+
+          if (longBackground) {
+            // 5min+ → show splash overlay → download already done → reload
+            setShowSplash(true);
+            setPhase('ota');
+            await ota.applyUpdate();
+          }
+          // 5min- → download done, apply on next cold start or 5min+ resume
+        })();
       }
     });
 
     return () => sub.remove();
   }, [isReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Transition from init → ready/error when useAppInit resolves ──
+  // ── Transition from init → forceUpdate check → ready/error ──
   useEffect(() => {
     if (phase !== 'init') return;
-    if (error) setPhase('error');
-    else if (isReady) setPhase('ready');
+    if (error) { setPhase('error'); return; }
+    if (!isReady || isChecking.current) return;
+
+    isChecking.current = true;
+    (async () => {
+      const { required, updateUrl } = await checkForceUpdate();
+      if (required) {
+        setForceUpdateUrl(updateUrl);
+        setPhase('forceUpdate');
+      } else {
+        setPhase('ready');
+      }
+    })();
   }, [phase, isReady, error]);
 
   // ── Render ──
 
-  if (phase === 'ota' || (phase === 'init' && !isReady && !error)) {
-    return (
-      <View style={styles.splash}>
-        <Image source={splashIcon} style={styles.splashIcon} resizeMode="contain" />
-        {statusText ? (
-          <Text style={styles.statusText}>{statusText}</Text>
-        ) : (
-          <ActivityIndicator size="small" color={SdsColors.grey400} style={styles.indicator} />
-        )}
-      </View>
-    );
+  if (phase === 'forceUpdate') {
+    return <ForceUpdateScreen updateUrl={forceUpdateUrl} />;
   }
 
   if (phase === 'error') {
@@ -128,30 +128,20 @@ export function InitGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showSplash && (
+        <SKKUverseSplash
+          isReady={phase === 'ready'}
+          onDismiss={() => setShowSplash(false)}
+        />
+      )}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
-  splash: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-  },
-  splashIcon: {
-    width: 200,
-    height: 200,
-  },
-  statusText: {
-    position: 'absolute',
-    bottom: 80,
-    fontSize: 13,
-    color: SdsColors.grey400,
-  },
-  indicator: {
-    position: 'absolute',
-    bottom: 80,
-  },
   container: {
     flex: 1,
     justifyContent: 'center',

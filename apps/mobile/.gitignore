@@ -41,7 +41,9 @@ app-example
 
 # build artifacts
 *.ipa
+*.aab
 fastlane/report.xml
+fastlane/play-store-key.json
 
 # generated native folders
 /ios

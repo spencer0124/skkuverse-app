@@ -2,21 +2,29 @@ import { Tabs } from "expo-router";
 import type { NavigationState } from "@react-navigation/native";
 import { /* Home, */ Map, Navigation } from "lucide-react-native";
 import { Text } from "react-native";
-import { useT } from "@skkuverse/shared";
+import { useT, useSettingsStore } from "@skkuverse/shared";
+import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
+
+const VALID_TABS: readonly TabRoute[] = ['campus', 'transit'];
 
 export default function TabLayout() {
   const { t } = useT();
+  const lastTab = useSettingsStore((s) => s.lastTab);
+  const setLastTab = useSettingsStore((s) => s.setLastTab);
+
+  const initialTab = VALID_TABS.includes(lastTab) ? lastTab : 'campus';
 
   return (
     <Tabs
-      initialRouteName="campus"
+      initialRouteName={initialTab}
       screenListeners={{
         state: (e) => {
           const state = (e.data as { state: NavigationState }).state;
           const route = state.routes[state.index];
           if (route?.name === 'campus' || route?.name === 'transit') {
             logTabSwitch(route.name);
+            setLastTab(route.name as TabRoute);
           }
         },
       }}

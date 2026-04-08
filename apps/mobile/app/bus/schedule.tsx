@@ -38,6 +38,7 @@ import { getHeroBus, hasMultipleRouteTypes } from '@/features/bus/schedule/utils
 import { groupDaysByWeek, findWeekAndDayIndex } from '@/features/bus/schedule/weekUtils';
 import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
+import { AdUnitIds } from '@/utils/ad-helper';
 import { logBusRouteOpen, logBusServiceSwitch } from '@/services/analytics';
 
 /** Extract info feature URL from config features array */
@@ -256,7 +257,7 @@ export default function ScheduleScreen() {
         )}
       </ScrollView>
 
-      <AdaptiveBanner />
+      <AdaptiveBanner unitId={AdUnitIds.busBanner} />
     </View>
   );
 }

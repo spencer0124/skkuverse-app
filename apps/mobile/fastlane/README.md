@@ -33,6 +33,27 @@ Upload .ipa to App Store
 
 ----
 
+
+## Android
+
+### android upload_beta
+
+```sh
+[bundle exec] fastlane android upload_beta
+```
+
+Upload .aab to Google Play internal testing track
+
+### android upload_release
+
+```sh
+[bundle exec] fastlane android upload_release
+```
+
+Upload .aab to Google Play production track
+
+----
+
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
 
 More information about _fastlane_ can be found on [fastlane.tools](https://fastlane.tools).

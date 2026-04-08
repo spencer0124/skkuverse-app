@@ -28,6 +28,7 @@ import { RefreshFab } from '@/features/bus/realtime/RefreshFab';
 import { RealtimeSkeleton } from '@/features/bus/realtime/RealtimeSkeleton';
 import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
+import { AdUnitIds } from '@/utils/ad-helper';
 import { logBusRouteOpen } from '@/services/analytics';
 
 /** Extract info feature URL from config features array */
@@ -142,7 +143,7 @@ export default function RealtimeScreen() {
 
       <RefreshFab color={themeColor} onPress={() => refetch()} />
 
-      <AdaptiveBanner />
+      <AdaptiveBanner unitId={AdUnitIds.busBanner} />
     </View>
   );
 }

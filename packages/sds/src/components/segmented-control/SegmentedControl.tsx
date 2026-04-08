@@ -101,7 +101,8 @@ function SegmentedControlRoot({
   itemValues.current = values;
 
   const activeIndex = values.indexOf(value);
-  const itemWidth = itemCount > 0 ? containerWidth / itemCount : 0;
+  const padding = 2;
+  const itemWidth = itemCount > 0 ? (containerWidth - padding * 2) / itemCount : 0;
 
   const translateX = useSharedValue(activeIndex * itemWidth);
 
