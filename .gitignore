@@ -42,5 +42,9 @@ Thumbs.db
 # Turborepo (future)
 .turbo/
 
-# Claude Code workflows
-.github/
+# Claude Code — allow only workflow files
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/claude-code-review.yml
+!.github/workflows/claude.yml
