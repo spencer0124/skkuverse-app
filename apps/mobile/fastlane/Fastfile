@@ -30,6 +30,8 @@ platform :ios do
       force: true,
       skip_metadata: true,
       skip_screenshots: true,
+      ignore_language_directory_validation: true,
+      precheck_include_in_app_purchases: false,
       release_notes: {
         'ko' => File.read(File.expand_path("metadata/ios/ko/release_notes.txt", __dir__)),
         'en-US' => File.read(File.expand_path("metadata/ios/en-US/release_notes.txt", __dir__)),

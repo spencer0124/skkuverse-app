@@ -120,7 +120,7 @@ cd apps/mobile
 - `credentials.json`에 iOS(dist.p12 + mobileprovision)와 Android(upload-keystore.jks) 인증 설정
 - `eas.json`의 `production` 프로필에 `"credentialsSource": "local"` 필수
 - `.easignore`가 `.gitignore` 대신 적용됨 — Firebase 설정, `.env`, `certs/certificate.pem`이 빌드에 포함되어야 함
-- `autoIncrement`는 `--local` 빌드에서 동작하지 않음 — EAS remote version은 플랫폼별 독립 관리
+- `autoIncrement: true`가 beta/production 프로필 모두에 설정됨 — `--local` 빌드에서도 동작. EAS remote version은 플랫폼별 독립 관리. `app.config.ts`의 `buildNumber`는 무시됨 (expo-constants manifest에만 남음)
 - `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
 - Android 빌드 스크립트에 `JAVA_HOME`(JDK 17), `ANDROID_HOME` 자동 설정 포함
 - iOS bundle ID: `com.example.skkumap` / Android package: `com.zoyoong.skkubus`

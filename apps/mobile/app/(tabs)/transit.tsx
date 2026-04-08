@@ -8,7 +8,7 @@
  * Flutter source: lib/features/transit/ui/transit_tab.dart
  */
 
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTransitList, useMainNotice, SdsColors } from '@skkuverse/shared';
@@ -38,6 +38,8 @@ export default function TransitScreen() {
       overScrollMode="never"
     >
       {notice && <NoticeBanner notice={notice} />}
+
+      <Text style={{ padding: 16, fontSize: 18, fontWeight: 'bold' }}>test1</Text>
 
       {data?.map((item) => (
         <BusListItemRow

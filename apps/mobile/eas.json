@@ -18,7 +18,8 @@
     },
     "beta": {
       "credentialsSource": "local",
-      "channel": "beta"
+      "channel": "beta",
+      "autoIncrement": true
     },
     "production": {
       "credentialsSource": "local",
