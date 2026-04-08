@@ -10,7 +10,10 @@
  * Flutter source: ios/<lang>.lproj/InfoPlist.strings,
  *                 android/app/src/main/res/values-<lang>/strings.xml
  */
-const { withDangerousMod } = require("expo/config-plugins");
+const {
+  withDangerousMod,
+  withXcodeProject,
+} = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -21,17 +24,20 @@ const LOCALIZED_NAMES = {
   zh: "成均館 公交",
 };
 
+/** Map our locale keys to iOS .lproj directory names */
+function iosLprojName(locale) {
+  return locale === "zh" ? "zh-Hans" : locale;
+}
+
 function withLocalizedAppNameIOS(config) {
-  return withDangerousMod(config, [
+  // Step 1: write .lproj/InfoPlist.strings files inside ios/ directory
+  config = withDangerousMod(config, [
     "ios",
     (config) => {
-      const iosRoot = path.join(config.modRequest.platformProjectRoot, "..");
+      const iosDir = config.modRequest.platformProjectRoot; // apps/mobile/ios
 
       for (const [locale, name] of Object.entries(LOCALIZED_NAMES)) {
-        const lprojDir = path.join(
-          iosRoot,
-          locale === "zh" ? "zh-Hans.lproj" : `${locale}.lproj`
-        );
+        const lprojDir = path.join(iosDir, `${iosLprojName(locale)}.lproj`);
         fs.mkdirSync(lprojDir, { recursive: true });
 
         const content = `CFBundleDisplayName = "${name}";\n`;
@@ -41,6 +47,30 @@ function withLocalizedAppNameIOS(config) {
       return config;
     },
   ]);
+
+  // Step 2: register files in the Xcode project so they're included in the build
+  config = withXcodeProject(config, (config) => {
+    const proj = config.modResults;
+
+    // Add a variant group for InfoPlist.strings (localized resource)
+    const variantGroup = proj.addLocalizationVariantGroup("InfoPlist.strings");
+    const variantGroupKey = variantGroup.fileRef;
+
+    // Register each locale as a known region and add the file reference
+    for (const locale of Object.keys(LOCALIZED_NAMES)) {
+      const region = iosLprojName(locale);
+      proj.addKnownRegion(region);
+      proj.addResourceFile(
+        `${region}.lproj/InfoPlist.strings`,
+        { variantGroup: true },
+        variantGroupKey
+      );
+    }
+
+    return config;
+  });
+
+  return config;
 }
 
 function withLocalizedAppNameAndroid(config) {
