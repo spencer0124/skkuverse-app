@@ -10,6 +10,10 @@ import { InitGate } from '@/providers/InitGate';
 import { SDSProvider } from '@skkuverse/sds';
 import { logScreenView } from '@/services/analytics';
 
+export const unstable_settings = {
+  initialRouteName: '(tabs)',
+};
+
 // ── Screen View tracking ──────────────────────────────────────────
 const SCREEN_NAMES: Record<string, string> = {
   '/campus': 'campus_screen',

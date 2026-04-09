@@ -11,7 +11,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import { useLayerMarkers, type MapLayerDef, useSettingsStore, SdsColors } from '@skkuverse/shared';
 
@@ -51,7 +51,12 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
   displayNo: string;
 }) {
   return (
-    <View collapsable={false} style={styles.dotMarker}>
+    <View
+      key={displayNo}
+      collapsable={false}
+      renderToHardwareTextureAndroid
+      style={styles.dotMarker}
+    >
       <Text style={styles.dotText}>{displayNo}</Text>
     </View>
   );
@@ -116,33 +121,9 @@ export function MapMarkerLayer({
               ? marker.text?.en || marker.text?.ko || ''
               : marker.text?.ko || '';
 
-          // Android: custom view markers are unreliable due to bitmap snapshot
-          // race condition (RNCNaverMapMarker.kt #120, #143).
-          // Use image-based markers with caption instead.
-          if (Platform.OS === 'android') {
-            return (
-              <NaverMapMarkerOverlay
-                key={key}
-                latitude={marker.lat}
-                longitude={marker.lng}
-                width={DOT_SIZE}
-                height={DOT_SIZE}
-                anchor={{ x: 0.5, y: 0.5 }}
-                image={MARKER_ICON}
-                caption={{
-                  text,
-                  textSize: 9,
-                  color: '#333333',
-                  requestedWidth: 200,
-                }}
-                onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
-              />
-            );
-          }
-
           return (
             <NaverMapMarkerOverlay
-              key={key}
+              key={`${key}-${marker.displayNo}`}
               latitude={marker.lat}
               longitude={marker.lng}
               width={DOT_SIZE}

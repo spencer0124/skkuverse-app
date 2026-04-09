@@ -16,9 +16,15 @@
       },
       "channel": "preview"
     },
+    "beta": {
+      "credentialsSource": "local",
+      "channel": "beta",
+      "autoIncrement": true
+    },
     "production": {
       "credentialsSource": "local",
-      "channel": "production"
+      "channel": "production",
+      "autoIncrement": true
     }
   }
 }

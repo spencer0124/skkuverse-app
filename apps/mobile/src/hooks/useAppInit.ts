@@ -69,7 +69,10 @@ export function useAppInit() {
         getApiClient();
 
         // 3.5. Initialize Google Mobile Ads SDK
-        await mobileAds().initialize();
+        const adapterStatuses = await mobileAds().initialize();
+        if (__DEV__) {
+          console.log('[AdMob] SDK initialized, adapter statuses:', JSON.stringify(adapterStatuses));
+        }
 
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
         unsubscribe = auth().onAuthStateChanged((user) => {
