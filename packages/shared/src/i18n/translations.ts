@@ -251,6 +251,11 @@ const ko = {
   'notices.detailLabelImpact': '참고',
   'notices.period': '기간',
   'notices.periodRange': '{0} ~ {1}',
+  'notices.endOfList': '더 이상 공지가 없어요',
+  'notices.sectionToday': '오늘',
+  'notices.sectionThisWeek': '이번 주',
+  'notices.sectionThisMonth': '이번 달',
+  'notices.sectionEarlier': '이전',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -437,6 +442,11 @@ const en: TranslationMap = {
   'notices.detailLabelImpact': 'Note',
   'notices.period': 'Period',
   'notices.periodRange': '{0} ~ {1}',
+  'notices.endOfList': "That's all for now",
+  'notices.sectionToday': 'Today',
+  'notices.sectionThisWeek': 'This week',
+  'notices.sectionThisMonth': 'This month',
+  'notices.sectionEarlier': 'Earlier',
 };
 
 const zh: TranslationMap = {
@@ -619,6 +629,11 @@ const zh: TranslationMap = {
   'notices.detailLabelImpact': '备注',
   'notices.period': '期间',
   'notices.periodRange': '{0} ~ {1}',
+  'notices.endOfList': '没有更多公告了',
+  'notices.sectionToday': '今天',
+  'notices.sectionThisWeek': '本周',
+  'notices.sectionThisMonth': '本月',
+  'notices.sectionEarlier': '更早',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

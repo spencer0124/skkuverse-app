@@ -1,18 +1,27 @@
-import { useCallback, useMemo, useState } from 'react';
-import { View, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import {
+  View,
+  SectionList,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   SdsColors,
   useNoticeDepartments,
   useNoticeList,
+  useSettingsStore,
   useT,
+  type AppLanguage,
 } from '@skkuverse/shared';
-import type { NoticeListItem, NoticeSummaryType } from '@skkuverse/shared';
+import type { NoticeListItem } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 import { NoticeNavBar } from './NavigationBar';
-import { TypeFilterChips, type FilterValue } from './TypeFilterChips';
 import { NoticeRow } from './NoticeRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
+import { groupNoticesByDate } from './utils/groupNotices';
 
 interface Props {
   deptId: string;
@@ -21,13 +30,13 @@ interface Props {
 export function NoticeListScreen({ deptId }: Props) {
   const router = useRouter();
   const { t } = useT();
-  const [filter, setFilter] = useState<FilterValue>('all');
+  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
 
   const { data: depts } = useNoticeDepartments();
-  const dept = useMemo(() => depts?.find((d) => d.id === deptId), [depts, deptId]);
-
-  const queryType: NoticeSummaryType | undefined =
-    filter === 'all' ? undefined : filter;
+  const dept = useMemo(
+    () => depts?.find((d) => d.id === deptId),
+    [depts, deptId],
+  );
 
   const {
     data,
@@ -38,11 +47,16 @@ export function NoticeListScreen({ deptId }: Props) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useNoticeList({ deptId, type: queryType });
+  } = useNoticeList({ deptId });
 
   const items = useMemo(
     () => data?.pages.flatMap((p) => p.notices) ?? [],
     [data],
+  );
+
+  const sections = useMemo(
+    () => groupNoticesByDate(items, lang),
+    [items, lang],
   );
 
   const handleSelect = useCallback(
@@ -59,7 +73,6 @@ export function NoticeListScreen({ deptId }: Props) {
   return (
     <View style={styles.container}>
       <NoticeNavBar title={dept?.name ?? t('notices.title')} />
-      <TypeFilterChips value={filter} onChange={setFilter} />
 
       {isLoading ? (
         <NoticeListSkeleton />
@@ -68,12 +81,31 @@ export function NoticeListScreen({ deptId }: Props) {
       ) : items.length === 0 ? (
         <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
       ) : (
-        <FlatList
-          data={items}
+        <SectionList
+          sections={sections}
           keyExtractor={(n) => n.id}
           renderItem={({ item }) => (
-            <NoticeRow item={item} dept={dept} onPress={handleSelect} />
+            <NoticeRow item={item} onPress={handleSelect} />
           )}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <Txt
+                typography="t7"
+                fontWeight="semiBold"
+                color={SdsColors.grey600}
+              >
+                {section.title}
+              </Txt>
+            </View>
+          )}
+          SectionSeparatorComponent={({ leadingItem, trailingSection }) =>
+            leadingItem && trailingSection ? (
+              <View style={styles.sectionGap} />
+            ) : null
+          }
+          ItemSeparatorComponent={() => <View style={styles.divider} />}
+          stickySectionHeadersEnabled={false}
+          contentContainerStyle={styles.listContent}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -83,6 +115,12 @@ export function NoticeListScreen({ deptId }: Props) {
             isFetchingNextPage ? (
               <View style={styles.footer}>
                 <ActivityIndicator color={SdsColors.grey500} />
+              </View>
+            ) : !hasNextPage && items.length > 0 ? (
+              <View style={styles.endOfList}>
+                <Txt typography="t7" color={SdsColors.grey500}>
+                  {t('notices.endOfList')}
+                </Txt>
               </View>
             ) : null
           }
@@ -95,9 +133,32 @@ export function NoticeListScreen({ deptId }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: SdsColors.background,
+    backgroundColor: SdsColors.grey100,
+  },
+  listContent: {
+    paddingBottom: 40,
+  },
+  sectionHeader: {
+    paddingTop: 28,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  sectionGap: {
+    height: 8,
+    backgroundColor: SdsColors.grey100,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F2F3F5',
+    marginLeft: 20,
   },
   footer: {
     paddingVertical: 20,
   },
+  endOfList: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
 });
+

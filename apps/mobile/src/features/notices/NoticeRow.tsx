@@ -1,113 +1,119 @@
-import { Pressable, View, StyleSheet } from 'react-native';
-import { Paperclip, Pencil } from 'lucide-react-native';
-import { SdsColors, useT } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
-import type { Department, NoticeListItem } from '@skkuverse/shared';
-import { SummaryBadge } from './SummaryBadge';
+import { View, StyleSheet } from 'react-native';
+import { SdsColors } from '@skkuverse/shared';
+import { ListRow, Txt } from '@skkuverse/sds';
+import type { NoticeListItem } from '@skkuverse/shared';
+import {
+  formatDeadlineBadge,
+  type DeadlineVariant,
+} from './utils/formatDeadlineBadge';
 
 interface Props {
   item: NoticeListItem;
-  dept?: Department;
   onPress: (item: NoticeListItem) => void;
 }
 
-export function NoticeRow({ item, dept, onPress }: Props) {
-  const { t } = useT();
+const BADGE_COLORS: Record<
+  DeadlineVariant,
+  { color: string; background: string }
+> = {
+  urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
+  soon: { color: '#F97316', background: 'rgba(249, 115, 22, 0.07)' },
+  normal: { color: SdsColors.grey600, background: '#F2F3F5' },
+  closed: { color: SdsColors.grey600, background: '#F2F3F5' },
+};
 
-  const showCategory = dept?.hasCategory && item.category;
-  const showAuthor = dept?.hasAuthor && item.author;
+export function NoticeRow({ item, onPress }: Props) {
+  const oneLiner = item.summary?.oneLiner?.trim() ?? '';
+  const deadline = formatDeadlineBadge(item.summary?.endDate ?? null);
 
   return (
-    <Pressable
+    <ListRow
       onPress={() => onPress(item)}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.metaTopRow}>
-        {item.summary?.type ? <SummaryBadge type={item.summary.type} /> : null}
-        {showCategory ? (
-          <Txt typography="t7" color={SdsColors.grey500}>
-            {item.category}
+      style={styles.row}
+      containerStyle={styles.container}
+      rightAlignment="top"
+      right={
+        <View style={styles.badgeSlot}>
+          {deadline ? (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: BADGE_COLORS[deadline.variant].background },
+              ]}
+            >
+              <Txt
+                typography="t7"
+                fontWeight="bold"
+                color={BADGE_COLORS[deadline.variant].color}
+                style={styles.badgeText}
+              >
+                {deadline.text}
+              </Txt>
+            </View>
+          ) : null}
+        </View>
+      }
+      contents={
+        <View style={styles.contents}>
+          <Txt
+            typography="t5"
+            fontWeight="semiBold"
+            color={SdsColors.grey900}
+            numberOfLines={2}
+            style={styles.title}
+          >
+            {item.title}
           </Txt>
-        ) : null}
-      </View>
-
-      <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900} numberOfLines={2}>
-        {item.title}
-      </Txt>
-
-      {item.summary?.oneLiner ? (
-        <Txt typography="t7" color={SdsColors.grey600} numberOfLines={2} style={styles.summary}>
-          {item.summary.oneLiner}
-        </Txt>
-      ) : null}
-
-      <View style={styles.footerRow}>
-        <Txt typography="t7" color={SdsColors.grey500}>
-          {item.date}
-        </Txt>
-        {showAuthor ? (
-          <>
-            <Dot />
-            <Txt typography="t7" color={SdsColors.grey500} numberOfLines={1}>
-              {item.author}
+          {oneLiner.length > 0 ? (
+            <Txt
+              typography="t7"
+              color={SdsColors.grey500}
+              numberOfLines={1}
+              style={styles.subText}
+            >
+              {oneLiner}
             </Txt>
-          </>
-        ) : null}
-        {item.hasAttachments ? (
-          <>
-            <Dot />
-            <Paperclip size={12} color={SdsColors.grey500} />
-          </>
-        ) : null}
-        {item.isEdited ? (
-          <>
-            <Dot />
-            <Pencil size={11} color={SdsColors.grey500} />
-            <Txt typography="t7" color={SdsColors.grey500}>
-              {t('notices.edited')}
-            </Txt>
-          </>
-        ) : null}
-      </View>
-    </Pressable>
+          ) : null}
+        </View>
+      }
+    />
   );
-}
-
-function Dot() {
-  return <View style={styles.dot} />;
 }
 
 const styles = StyleSheet.create({
   row: {
-    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
     paddingVertical: 16,
-    backgroundColor: SdsColors.background,
-    borderBottomWidth: 0.5,
-    borderBottomColor: SdsColors.grey100,
-    gap: 6,
   },
-  rowPressed: {
-    backgroundColor: SdsColors.grey50,
+  contents: {
+    gap: 4,
   },
-  metaTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  title: {
+    fontSize: 16,
+    lineHeight: 23,
+    letterSpacing: -0.3,
   },
-  summary: {
+  subText: {
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: -0.1,
+  },
+  badgeSlot: {
+    minWidth: 48,
+    alignItems: 'flex-end',
     marginTop: 2,
   },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-    flexWrap: 'wrap',
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  dot: {
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: SdsColors.grey400,
+  badgeText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
   },
 });
+

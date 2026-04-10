@@ -10,7 +10,6 @@ import { Txt } from '@skkuverse/sds';
 import { NoticeNavBar } from './NavigationBar';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
-import { SummaryBadge } from './SummaryBadge';
 import { SummaryCard } from './SummaryCard';
 import { NoticeHtmlView } from './NoticeHtmlView';
 
@@ -54,8 +53,6 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
     <View style={styles.container}>
       <NoticeNavBar title="" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        {data.summary?.type ? <SummaryBadge type={data.summary.type} /> : null}
-
         <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
         </Txt>
@@ -193,3 +190,4 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
 });
+
