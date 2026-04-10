@@ -12,3 +12,9 @@ export { useBuildings, BUILDINGS_KEY } from './useBuildings';
 export { useBuildingDetail, BUILDING_DETAIL_KEY } from './useBuildingDetail';
 export { useLayerMarkers, useLayerPolyline } from './useMapLayers';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
+
+// ── Notice hooks ──
+export { useNoticeDepartments, NOTICE_DEPARTMENTS_KEY } from './useNoticeDepartments';
+export { useNoticeList, NOTICE_LIST_KEY } from './useNoticeList';
+export type { UseNoticeListArgs } from './useNoticeList';
+export { useNoticeDetail, NOTICE_DETAIL_KEY } from './useNoticeDetail';

@@ -7,7 +7,7 @@ export type Campus = 'hssc' | 'nsc';
 
 export type AppLanguage = 'ko' | 'en' | 'zh';
 
-export type TabRoute = 'campus' | 'transit';
+export type TabRoute = 'campus' | 'transit' | 'notices';
 
 export interface SettingsState {
   preferredCampus: Campus;
@@ -39,7 +39,7 @@ export const useSettingsStore = create<SettingsStore>()(
     (set) => ({
       preferredCampus: 'hssc',
       appLanguage: 'ko',
-      lastTab: 'campus',
+      lastTab: 'notices',
 
       setPreferredCampus: (campus) => set({ preferredCampus: campus }),
       setAppLanguage: (language) => set({ appLanguage: language }),

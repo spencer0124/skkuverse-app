@@ -33,4 +33,10 @@ export const ApiEndpoints = {
 
   // ── App config ──
   appConfig: () => '/app/config',
+
+  // ── Notices ──
+  noticesDepartments: () => '/notices/departments',
+  noticesByDept: (deptId: string) => `/notices/dept/${deptId}`,
+  noticeDetail: (deptId: string, articleNo: number) =>
+    `/notices/${deptId}/${articleNo}`,
 } as const;

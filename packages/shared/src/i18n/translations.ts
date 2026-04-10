@@ -83,6 +83,7 @@ const ko = {
   'nav.campus': '캠퍼스',
   'nav.info': '정보',
   'nav.transit': '이동',
+  'nav.notices': '공지',
 
   // ── Common ──
   'common.ok': '확인',
@@ -226,6 +227,30 @@ const ko = {
     '→  최초 발견자 습득 시, 1~2일 내 학생지원팀 이관\n→  학생지원팀: 유실물 게시판에 1개월 동안 공지\n→  1년 보관 후 폐기',
   'lostAndFound.supportTeamInfo':
     '인사캠: 600주년기념관 1층\n자과캠: 학생회관 종합행정실 1층\n운영시간: 평일 09:00~17:30',
+
+  // ── Notices ──
+  'notices.title': '공지',
+  'notices.departments': '학과/기관',
+  'notices.filterAll': '전체',
+  'notices.filterAction': '확인 필요',
+  'notices.filterEvent': '행사',
+  'notices.filterInfo': '안내',
+  'notices.empty': '공지가 없어요',
+  'notices.loading': '불러오는 중...',
+  'notices.error': '공지를 불러오지 못했어요',
+  'notices.retry': '다시 시도',
+  'notices.edited': '수정됨',
+  'notices.attachments': '첨부파일',
+  'notices.openOriginal': '원본 페이지 열기',
+  'notices.authRequired': '로그인이 필요해요',
+  'notices.views': '조회 {0}',
+  'notices.detailLabelTarget': '대상',
+  'notices.detailLabelAction': '해야 할 일',
+  'notices.detailLabelLocation': '장소',
+  'notices.detailLabelHost': '주최',
+  'notices.detailLabelImpact': '참고',
+  'notices.period': '기간',
+  'notices.periodRange': '{0} ~ {1}',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -243,6 +268,7 @@ const en: TranslationMap = {
   'nav.campus': 'Campus',
   'nav.info': 'Info',
   'nav.transit': 'Transit',
+  'nav.notices': 'Notices',
 
   // ── Common ──
   'common.ok': 'ok',
@@ -387,6 +413,30 @@ const en: TranslationMap = {
     '→ Upon first discovery, transfer to the Student Support Team within 1-2 days\n→ Student Support Team: Notice on the lost and found bulletin board for 1 month\n→ Stored for 1 year and then discarded',
   'lostAndFound.supportTeamInfo':
     'HSSC: 1F, 600th Anniversary Hall\nNSC: 1F, Student Center\nOperating hours: Weekdays 09:00~17:30',
+
+  // ── Notices ──
+  'notices.title': 'Notices',
+  'notices.departments': 'Departments',
+  'notices.filterAll': 'All',
+  'notices.filterAction': 'Action',
+  'notices.filterEvent': 'Event',
+  'notices.filterInfo': 'Info',
+  'notices.empty': 'No notices',
+  'notices.loading': 'Loading...',
+  'notices.error': 'Could not load notices',
+  'notices.retry': 'Retry',
+  'notices.edited': 'edited',
+  'notices.attachments': 'Attachments',
+  'notices.openOriginal': 'Open original page',
+  'notices.authRequired': 'Sign in required',
+  'notices.views': '{0} views',
+  'notices.detailLabelTarget': 'For',
+  'notices.detailLabelAction': 'Action',
+  'notices.detailLabelLocation': 'Location',
+  'notices.detailLabelHost': 'Host',
+  'notices.detailLabelImpact': 'Note',
+  'notices.period': 'Period',
+  'notices.periodRange': '{0} ~ {1}',
 };
 
 const zh: TranslationMap = {
@@ -401,6 +451,7 @@ const zh: TranslationMap = {
   'nav.campus': '校园',
   'nav.info': '信息',
   'nav.transit': '出行',
+  'nav.notices': '公告',
 
   // ── Common ──
   'common.ok': '查看',
@@ -544,6 +595,30 @@ const zh: TranslationMap = {
     '→ 第一次发现后，在1-2天内转移到学生支持团队\n→ 学生支持团队：失物招领公告牌上的通知，为期1个月\n→ 保存1年，然后丢弃',
   'lostAndFound.supportTeamInfo':
     '人文社会校区: 一楼600周年纪念馆\n自然科学校区: 一楼学生中心\n开放时间：平日09:00~17:30',
+
+  // ── Notices ──
+  'notices.title': '公告',
+  'notices.departments': '学院/机构',
+  'notices.filterAll': '全部',
+  'notices.filterAction': '需确认',
+  'notices.filterEvent': '活动',
+  'notices.filterInfo': '信息',
+  'notices.empty': '暂无公告',
+  'notices.loading': '加载中...',
+  'notices.error': '无法加载公告',
+  'notices.retry': '重试',
+  'notices.edited': '已编辑',
+  'notices.attachments': '附件',
+  'notices.openOriginal': '打开原始页面',
+  'notices.authRequired': '需要登录',
+  'notices.views': '浏览 {0}',
+  'notices.detailLabelTarget': '对象',
+  'notices.detailLabelAction': '需做',
+  'notices.detailLabelLocation': '地点',
+  'notices.detailLabelHost': '主办',
+  'notices.detailLabelImpact': '备注',
+  'notices.period': '期间',
+  'notices.periodRange': '{0} ~ {1}',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

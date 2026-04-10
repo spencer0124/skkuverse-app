@@ -80,6 +80,7 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="map/hssc" options={{ headerShown: false }} />
                 <Stack.Screen name="map/hssc-credit" options={{ headerShown: false }} />
+                <Stack.Screen name="notices" options={{ headerShown: false }} />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="sds-preview"

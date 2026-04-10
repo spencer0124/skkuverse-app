@@ -157,6 +157,27 @@ export {
   parseBuildingSearchResult,
 } from './building';
 
+// ── Notice parsers + constants + types ──
+export {
+  parseDepartmentList,
+  parseNoticePage,
+  parseNoticeDetail,
+  CRAWLER_ENABLED_DEPT_IDS,
+} from './notices';
+export type {
+  Department,
+  NoticeSummaryType,
+  NoticeListItem,
+  NoticeListItemSummary,
+  NoticePage,
+  NoticeDetail,
+  NoticeDetailSummary,
+  NoticeSummaryDetails,
+  NoticeAttachment,
+  NoticeEditInfo,
+  CrawlerEnabledDeptId,
+} from './notices';
+
 // ── Hooks ──
 export {
   useCampusSections,
@@ -184,4 +205,11 @@ export {
   useLayerPolyline,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
+  useNoticeDepartments,
+  NOTICE_DEPARTMENTS_KEY,
+  useNoticeList,
+  NOTICE_LIST_KEY,
+  type UseNoticeListArgs,
+  useNoticeDetail,
+  NOTICE_DETAIL_KEY,
 } from './hooks';
