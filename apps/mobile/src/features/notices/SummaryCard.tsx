@@ -13,6 +13,8 @@ import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import type {
   NoticeDetailSummary,
+  NoticeLocation,
+  NoticePeriod,
   NoticeSummaryDetails,
   TranslationKey,
 } from '@skkuverse/shared';
@@ -23,19 +25,34 @@ interface Props {
 
 /**
  * Renders the AI-generated summary card on the notice detail screen:
- * one-liner headline, full text, period (start/end date+time), and the
- * structured `details` rows (target / action / location / host / impact).
+ * one-liner headline, full text, period(s), location(s), and the structured
+ * `details` rows (target / action / host / impact). Each section is
+ * conditional — empty arrays and null fields are hidden.
  *
- * Each section is conditional — null fields are hidden.
+ * Multi-phase notices (e.g. 1차/2차 납부) render as multiple period lines
+ * under one Calendar row. Multi-location notices do the same under MapPin.
  */
 export function SummaryCard({ summary }: Props) {
-  const { t, tpl } = useT();
+  const { t } = useT();
 
-  const period = formatSummaryPeriod(summary);
+  const periodEntries = summary.periods
+    .map((p) => {
+      const line = formatPeriod(p);
+      return line ? { label: p.label, line } : null;
+    })
+    .filter((v): v is { label: string | null; line: string } => v !== null);
+  const locationEntries = summary.locations;
   const detailRows = buildDetailRows(summary.details, t);
-  const hasAnyContent = !!summary.text || !!period || detailRows.length > 0;
+  const hasAnyContent =
+    !!summary.text ||
+    periodEntries.length > 0 ||
+    locationEntries.length > 0 ||
+    detailRows.length > 0;
 
   if (!hasAnyContent) return null;
+
+  const hasTopBlock =
+    !!summary.text || periodEntries.length > 0 || locationEntries.length > 0;
 
   return (
     <View style={styles.card}>
@@ -45,24 +62,37 @@ export function SummaryCard({ summary }: Props) {
         </Txt>
       ) : null}
 
-      {period ? (
-        <InfoRow
+      {periodEntries.length > 0 ? (
+        <StackRow
           icon={Calendar}
           label={t('notices.period')}
-          value={
-            period.kind === 'range'
-              ? tpl('notices.periodRange', period.start, period.end)
-              : period.value
-          }
+          values={periodEntries.map((e) =>
+            e.label ? `${e.label}: ${e.line}` : e.line,
+          )}
+        />
+      ) : null}
+
+      {locationEntries.length > 0 ? (
+        <StackRow
+          icon={MapPin}
+          label={t('notices.detailLabelLocation')}
+          values={locationEntries.map((loc) =>
+            loc.label ? `${loc.label}: ${loc.detail}` : loc.detail,
+          )}
         />
       ) : null}
 
       {detailRows.length > 0 ? (
         <>
-          {summary.text || period ? <View style={styles.divider} /> : null}
+          {hasTopBlock ? <View style={styles.divider} /> : null}
           <View style={styles.detailRows}>
             {detailRows.map((row) => (
-              <InfoRow key={row.key} icon={row.icon} label={row.label} value={row.value} />
+              <InfoRow
+                key={row.key}
+                icon={row.icon}
+                label={row.label}
+                value={row.value}
+              />
             ))}
           </View>
         </>
@@ -91,6 +121,43 @@ function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
   );
 }
 
+interface StackRowProps {
+  icon: LucideIcon;
+  label: string;
+  values: string[];
+}
+
+/**
+ * Multi-line variant of InfoRow: icon + label on the left, and each value
+ * on its own row on the right. Used when a single period/location field
+ * has multiple entries (e.g. 1차 납부 / 2차 납부).
+ */
+function StackRow({ icon: Icon, label, values }: StackRowProps) {
+  if (values.length === 1) {
+    return <InfoRow icon={Icon} label={label} value={values[0]} />;
+  }
+  return (
+    <View style={styles.row}>
+      <Icon size={14} color={SdsColors.grey600} style={styles.rowIcon} />
+      <Txt typography="t7" color={SdsColors.grey500} style={styles.rowLabel}>
+        {label}
+      </Txt>
+      <View style={styles.stackValues}>
+        {values.map((v, i) => (
+          <Txt
+            key={i}
+            typography="t7"
+            color={SdsColors.grey800}
+            style={styles.rowValue}
+          >
+            {v}
+          </Txt>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // ── Helpers ──
 
 interface DetailRowDef {
@@ -106,24 +173,44 @@ function buildDetailRows(
 ): DetailRowDef[] {
   if (!details) return [];
   const rows: DetailRowDef[] = [];
-  if (details.target) rows.push({ key: 'target', icon: Users, label: t('notices.detailLabelTarget'), value: details.target });
-  if (details.action) rows.push({ key: 'action', icon: CheckSquare, label: t('notices.detailLabelAction'), value: details.action });
-  if (details.location) rows.push({ key: 'location', icon: MapPin, label: t('notices.detailLabelLocation'), value: details.location });
-  if (details.host) rows.push({ key: 'host', icon: Building2, label: t('notices.detailLabelHost'), value: details.host });
-  if (details.impact) rows.push({ key: 'impact', icon: Sparkles, label: t('notices.detailLabelImpact'), value: details.impact });
+  if (details.target)
+    rows.push({
+      key: 'target',
+      icon: Users,
+      label: t('notices.detailLabelTarget'),
+      value: details.target,
+    });
+  if (details.action)
+    rows.push({
+      key: 'action',
+      icon: CheckSquare,
+      label: t('notices.detailLabelAction'),
+      value: details.action,
+    });
+  if (details.host)
+    rows.push({
+      key: 'host',
+      icon: Building2,
+      label: t('notices.detailLabelHost'),
+      value: details.host,
+    });
+  if (details.impact)
+    rows.push({
+      key: 'impact',
+      icon: Sparkles,
+      label: t('notices.detailLabelImpact'),
+      value: details.impact,
+    });
   return rows;
 }
 
-type Period =
-  | { kind: 'single'; value: string }
-  | { kind: 'range'; start: string; end: string };
-
 /**
- * Builds a human-readable period string from the AI summary's
- * start/end date+time fields. Returns `null` when no date is available.
+ * Builds a human-readable string for a single period. Returns `null`
+ * when the period carries no date at all (should be rare — server only
+ * emits meaningful periods, but we defend defensively).
  */
-export function formatSummaryPeriod(summary: NoticeDetailSummary): Period | null {
-  const { startDate, startTime, endDate, endTime } = summary;
+export function formatPeriod(period: NoticePeriod): string | null {
+  const { startDate, startTime, endDate, endTime } = period;
 
   if (!startDate && !endDate) return null;
 
@@ -131,25 +218,21 @@ export function formatSummaryPeriod(summary: NoticeDetailSummary): Period | null
     if (startDate === endDate) {
       // Same day → optionally show start~end time
       if (startTime && endTime) {
-        return { kind: 'single', value: `${startDate} ${startTime} ~ ${endTime}` };
+        return `${startDate} ${startTime} ~ ${endTime}`;
       }
-      if (startTime) return { kind: 'single', value: `${startDate} ${startTime}` };
-      return { kind: 'single', value: startDate };
+      if (startTime) return `${startDate} ${startTime}`;
+      return startDate;
     }
-    return {
-      kind: 'range',
-      start: joinDateTime(startDate, startTime),
-      end: joinDateTime(endDate, endTime),
-    };
+    return `${joinDateTime(startDate, startTime)} ~ ${joinDateTime(endDate, endTime)}`;
   }
 
   if (endDate) {
     // 마감만 있는 경우
-    return { kind: 'single', value: `~${joinDateTime(endDate, endTime)}` };
+    return `~${joinDateTime(endDate, endTime)}`;
   }
 
   // startDate만 있는 경우
-  return { kind: 'single', value: `${joinDateTime(startDate!, startTime)}~` };
+  return `${joinDateTime(startDate!, startTime)}~`;
 }
 
 function joinDateTime(date: string, time: string | null): string {
@@ -190,5 +273,9 @@ const styles = StyleSheet.create({
   },
   rowValue: {
     flex: 1,
+  },
+  stackValues: {
+    flex: 1,
+    gap: 3,
   },
 });

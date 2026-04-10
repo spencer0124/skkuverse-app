@@ -10,9 +10,12 @@ import type {
   Department,
   NoticeDetail,
   NoticeDetailSummary,
+  NoticeEndAt,
   NoticeListItem,
   NoticeListItemSummary,
+  NoticeLocation,
   NoticePage,
+  NoticePeriod,
   NoticeSummaryType,
   NoticeSummaryDetails,
   NoticeAttachment,
@@ -64,14 +67,22 @@ function parseDepartment(raw: Record<string, unknown>): Department {
   };
 }
 
+function parseEndAt(raw: unknown): NoticeEndAt | null {
+  if (raw === null || raw === undefined) return null;
+  const obj = asRecord(raw);
+  const date = asNullableString(obj.date);
+  const time = asNullableString(obj.time);
+  if (date === null && time === null) return null;
+  return { date, time };
+}
+
 function parseListItemSummary(raw: unknown): NoticeListItemSummary | null {
   if (raw === null || raw === undefined) return null;
   const obj = asRecord(raw);
   return {
     oneLiner: asNullableString(obj.oneLiner),
     type: coerceSummaryType(obj.type),
-    endDate: asNullableString(obj.endDate),
-    endTime: asNullableString(obj.endTime),
+    endAt: parseEndAt(obj.endAt),
   };
 }
 
@@ -121,10 +132,45 @@ function parseSummaryDetails(raw: unknown): NoticeSummaryDetails | null {
   return {
     target: asNullableString(obj.target),
     action: asNullableString(obj.action),
-    location: asNullableString(obj.location),
     host: asNullableString(obj.host),
     impact: asNullableString(obj.impact),
   };
+}
+
+function parsePeriod(raw: unknown): NoticePeriod {
+  const obj = asRecord(raw);
+  return {
+    label: asNullableString(obj.label),
+    startDate: asNullableString(obj.startDate),
+    startTime: asNullableString(obj.startTime),
+    endDate: asNullableString(obj.endDate),
+    endTime: asNullableString(obj.endTime),
+  };
+}
+
+function parsePeriods(raw: unknown): NoticePeriod[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as unknown[]).map(parsePeriod);
+}
+
+function parseLocation(raw: unknown): NoticeLocation | null {
+  const obj = asRecord(raw);
+  const detail = asString(obj.detail).trim();
+  if (!detail) return null;
+  return {
+    label: asNullableString(obj.label),
+    detail,
+  };
+}
+
+function parseLocations(raw: unknown): NoticeLocation[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NoticeLocation[] = [];
+  for (const item of raw as unknown[]) {
+    const loc = parseLocation(item);
+    if (loc) out.push(loc);
+  }
+  return out;
 }
 
 function parseDetailSummary(raw: unknown): NoticeDetailSummary | null {
@@ -134,10 +180,8 @@ function parseDetailSummary(raw: unknown): NoticeDetailSummary | null {
     text: asNullableString(obj.text),
     oneLiner: asNullableString(obj.oneLiner),
     type: coerceSummaryType(obj.type),
-    startDate: asNullableString(obj.startDate),
-    startTime: asNullableString(obj.startTime),
-    endDate: asNullableString(obj.endDate),
-    endTime: asNullableString(obj.endTime),
+    periods: parsePeriods(obj.periods),
+    locations: parseLocations(obj.locations),
     details: parseSummaryDetails(obj.details),
     model: asNullableString(obj.model),
     generatedAt: asString(obj.generatedAt),

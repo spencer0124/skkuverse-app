@@ -24,7 +24,7 @@ const BADGE_COLORS: Record<
 
 export function NoticeRow({ item, onPress }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
-  const deadline = formatDeadlineBadge(item.summary?.endDate ?? null);
+  const deadline = formatDeadlineBadge(item.summary?.endAt?.date ?? null);
 
   return (
     <ListRow

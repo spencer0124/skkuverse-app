@@ -19,11 +19,15 @@ export interface Department {
   hasAuthor: boolean;
 }
 
+export interface NoticeEndAt {
+  date: string | null;
+  time: string | null;
+}
+
 export interface NoticeListItemSummary {
   oneLiner: string | null;
   type: NoticeSummaryType;
-  endDate: string | null;
-  endTime: string | null;
+  endAt: NoticeEndAt | null;
 }
 
 export interface NoticeListItem {
@@ -64,22 +68,41 @@ export interface NoticeSummaryDetails {
   target: string | null;
   /** What the reader is expected to do. `null` if no concrete action. */
   action: string | null;
-  /** Specific building/room/address. `null` if vague (online, anywhere). */
-  location: string | null;
   /** Organizer / sponsor. */
   host: string | null;
   /** Impact, benefit, or alternative options for the reader. */
   impact: string | null;
 }
 
-export interface NoticeDetailSummary {
-  text: string | null;
-  oneLiner: string | null;
-  type: NoticeSummaryType;
+/**
+ * One temporal phase of a notice. Multi-phase notices (e.g. 1차/2차 납부)
+ * contribute multiple periods; `label` is null when there's only one period,
+ * and a short AI-generated disambiguator ("1차 납부") when there are 2+.
+ */
+export interface NoticePeriod {
+  label: string | null;
   startDate: string | null;
   startTime: string | null;
   endDate: string | null;
   endTime: string | null;
+}
+
+/**
+ * A concrete location for a notice. `detail` is a non-empty string
+ * (building/room/address). `label` is null for a single location and
+ * a short AI-generated disambiguator ("인사캠") when there are 2+.
+ */
+export interface NoticeLocation {
+  label: string | null;
+  detail: string;
+}
+
+export interface NoticeDetailSummary {
+  text: string | null;
+  oneLiner: string | null;
+  type: NoticeSummaryType;
+  periods: NoticePeriod[];
+  locations: NoticeLocation[];
   details: NoticeSummaryDetails | null;
   model: string | null;
   generatedAt: string;

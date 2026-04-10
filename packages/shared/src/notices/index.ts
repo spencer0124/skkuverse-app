@@ -8,12 +8,15 @@ export {
 export type {
   Department,
   NoticeSummaryType,
+  NoticeEndAt,
   NoticeListItem,
   NoticeListItemSummary,
   NoticePage,
   NoticeDetail,
   NoticeDetailSummary,
   NoticeSummaryDetails,
+  NoticePeriod,
+  NoticeLocation,
   NoticeAttachment,
   NoticeEditInfo,
 } from './types';
