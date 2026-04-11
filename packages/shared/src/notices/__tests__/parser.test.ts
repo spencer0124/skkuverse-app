@@ -103,7 +103,8 @@ describe('parseNoticePage', () => {
           summary: {
             oneLiner: '수강신청은 4월 5일부터',
             type: 'action_required',
-            endAt: { date: '2026-04-12', time: '23:59' },
+            startAt: { date: '2026-04-05', time: null },
+            endAt: { date: '2026-04-12', time: '23:59', label: '1차 신청' },
           },
         },
       ],
@@ -124,10 +125,15 @@ describe('parseNoticePage', () => {
     expect(n.isEdited).toBe(true); // editCount > 0
     expect(n.summary?.type).toBe('action_required');
     expect(n.summary?.oneLiner).toBe('수강신청은 4월 5일부터');
-    expect(n.summary?.endAt).toEqual({ date: '2026-04-12', time: '23:59' });
+    expect(n.summary?.startAt).toEqual({ date: '2026-04-05', time: null });
+    expect(n.summary?.endAt).toEqual({
+      date: '2026-04-12',
+      time: '23:59',
+      label: '1차 신청',
+    });
   });
 
-  it('normalizes endAt to null when both date and time are null', () => {
+  it('normalizes endAt to null when date, time, and label are all null', () => {
     const raw = envelope({
       notices: [
         {

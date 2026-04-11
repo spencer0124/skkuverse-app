@@ -20,12 +20,21 @@ const BADGE_COLORS: Record<
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
   soon: { color: '#F97316', background: 'rgba(249, 115, 22, 0.07)' },
   normal: { color: SdsColors.grey600, background: '#F2F3F5' },
-  closed: { color: SdsColors.grey600, background: '#F2F3F5' },
+  closed: { color: SdsColors.grey500, background: '#F2F3F5' },
+  eventToday: {
+    color: SdsColors.blue500,
+    background: 'rgba(49, 130, 246, 0.08)',
+  },
+  inProgress: {
+    color: SdsColors.green500,
+    background: 'rgba(3, 178, 108, 0.08)',
+  },
+  upcoming: { color: SdsColors.grey500, background: SdsColors.grey50 },
 };
 
 export function NoticeRow({ item, onPress }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
-  const deadline = formatDeadlineBadge(item.summary?.endAt?.date ?? null);
+  const deadline = formatDeadlineBadge(item.summary ?? null);
 
   return (
     <ListRow

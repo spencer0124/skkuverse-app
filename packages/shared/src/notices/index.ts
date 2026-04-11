@@ -8,6 +8,7 @@ export {
 export type {
   Department,
   NoticeSummaryType,
+  NoticeStartAt,
   NoticeEndAt,
   NoticeListItem,
   NoticeListItemSummary,

@@ -16,6 +16,7 @@ import type {
   NoticeLocation,
   NoticePage,
   NoticePeriod,
+  NoticeStartAt,
   NoticeSummaryType,
   NoticeSummaryDetails,
   NoticeAttachment,
@@ -67,7 +68,7 @@ function parseDepartment(raw: Record<string, unknown>): Department {
   };
 }
 
-function parseEndAt(raw: unknown): NoticeEndAt | null {
+function parseStartAt(raw: unknown): NoticeStartAt | null {
   if (raw === null || raw === undefined) return null;
   const obj = asRecord(raw);
   const date = asNullableString(obj.date);
@@ -76,12 +77,23 @@ function parseEndAt(raw: unknown): NoticeEndAt | null {
   return { date, time };
 }
 
+function parseEndAt(raw: unknown): NoticeEndAt | null {
+  if (raw === null || raw === undefined) return null;
+  const obj = asRecord(raw);
+  const date = asNullableString(obj.date);
+  const time = asNullableString(obj.time);
+  const label = asNullableString(obj.label);
+  if (date === null && time === null && label === null) return null;
+  return { date, time, label };
+}
+
 function parseListItemSummary(raw: unknown): NoticeListItemSummary | null {
   if (raw === null || raw === undefined) return null;
   const obj = asRecord(raw);
   return {
     oneLiner: asNullableString(obj.oneLiner),
     type: coerceSummaryType(obj.type),
+    startAt: parseStartAt(obj.startAt),
     endAt: parseEndAt(obj.endAt),
   };
 }

@@ -19,14 +19,21 @@ export interface Department {
   hasAuthor: boolean;
 }
 
+export interface NoticeStartAt {
+  date: string | null;
+  time: string | null;
+}
+
 export interface NoticeEndAt {
   date: string | null;
   time: string | null;
+  label: string | null;
 }
 
 export interface NoticeListItemSummary {
   oneLiner: string | null;
   type: NoticeSummaryType;
+  startAt: NoticeStartAt | null;
   endAt: NoticeEndAt | null;
 }
 
