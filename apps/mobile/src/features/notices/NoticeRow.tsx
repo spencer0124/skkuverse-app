@@ -14,7 +14,7 @@ interface Props {
   onPress: (item: NoticeListItem) => void;
 }
 
-const BADGE_COLORS: Record<
+const PILL_COLORS: Record<
   DeadlineVariant,
   { color: string; background: string }
 > = {
@@ -37,7 +37,7 @@ export function NoticeRow({ item, onPress }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
   const deadline = formatDeadlineBadge(item.summary ?? null);
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
-  const relativeDate = deadline ? null : formatRelativeDate(item.date, lang);
+  const relativeDate = formatRelativeDate(item.date, lang);
 
   return (
     <ListRow
@@ -46,28 +46,12 @@ export function NoticeRow({ item, onPress }: Props) {
       containerStyle={styles.container}
       rightAlignment="top"
       right={
-        <View style={styles.badgeSlot}>
-          {deadline ? (
-            <View
-              style={[
-                styles.badge,
-                { backgroundColor: BADGE_COLORS[deadline.variant].background },
-              ]}
-            >
-              <Txt
-                typography="t7"
-                fontWeight="bold"
-                color={BADGE_COLORS[deadline.variant].color}
-                style={styles.badgeText}
-              >
-                {deadline.text}
-              </Txt>
-            </View>
-          ) : relativeDate ? (
+        <View style={styles.relativeSlot}>
+          {relativeDate ? (
             <Txt
               typography="t7"
               color={SdsColors.grey400}
-              style={styles.relativeDateText}
+              style={styles.relativeText}
             >
               {relativeDate}
             </Txt>
@@ -101,6 +85,38 @@ export function NoticeRow({ item, onPress }: Props) {
               >
                 {oneLiner}
               </Txt>
+            </View>
+          ) : null}
+          {deadline ? (
+            <View style={styles.deadlineRow}>
+              <View
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor:
+                      PILL_COLORS[deadline.pill.variant].background,
+                  },
+                ]}
+              >
+                <Txt
+                  typography="t7"
+                  fontWeight="bold"
+                  color={PILL_COLORS[deadline.pill.variant].color}
+                  style={styles.pillText}
+                >
+                  {deadline.pill.text}
+                </Txt>
+              </View>
+              {deadline.context ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey500}
+                  numberOfLines={1}
+                  style={styles.contextText}
+                >
+                  {` · ${deadline.context}`}
+                </Txt>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -140,26 +156,38 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     letterSpacing: -0.1,
   },
-  badgeSlot: {
+  relativeSlot: {
     minWidth: 48,
     alignItems: 'flex-end',
-    marginTop: 2,
+    marginTop: 5,
   },
-  badge: {
+  relativeText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  pill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    alignSelf: 'flex-start',
   },
-  badgeText: {
+  pillText: {
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
   },
-  relativeDateText: {
+  contextText: {
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
-    marginTop: 5,
+    marginLeft: 4,
+    flexShrink: 1,
   },
 });
 

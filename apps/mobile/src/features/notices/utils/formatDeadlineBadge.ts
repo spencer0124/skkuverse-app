@@ -21,9 +21,20 @@ export type DeadlineVariant =
   | 'inProgress' // 초록: informational 진행 중
   | 'upcoming'; // 연한 회색: informational 시작 전
 
-export interface DeadlineBadge {
+export interface DeadlinePill {
   text: string;
   variant: DeadlineVariant;
+}
+
+export interface DeadlineInfo {
+  /** Compact, colored pill — short status like "D-13" / "마감" / "진행 중 ~5/1". */
+  pill: DeadlinePill;
+  /**
+   * Extra context displayed next to the pill as " · {context}", e.g.
+   * "1차 신청". Only populated for `action_required` with an `endAt.label`;
+   * null otherwise.
+   */
+  context: string | null;
 }
 
 // ── helpers ──
@@ -77,7 +88,7 @@ function formatMonthDay(date: string): string {
 function actionRequiredBadge(
   endAt: NoticeEndAt | null,
   now: Date,
-): DeadlineBadge | null {
+): DeadlineInfo | null {
   if (!endAt?.date) return null;
 
   const endDT = toEffectiveDateTime(endAt.date, endAt.time);
@@ -85,33 +96,30 @@ function actionRequiredBadge(
   const endStart = startOfLocalDay(parseLocalDate(endAt.date));
   const d = diffDays(todayStart, endStart);
 
-  let core: DeadlineBadge;
+  let pill: DeadlinePill;
 
   if (endDT.getTime() < now.getTime()) {
-    core = { text: '마감', variant: 'closed' };
+    pill = { text: '마감', variant: 'closed' };
   } else if (d === 0 && endAt.time) {
-    core = { text: `오늘 ${formatHourMinute(endAt.time)}`, variant: 'urgent' };
+    pill = { text: `오늘 ${formatHourMinute(endAt.time)}`, variant: 'urgent' };
   } else if (d === 0) {
-    core = { text: 'D-0', variant: 'urgent' };
+    pill = { text: 'D-0', variant: 'urgent' };
   } else if (d <= 3) {
-    core = { text: `D-${d}`, variant: 'urgent' };
+    pill = { text: `D-${d}`, variant: 'urgent' };
   } else if (d <= 7) {
-    core = { text: `D-${d}`, variant: 'soon' };
+    pill = { text: `D-${d}`, variant: 'soon' };
   } else {
-    core = { text: `D-${d}`, variant: 'normal' };
+    pill = { text: `D-${d}`, variant: 'normal' };
   }
 
-  if (endAt.label) {
-    core = { ...core, text: `${endAt.label} ${core.text}` };
-  }
-  return core;
+  return { pill, context: endAt.label || null };
 }
 
 function eventBadge(
   startAt: NoticeStartAt | null,
   endAt: NoticeEndAt | null,
   now: Date,
-): DeadlineBadge | null {
+): DeadlineInfo | null {
   const anchorDate = endAt?.date ?? startAt?.date ?? null;
   const anchorTime = endAt?.time ?? startAt?.time ?? null;
   if (!anchorDate) return null;
@@ -125,21 +133,25 @@ function eventBadge(
     startOfLocalDay(parseLocalDate(anchorDate)),
   );
 
+  let pill: DeadlinePill;
   if (d === 0 && anchorTime) {
-    return {
+    pill = {
       text: `오늘 ${formatHourMinute(anchorTime)}`,
       variant: 'eventToday',
     };
+  } else if (d === 0) {
+    pill = { text: '오늘', variant: 'eventToday' };
+  } else {
+    pill = { text: `D-${d}`, variant: 'normal' };
   }
-  if (d === 0) return { text: '오늘', variant: 'eventToday' };
-  return { text: `D-${d}`, variant: 'normal' };
+  return { pill, context: null };
 }
 
 function informationalBadge(
   startAt: NoticeStartAt | null,
   endAt: NoticeEndAt | null,
   now: Date,
-): DeadlineBadge | null {
+): DeadlineInfo | null {
   const start = startAt?.date ?? null;
   const end = endAt?.date ?? null;
 
@@ -154,10 +166,19 @@ function informationalBadge(
 
   if (todayStart < startStart) {
     const d = diffDays(todayStart, startStart);
-    return { text: `D-${d} 시작`, variant: 'upcoming' };
+    return {
+      pill: { text: `D-${d} 시작`, variant: 'upcoming' },
+      context: null,
+    };
   }
   if (todayStart <= endStart) {
-    return { text: `진행 중 ~${formatMonthDay(end)}`, variant: 'inProgress' };
+    return {
+      pill: {
+        text: `진행 중 ~${formatMonthDay(end)}`,
+        variant: 'inProgress',
+      },
+      context: null,
+    };
   }
   return null;
 }
@@ -167,7 +188,7 @@ function informationalBadge(
 export function formatDeadlineBadge(
   summary: NoticeListItemSummary | null,
   now: Date = new Date(),
-): DeadlineBadge | null {
+): DeadlineInfo | null {
   if (!summary) return null;
   const { type, startAt, endAt } = summary;
 
@@ -183,13 +204,13 @@ export function formatDeadlineBadge(
 
 // ── manual test cases (reference only) ──
 //
-// Assuming now = 2026-04-11:
-// - 통금해제 4/13~4/26 informational        → "D-2 시작" (upcoming)
-// - 시험기간 4/20~5/01 informational         → "D-9 시작" (upcoming)
-//   then at 4/20                              → "진행 중 ~5/1" (inProgress)
-// - Peter Singer 토크콘서트 4/15 19:00 event  → "D-4" (normal)
-//   on 4/15                                    → "오늘 19:00" (eventToday)
-// - Elsevier action_required endAt=3/23       → server already best-picked; frontend uses endAt as-is
-// - 기아 채용 action_required                  → server rolls 4/13 → 4/20 automatically
-// - 복수전공 label="1차 신청"                   → "1차 신청 D-2" (urgent)
-// - 서초 방역 4/09 14:00~17:00 informational (start===end) → 배지 없음
+// Assuming now = 2026-04-11. Shape is { pill: {text, variant}, context }.
+// - 통금해제 4/13~4/26 informational        → pill="D-2 시작" (upcoming), context=null
+// - 시험기간 4/20~5/01 informational         → pill="D-9 시작" (upcoming), context=null
+//   at 4/20                                    → pill="진행 중 ~5/1" (inProgress), context=null
+// - Peter Singer 토크콘서트 4/15 19:00 event  → pill="D-4" (normal), context=null
+//   on 4/15                                    → pill="오늘 19:00" (eventToday), context=null
+// - 기아 채용 action_required                  → server rolls 4/13 → 4/20; pill="D-N" + context=endAt.label
+// - 복수전공 label="1차 신청"                   → pill="D-2" (urgent), context="1차 신청"
+// - 지난 action_required with label="1차 신청" → pill="마감" (closed), context="1차 신청"
+// - 서초 방역 4/09 14:00~17:00 informational (start===end) → null
