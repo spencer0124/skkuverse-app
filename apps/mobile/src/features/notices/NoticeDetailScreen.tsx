@@ -81,8 +81,6 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
 
         {data.summary ? <SummaryCard summary={data.summary} /> : null}
 
-        <View style={styles.divider} />
-
         <NoticeMarkdownView
           markdown={data.contentMarkdown}
           sourceUrl={data.sourceUrl}
@@ -152,11 +150,6 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: SdsColors.grey400,
-  },
-  divider: {
-    height: 0.5,
-    backgroundColor: SdsColors.grey200,
-    marginVertical: 14,
   },
   attachments: {
     marginTop: 18,
