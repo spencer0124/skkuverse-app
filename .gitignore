@@ -15,6 +15,7 @@ android/
 .env
 .env.local
 .env.*.local
+.envrc
 
 # Firebase credentials
 GoogleService-Info.plist
