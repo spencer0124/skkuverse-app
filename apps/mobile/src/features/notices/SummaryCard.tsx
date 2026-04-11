@@ -111,11 +111,6 @@ export function SummaryCard({ summary }: Props) {
         </>
       ) : null}
 
-      <View style={styles.aiFooter}>
-        <Txt typography="t7" color={SdsColors.grey400} style={styles.aiFooterText}>
-          {t('notices.aiSummaryCaption')}
-        </Txt>
-      </View>
     </View>
   );
 }
@@ -274,18 +269,6 @@ const styles = StyleSheet.create({
   },
   aiHeaderIcon: {
     opacity: 0.7,
-  },
-  aiFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 4,
-    marginTop: 8,
-  },
-  aiFooterText: {
-    fontSize: 11,
-    lineHeight: 14,
-    opacity: 0.85,
   },
   text: {
     lineHeight: 22,
