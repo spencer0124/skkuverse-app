@@ -115,10 +115,13 @@ function actionRequiredBadge(
     pill = { text: `D-${d}`, variant: 'normal' };
   }
 
-  // When there's a label, append "까지" to the label for future deadlines
-  // (natural Korean: "D-33 · 1차 신청까지"). For closed action_required,
-  // the pill itself is "마감" — just show the label as-is.
-  const context = label ? (isPast ? label : `${label}까지`) : null;
+  // For future deadlines with a label, append "까지" (natural Korean:
+  // "D-33 · 1차 신청까지"). For closed action_required, drop the label
+  // entirely — ordinal labels like "2차 신청" read ambiguously next to
+  // "마감" (is round 2 closed, or is it next?), and even appositive
+  // labels add little value once the deadline has passed. The full
+  // label is still visible in the detail screen's SummaryCard.
+  const context = label && !isPast ? `${label}까지` : null;
 
   return { pill, context };
 }
@@ -228,8 +231,8 @@ export function formatDeadlineBadge(
 //     → "D-N"
 // - 복수전공 label="1차 신청"                   → pill="D-2" (urgent), context="1차 신청까지"
 //     → "D-2 · 1차 신청까지"
-// - 지난 action_required with label="1차 신청" → pill="마감" (closed), context="1차 신청"
-//     → "마감 · 1차 신청" (no "까지" — it's past-tense)
+// - 지난 action_required with label="1차 신청" → pill="마감" (closed), context=null
+//     → "마감" (label dropped to avoid ambiguous "마감 · 2차 신청"-style reads)
 // - action_required D-0 + time 17:00, no label → pill="오늘 17:00", context=null
 //     → "오늘 17:00"
 // - action_required D-0 + time 17:00 + label   → pill="오늘 17:00", context="label까지"
