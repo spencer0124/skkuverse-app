@@ -19,7 +19,6 @@ const PILL_COLORS: Record<
   { color: string; background: string }
 > = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
-  soon: { color: '#F97316', background: 'rgba(249, 115, 22, 0.07)' },
   normal: { color: SdsColors.grey600, background: '#F2F3F5' },
   closed: { color: SdsColors.grey500, background: '#F2F3F5' },
   eventToday: {
@@ -102,21 +101,14 @@ export function NoticeRow({ item, onPress }: Props) {
                   typography="t7"
                   fontWeight="bold"
                   color={PILL_COLORS[deadline.pill.variant].color}
+                  numberOfLines={1}
                   style={styles.pillText}
                 >
-                  {deadline.pill.text}
+                  {deadline.context
+                    ? `${deadline.pill.text} · ${deadline.context}`
+                    : deadline.pill.text}
                 </Txt>
               </View>
-              {deadline.context ? (
-                <Txt
-                  typography="t7"
-                  color={SdsColors.grey500}
-                  numberOfLines={1}
-                  style={styles.contextText}
-                >
-                  {` · ${deadline.context}`}
-                </Txt>
-              ) : null}
             </View>
           ) : null}
         </View>
@@ -181,13 +173,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
-  },
-  contextText: {
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.1,
-    marginLeft: 4,
-    flexShrink: 1,
   },
 });
 

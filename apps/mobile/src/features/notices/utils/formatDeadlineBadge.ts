@@ -14,8 +14,7 @@ import type {
  */
 export type DeadlineVariant =
   | 'urgent' // 빨강: action_required D≤3, D-0 오늘
-  | 'soon' // 주황: action_required D 4~7
-  | 'normal' // 회색: action_required D>7, event D-n
+  | 'normal' // 회색: action_required D≥4, event D-n
   | 'closed' // 회색: 지난 action_required
   | 'eventToday' // 파랑: event 당일
   | 'inProgress' // 초록: informational 진행 중
@@ -96,23 +95,32 @@ function actionRequiredBadge(
   const endStart = startOfLocalDay(parseLocalDate(endAt.date));
   const d = diffDays(todayStart, endStart);
 
+  const label = endAt.label || null;
+  const isPast = endDT.getTime() < now.getTime();
+
   let pill: DeadlinePill;
 
-  if (endDT.getTime() < now.getTime()) {
+  if (isPast) {
     pill = { text: '마감', variant: 'closed' };
   } else if (d === 0 && endAt.time) {
-    pill = { text: `오늘 ${formatHourMinute(endAt.time)}`, variant: 'urgent' };
+    pill = {
+      text: `오늘 ${formatHourMinute(endAt.time)}`,
+      variant: 'urgent',
+    };
   } else if (d === 0) {
     pill = { text: 'D-0', variant: 'urgent' };
   } else if (d <= 3) {
     pill = { text: `D-${d}`, variant: 'urgent' };
-  } else if (d <= 7) {
-    pill = { text: `D-${d}`, variant: 'soon' };
   } else {
     pill = { text: `D-${d}`, variant: 'normal' };
   }
 
-  return { pill, context: endAt.label || null };
+  // When there's a label, append "까지" to the label for future deadlines
+  // (natural Korean: "D-33 · 1차 신청까지"). For closed action_required,
+  // the pill itself is "마감" — just show the label as-is.
+  const context = label ? (isPast ? label : `${label}까지`) : null;
+
+  return { pill, context };
 }
 
 function eventBadge(
@@ -205,12 +213,25 @@ export function formatDeadlineBadge(
 // ── manual test cases (reference only) ──
 //
 // Assuming now = 2026-04-11. Shape is { pill: {text, variant}, context }.
+// NoticeRow renders `${pill.text} · ${context}` inside a single colored box
+// when context exists, else just `pill.text`. For action_required with a
+// label, "까지" is baked into `context` for future deadlines (past → just
+// the label).
+//
 // - 통금해제 4/13~4/26 informational        → pill="D-2 시작" (upcoming), context=null
+//     → "D-2 시작"
 // - 시험기간 4/20~5/01 informational         → pill="D-9 시작" (upcoming), context=null
 //   at 4/20                                    → pill="진행 중 ~5/1" (inProgress), context=null
 // - Peter Singer 토크콘서트 4/15 19:00 event  → pill="D-4" (normal), context=null
 //   on 4/15                                    → pill="오늘 19:00" (eventToday), context=null
-// - 기아 채용 action_required                  → server rolls 4/13 → 4/20; pill="D-N" + context=endAt.label
-// - 복수전공 label="1차 신청"                   → pill="D-2" (urgent), context="1차 신청"
+// - 기아 채용 action_required (label 없음)      → pill="D-N", context=null
+//     → "D-N"
+// - 복수전공 label="1차 신청"                   → pill="D-2" (urgent), context="1차 신청까지"
+//     → "D-2 · 1차 신청까지"
 // - 지난 action_required with label="1차 신청" → pill="마감" (closed), context="1차 신청"
+//     → "마감 · 1차 신청" (no "까지" — it's past-tense)
+// - action_required D-0 + time 17:00, no label → pill="오늘 17:00", context=null
+//     → "오늘 17:00"
+// - action_required D-0 + time 17:00 + label   → pill="오늘 17:00", context="label까지"
+//     → "오늘 17:00 · label까지"
 // - 서초 방역 4/09 14:00~17:00 informational (start===end) → null
