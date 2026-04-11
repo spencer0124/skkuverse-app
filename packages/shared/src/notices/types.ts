@@ -125,8 +125,7 @@ export interface NoticeDetail {
   department: string | null;
   date: string;
   views: number;
-  contentHtml: string | null;
-  contentText: string | null;
+  contentMarkdown: string | null;
   attachments: NoticeAttachment[];
   sourceUrl: string;
   lastModified: string | null;

@@ -11,7 +11,7 @@ import { NoticeNavBar } from './NavigationBar';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
-import { NoticeHtmlView } from './NoticeHtmlView';
+import { NoticeMarkdownView } from './NoticeMarkdownView';
 
 interface Props {
   deptId: string;
@@ -83,9 +83,8 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
 
         <View style={styles.divider} />
 
-        <NoticeHtmlView
-          html={data.contentHtml}
-          fallbackText={data.contentText}
+        <NoticeMarkdownView
+          markdown={data.contentMarkdown}
           sourceUrl={data.sourceUrl}
         />
 

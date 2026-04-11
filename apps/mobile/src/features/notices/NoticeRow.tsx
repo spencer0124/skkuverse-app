@@ -1,12 +1,13 @@
 import { View, StyleSheet } from 'react-native';
 import { Sparkle } from 'lucide-react-native';
-import { SdsColors } from '@skkuverse/shared';
+import { SdsColors, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
-import type { NoticeListItem } from '@skkuverse/shared';
+import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import {
   formatDeadlineBadge,
   type DeadlineVariant,
 } from './utils/formatDeadlineBadge';
+import { formatRelativeDate } from './utils/formatRelativeDate';
 
 interface Props {
   item: NoticeListItem;
@@ -35,6 +36,8 @@ const BADGE_COLORS: Record<
 export function NoticeRow({ item, onPress }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
   const deadline = formatDeadlineBadge(item.summary ?? null);
+  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
+  const relativeDate = deadline ? null : formatRelativeDate(item.date, lang);
 
   return (
     <ListRow
@@ -60,6 +63,14 @@ export function NoticeRow({ item, onPress }: Props) {
                 {deadline.text}
               </Txt>
             </View>
+          ) : relativeDate ? (
+            <Txt
+              typography="t7"
+              color={SdsColors.grey400}
+              style={styles.relativeDateText}
+            >
+              {relativeDate}
+            </Txt>
           ) : null}
         </View>
       }
@@ -143,6 +154,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
+  },
+  relativeDateText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+    marginTop: 5,
   },
 });
 

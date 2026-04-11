@@ -270,8 +270,7 @@ describe('parseNoticeDetail', () => {
       department: '학사과',
       date: '2026-04-05',
       views: 500,
-      contentHtml: '<p>본문</p>',
-      contentText: '본문',
+      contentMarkdown: '**본문**',
       attachments: [{ name: '첨부.pdf', url: 'https://x/1.pdf' }],
       sourceUrl: 'https://www.skku.edu/notice/999',
       lastModified: '2026-04-06T10:00:00Z',
@@ -300,7 +299,7 @@ describe('parseNoticeDetail', () => {
     const detail = parseNoticeDetail(raw);
     expect(detail.id).toBe('abc');
     expect(detail.articleNo).toBe(999);
-    expect(detail.contentHtml).toBe('<p>본문</p>');
+    expect(detail.contentMarkdown).toBe('**본문**');
     expect(detail.attachments).toEqual([{ name: '첨부.pdf', url: 'https://x/1.pdf' }]);
     expect(detail.summary?.type).toBe('event');
     expect(detail.summary?.periods).toHaveLength(1);
@@ -320,8 +319,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-01',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -333,7 +331,7 @@ describe('parseNoticeDetail', () => {
     expect(detail.summary).toBeNull();
     expect(detail.editInfo).toBeNull();
     expect(detail.attachments).toEqual([]);
-    expect(detail.contentHtml).toBeNull();
+    expect(detail.contentMarkdown).toBeNull();
   });
 
   it('parses single period + single location (Sample 1: Samsung 채용설명회)', () => {
@@ -347,8 +345,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -410,8 +407,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-02-01',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -473,8 +469,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -527,8 +522,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -562,8 +556,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -612,8 +605,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,
@@ -646,8 +638,7 @@ describe('parseNoticeDetail', () => {
       department: null,
       date: '2026-04-09',
       views: 0,
-      contentHtml: null,
-      contentText: null,
+      contentMarkdown: null,
       attachments: [],
       sourceUrl: 'https://x',
       lastModified: null,

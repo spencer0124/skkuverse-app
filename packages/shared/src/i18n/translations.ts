@@ -258,6 +258,11 @@ const ko = {
   'notices.sectionThisWeek': '이번 주',
   'notices.sectionThisMonth': '이번 달',
   'notices.sectionEarlier': '이전',
+  'notices.relativeYesterday': '어제',
+  'notices.relativeDaysAgo': '{0}일 전',
+  'notices.relativeWeeksAgo': '{0}주 전',
+  'notices.relativeMonthsAgo': '{0}개월 전',
+  'notices.relativeYearsAgo': '{0}년 전',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -451,6 +456,11 @@ const en: TranslationMap = {
   'notices.sectionThisWeek': 'This week',
   'notices.sectionThisMonth': 'This month',
   'notices.sectionEarlier': 'Earlier',
+  'notices.relativeYesterday': 'Yesterday',
+  'notices.relativeDaysAgo': '{0} days ago',
+  'notices.relativeWeeksAgo': '{0} weeks ago',
+  'notices.relativeMonthsAgo': '{0} months ago',
+  'notices.relativeYearsAgo': '{0} years ago',
 };
 
 const zh: TranslationMap = {
@@ -640,6 +650,11 @@ const zh: TranslationMap = {
   'notices.sectionThisWeek': '本周',
   'notices.sectionThisMonth': '本月',
   'notices.sectionEarlier': '更早',
+  'notices.relativeYesterday': '昨天',
+  'notices.relativeDaysAgo': '{0}天前',
+  'notices.relativeWeeksAgo': '{0}周前',
+  'notices.relativeMonthsAgo': '{0}个月前',
+  'notices.relativeYearsAgo': '{0}年前',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };
