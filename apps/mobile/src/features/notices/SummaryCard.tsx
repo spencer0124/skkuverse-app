@@ -6,6 +6,7 @@ import {
   CheckSquare,
   MapPin,
   Building2,
+  Sparkle,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -56,6 +57,18 @@ export function SummaryCard({ summary }: Props) {
 
   return (
     <View style={styles.card}>
+      <View style={styles.aiHeader}>
+        <Sparkle
+          size={14}
+          color={SdsColors.grey600}
+          fill={SdsColors.grey600}
+          style={styles.aiHeaderIcon}
+        />
+        <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
+          {t('notices.aiSummaryLabel')}
+        </Txt>
+      </View>
+
       {summary.text ? (
         <Txt typography="t6" color={SdsColors.grey700} style={styles.text}>
           {summary.text}
@@ -97,6 +110,12 @@ export function SummaryCard({ summary }: Props) {
           </View>
         </>
       ) : null}
+
+      <View style={styles.aiFooter}>
+        <Txt typography="t7" color={SdsColors.grey400} style={styles.aiFooterText}>
+          {t('notices.aiSummaryCaption')}
+        </Txt>
+      </View>
     </View>
   );
 }
@@ -246,6 +265,27 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: SdsColors.grey50,
     gap: 8,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  aiHeaderIcon: {
+    opacity: 0.7,
+  },
+  aiFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 8,
+  },
+  aiFooterText: {
+    fontSize: 11,
+    lineHeight: 14,
+    opacity: 0.85,
   },
   text: {
     lineHeight: 22,

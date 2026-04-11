@@ -1,4 +1,5 @@
 import { View, StyleSheet } from 'react-native';
+import { Sparkle } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { NoticeListItem } from '@skkuverse/shared';
@@ -65,14 +66,22 @@ export function NoticeRow({ item, onPress }: Props) {
             {item.title}
           </Txt>
           {oneLiner.length > 0 ? (
-            <Txt
-              typography="t7"
-              color={SdsColors.grey500}
-              numberOfLines={1}
-              style={styles.subText}
-            >
-              {oneLiner}
-            </Txt>
+            <View style={styles.oneLinerRow}>
+              <Sparkle
+                size={12}
+                color={SdsColors.grey400}
+                fill={SdsColors.grey400}
+                style={styles.oneLinerIcon}
+              />
+              <Txt
+                typography="t7"
+                color={SdsColors.grey500}
+                numberOfLines={1}
+                style={styles.subText}
+              >
+                {oneLiner}
+              </Txt>
+            </View>
           ) : null}
         </View>
       }
@@ -95,7 +104,18 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     letterSpacing: -0.3,
   },
+  oneLinerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  oneLinerIcon: {
+    marginTop: 1,
+    flexShrink: 0,
+    opacity: 0.85,
+  },
   subText: {
+    flex: 1,
     fontSize: 13,
     lineHeight: 18,
     letterSpacing: -0.1,
