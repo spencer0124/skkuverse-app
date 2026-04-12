@@ -4,7 +4,6 @@ import { Download, Eye, ExternalLink, Paperclip } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
-  ApiConfig,
   SdsColors,
   useNoticeDetail,
   useT,
@@ -25,12 +24,12 @@ interface Props {
 export function NoticeDetailScreen({ deptId, articleNo }: Props) {
   const { t, tpl } = useT();
   const { data, isLoading, isError, refetch } = useNoticeDetail(deptId, articleNo);
-  const [toastOpen, setToastOpen] = useState(false);
+  const [toastText, setToastText] = useState<string | null>(null);
 
   const handleCopyText = useCallback((text: string) => {
     void Clipboard.setStringAsync(text);
-    setToastOpen(true);
-  }, []);
+    setToastText(t('notices.copied'));
+  }, [t]);
 
   const openOriginal = useCallback(() => {
     if (!data?.sourceUrl) return;
@@ -38,8 +37,8 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
   }, [data?.sourceUrl]);
 
   const openAttachment = useCallback(
-    (url: string, mode: 'inline' | 'download') => {
-      const proxyUrl = buildAttachmentUrl(url, data?.sourceUrl ?? '', mode);
+    (url: string, mode: 'inline' | 'download', name?: string) => {
+      const proxyUrl = buildAttachmentUrl(url, data?.sourceUrl ?? '', mode, name);
       void WebBrowser.openBrowserAsync(proxyUrl, inAppBrowserOptions);
     },
     [data?.sourceUrl],
@@ -116,16 +115,22 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
                 </View>
                 <View style={styles.attachmentActions}>
                   <Pressable
-                    onPress={() => openAttachment(a.url, 'inline')}
+                    onPress={() => {
+                      if (canPreview(a.name)) {
+                        openAttachment(a.url, 'inline', a.name);
+                      } else {
+                        setToastText(t('notices.noPreview'));
+                      }
+                    }}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
-                    <Eye size={14} color={SdsColors.blue500} />
-                    <Txt typography="t7" color={SdsColors.blue500}>
+                    <Eye size={14} color={canPreview(a.name) ? SdsColors.blue500 : SdsColors.grey400} />
+                    <Txt typography="t7" color={canPreview(a.name) ? SdsColors.blue500 : SdsColors.grey400}>
                       {t('notices.preview')}
                     </Txt>
                   </Pressable>
                   <Pressable
-                    onPress={() => openAttachment(a.url, 'download')}
+                    onPress={() => openAttachment(a.url, 'download', a.name)}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
                     <Download size={14} color={SdsColors.blue500} />
@@ -150,22 +155,31 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
         </Pressable>
       </ScrollView>
       <Toast
-        open={toastOpen}
-        text={t('notices.copied')}
+        open={toastText !== null}
+        text={toastText ?? ''}
         icon={<Toast.Icon type="check" />}
-        onClose={() => setToastOpen(false)}
+        onClose={() => setToastText(null)}
       />
     </View>
   );
+}
+
+const NO_PREVIEW_EXTS = new Set(['.hwp', '.hwpx', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip']);
+
+function canPreview(name: string): boolean {
+  const ext = (name.match(/\.[^.]+$/) ?? [''])[0].toLowerCase();
+  return !NO_PREVIEW_EXTS.has(ext);
 }
 
 function buildAttachmentUrl(
   url: string,
   sourceUrl: string,
   mode: 'inline' | 'download',
+  name?: string,
 ): string {
   const params = new URLSearchParams({ url, referer: sourceUrl, mode });
-  return `${ApiConfig.baseUrl}/notices/proxy/attachment?${params.toString()}`;
+  if (name) params.set('name', name);
+  return `https://files.skkuverse.com/notices/proxy/attachment?${params.toString()}`;
 }
 
 const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
