@@ -15,17 +15,21 @@
  * via the library's default `Linking.openURL` handler — no override needed.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   type ImageStyle,
+  Linking,
   StyleSheet,
+  Text,
   type TextStyle,
   useWindowDimensions,
   View,
+  type ViewStyle,
 } from 'react-native';
-import Markdown, {
+import {
   Renderer,
+  useMarkdown,
   type MarkedStyles,
   type RendererInterface,
 } from 'react-native-marked';
@@ -36,6 +40,8 @@ interface Props {
   markdown: string | null;
   /** Full notice page URL — used as the `Referer` header for image fetches. */
   sourceUrl?: string | null;
+  /** Called when the user taps a non-web link (email, phone, etc.) with the extracted value. */
+  onCopyText?: (text: string) => void;
 }
 
 // ── Custom image with Referer header ─────────────────────────────
@@ -126,11 +132,17 @@ function RefererImage({
 class NoticeRenderer extends Renderer implements RendererInterface {
   private readonly containerWidth: number;
   private readonly referer: string | undefined;
+  private readonly onCopyText: (text: string) => void;
 
-  constructor(containerWidth: number, referer: string | undefined) {
+  constructor(
+    containerWidth: number,
+    referer: string | undefined,
+    onCopyText: (text: string) => void,
+  ) {
     super();
     this.containerWidth = containerWidth;
     this.referer = referer;
+    this.onCopyText = onCopyText;
   }
 
   override image(
@@ -147,6 +159,54 @@ class NoticeRenderer extends Renderer implements RendererInterface {
         containerWidth={this.containerWidth}
         referer={this.referer}
       />
+    );
+  }
+
+  override link(
+    children: string | ReactNode[],
+    href: string,
+    styles?: TextStyle,
+    title?: string,
+  ) {
+    // Web links → open in browser (default behaviour)
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+      return (
+        <Text
+          selectable
+          accessibilityRole="link"
+          key={this.getKey()}
+          onPress={() => void Linking.openURL(href).catch(() => {})}
+          style={styles}
+        >
+          {children}
+        </Text>
+      );
+    }
+
+    // mailto:, tel:, etc. → copy the extracted value
+    const value = href.startsWith('mailto:')
+      ? href.slice(7)
+      : href.startsWith('tel:')
+        ? href.slice(4)
+        : href;
+
+    return (
+      <Text
+        selectable
+        key={this.getKey()}
+        onPress={() => this.onCopyText(value)}
+        style={styles}
+      >
+        {children}
+      </Text>
+    );
+  }
+
+  override paragraph(children: ReactNode[], styles?: ViewStyle) {
+    return (
+      <Text selectable key={this.getKey()} style={styles as TextStyle}>
+        {children}
+      </Text>
     );
   }
 }
@@ -216,30 +276,26 @@ const markdownStyles: MarkedStyles = {
 
 // ── Component ────────────────────────────────────────────────────
 
-export function NoticeMarkdownView({ markdown, sourceUrl }: Props) {
+export function NoticeMarkdownView({ markdown, sourceUrl, onCopyText }: Props) {
   const { width } = useWindowDimensions();
   const contentWidth = width - 40;
+  const noop = useMemo(() => () => {}, []);
 
   const renderer = useMemo(
-    () => new NoticeRenderer(contentWidth, sourceUrl ?? undefined),
-    [contentWidth, sourceUrl],
+    () => new NoticeRenderer(contentWidth, sourceUrl ?? undefined, onCopyText ?? noop),
+    [contentWidth, sourceUrl, onCopyText, noop],
   );
+
+  const elements = useMarkdown(markdown ?? '', { renderer, styles: markdownStyles });
 
   if (!markdown || markdown.trim() === '') return null;
 
-  // The detail screen wraps content in an outer ScrollView, so disable the
-  // inner FlatList's scroll to avoid nested scrolling.
   return (
-    <Markdown
-      value={markdown}
-      renderer={renderer}
-      styles={markdownStyles}
-      flatListProps={{
-        initialNumToRender: 8,
-        scrollEnabled: false,
-        nestedScrollEnabled: false,
-      }}
-    />
+    <View>
+      {elements.map((element, index) => (
+        <Fragment key={index}>{element}</Fragment>
+      ))}
+    </View>
   );
 }
 

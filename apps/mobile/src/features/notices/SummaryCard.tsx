@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { formatDisplayDate } from './utils/formatDisplayDate';
 import type {
   NoticeDetailSummary,
   NoticeLocation,
@@ -232,10 +233,10 @@ export function formatPeriod(period: NoticePeriod): string | null {
     if (startDate === endDate) {
       // Same day → optionally show start~end time
       if (startTime && endTime) {
-        return `${startDate} ${startTime} ~ ${endTime}`;
+        return `${formatDisplayDate(startDate)} ${startTime} ~ ${endTime}`;
       }
-      if (startTime) return `${startDate} ${startTime}`;
-      return startDate;
+      if (startTime) return `${formatDisplayDate(startDate)} ${startTime}`;
+      return formatDisplayDate(startDate);
     }
     return `${joinDateTime(startDate, startTime)} ~ ${joinDateTime(endDate, endTime)}`;
   }
@@ -250,7 +251,8 @@ export function formatPeriod(period: NoticePeriod): string | null {
 }
 
 function joinDateTime(date: string, time: string | null): string {
-  return time ? `${date} ${time}` : date;
+  const d = formatDisplayDate(date);
+  return time ? `${d} ${time}` : d;
 }
 
 const styles = StyleSheet.create({

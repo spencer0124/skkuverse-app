@@ -1,17 +1,19 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, Linking, StyleSheet } from 'react-native';
 import { ExternalLink, Paperclip } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
   SdsColors,
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { Toast, Txt } from '@skkuverse/sds';
 import { NoticeNavBar } from './NavigationBar';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
+import { formatDisplayDate } from './utils/formatDisplayDate';
 
 interface Props {
   deptId: string;
@@ -21,6 +23,12 @@ interface Props {
 export function NoticeDetailScreen({ deptId, articleNo }: Props) {
   const { t, tpl } = useT();
   const { data, isLoading, isError, refetch } = useNoticeDetail(deptId, articleNo);
+  const [toastOpen, setToastOpen] = useState(false);
+
+  const handleCopyText = useCallback((text: string) => {
+    void Clipboard.setStringAsync(text);
+    setToastOpen(true);
+  }, []);
 
   const openOriginal = useCallback(() => {
     if (!data?.sourceUrl) return;
@@ -59,7 +67,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
 
         <View style={styles.metaRow}>
           <Txt typography="t7" color={SdsColors.grey500}>
-            {data.date}
+            {formatDisplayDate(data.date)}
           </Txt>
           {data.author ? (
             <>
@@ -84,6 +92,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
         <NoticeMarkdownView
           markdown={data.contentMarkdown}
           sourceUrl={data.sourceUrl}
+          onCopyText={handleCopyText}
         />
 
         {data.attachments.length > 0 ? (
@@ -116,6 +125,12 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
           </Txt>
         </Pressable>
       </ScrollView>
+      <Toast
+        open={toastOpen}
+        text={t('notices.copied')}
+        icon={<Toast.Icon type="check" />}
+        onClose={() => setToastOpen(false)}
+      />
     </View>
   );
 }
