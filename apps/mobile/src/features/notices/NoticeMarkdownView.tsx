@@ -246,7 +246,7 @@ const markdownStyles: MarkedStyles = {
     color: SdsColors.blue500,
     textDecorationLine: 'underline',
   },
-  strong: { fontWeight: 'bold' },
+  strong: { fontWeight: 'bold', lineHeight: 30 },
   em: { fontStyle: 'italic' },
   strikethrough: { textDecorationLine: 'line-through' },
   li: { marginVertical: 2 },
