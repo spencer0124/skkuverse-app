@@ -1,21 +1,10 @@
-import { type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
-import {
-  Calendar,
-  Users,
-  CheckSquare,
-  MapPin,
-  Building2,
-  Sparkle,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react-native';
+import { Sparkle } from 'lucide-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 import type {
   NoticeDetailSummary,
-  NoticeLocation,
   NoticePeriod,
   NoticeSummaryDetails,
   TranslationKey,
@@ -26,13 +15,9 @@ interface Props {
 }
 
 /**
- * Renders the AI-generated summary card on the notice detail screen:
- * one-liner headline, full text, period(s), location(s), and the structured
- * `details` rows (target / action / host / impact). Each section is
- * conditional — empty arrays and null fields are hidden.
- *
- * Multi-phase notices (e.g. 1차/2차 납부) render as multiple period lines
- * under one Calendar row. Multi-location notices do the same under MapPin.
+ * Renders the AI-generated summary card and a separate details card
+ * on the notice detail screen. The two cards are visually separated:
+ * card 1 = AI headline + text, card 2 = period/location/detail rows.
  */
 export function SummaryCard({ summary }: Props) {
   const { t } = useT();
@@ -45,131 +30,74 @@ export function SummaryCard({ summary }: Props) {
     .filter((v): v is { label: string | null; line: string } => v !== null);
   const locationEntries = summary.locations;
   const detailRows = buildDetailRows(summary.details, t);
-  const hasAnyContent =
-    !!summary.text ||
+
+  const hasMetaRows =
     periodEntries.length > 0 ||
     locationEntries.length > 0 ||
     detailRows.length > 0;
 
-  if (!hasAnyContent) return null;
+  // Collect all rows for the meta card
+  const metaRows: { label: string; value: string }[] = [];
 
-  const hasTopBlock =
-    !!summary.text || periodEntries.length > 0 || locationEntries.length > 0;
-
-  return (
-    <View style={styles.card}>
-      <View style={styles.aiHeader}>
-        <Sparkle
-          size={14}
-          color={SdsColors.grey600}
-          fill={SdsColors.grey600}
-          style={styles.aiHeaderIcon}
-        />
-        <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
-          {t('notices.aiSummaryLabel')}
-        </Txt>
-      </View>
-
-      {summary.text ? (
-        <Txt typography="t6" color={SdsColors.grey700} style={styles.text}>
-          {summary.text}
-        </Txt>
-      ) : null}
-
-      {periodEntries.length > 0 ? (
-        <StackRow
-          icon={Calendar}
-          label={t('notices.period')}
-          values={periodEntries.map((e) =>
-            e.label ? `${e.label}: ${e.line}` : e.line,
-          )}
-        />
-      ) : null}
-
-      {locationEntries.length > 0 ? (
-        <StackRow
-          icon={MapPin}
-          label={t('notices.detailLabelLocation')}
-          values={locationEntries.map((loc) =>
-            loc.label ? `${loc.label}: ${loc.detail}` : loc.detail,
-          )}
-        />
-      ) : null}
-
-      {detailRows.length > 0 ? (
-        <>
-          {hasTopBlock ? <View style={styles.divider} /> : null}
-          <View style={styles.detailRows}>
-            {detailRows.map((row) => (
-              <InfoRow
-                key={row.key}
-                icon={row.icon}
-                label={row.label}
-                value={row.value}
-              />
-            ))}
-          </View>
-        </>
-      ) : null}
-
-    </View>
-  );
-}
-
-interface InfoRowProps {
-  icon: LucideIcon;
-  label: string;
-  value: ReactNode;
-}
-
-function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
-  return (
-    <View style={styles.row}>
-      <Icon size={14} color={SdsColors.grey600} style={styles.rowIcon} />
-      <Txt typography="t7" color={SdsColors.grey500} style={styles.rowLabel}>
-        {label}
-      </Txt>
-      <Txt typography="t7" color={SdsColors.grey800} style={styles.rowValue}>
-        {value}
-      </Txt>
-    </View>
-  );
-}
-
-interface StackRowProps {
-  icon: LucideIcon;
-  label: string;
-  values: string[];
-}
-
-/**
- * Multi-line variant of InfoRow: icon + label on the left, and each value
- * on its own row on the right. Used when a single period/location field
- * has multiple entries (e.g. 1차 납부 / 2차 납부).
- */
-function StackRow({ icon: Icon, label, values }: StackRowProps) {
-  if (values.length === 1) {
-    return <InfoRow icon={Icon} label={label} value={values[0]} />;
+  for (const e of periodEntries) {
+    metaRows.push({
+      label: e.label ?? t('notices.period'),
+      value: e.line,
+    });
   }
+
+  for (const loc of locationEntries) {
+    metaRows.push({
+      label: t('notices.detailLabelLocation'),
+      value: loc.label ? `${loc.label}: ${loc.detail}` : loc.detail,
+    });
+  }
+
+  for (const row of detailRows) {
+    metaRows.push({ label: row.label, value: row.value });
+  }
+
   return (
-    <View style={styles.row}>
-      <Icon size={14} color={SdsColors.grey600} style={styles.rowIcon} />
-      <Txt typography="t7" color={SdsColors.grey500} style={styles.rowLabel}>
-        {label}
-      </Txt>
-      <View style={styles.stackValues}>
-        {values.map((v, i) => (
-          <Txt
-            key={i}
-            typography="t7"
-            color={SdsColors.grey800}
-            style={styles.rowValue}
-          >
-            {v}
+    <>
+      {/* Card 1: AI Summary */}
+      {summary.text ? (
+        <View style={styles.summaryCard}>
+          <View style={styles.aiHeader}>
+            <Sparkle
+              size={14}
+              color={SdsColors.grey600}
+              fill={SdsColors.grey600}
+              style={styles.aiHeaderIcon}
+            />
+            <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
+              {t('notices.aiSummaryLabel')}
+            </Txt>
+          </View>
+          <Txt typography="t6" color={SdsColors.grey700} style={styles.text}>
+            {summary.text}
           </Txt>
-        ))}
-      </View>
-    </View>
+        </View>
+      ) : null}
+
+      {/* Card 2: Meta details */}
+      {hasMetaRows ? (
+        <View style={styles.metaCard}>
+          {metaRows.map((row, i) => (
+            <View key={`${row.label}-${i}`}>
+              {i > 0 ? <View style={styles.divider} /> : null}
+              <View style={styles.metaRow}>
+                <Txt typography="t7" color={SdsColors.grey500} style={styles.metaLabel}>
+                  {row.label}
+                </Txt>
+                <Txt typography="t7" color={SdsColors.grey800} style={styles.metaValue} lineBreakStrategyIOS="hangul-word">
+                  {row.value}
+                </Txt>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -177,7 +105,6 @@ function StackRow({ icon: Icon, label, values }: StackRowProps) {
 
 interface DetailRowDef {
   key: keyof NoticeSummaryDetails;
-  icon: LucideIcon;
   label: string;
   value: string;
 }
@@ -189,40 +116,18 @@ function buildDetailRows(
   if (!details) return [];
   const rows: DetailRowDef[] = [];
   if (details.target)
-    rows.push({
-      key: 'target',
-      icon: Users,
-      label: t('notices.detailLabelTarget'),
-      value: details.target,
-    });
+    rows.push({ key: 'target', label: t('notices.detailLabelTarget'), value: details.target });
   if (details.action)
-    rows.push({
-      key: 'action',
-      icon: CheckSquare,
-      label: t('notices.detailLabelAction'),
-      value: details.action,
-    });
+    rows.push({ key: 'action', label: t('notices.detailLabelAction'), value: details.action });
   if (details.host)
-    rows.push({
-      key: 'host',
-      icon: Building2,
-      label: t('notices.detailLabelHost'),
-      value: details.host,
-    });
+    rows.push({ key: 'host', label: t('notices.detailLabelHost'), value: details.host });
   if (details.impact)
-    rows.push({
-      key: 'impact',
-      icon: Sparkles,
-      label: t('notices.detailLabelImpact'),
-      value: details.impact,
-    });
+    rows.push({ key: 'impact', label: t('notices.detailLabelImpact'), value: details.impact });
   return rows;
 }
 
 /**
- * Builds a human-readable string for a single period. Returns `null`
- * when the period carries no date at all (should be rare — server only
- * emits meaningful periods, but we defend defensively).
+ * Builds a human-readable string for a single period.
  */
 export function formatPeriod(period: NoticePeriod): string | null {
   const { startDate, startTime, endDate, endTime } = period;
@@ -231,7 +136,6 @@ export function formatPeriod(period: NoticePeriod): string | null {
 
   if (startDate && endDate) {
     if (startDate === endDate) {
-      // Same day → optionally show start~end time
       if (startTime && endTime) {
         return `${formatDisplayDate(startDate)} ${startTime} ~ ${endTime}`;
       }
@@ -241,12 +145,7 @@ export function formatPeriod(period: NoticePeriod): string | null {
     return `${joinDateTime(startDate, startTime)} ~ ${joinDateTime(endDate, endTime)}`;
   }
 
-  if (endDate) {
-    // 마감만 있는 경우
-    return `~${joinDateTime(endDate, endTime)}`;
-  }
-
-  // startDate만 있는 경우
+  if (endDate) return `~${joinDateTime(endDate, endTime)}`;
   return `${joinDateTime(startDate!, startTime)}~`;
 }
 
@@ -256,7 +155,7 @@ function joinDateTime(date: string, time: string | null): string {
 }
 
 const styles = StyleSheet.create({
-  card: {
+  summaryCard: {
     marginTop: 12,
     padding: 14,
     borderRadius: 10,
@@ -275,32 +174,29 @@ const styles = StyleSheet.create({
   text: {
     lineHeight: 22,
   },
+  metaCard: {
+    marginTop: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: SdsColors.grey100,
+    overflow: 'hidden',
+  },
   divider: {
-    marginTop: 4,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: SdsColors.grey200,
+    backgroundColor: SdsColors.grey100,
   },
-  detailRows: {
-    marginTop: 4,
-    gap: 6,
-  },
-  row: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  rowIcon: {
-    marginTop: 3,
-  },
-  rowLabel: {
+  metaLabel: {
     width: 60,
     flexShrink: 0,
+    marginRight: 12,
   },
-  rowValue: {
+  metaValue: {
     flex: 1,
-  },
-  stackValues: {
-    flex: 1,
-    gap: 3,
   },
 });

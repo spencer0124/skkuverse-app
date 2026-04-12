@@ -229,8 +229,8 @@ const headingBase: TextStyle = {
 
 const markdownStyles: MarkedStyles = {
   text: {
-    fontSize: 17,
-    lineHeight: 30,
+    fontSize: 15,
+    lineHeight: 26,
     color: SdsColors.grey800,
   },
   paragraph: {

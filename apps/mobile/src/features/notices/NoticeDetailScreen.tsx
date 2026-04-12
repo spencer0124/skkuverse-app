@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { Download, Eye, ExternalLink, Paperclip } from 'lucide-react-native';
+import { Bookmark, Download, Eye, ExternalLink, Paperclip, Share2 } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -8,7 +8,7 @@ import {
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
-import { Toast, Txt } from '@skkuverse/sds';
+import { BottomCTA, Button, Toast, Txt } from '@skkuverse/sds';
 import { NoticeNavBar } from './NavigationBar';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
@@ -154,6 +154,27 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
           </Txt>
         </Pressable>
       </ScrollView>
+      <BottomCTA>
+        <View style={styles.ctaRow}>
+          <Button
+            display="block"
+            style="weak"
+            size="large"
+            leftAccessory={<Bookmark size={18} color={SdsColors.blue500} />}
+            viewStyle={styles.ctaButton}
+          >
+            {t('notices.save')}
+          </Button>
+          <Button
+            display="block"
+            size="large"
+            leftAccessory={<Share2 size={18} color={SdsColors.background} />}
+            viewStyle={styles.ctaButton}
+          >
+            {t('notices.share')}
+          </Button>
+        </View>
+      </BottomCTA>
       <Toast
         open={toastText !== null}
         text={toastText ?? ''}
@@ -203,7 +224,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 60,
+    paddingBottom: 120,
     gap: 8,
   },
   title: {
@@ -264,6 +285,14 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  ctaButton: {
+    flex: 1,
+    alignSelf: 'stretch',
   },
 });
 
