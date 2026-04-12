@@ -208,7 +208,7 @@ function TabRoot({
 
   if (fluid) {
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fluidScroll}>
         {content}
       </ScrollView>
     );
@@ -224,6 +224,9 @@ export const Tab = Object.assign(TabRoot, {
 });
 
 const styles = StyleSheet.create({
+  fluidScroll: {
+    flexGrow: 0,
+  },
   container: {
     position: 'relative',
   },

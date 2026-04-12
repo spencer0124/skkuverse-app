@@ -1,131 +1,22 @@
-import { useCallback, useMemo } from 'react';
-import {
-  View,
-  SectionList,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import {
-  SdsColors,
-  useNoticeDepartments,
-  useNoticeList,
-  useSettingsStore,
-  useT,
-  type AppLanguage,
-} from '@skkuverse/shared';
-import type { NoticeListItem } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { SdsColors, useNoticeDepartments, useT } from '@skkuverse/shared';
 import { NoticeNavBar } from './NavigationBar';
-import { NoticeRow } from './NoticeRow';
-import { NoticeListSkeleton } from './NoticeListSkeleton';
-import { NoticeEmptyState } from './EmptyState';
-import { groupNoticesByDate } from './utils/groupNotices';
+import { NoticeListPanel } from './NoticeListPanel';
 
 interface Props {
   deptId: string;
 }
 
 export function NoticeListScreen({ deptId }: Props) {
-  const router = useRouter();
   const { t } = useT();
-  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
-
   const { data: depts } = useNoticeDepartments();
-  const dept = useMemo(
-    () => depts?.find((d) => d.id === deptId),
-    [depts, deptId],
-  );
-
-  const {
-    data,
-    isLoading,
-    isError,
-    isRefetching,
-    refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useNoticeList({ deptId });
-
-  const items = useMemo(
-    () => data?.pages.flatMap((p) => p.notices) ?? [],
-    [data],
-  );
-
-  const sections = useMemo(
-    () => groupNoticesByDate(items, lang),
-    [items, lang],
-  );
-
-  const handleSelect = useCallback(
-    (n: NoticeListItem) => {
-      router.push(`/notices/${deptId}/${n.articleNo}` as never);
-    },
-    [router, deptId],
-  );
-
-  const onEndReached = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const dept = useMemo(() => depts?.find((d) => d.id === deptId), [depts, deptId]);
 
   return (
     <View style={styles.container}>
       <NoticeNavBar title={dept?.name ?? t('notices.title')} />
-
-      {isLoading ? (
-        <NoticeListSkeleton />
-      ) : isError ? (
-        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-      ) : items.length === 0 ? (
-        <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(n) => n.id}
-          renderItem={({ item }) => (
-            <NoticeRow item={item} onPress={handleSelect} />
-          )}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <Txt
-                typography="t7"
-                fontWeight="semiBold"
-                color={SdsColors.grey600}
-              >
-                {section.title}
-              </Txt>
-            </View>
-          )}
-          SectionSeparatorComponent={({ leadingItem, trailingSection }) =>
-            leadingItem && trailingSection ? (
-              <View style={styles.sectionGap} />
-            ) : null
-          }
-          ItemSeparatorComponent={() => <View style={styles.divider} />}
-          stickySectionHeadersEnabled={false}
-          contentContainerStyle={styles.listContent}
-          onEndReached={onEndReached}
-          onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-          }
-          ListFooterComponent={
-            isFetchingNextPage ? (
-              <View style={styles.footer}>
-                <ActivityIndicator color={SdsColors.grey500} />
-              </View>
-            ) : !hasNextPage && items.length > 0 ? (
-              <View style={styles.endOfList}>
-                <Txt typography="t7" color={SdsColors.grey500}>
-                  {t('notices.endOfList')}
-                </Txt>
-              </View>
-            ) : null
-          }
-        />
-      )}
+      <NoticeListPanel deptId={deptId} />
     </View>
   );
 }
@@ -135,30 +26,4 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.grey100,
   },
-  listContent: {
-    paddingBottom: 40,
-  },
-  sectionHeader: {
-    paddingTop: 28,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
-  },
-  sectionGap: {
-    height: 8,
-    backgroundColor: SdsColors.grey100,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F2F3F5',
-    marginLeft: 20,
-  },
-  footer: {
-    paddingVertical: 20,
-  },
-  endOfList: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
 });
-

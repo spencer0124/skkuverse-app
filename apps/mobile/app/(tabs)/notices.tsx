@@ -1,5 +1,5 @@
-import { DepartmentListScreen } from '@/features/notices/DepartmentListScreen';
+import { NoticesTabScreen } from '@/features/notices/NoticesTabScreen';
 
 export default function NoticesTab() {
-  return <DepartmentListScreen />;
+  return <NoticesTabScreen />;
 }
