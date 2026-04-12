@@ -178,8 +178,8 @@ function informationalBadge(
   if (todayStart < startStart) {
     const d = diffDays(todayStart, startStart);
     return {
-      pill: { text: `D-${d} 시작`, variant: 'upcoming' },
-      context: null,
+      pill: { text: `D-${d}`, variant: 'upcoming' },
+      context: '시작까지',
     };
   }
   if (todayStart <= endStart) {
@@ -221,8 +221,8 @@ export function formatDeadlineBadge(
 // label, "까지" is baked into `context` for future deadlines (past → just
 // the label).
 //
-// - 통금해제 4/13~4/26 informational        → pill="D-2 시작" (upcoming), context=null
-//     → "D-2 시작"
+// - 통금해제 4/13~4/26 informational        → pill="D-2" (upcoming), context="시작까지"
+//     → "D-2 · 시작까지"
 // - 시험기간 4/20~5/01 informational         → pill="D-9 시작" (upcoming), context=null
 //   at 4/20                                    → pill="진행 중 ~5/1" (inProgress), context=null
 // - Peter Singer 토크콘서트 4/15 19:00 event  → pill="D-4" (normal), context=null
