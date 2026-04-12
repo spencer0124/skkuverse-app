@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { ExternalLink, Paperclip } from 'lucide-react-native';
+import { Download, Eye, ExternalLink, Paperclip } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
+  ApiConfig,
   SdsColors,
   useNoticeDetail,
   useT,
@@ -36,9 +37,13 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
     void WebBrowser.openBrowserAsync(data.sourceUrl, inAppBrowserOptions);
   }, [data?.sourceUrl]);
 
-  const openAttachment = useCallback((url: string) => {
-    void WebBrowser.openBrowserAsync(url, inAppBrowserOptions);
-  }, []);
+  const openAttachment = useCallback(
+    (url: string, mode: 'inline' | 'download') => {
+      const proxyUrl = buildAttachmentUrl(url, data?.sourceUrl ?? '', mode);
+      void WebBrowser.openBrowserAsync(proxyUrl, inAppBrowserOptions);
+    },
+    [data?.sourceUrl],
+  );
 
   if (isLoading) {
     return (
@@ -102,16 +107,34 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
               {t('notices.attachments')}
             </Txt>
             {data.attachments.map((a) => (
-              <Pressable
-                key={a.url}
-                onPress={() => openAttachment(a.url)}
-                style={({ pressed }) => [styles.attachmentRow, pressed && styles.pressed]}
-              >
-                <Paperclip size={14} color={SdsColors.grey600} />
-                <Txt typography="t6" color={SdsColors.blue500} numberOfLines={1} style={styles.attachmentName}>
-                  {a.name}
-                </Txt>
-              </Pressable>
+              <View key={a.url} style={styles.attachmentItem}>
+                <View style={styles.attachmentNameRow}>
+                  <Paperclip size={14} color={SdsColors.grey600} />
+                  <Txt typography="t6" color={SdsColors.grey800} numberOfLines={1} style={styles.attachmentName}>
+                    {a.name}
+                  </Txt>
+                </View>
+                <View style={styles.attachmentActions}>
+                  <Pressable
+                    onPress={() => openAttachment(a.url, 'inline')}
+                    style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
+                  >
+                    <Eye size={14} color={SdsColors.blue500} />
+                    <Txt typography="t7" color={SdsColors.blue500}>
+                      {t('notices.preview')}
+                    </Txt>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => openAttachment(a.url, 'download')}
+                    style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
+                  >
+                    <Download size={14} color={SdsColors.blue500} />
+                    <Txt typography="t7" color={SdsColors.blue500}>
+                      {t('notices.download')}
+                    </Txt>
+                  </Pressable>
+                </View>
+              </View>
             ))}
           </View>
         ) : null}
@@ -134,6 +157,15 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
       />
     </View>
   );
+}
+
+function buildAttachmentUrl(
+  url: string,
+  sourceUrl: string,
+  mode: 'inline' | 'download',
+): string {
+  const params = new URLSearchParams({ url, referer: sourceUrl, mode });
+  return `${ApiConfig.baseUrl}/notices/proxy/attachment?${params.toString()}`;
 }
 
 const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
@@ -183,14 +215,27 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.grey50,
     gap: 8,
   },
-  attachmentRow: {
+  attachmentItem: {
+    gap: 6,
+    paddingVertical: 6,
+  },
+  attachmentNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 6,
   },
   attachmentName: {
     flex: 1,
+  },
+  attachmentActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginLeft: 22,
+  },
+  attachmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   openOriginal: {
     marginTop: 24,
