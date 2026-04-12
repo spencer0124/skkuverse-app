@@ -23,6 +23,27 @@ import {
 } from './components/ZoomableContainer';
 import { PlaceInfoCard } from './components/PlaceInfoCard';
 
+/**
+ * Downscale factor for the SvgXml vector overlay layout size.
+ *
+ * react-native-svg's Android `SvgView.onDraw()` allocates an offscreen bitmap
+ * sized `view.width × view.height × density² × 4 bytes`. At the SVG's native
+ * size (4257 × 3720 dp) on a high-density Samsung device (density ≈ 3.0) this
+ * works out to ~570MB → fatal `Canvas: trying to draw too large bitmap`
+ * crash observed in 3.5.0 (build 106) Crashlytics.
+ *
+ * Because `HSSC_SVG_XML` carries `viewBox="0 0 4257 3720"`, the rendered
+ * layout size is independent of the path coordinate space. We rasterize at
+ * 1/4 size (~36MB bitmap), then visually scale the wrapping View by 4× via
+ * an RN transform — RN transforms do NOT affect layout size, so the SvgView's
+ * backing bitmap stays at the small layout size.
+ *
+ * Hit-testing is unaffected: `findElementAtPoint` and `ZoomableContainer`'s
+ * tap-coord inverse transform both operate in SVG viewBox coordinates, which
+ * are still tied to the outer fixed-size content View.
+ */
+const SVG_DOWNSCALE = 4;
+
 export function HsscMapScreen() {
   const zoomableRef = useRef<ZoomableContainerRef>(null);
   const params = useLocalSearchParams<{ building?: string }>();
@@ -99,13 +120,29 @@ export function HsscMapScreen() {
             />
           ))}
 
-          {/* SVG vector layer (transparent background, on top of images) */}
-          <SvgXml
-            xml={HSSC_SVG_XML}
-            width={SVG_WIDTH}
-            height={SVG_HEIGHT}
-            style={StyleSheet.absoluteFill}
-          />
+          {/* SVG vector layer (transparent background, on top of images).
+              Rendered at 1/SVG_DOWNSCALE the layout size to keep the
+              SvgView backing bitmap small (see SVG_DOWNSCALE comment),
+              then scaled visually back to full size with a top-left
+              anchored RN transform. */}
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: SVG_WIDTH / SVG_DOWNSCALE,
+              height: SVG_HEIGHT / SVG_DOWNSCALE,
+              transformOrigin: '0% 0%',
+              transform: [{ scale: SVG_DOWNSCALE }],
+            }}
+          >
+            <SvgXml
+              xml={HSSC_SVG_XML}
+              width={SVG_WIDTH / SVG_DOWNSCALE}
+              height={SVG_HEIGHT / SVG_DOWNSCALE}
+            />
+          </View>
         </View>
       </ZoomableContainer>
 
