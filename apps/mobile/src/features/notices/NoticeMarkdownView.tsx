@@ -19,7 +19,6 @@ import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   type ImageStyle,
-  Linking,
   StyleSheet,
   Text,
   type TextStyle,
@@ -27,6 +26,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import {
   Renderer,
   useMarkdown,
@@ -43,6 +43,15 @@ interface Props {
   /** Called when the user taps a non-web link (email, phone, etc.) with the extracted value. */
   onCopyText?: (text: string) => void;
 }
+
+const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
+  presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+  controlsColor: '#1A8A5C',
+  toolbarColor: '#ffffff',
+  dismissButtonStyle: 'close',
+  showTitle: true,
+  enableBarCollapsing: true,
+};
 
 // ── Custom image with Referer header ─────────────────────────────
 
@@ -168,14 +177,14 @@ class NoticeRenderer extends Renderer implements RendererInterface {
     styles?: TextStyle,
     title?: string,
   ) {
-    // Web links → open in browser (default behaviour)
+    // Web links → open in-app browser (SFSafariViewController / Chrome Custom Tabs)
     if (href.startsWith('http://') || href.startsWith('https://')) {
       return (
         <Text
           selectable
           accessibilityRole="link"
           key={this.getKey()}
-          onPress={() => void Linking.openURL(href).catch(() => {})}
+          onPress={() => void WebBrowser.openBrowserAsync(href, inAppBrowserOptions)}
           style={styles}
         >
           {children}
@@ -220,8 +229,8 @@ const headingBase: TextStyle = {
 
 const markdownStyles: MarkedStyles = {
   text: {
-    fontSize: 16,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 30,
     color: SdsColors.grey800,
   },
   paragraph: {

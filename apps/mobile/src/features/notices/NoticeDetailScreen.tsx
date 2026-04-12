@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
-import { View, ScrollView, Pressable, Linking, StyleSheet } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { ExternalLink, Paperclip } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as WebBrowser from 'expo-web-browser';
 import {
   SdsColors,
   useNoticeDetail,
@@ -32,11 +33,11 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
 
   const openOriginal = useCallback(() => {
     if (!data?.sourceUrl) return;
-    void Linking.openURL(data.sourceUrl).catch(() => {});
+    void WebBrowser.openBrowserAsync(data.sourceUrl, inAppBrowserOptions);
   }, [data?.sourceUrl]);
 
   const openAttachment = useCallback((url: string) => {
-    void Linking.openURL(url).catch(() => {});
+    void WebBrowser.openBrowserAsync(url, inAppBrowserOptions);
   }, []);
 
   if (isLoading) {
@@ -61,18 +62,18 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
     <View style={styles.container}>
       <NoticeNavBar title="" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
+        <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
         </Txt>
 
         <View style={styles.metaRow}>
-          <Txt typography="t7" color={SdsColors.grey500}>
+          <Txt typography="t6" color={SdsColors.grey500}>
             {formatDisplayDate(data.date)}
           </Txt>
           {data.author ? (
             <>
               <Dot />
-              <Txt typography="t7" color={SdsColors.grey500}>
+              <Txt typography="t6" color={SdsColors.grey500}>
                 {data.author}
               </Txt>
             </>
@@ -80,7 +81,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
           {data.views > 0 ? (
             <>
               <Dot />
-              <Txt typography="t7" color={SdsColors.grey500}>
+              <Txt typography="t6" color={SdsColors.grey500}>
                 {tpl('notices.views', data.views)}
               </Txt>
             </>
@@ -134,6 +135,15 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
     </View>
   );
 }
+
+const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
+  presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+  controlsColor: '#1A8A5C',
+  toolbarColor: '#ffffff',
+  dismissButtonStyle: 'close',
+  showTitle: true,
+  enableBarCollapsing: true,
+};
 
 function Dot() {
   return <View style={styles.dot} />;
