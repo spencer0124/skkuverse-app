@@ -8,6 +8,8 @@ import { formatRelativeDate } from './utils/formatRelativeDate';
 interface Props {
   item: NoticeListItem;
   onPress: (item: NoticeListItem) => void;
+  /** Show department label (only for multi-dept tabs like 학과/도서관). */
+  showDepartment?: boolean;
 }
 
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
@@ -17,11 +19,12 @@ const PILL_COLORS: Partial<Record<string, { color: string; background: string }>
 };
 const DEFAULT_PILL = { color: SdsColors.grey600, background: '#F2F3F5' };
 
-export function NoticeRow({ item, onPress }: Props) {
+export function NoticeRow({ item, onPress, showDepartment }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
   const deadline = formatDeadlineBadge(item.summary ?? null);
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
   const relativeDate = formatRelativeDate(item.date, lang);
+  const deptLabel = showDepartment ? item.department : undefined;
 
   return (
     <ListRow
@@ -30,25 +33,34 @@ export function NoticeRow({ item, onPress }: Props) {
       containerStyle={styles.container}
       contents={
         <View style={styles.contents}>
-          {(item.department || relativeDate) ? (
+          {(relativeDate || deptLabel) ? (
             <View style={styles.metaRow}>
-              {item.department ? (
-                <Txt
-                  typography="t7"
-                  color={SdsColors.grey400}
-                  numberOfLines={1}
-                  style={styles.deptText}
-                >
-                  {item.department}
-                </Txt>
-              ) : <View style={styles.spacer} />}
               {relativeDate ? (
                 <Txt
                   typography="t7"
                   color={SdsColors.grey400}
-                  style={styles.relativeText}
+                  style={styles.metaText}
                 >
                   {relativeDate}
+                </Txt>
+              ) : null}
+              {relativeDate && deptLabel ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey300}
+                  style={styles.metaText}
+                >
+                  {' · '}
+                </Txt>
+              ) : null}
+              {deptLabel ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  numberOfLines={1}
+                  style={[styles.metaText, styles.deptText]}
+                >
+                  {deptLabel}
                 </Txt>
               ) : null}
             </View>
@@ -117,24 +129,16 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
+  metaText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
   deptText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.1,
-  },
-  spacer: {
-    flex: 1,
-  },
-  relativeText: {
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.1,
-    marginLeft: 8,
+    flexShrink: 1,
   },
   title: {
     fontSize: 16,

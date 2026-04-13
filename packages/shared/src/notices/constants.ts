@@ -20,6 +20,9 @@ export const CRAWLER_ENABLED_DEPT_IDS = [
   'dorm-seoul',
   'medicine',
   'cheme',
+  'lib-all',
+  'lib-seoul',
+  'lib-suwon',
 ] as const;
 
 export type CrawlerEnabledDeptId = (typeof CRAWLER_ENABLED_DEPT_IDS)[number];

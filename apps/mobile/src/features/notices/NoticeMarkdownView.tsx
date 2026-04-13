@@ -34,7 +34,7 @@ import {
   type RendererInterface,
 } from 'react-native-marked';
 import { SdsColors } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { Skeleton, Txt } from '@skkuverse/sds';
 
 interface Props {
   markdown: string | null;
@@ -53,6 +53,24 @@ const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
   enableBarCollapsing: true,
 };
 
+// ── Dimension hint parser ───────────────────────────────────────
+
+/** Parse `{WxH}`, `{wN}`, `{hN}` prefix from crawler-injected alt text. */
+function parseDimHint(alt?: string): {
+  width?: number;
+  height?: number;
+  cleanAlt: string;
+} {
+  if (!alt) return { cleanAlt: '' };
+  const full = alt.match(/^\{(\d+)x(\d+)\}\s?(.*)/s);
+  if (full) return { width: +full[1], height: +full[2], cleanAlt: full[3] };
+  const wOnly = alt.match(/^\{w(\d+)\}\s?(.*)/s);
+  if (wOnly) return { width: +wOnly[1], cleanAlt: wOnly[2] };
+  const hOnly = alt.match(/^\{h(\d+)\}\s?(.*)/s);
+  if (hOnly) return { height: +hOnly[1], cleanAlt: hOnly[2] };
+  return { cleanAlt: alt };
+}
+
 // ── Custom image with Referer header ─────────────────────────────
 
 interface RefererImageProps {
@@ -60,6 +78,8 @@ interface RefererImageProps {
   alt?: string;
   containerWidth: number;
   referer?: string;
+  hintWidth?: number;
+  hintHeight?: number;
 }
 
 /**
@@ -72,6 +92,8 @@ function RefererImage({
   alt,
   containerWidth,
   referer,
+  hintWidth,
+  hintHeight,
 }: RefererImageProps) {
   const headers = useMemo<Record<string, string>>(() => {
     const h: Record<string, string> = {};
@@ -113,6 +135,21 @@ function RefererImage({
   }
 
   if (!size) {
+    if (hintWidth && hintHeight) {
+      const hintAspect = hintHeight / hintWidth;
+      const w = Math.min(hintWidth, containerWidth);
+      const h = w * hintAspect;
+      return (
+        <Skeleton.Animate>
+          <Skeleton
+            width={w}
+            height={h}
+            borderRadius={8}
+            style={{ marginVertical: 8 }}
+          />
+        </Skeleton.Animate>
+      );
+    }
     return (
       <View style={[styles.imagePlaceholder, { width: containerWidth }]} />
     );
@@ -160,13 +197,16 @@ class NoticeRenderer extends Renderer implements RendererInterface {
     _style?: ImageStyle,
     _title?: string,
   ) {
+    const { width, height, cleanAlt } = parseDimHint(alt);
     return (
       <RefererImage
         key={`img-${uri}`}
         uri={uri}
-        alt={alt}
+        alt={cleanAlt}
         containerWidth={this.containerWidth}
         referer={this.referer}
+        hintWidth={width}
+        hintHeight={height}
       />
     );
   }

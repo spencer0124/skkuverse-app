@@ -21,7 +21,6 @@ import {
   useNoticeDepartments,
   useSettingsStore,
   useT,
-  type Department,
 } from '@skkuverse/shared';
 import { Tab, Txt } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
@@ -60,12 +59,8 @@ const TAB_DEPT_ID: Record<Exclude<NoticeTab, 'hakgwa' | 'library'>, string> = {
   general: 'skku-general',
 };
 
-/** Static library department entries for the picker. */
-const LIBRARY_DEPARTMENTS: Department[] = [
-  { id: 'lib-all', name: '전체', campus: null, category: null, hasCategory: false, hasAuthor: false },
-  { id: 'lib-seoul', name: '서울캠퍼스', campus: 'hssc', category: null, hasCategory: false, hasAuthor: false },
-  { id: 'lib-suwon', name: '수원캠퍼스', campus: 'nsc', category: null, hasCategory: false, hasAuthor: false },
-];
+/** Library dept IDs — names are resolved from the server department list. */
+const LIBRARY_DEPT_IDS = ['lib-all', 'lib-seoul', 'lib-suwon'];
 
 export function NoticesTabScreen() {
   const insets = useSafeAreaInsets();
@@ -80,10 +75,19 @@ export function NoticesTabScreen() {
   const selectedDeptIds = useSettingsStore((s) => s.selectedDeptIds);
   const setSelectedDeptIds = useSettingsStore((s) => s.setSelectedDeptIds);
 
+  // Departments available for the 학과 picker (exclude skku-main and lib-*)
   const pickableDepts = useMemo(
-    () => departments?.filter((d) => d.id !== 'skku-main') ?? [],
+    () => departments?.filter((d) => d.id !== 'skku-main' && !d.id.startsWith('lib-')) ?? [],
     [departments],
   );
+
+  // Library items from server department list, filtered by LIBRARY_DEPT_IDS
+  const pickableLibs = useMemo(() => {
+    if (!departments) return [];
+    return LIBRARY_DEPT_IDS
+      .map((id) => departments.find((d) => d.id === id))
+      .filter((d): d is NonNullable<typeof d> => d != null);
+  }, [departments]);
 
   const deptSelectorLabel = useMemo(() => {
     if (!departments) return '';
@@ -107,13 +111,12 @@ export function NoticesTabScreen() {
   const selectedLibIds = useSettingsStore((s) => s.selectedLibIds);
   const setSelectedLibIds = useSettingsStore((s) => s.setSelectedLibIds);
 
-  const libSelectorLabel = useMemo(
-    () =>
-      selectedLibIds
-        .map((id) => LIBRARY_DEPARTMENTS.find((d) => d.id === id)?.name ?? id)
-        .join(', '),
-    [selectedLibIds],
-  );
+  const libSelectorLabel = useMemo(() => {
+    if (!departments) return '';
+    return selectedLibIds
+      .map((id) => departments.find((d) => d.id === id)?.name ?? id)
+      .join(', ');
+  }, [departments, selectedLibIds]);
 
   const handleOpenLibSheet = useCallback(() => {
     libSheetRef.current?.present();
@@ -226,7 +229,7 @@ export function NoticesTabScreen() {
             {/* Library picker sheet */}
             <NoticePickerSheet
               ref={libSheetRef}
-              items={LIBRARY_DEPARTMENTS}
+              items={pickableLibs}
               selectedIds={selectedLibIds}
               onConfirm={handleConfirmLibs}
               title={t('notices.selectLib')}

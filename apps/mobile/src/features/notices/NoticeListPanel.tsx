@@ -85,7 +85,7 @@ export function NoticeListPanel(props: Props) {
       sections={sections}
       keyExtractor={(n) => n.id}
       renderItem={({ item }) => (
-        <NoticeRow item={item} onPress={handleSelect} />
+        <NoticeRow item={item} onPress={handleSelect} showDepartment={multi} />
       )}
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeader}>
