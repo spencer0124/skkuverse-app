@@ -2,10 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { SdsColors, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
-import {
-  formatDeadlineBadge,
-  type DeadlineVariant,
-} from './utils/formatDeadlineBadge';
+import { formatDeadlineBadge } from './utils/formatDeadlineBadge';
 import { formatRelativeDate } from './utils/formatRelativeDate';
 
 interface Props {
@@ -13,23 +10,12 @@ interface Props {
   onPress: (item: NoticeListItem) => void;
 }
 
-const PILL_COLORS: Record<
-  DeadlineVariant,
-  { color: string; background: string }
-> = {
+const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
-  normal: { color: SdsColors.grey600, background: '#F2F3F5' },
-  closed: { color: SdsColors.grey500, background: '#F2F3F5' },
-  eventToday: {
-    color: SdsColors.blue500,
-    background: 'rgba(49, 130, 246, 0.08)',
-  },
-  inProgress: {
-    color: SdsColors.green500,
-    background: 'rgba(3, 178, 108, 0.08)',
-  },
-  upcoming: { color: SdsColors.grey500, background: SdsColors.grey50 },
+  eventToday: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
+  inProgress: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
 };
+const DEFAULT_PILL = { color: SdsColors.grey600, background: '#F2F3F5' };
 
 export function NoticeRow({ item, onPress }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
@@ -42,22 +28,31 @@ export function NoticeRow({ item, onPress }: Props) {
       onPress={() => onPress(item)}
       style={styles.row}
       containerStyle={styles.container}
-      rightAlignment="top"
-      right={
-        <View style={styles.relativeSlot}>
-          {relativeDate ? (
-            <Txt
-              typography="t7"
-              color={SdsColors.grey400}
-              style={styles.relativeText}
-            >
-              {relativeDate}
-            </Txt>
-          ) : null}
-        </View>
-      }
       contents={
         <View style={styles.contents}>
+          {(item.department || relativeDate) ? (
+            <View style={styles.metaRow}>
+              {item.department ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  numberOfLines={1}
+                  style={styles.deptText}
+                >
+                  {item.department}
+                </Txt>
+              ) : <View style={styles.spacer} />}
+              {relativeDate ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  style={styles.relativeText}
+                >
+                  {relativeDate}
+                </Txt>
+              ) : null}
+            </View>
+          ) : null}
           <Txt
             typography="t5"
             fontWeight="semiBold"
@@ -77,41 +72,29 @@ export function NoticeRow({ item, onPress }: Props) {
               {oneLiner}
             </Txt>
           ) : null}
-          {(deadline || item.department) ? (
+          {deadline ? (
             <View style={styles.deadlineRow}>
-              {deadline ? (
-                <View
-                  style={[
-                    styles.pill,
-                    {
-                      backgroundColor:
-                        PILL_COLORS[deadline.pill.variant].background,
-                    },
-                  ]}
-                >
-                  <Txt
-                    typography="t7"
-                    fontWeight="bold"
-                    color={PILL_COLORS[deadline.pill.variant].color}
-                    numberOfLines={1}
-                    style={styles.pillText}
-                  >
-                    {deadline.context
-                      ? `${deadline.pill.text} · ${deadline.context}`
-                      : deadline.pill.text}
-                  </Txt>
-                </View>
-              ) : null}
-              {item.department ? (
+              <View
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor:
+                      (PILL_COLORS[deadline.pill.variant] ?? DEFAULT_PILL).background,
+                  },
+                ]}
+              >
                 <Txt
                   typography="t7"
-                  color={SdsColors.grey400}
+                  fontWeight="bold"
+                  color={(PILL_COLORS[deadline.pill.variant] ?? DEFAULT_PILL).color}
                   numberOfLines={1}
-                  style={styles.deptText}
+                  style={styles.pillText}
                 >
-                  {deadline ? `· ${item.department}` : item.department}
+                  {deadline.context
+                    ? `${deadline.pill.text} · ${deadline.context}`
+                    : deadline.pill.text}
                 </Txt>
-              ) : null}
+              </View>
             </View>
           ) : null}
         </View>
@@ -130,6 +113,27 @@ const styles = StyleSheet.create({
   contents: {
     gap: 4,
   },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  deptText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
+  spacer: {
+    flex: 1,
+  },
+  relativeText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+    marginLeft: 8,
+  },
   title: {
     fontSize: 16,
     lineHeight: 23,
@@ -138,16 +142,6 @@ const styles = StyleSheet.create({
   subText: {
     fontSize: 13,
     lineHeight: 18,
-    letterSpacing: -0.1,
-  },
-  relativeSlot: {
-    minWidth: 48,
-    alignItems: 'flex-end',
-    marginTop: 5,
-  },
-  relativeText: {
-    fontSize: 12,
-    lineHeight: 14,
     letterSpacing: -0.1,
   },
   deadlineRow: {
@@ -164,11 +158,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   pillText: {
-    fontSize: 12,
-    lineHeight: 14,
-    letterSpacing: -0.1,
-  },
-  deptText: {
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,

@@ -1,4 +1,4 @@
-import { tpl, type AppLanguage } from '@skkuverse/shared';
+import { t, tpl, type AppLanguage } from '@skkuverse/shared';
 
 /**
  * 공지 게시일을 현재 기준 상대 표기로 변환.
@@ -34,7 +34,8 @@ export function formatRelativeDate(
   ).getTime();
 
   const days = Math.round((todayStart - itemStart) / 86_400_000);
-  if (days <= 0) return null;
+  if (days < 0) return null;
+  if (days === 0) return t(lang, 'notices.sectionToday');
   if (days === 1) return tpl(lang, 'notices.relativeYesterday');
   if (days < 7) return tpl(lang, 'notices.relativeDaysAgo', days);
   if (days < 30) {
