@@ -35,7 +35,7 @@ export function NoticesTabScreen() {
   const { t } = useT();
   const { data: departments, isLoading, isError, refetch } = useNoticeDepartments();
 
-  const [activeTab, setActiveTab] = useState<NoticeTab>('haksa');
+  const [activeTab, setActiveTab] = useState<NoticeTab>('hakgwa');
   const sheetRef = useRef<BottomSheetModal>(null);
 
   // Persisted department selection
@@ -69,7 +69,7 @@ export function NoticesTabScreen() {
 
   // Track which tabs have been visited for lazy mounting
   const [visitedTabs, setVisitedTabs] = useState<Set<NoticeTab>>(
-    () => new Set(['haksa']),
+    () => new Set<NoticeTab>(['hakgwa']),
   );
   const handleTabChange = useCallback((tab: string) => {
     const t = tab as NoticeTab;
@@ -98,8 +98,8 @@ export function NoticesTabScreen() {
         ) : (
           <>
             <Tab value={activeTab} onChange={handleTabChange} size="small">
-              <Tab.Item value="haksa">{t('notices.haksa')}</Tab.Item>
               <Tab.Item value="hakgwa">{t('notices.hakgwa')}</Tab.Item>
+              <Tab.Item value="haksa">{t('notices.haksa')}</Tab.Item>
             </Tab>
 
             <View style={styles.panels}>

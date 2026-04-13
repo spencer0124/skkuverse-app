@@ -6,8 +6,7 @@
  */
 
 import { View, Pressable, StyleSheet } from 'react-native';
-import { SdsColors, useT, type DaySchedule } from '@skkuverse/shared';
-import type { TranslationKey } from '@skkuverse/shared';
+import { SdsColors, useT, type DaySchedule , TranslationKey } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
 const DAY_KEYS: Record<number, TranslationKey> = {

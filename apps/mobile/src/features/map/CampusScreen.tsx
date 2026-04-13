@@ -31,7 +31,6 @@ import {
   useCampusSections,
   useMapLayerStore,
   SdsColors,
-  SdsShadows,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
@@ -160,11 +159,6 @@ export function CampusScreen() {
     },
     [],
   );
-
-  // ── Filter button ──
-  const handleFilterPress = useCallback(() => {
-    filterSheetRef.current?.present();
-  }, []);
 
   return (
     <BottomSheetModalProvider>

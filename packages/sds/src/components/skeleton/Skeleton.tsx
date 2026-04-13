@@ -10,7 +10,7 @@
  *   </Skeleton.Animate>
  */
 import React, { createContext, useContext, useEffect, type ReactNode } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,

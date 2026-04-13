@@ -3,7 +3,6 @@
  * In production, returns the original URL or falls back to deployed webview.
  */
 
-const DEV_WEBVIEW_BASE = 'http://localhost:5173';
 const PROD_WEBVIEW_BASE = 'https://webview.skkuuniverse.com';
 
 export function devRewriteInfoUrl(

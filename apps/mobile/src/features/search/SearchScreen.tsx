@@ -40,7 +40,7 @@ import {
   floorBadge,
   useSettingsStore,
 } from '@skkuverse/shared';
-import { Badge, ListHeader, Navbar, SegmentedControl, Txt } from '@skkuverse/sds';
+import { Badge, ListHeader, SegmentedControl, Txt } from '@skkuverse/sds';
 import { useSearchResultStore } from './store';
 import {
   logSearchPerform,

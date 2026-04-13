@@ -96,7 +96,7 @@ export const BuildingDetailSheet = forwardRef<
   const floorConnectionMap = useMemo(() => {
     const map = Object.create(null) as Record<
       string,
-      Array<{ label: string; targetSkkuId: number }>
+      { label: string; targetSkkuId: number }[]
     >;
     if (!data) return map;
     for (const conn of data.connections) {
@@ -123,6 +123,7 @@ export const BuildingDetailSheet = forwardRef<
         items: f.spaces,
       };
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, lang]);
 
   // ── Analytics: building view ──

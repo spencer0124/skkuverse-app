@@ -5,7 +5,7 @@
  * Params: ?building=건물명 (optional, centers map on that building)
  */
 
-import { View, Pressable, Text, StyleSheet, Platform } from 'react-native';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Info } from 'lucide-react-native';

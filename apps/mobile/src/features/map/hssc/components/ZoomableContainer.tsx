@@ -84,6 +84,7 @@ export const ZoomableContainer = forwardRef<
         onReady?.();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [measured, contentHeight],
   );
 
@@ -109,6 +110,7 @@ export const ZoomableContainer = forwardRef<
     cW.value = containerW;
     cH.value = containerH;
     minS.value = minScale;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerW, containerH, minScale]);
 
   // ── Clamp translation to keep content visible ──
@@ -124,6 +126,7 @@ export const ZoomableContainer = forwardRef<
         y: clamp(ty, -maxTy, maxTy),
       };
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [contentWidth, contentHeight],
   );
 

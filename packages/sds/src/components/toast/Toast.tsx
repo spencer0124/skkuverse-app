@@ -11,7 +11,7 @@
  *     onClose={() => setShow(false)}
  *   />
  */
-import React, { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -95,6 +95,7 @@ function ToastMain({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const containerStyle = useAnimatedStyle(() => ({

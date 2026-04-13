@@ -35,7 +35,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SdsColors } from '@skkuverse/shared';
 import { ThemeProvider, useTheme } from '../../core';
-import { springConfig, timingConfig } from '../../foundation/easings';
+import { springConfig } from '../../foundation/easings';
 import { Txt } from '../txt';
 
 // ── Types ──
@@ -243,6 +243,7 @@ const ButtonInner = forwardRef<View, ButtonProps & PointerEvents>(function Butto
     dot1.value = pulse;
     dot2.value = withDelay(150, pulse);
     dot3.value = withDelay(300, pulse);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   const dotStyle1 = useAnimatedStyle(() => ({ opacity: dot1.value }));

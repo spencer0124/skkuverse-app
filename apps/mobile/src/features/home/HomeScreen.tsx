@@ -10,22 +10,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
-  Search,
-  Bell,
-  Settings,
-  User,
   Map,
   Navigation,
   Building2,
-  BookOpen,
   Coffee,
   Bus,
   Compass,
-  Star,
   Bookmark,
-  MessageCircle,
   Calendar,
-  HelpCircle,
   ChevronRight,
 } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
@@ -36,16 +28,6 @@ const GRID_GAP = 8;
 const GRID_COLS = 4;
 const GRID_ITEM_SIZE =
   (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
-/* ── Mock quick-action data ── */
-const QUICK_ACTIONS = [
-  { icon: BookOpen, label: '킹고포탈' },
-  { icon: Calendar, label: '학사일정' },
-  { icon: Star, label: '즐겨찾기' },
-  { icon: Bookmark, label: '분실물' },
-  { icon: MessageCircle, label: '커뮤니티' },
-  { icon: HelpCircle, label: '문의하기' },
-];
 
 /* ── Mock grid menu data ── */
 const GRID_ITEMS = [

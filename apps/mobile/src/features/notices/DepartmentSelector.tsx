@@ -5,7 +5,7 @@
 
 import { Pressable, StyleSheet } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
-import { SdsColors, SdsSpacing } from '@skkuverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
 interface Props {
@@ -20,15 +20,14 @@ export function DepartmentSelector({ label, onPress }: Props) {
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <Txt
-        typography="t6"
-        fontWeight="semiBold"
-        color={SdsColors.grey700}
+        typography="t7"
+        color={SdsColors.grey500}
         numberOfLines={1}
         style={styles.label}
       >
         {label}
       </Txt>
-      <ChevronDown size={16} color={SdsColors.grey500} />
+      <ChevronDown size={14} color={SdsColors.grey400} />
     </Pressable>
   );
 }
@@ -37,10 +36,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SdsSpacing.lg,
-    paddingVertical: SdsSpacing.md,
-    backgroundColor: SdsColors.background,
-    gap: SdsSpacing.xs,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: SdsColors.grey50,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F3F5',
+    gap: 6,
   },
   pressed: {
     opacity: 0.7,

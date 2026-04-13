@@ -17,7 +17,7 @@ import {
   useSettingsStore,
   useT,
 } from '@skkuverse/shared';
-import { Badge, Txt } from '@skkuverse/sds';
+import { Txt } from '@skkuverse/sds';
 import { Building2, ArrowUpDown, Accessibility } from 'lucide-react-native';
 
 interface BuildingHeaderProps {

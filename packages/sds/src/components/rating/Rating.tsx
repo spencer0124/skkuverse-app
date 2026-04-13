@@ -76,6 +76,21 @@ export default function Rating(props: RatingProps) {
 
   const inactiveColor = SdsColors.greyOpacity200;
 
+  // Hooks must be called unconditionally — before the readOnly early return.
+  const {
+    onValueChange,
+    disabled = false,
+    gap = 4,
+  } = readOnly ? { onValueChange: undefined, disabled: false, gap: 4 } : (props as EditableRatingProps);
+
+  const handlePress = useCallback(
+    (index: number) => {
+      if (disabled) return;
+      onValueChange?.(index + 1);
+    },
+    [disabled, onValueChange],
+  );
+
   if (readOnly) {
     const {
       size,
@@ -121,22 +136,8 @@ export default function Rating(props: RatingProps) {
   }
 
   // Editable
-  const {
-    size,
-    onValueChange,
-    disabled = false,
-    gap = 4,
-  } = props as EditableRatingProps;
-
+  const { size } = props as EditableRatingProps;
   const starSize = editableSizeMap[size];
-
-  const handlePress = useCallback(
-    (index: number) => {
-      if (disabled) return;
-      onValueChange?.(index + 1);
-    },
-    [disabled, onValueChange],
-  );
 
   return (
     <View style={[styles.row, { gap, opacity: disabled ? 0.4 : 1 }, style]}>

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
-import type { FontWeightKeys, TypographyKeys } from '../../foundation/typography';
+import type { TypographyKeys } from '../../foundation/typography';
 
 export interface TextButtonProps {
   children: ReactNode;

@@ -12,7 +12,7 @@ import {
   useSettingsStore,
   useT,
 } from '@skkuverse/shared';
-import { ListHeader, ListRow, Txt } from '@skkuverse/sds';
+import { ListRow, Txt } from '@skkuverse/sds';
 
 /** Extract sort-key from floor name: "지하 2층" → -2, "1층" → 1, "B1" → -1 */
 function floorOrder(name: string): number {

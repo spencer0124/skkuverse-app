@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
-import { Txt, type TxtProps } from '../txt';
+import { Txt } from '../txt';
 import type { FontWeightKeys, TypographyKeys } from '../../foundation/typography';
 
 // ── Root ──

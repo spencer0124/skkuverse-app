@@ -2,7 +2,7 @@
  * Hook for controlled/uncontrolled component pattern.
  * If controlledValue is provided, it takes precedence.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 interface UseControlledOptions<T> {
   controlledValue?: T;

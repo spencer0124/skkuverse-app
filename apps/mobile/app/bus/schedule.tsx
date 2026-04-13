@@ -25,7 +25,6 @@ import {
 import { SegmentedControl } from '@skkuverse/sds';
 import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
 import { InfoBanner } from '@/features/bus/schedule/InfoBanner';
-import { WeekHeader } from '@/features/bus/schedule/WeekHeader';
 import { DayGrid } from '@/features/bus/schedule/DayGrid';
 import { SectionCard } from '@/features/bus/schedule/SectionCard';
 import { HeroCard } from '@/features/bus/schedule/HeroCard';
@@ -127,14 +126,6 @@ export default function ScheduleScreen() {
   const selectedDay = schedule?.days[selectedDayIndex];
   const todayDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   const isToday = selectedDay?.date === todayDate;
-
-  // Week navigation
-  const handleWeekChange = useCallback((direction: -1 | 1) => {
-    const newIndex = currentWeekIndex + direction;
-    if (newIndex < 0 || newIndex >= weeks.length) return;
-    setCurrentWeekIndex(newIndex);
-    setSelectedDayInWeekIndex(0);
-  }, [currentWeekIndex, weeks.length]);
 
   const bannerNotice = selectedDay?.notices?.[0];
 

@@ -4,9 +4,9 @@
  * Cloned from TDS ThemeProvider, adapted for SDS color tokens.
  * Provides theme context to all SDS components.
  */
-import React, { createContext, useContext, useMemo, type PropsWithChildren } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import { SdsColors } from '@skkuverse/shared';
-import { colorSeeds, type ColorSeeds } from '../foundation/colors';
+import { colorSeeds } from '../foundation/colors';
 
 // ── Seed Token ──
 

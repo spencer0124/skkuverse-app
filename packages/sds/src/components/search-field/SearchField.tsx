@@ -17,7 +17,6 @@ import {
 import { Search, XCircle } from 'lucide-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
-import { Txt } from '../txt';
 
 export interface SearchFieldProps extends Omit<TextInputProps, 'style'> {
   value?: string;
