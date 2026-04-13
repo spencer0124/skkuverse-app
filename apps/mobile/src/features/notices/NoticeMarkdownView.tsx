@@ -15,7 +15,7 @@
  * via the library's default `Linking.openURL` handler — no override needed.
  */
 
-import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { Fragment, isValidElement, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   type ImageStyle,
@@ -101,11 +101,13 @@ function RefererImage({
     return h;
   }, [referer]);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setSize(null);
+    setLoaded(false);
     setFailed(false);
 
     Image.getSizeWithHeaders(
@@ -134,42 +136,43 @@ function RefererImage({
     );
   }
 
-  if (!size) {
-    if (hintWidth && hintHeight) {
-      const hintAspect = hintHeight / hintWidth;
-      const w = Math.min(hintWidth, containerWidth);
-      const h = w * hintAspect;
-      return (
-        <Skeleton.Animate>
-          <Skeleton
-            width={w}
-            height={h}
-            borderRadius={8}
-            style={{ marginVertical: 8 }}
-          />
-        </Skeleton.Animate>
-      );
-    }
+  // hint 있으면 dimension fetch 전에도 정확한 영역 확보 가능
+  const dimSource = size ?? (hintWidth && hintHeight ? { w: hintWidth, h: hintHeight } : null);
+
+  if (!dimSource) {
     return (
       <View style={[styles.imagePlaceholder, { width: containerWidth }]} />
     );
   }
 
-  const aspect = size.h / size.w;
-  const renderedWidth = Math.min(size.w, containerWidth);
+  const aspect = dimSource.h / dimSource.w;
+  const renderedWidth = Math.min(dimSource.w, containerWidth);
   const renderedHeight = renderedWidth * aspect;
 
   return (
-    <Image
-      source={{ uri, headers }}
-      accessibilityLabel={alt}
-      resizeMode="contain"
-      style={{
-        width: renderedWidth,
-        height: renderedHeight,
-        marginVertical: 8,
-      }}
-    />
+    <View style={{ width: renderedWidth, height: renderedHeight, marginVertical: 8 }}>
+      {size ? (
+        <Image
+          source={{ uri, headers }}
+          accessibilityLabel={alt}
+          resizeMode="contain"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          style={{ width: renderedWidth, height: renderedHeight }}
+        />
+      ) : null}
+      {!loaded ? (
+        <View style={StyleSheet.absoluteFill}>
+          <Skeleton.Animate>
+            <Skeleton
+              width={renderedWidth}
+              height={renderedHeight}
+              borderRadius={8}
+            />
+          </Skeleton.Animate>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -252,6 +255,16 @@ class NoticeRenderer extends Renderer implements RendererInterface {
   }
 
   override paragraph(children: ReactNode[], styles?: ViewStyle) {
+    const hasImage = children.some(
+      (child) => isValidElement(child) && child.type === RefererImage,
+    );
+    if (hasImage) {
+      return (
+        <View key={this.getKey()} style={styles}>
+          {children}
+        </View>
+      );
+    }
     return (
       <Text selectable key={this.getKey()} style={styles as TextStyle}>
         {children}

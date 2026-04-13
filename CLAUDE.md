@@ -50,7 +50,7 @@ Node version is pinned to **20** (see `.nvmrc`).
 ErrorBoundary → GestureHandlerRootView → SDSProvider → QueryProvider → InitGate → Stack
 ```
 
-**Feature modules** (`src/features/`): `home`, `bus`, `map`, `building`, `search` — each self-contained with components, hooks, and utils.
+**Feature modules** (`src/features/`): `home`, `bus`, `map`, `building`, `search`, `notices` — each self-contained with components, hooks, and utils.
 
 **Server-Driven UI (SDUI):** The home screen fetches section configs from the backend and renders them via widget components in `src/sdui/widgets/`.
 
@@ -68,6 +68,19 @@ ErrorBoundary → GestureHandlerRootView → SDSProvider → QueryProvider → I
 Hash-based routing (React Router). Communicates with the native app via `@skkuverse/bridge`. Styled with Tailwind CSS (custom color `deep-green: #1A8A5C`, font `WantedSans`).
 
 Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
+
+### Notices Feature (`src/features/notices/`)
+
+**Tab layout:** 9-tab scrollable — 학과 / 학사 / 장학 / 취업 / 모집 / 행사 / 도서관 / 기숙사 / 일반. 학과·도서관 탭은 multi-dept picker (BottomSheetModal, multi-select).
+
+**Markdown rendering:** `react-native-marked@8.0.1`, custom `NoticeRenderer` extending `Renderer`:
+- `image()`: `RefererImage` component — SKKU 이미지 서버의 Referer 요구사항 대응 + dimension hint 기반 shimmer placeholder
+- `paragraph()`: 이미지 포함 paragraph → `<View>`, 텍스트만 → `<Text selectable>` 분기 (Animated.View가 Text 안에서 동작하지 않는 RN 제약 우회)
+- `link()`: 웹 링크 → in-app browser, 이메일/전화 → 클립보드 복사
+
+**Image dimension hint (크롤러 연동):** 크롤러가 `![{WxH} alt](url)` 포맷으로 이미지 원본 크기를 markdown alt text에 삽입. 앱의 `parseDimHint()`가 이를 파싱하여 이미지 로딩 전 정확한 크기의 shimmer skeleton을 overlay로 표시 → CLS(Cumulative Layout Shift) 제거. hint가 없는 이미지는 `getSizeWithHeaders` 완료 후 표시.
+
+**Notice row:** Toss-style 왼쪽 정렬 메타 (`3일 전 · 학과명` — multi-dept 탭에서만 학과명 표시). 첨부파일 있는 공지는 제목 옆 paperclip 아이콘.
 
 ### Design System (`@skkuverse/sds`)
 
