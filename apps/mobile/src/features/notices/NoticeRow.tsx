@@ -77,29 +77,41 @@ export function NoticeRow({ item, onPress }: Props) {
               {oneLiner}
             </Txt>
           ) : null}
-          {deadline ? (
+          {(deadline || item.department) ? (
             <View style={styles.deadlineRow}>
-              <View
-                style={[
-                  styles.pill,
-                  {
-                    backgroundColor:
-                      PILL_COLORS[deadline.pill.variant].background,
-                  },
-                ]}
-              >
+              {deadline ? (
+                <View
+                  style={[
+                    styles.pill,
+                    {
+                      backgroundColor:
+                        PILL_COLORS[deadline.pill.variant].background,
+                    },
+                  ]}
+                >
+                  <Txt
+                    typography="t7"
+                    fontWeight="bold"
+                    color={PILL_COLORS[deadline.pill.variant].color}
+                    numberOfLines={1}
+                    style={styles.pillText}
+                  >
+                    {deadline.context
+                      ? `${deadline.pill.text} · ${deadline.context}`
+                      : deadline.pill.text}
+                  </Txt>
+                </View>
+              ) : null}
+              {item.department ? (
                 <Txt
                   typography="t7"
-                  fontWeight="bold"
-                  color={PILL_COLORS[deadline.pill.variant].color}
+                  color={SdsColors.grey400}
                   numberOfLines={1}
-                  style={styles.pillText}
+                  style={styles.deptText}
                 >
-                  {deadline.context
-                    ? `${deadline.pill.text} · ${deadline.context}`
-                    : deadline.pill.text}
+                  {deadline ? `· ${item.department}` : item.department}
                 </Txt>
-              </View>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -141,6 +153,8 @@ const styles = StyleSheet.create({
   deadlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 6,
   },
   pill: {
@@ -150,6 +164,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   pillText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
+  deptText: {
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
