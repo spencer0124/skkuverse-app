@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingTop: 28,
     paddingBottom: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     backgroundColor: '#FFFFFF',
   },
   sectionGap: {
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#F2F3F5',
-    marginLeft: 20,
+    marginLeft: 24,
   },
   footer: {
     paddingVertical: 20,

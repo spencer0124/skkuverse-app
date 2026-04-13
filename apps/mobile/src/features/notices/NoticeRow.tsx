@@ -58,6 +58,8 @@ export function NoticeRow({ item, onPress }: Props) {
             fontWeight="semiBold"
             color={SdsColors.grey900}
             numberOfLines={2}
+            lineBreakStrategyIOS="hangul-word"
+            textBreakStrategy="highQuality"
             style={styles.title}
           >
             {item.title}
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   deptText: {
     flex: 1,
