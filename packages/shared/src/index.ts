@@ -214,6 +214,9 @@ export {
   useNoticeList,
   NOTICE_LIST_KEY,
   type UseNoticeListArgs,
+  useMultiDeptNoticeList,
+  NOTICE_MULTI_KEY,
+  type UseMultiDeptNoticeListArgs,
   useNoticeDetail,
   NOTICE_DETAIL_KEY,
 } from './hooks';

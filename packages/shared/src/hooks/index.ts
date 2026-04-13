@@ -17,4 +17,6 @@ export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 export { useNoticeDepartments, NOTICE_DEPARTMENTS_KEY } from './useNoticeDepartments';
 export { useNoticeList, NOTICE_LIST_KEY } from './useNoticeList';
 export type { UseNoticeListArgs } from './useNoticeList';
+export { useMultiDeptNoticeList, NOTICE_MULTI_KEY } from './useMultiDeptNoticeList';
+export type { UseMultiDeptNoticeListArgs } from './useMultiDeptNoticeList';
 export { useNoticeDetail, NOTICE_DETAIL_KEY } from './useNoticeDetail';

@@ -268,6 +268,11 @@ const ko = {
   'notices.relativeWeeksAgo': '{0}주 전',
   'notices.relativeMonthsAgo': '{0}개월 전',
   'notices.relativeYearsAgo': '{0}년 전',
+  'notices.haksa': '학사',
+  'notices.hakgwa': '학과',
+  'notices.selectDept': '학과 선택',
+  'notices.selectDeptMax': '최대 {0}개까지 선택할 수 있어요',
+  'notices.done': '완료',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -471,6 +476,11 @@ const en: TranslationMap = {
   'notices.relativeWeeksAgo': '{0} weeks ago',
   'notices.relativeMonthsAgo': '{0} months ago',
   'notices.relativeYearsAgo': '{0} years ago',
+  'notices.haksa': 'Academic',
+  'notices.hakgwa': 'Department',
+  'notices.selectDept': 'Select departments',
+  'notices.selectDeptMax': 'Up to {0} departments',
+  'notices.done': 'Done',
 };
 
 const zh: TranslationMap = {
@@ -670,6 +680,11 @@ const zh: TranslationMap = {
   'notices.relativeWeeksAgo': '{0}周前',
   'notices.relativeMonthsAgo': '{0}个月前',
   'notices.relativeYearsAgo': '{0}年前',
+  'notices.haksa': '学事',
+  'notices.hakgwa': '学科',
+  'notices.selectDept': '选择学科',
+  'notices.selectDeptMax': '最多可选择{0}个',
+  'notices.done': '完成',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

@@ -10,10 +10,12 @@ import { useRouter } from 'expo-router';
 import {
   SdsColors,
   useNoticeList,
+  useMultiDeptNoticeList,
   useSettingsStore,
   useT,
   type AppLanguage,
   type NoticeListItem,
+  type NoticePage,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { NoticeRow } from './NoticeRow';
@@ -21,14 +23,24 @@ import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { groupNoticesByDate } from './utils/groupNotices';
 
-interface Props {
-  deptId: string;
-}
+type Props =
+  | { deptId: string; deptIds?: never }
+  | { deptId?: never; deptIds: string[] };
 
-export function NoticeListPanel({ deptId }: Props) {
+export function NoticeListPanel(props: Props) {
+  const multi = 'deptIds' in props && props.deptIds != null;
   const router = useRouter();
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
+
+  const singleResult = useNoticeList({
+    deptId: multi ? '' : props.deptId!,
+    enabled: !multi,
+  });
+  const multiResult = useMultiDeptNoticeList({
+    deptIds: multi ? props.deptIds! : [],
+    enabled: multi,
+  });
 
   const {
     data,
@@ -39,10 +51,10 @@ export function NoticeListPanel({ deptId }: Props) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useNoticeList({ deptId });
+  } = multi ? multiResult : singleResult;
 
   const items = useMemo(
-    () => data?.pages.flatMap((p) => p.notices) ?? [],
+    () => data?.pages.flatMap((p: NoticePage) => p.notices) ?? [],
     [data],
   );
 
@@ -51,11 +63,12 @@ export function NoticeListPanel({ deptId }: Props) {
     [items, lang],
   );
 
+  const navDeptId = multi ? undefined : props.deptId;
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
-      router.push(`/notices/${deptId}/${n.articleNo}` as never);
+      router.push(`/notices/${navDeptId ?? n.deptId}/${n.articleNo}` as never);
     },
-    [router, deptId],
+    [router, navDeptId],
   );
 
   const onEndReached = useCallback(() => {
