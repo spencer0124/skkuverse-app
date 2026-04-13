@@ -15,11 +15,14 @@ const DEFAULT_DEPT_IDS = [
   CRAWLER_ENABLED_DEPT_IDS.find((id) => id !== 'skku-main') ?? 'cal-undergrad',
 ];
 
+const DEFAULT_LIB_IDS = ['lib-all'];
+
 export interface SettingsState {
   preferredCampus: Campus;
   appLanguage: AppLanguage;
   lastTab: TabRoute;
   selectedDeptIds: string[];
+  selectedLibIds: string[];
 }
 
 interface SettingsActions {
@@ -27,6 +30,7 @@ interface SettingsActions {
   setAppLanguage: (language: AppLanguage) => void;
   setLastTab: (tab: TabRoute) => void;
   setSelectedDeptIds: (ids: string[]) => void;
+  setSelectedLibIds: (ids: string[]) => void;
 }
 
 export type SettingsStore = SettingsState & SettingsActions;
@@ -49,11 +53,13 @@ export const useSettingsStore = create<SettingsStore>()(
       appLanguage: 'ko',
       lastTab: 'notices',
       selectedDeptIds: DEFAULT_DEPT_IDS,
+      selectedLibIds: DEFAULT_LIB_IDS,
 
       setPreferredCampus: (campus) => set({ preferredCampus: campus }),
       setAppLanguage: (language) => set({ appLanguage: language }),
       setLastTab: (tab) => set({ lastTab: tab }),
       setSelectedDeptIds: (ids) => set({ selectedDeptIds: ids }),
+      setSelectedLibIds: (ids) => set({ selectedLibIds: ids }),
     }),
     {
       name: 'settings',

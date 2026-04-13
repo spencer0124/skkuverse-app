@@ -1,6 +1,6 @@
 /**
- * Compact row showing selected department names.
- * Tapping opens the department picker sheet.
+ * Compact row showing selected item names.
+ * Tapping opens the picker sheet.
  */
 
 import { Pressable, StyleSheet } from 'react-native';
@@ -13,7 +13,7 @@ interface Props {
   onPress: () => void;
 }
 
-export function DepartmentSelector({ label, onPress }: Props) {
+export function NoticeSelector({ label, onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}

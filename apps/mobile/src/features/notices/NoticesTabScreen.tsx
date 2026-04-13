@@ -1,10 +1,11 @@
 /**
- * Top-level notices tab — 2-tab layout (학사 / 학과).
+ * Top-level notices tab — 9-tab scrollable layout.
  *
- * 학사: skku-main notices (single dept via useNoticeList)
  * 학과: merged list from user-selected departments (via useMultiDeptNoticeList)
+ * 도서관: merged list from user-selected libraries (via useMultiDeptNoticeList)
+ * 학사 / 장학 / 취업 / 모집 / 행사 / 기숙사 / 일반: single dept via useNoticeList
  *
- * Department selection is persisted in settingsStore and opened via
+ * Department / library selection is persisted in settingsStore and opened via
  * a half-screen bottom sheet picker.
  */
 
@@ -20,15 +21,51 @@ import {
   useNoticeDepartments,
   useSettingsStore,
   useT,
+  type Department,
 } from '@skkuverse/shared';
 import { Tab, Txt } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
-import { DepartmentSelector } from './DepartmentSelector';
-import { DepartmentPickerSheet } from './DepartmentPickerSheet';
+import { NoticeSelector } from './NoticeSelector';
+import { NoticePickerSheet } from './NoticePickerSheet';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 
-type NoticeTab = 'haksa' | 'hakgwa';
+// ── Tab configuration ──
+
+const NOTICE_TABS = [
+  { key: 'hakgwa', labelKey: 'notices.hakgwa' },
+  { key: 'haksa', labelKey: 'notices.haksa' },
+  { key: 'scholarship', labelKey: 'notices.scholarship' },
+  { key: 'career', labelKey: 'notices.career' },
+  { key: 'recruit', labelKey: 'notices.recruit' },
+  { key: 'event', labelKey: 'notices.event' },
+  { key: 'library', labelKey: 'notices.library' },
+  { key: 'dorm', labelKey: 'notices.dorm' },
+  { key: 'general', labelKey: 'notices.general' },
+] as const;
+
+type NoticeTab = (typeof NOTICE_TABS)[number]['key'];
+
+/** Tabs that use multi-dept picker */
+const MULTI_TABS = new Set<NoticeTab>(['hakgwa', 'library']);
+
+/** Maps single-dept tabs to their dept ID. */
+const TAB_DEPT_ID: Record<Exclude<NoticeTab, 'hakgwa' | 'library'>, string> = {
+  haksa: 'skku-notice02',
+  scholarship: 'skku-notice06',
+  career: 'skku-notice04',
+  recruit: 'skku-notice05',
+  event: 'skku-notice07',
+  dorm: 'dorm-seoul',
+  general: 'skku-general',
+};
+
+/** Static library department entries for the picker. */
+const LIBRARY_DEPARTMENTS: Department[] = [
+  { id: 'lib-all', name: '전체', campus: null, category: null, hasCategory: false, hasAuthor: false },
+  { id: 'lib-seoul', name: '서울캠퍼스', campus: 'hssc', category: null, hasCategory: false, hasAuthor: false },
+  { id: 'lib-suwon', name: '수원캠퍼스', campus: 'nsc', category: null, hasCategory: false, hasAuthor: false },
+];
 
 export function NoticesTabScreen() {
   const insets = useSafeAreaInsets();
@@ -36,28 +73,27 @@ export function NoticesTabScreen() {
   const { data: departments, isLoading, isError, refetch } = useNoticeDepartments();
 
   const [activeTab, setActiveTab] = useState<NoticeTab>('hakgwa');
-  const sheetRef = useRef<BottomSheetModal>(null);
+  const deptSheetRef = useRef<BottomSheetModal>(null);
+  const libSheetRef = useRef<BottomSheetModal>(null);
 
-  // Persisted department selection
+  // ── Department (학과) picker state ──
   const selectedDeptIds = useSettingsStore((s) => s.selectedDeptIds);
   const setSelectedDeptIds = useSettingsStore((s) => s.setSelectedDeptIds);
 
-  // Departments available for the picker (all except skku-main)
   const pickableDepts = useMemo(
     () => departments?.filter((d) => d.id !== 'skku-main') ?? [],
     [departments],
   );
 
-  // Label for the selector row
-  const selectorLabel = useMemo(() => {
+  const deptSelectorLabel = useMemo(() => {
     if (!departments) return '';
     return selectedDeptIds
       .map((id) => departments.find((d) => d.id === id)?.name ?? id)
       .join(', ');
   }, [departments, selectedDeptIds]);
 
-  const handleOpenSheet = useCallback(() => {
-    sheetRef.current?.present();
+  const handleOpenDeptSheet = useCallback(() => {
+    deptSheetRef.current?.present();
   }, []);
 
   const handleConfirmDepts = useCallback(
@@ -67,7 +103,30 @@ export function NoticesTabScreen() {
     [setSelectedDeptIds],
   );
 
-  // Track which tabs have been visited for lazy mounting
+  // ── Library (도서관) picker state ──
+  const selectedLibIds = useSettingsStore((s) => s.selectedLibIds);
+  const setSelectedLibIds = useSettingsStore((s) => s.setSelectedLibIds);
+
+  const libSelectorLabel = useMemo(
+    () =>
+      selectedLibIds
+        .map((id) => LIBRARY_DEPARTMENTS.find((d) => d.id === id)?.name ?? id)
+        .join(', '),
+    [selectedLibIds],
+  );
+
+  const handleOpenLibSheet = useCallback(() => {
+    libSheetRef.current?.present();
+  }, []);
+
+  const handleConfirmLibs = useCallback(
+    (ids: string[]) => {
+      setSelectedLibIds(ids);
+    },
+    [setSelectedLibIds],
+  );
+
+  // ── Tab lazy-mounting ──
   const [visitedTabs, setVisitedTabs] = useState<Set<NoticeTab>>(
     () => new Set<NoticeTab>(['hakgwa']),
   );
@@ -97,25 +156,16 @@ export function NoticesTabScreen() {
           <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
         ) : (
           <>
-            <Tab value={activeTab} onChange={handleTabChange} size="small">
-              <Tab.Item value="hakgwa">{t('notices.hakgwa')}</Tab.Item>
-              <Tab.Item value="haksa">{t('notices.haksa')}</Tab.Item>
+            <Tab value={activeTab} onChange={handleTabChange} size="small" fluid>
+              {NOTICE_TABS.map(({ key, labelKey }) => (
+                <Tab.Item key={key} value={key}>
+                  {t(labelKey)}
+                </Tab.Item>
+              ))}
             </Tab>
 
             <View style={styles.panels}>
-              {/* 학사 panel */}
-              {visitedTabs.has('haksa') && (
-                <View
-                  style={[
-                    styles.panel,
-                    activeTab !== 'haksa' && styles.hidden,
-                  ]}
-                >
-                  <NoticeListPanel deptId="skku-main" />
-                </View>
-              )}
-
-              {/* 학과 panel */}
+              {/* 학과 panel (multi-dept with picker) */}
               {visitedTabs.has('hakgwa') && (
                 <View
                   style={[
@@ -123,20 +173,63 @@ export function NoticesTabScreen() {
                     activeTab !== 'hakgwa' && styles.hidden,
                   ]}
                 >
-                  <DepartmentSelector
-                    label={selectorLabel}
-                    onPress={handleOpenSheet}
+                  <NoticeSelector
+                    label={deptSelectorLabel}
+                    onPress={handleOpenDeptSheet}
                   />
                   <NoticeListPanel deptIds={selectedDeptIds} />
                 </View>
               )}
+
+              {/* 도서관 panel (multi-lib with picker) */}
+              {visitedTabs.has('library') && (
+                <View
+                  style={[
+                    styles.panel,
+                    activeTab !== 'library' && styles.hidden,
+                  ]}
+                >
+                  <NoticeSelector
+                    label={libSelectorLabel}
+                    onPress={handleOpenLibSheet}
+                  />
+                  <NoticeListPanel deptIds={selectedLibIds} />
+                </View>
+              )}
+
+              {/* All other tabs — single dept each */}
+              {NOTICE_TABS.map(({ key }) => {
+                if (MULTI_TABS.has(key)) return null;
+                if (!visitedTabs.has(key)) return null;
+                return (
+                  <View
+                    key={key}
+                    style={[
+                      styles.panel,
+                      activeTab !== key && styles.hidden,
+                    ]}
+                  >
+                    <NoticeListPanel deptId={TAB_DEPT_ID[key as Exclude<NoticeTab, 'hakgwa' | 'library'>]} />
+                  </View>
+                );
+              })}
             </View>
 
-            <DepartmentPickerSheet
-              ref={sheetRef}
-              departments={pickableDepts}
+            {/* Department picker sheet */}
+            <NoticePickerSheet
+              ref={deptSheetRef}
+              items={pickableDepts}
               selectedIds={selectedDeptIds}
               onConfirm={handleConfirmDepts}
+            />
+
+            {/* Library picker sheet */}
+            <NoticePickerSheet
+              ref={libSheetRef}
+              items={LIBRARY_DEPARTMENTS}
+              selectedIds={selectedLibIds}
+              onConfirm={handleConfirmLibs}
+              title={t('notices.selectLib')}
             />
           </>
         )}

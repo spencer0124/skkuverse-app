@@ -1,5 +1,5 @@
 /**
- * Multi-select bottom sheet for choosing departments (max 3).
+ * Multi-select bottom sheet for choosing items (max 3).
  *
  * Uses internal pending state — changes are committed on "완료" press.
  * Backdrop dismiss rolls back to the previous selection.
@@ -19,13 +19,15 @@ import { Txt } from '@skkuverse/sds';
 const MAX_SELECTED = 3;
 
 interface Props {
-  departments: Department[];
+  items: Department[];
   selectedIds: string[];
   onConfirm: (ids: string[]) => void;
+  /** Override the sheet title (defaults to notices.selectDept) */
+  title?: string;
 }
 
-export const DepartmentPickerSheet = forwardRef<BottomSheetModal, Props>(
-  function DepartmentPickerSheet({ departments, selectedIds, onConfirm }, ref) {
+export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
+  function NoticePickerSheet({ items, selectedIds, onConfirm, title }, ref) {
     const { t, tpl } = useT();
     const [pending, setPending] = useState<string[]>(selectedIds);
 
@@ -64,13 +66,13 @@ export const DepartmentPickerSheet = forwardRef<BottomSheetModal, Props>(
       >
         <BottomSheetScrollView style={styles.content}>
           <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
-            {t('notices.selectDept')}
+            {title ?? t('notices.selectDept')}
           </Txt>
           <Txt typography="t7" color={SdsColors.grey500} style={styles.subtitle}>
             {tpl('notices.selectDeptMax', MAX_SELECTED)}
           </Txt>
 
-          {departments.map((dept) => {
+          {items.map((dept) => {
             const selected = pending.includes(dept.id);
             const disabled = !selected && pending.length >= MAX_SELECTED;
             return (
