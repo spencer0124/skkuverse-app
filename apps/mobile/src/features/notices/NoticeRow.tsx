@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { SdsColors, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
+import { Paperclip } from 'lucide-react-native';
 import { formatDeadlineBadge } from './utils/formatDeadlineBadge';
 import { formatRelativeDate } from './utils/formatRelativeDate';
 
@@ -65,17 +66,22 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
               ) : null}
             </View>
           ) : null}
-          <Txt
-            typography="t5"
-            fontWeight="semiBold"
-            color={SdsColors.grey900}
-            numberOfLines={2}
-            lineBreakStrategyIOS="hangul-word"
-            textBreakStrategy="highQuality"
-            style={styles.title}
-          >
-            {item.title}
-          </Txt>
+          <View style={styles.titleRow}>
+            <Txt
+              typography="t5"
+              fontWeight="semiBold"
+              color={SdsColors.grey900}
+              numberOfLines={2}
+              lineBreakStrategyIOS="hangul-word"
+              textBreakStrategy="highQuality"
+              style={[styles.title, item.hasAttachments && styles.titleWithClip]}
+            >
+              {item.title}
+            </Txt>
+            {item.hasAttachments ? (
+              <Paperclip size={14} color={SdsColors.grey400} style={styles.clipIcon} />
+            ) : null}
+          </View>
           {oneLiner.length > 0 ? (
             <Txt
               typography="t7"
@@ -140,10 +146,21 @@ const styles = StyleSheet.create({
   deptText: {
     flexShrink: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   title: {
     fontSize: 16,
     lineHeight: 23,
     letterSpacing: -0.3,
+  },
+  titleWithClip: {
+    flex: 1,
+  },
+  clipIcon: {
+    marginLeft: 6,
+    marginTop: 5,
   },
   subText: {
     fontSize: 13,
