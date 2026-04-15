@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import {
-  parseDepartmentList,
+  parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
 } from '../parser';
@@ -10,75 +10,101 @@ function envelope<T>(data: T): ApiEnvelope<unknown> {
   return { meta: { ok: true }, data } as unknown as ApiEnvelope<unknown>;
 }
 
-describe('parseDepartmentList', () => {
-  it('filters to crawler-enabled whitelist and preserves whitelist order', () => {
-    // Server returns all 144 — we give it a mixed sample, out-of-order.
+describe('parseTabsConfig', () => {
+  it('parses fixed and picker tabs in server order', () => {
     const raw = envelope({
-      version: '2026-04-10',
-      departments: [
-        { id: 'biz-undergrad', name: '경영대학(학부생)', campus: 'hssc', category: null, hasCategory: false, hasAuthor: false },
-        { id: 'medicine', name: '의과대학', campus: 'nsc', category: null, hasCategory: true, hasAuthor: true },
-        { id: 'skku-main', name: '학부통합(학사)', campus: null, category: null, hasCategory: false, hasAuthor: false },
-        { id: 'cheme', name: '화학공학과', campus: 'nsc', category: null, hasCategory: true, hasAuthor: false },
-        { id: 'unknown-dept', name: 'Nope', campus: null, category: null, hasCategory: false, hasAuthor: false },
-        { id: 'nano', name: '나노공학과', campus: 'nsc', category: null, hasCategory: true, hasAuthor: true },
-        { id: 'cal-undergrad', name: '문과대학(학부)', campus: 'hssc', category: null, hasCategory: false, hasAuthor: false },
-        { id: 'dorm-seoul', name: '명륜학사', campus: 'hssc', category: null, hasCategory: false, hasAuthor: false },
-        { id: 'bio-undergrad', name: '생명공학대학(학부)', campus: 'nsc', category: null, hasCategory: true, hasAuthor: true },
-      ],
-    });
-
-    const result = parseDepartmentList(raw);
-    const ids = result.map((d) => d.id);
-
-    expect(ids).toEqual([
-      'skku-main',
-      'cal-undergrad',
-      'bio-undergrad',
-      'nano',
-      'dorm-seoul',
-      'medicine',
-      'cheme',
-    ]);
-  });
-
-  it('skips a whitelisted id if server omits it (crawler/server out of sync)', () => {
-    const raw = envelope({
-      departments: [
-        { id: 'skku-main', name: '학부통합(학사)', campus: null, category: null, hasCategory: false, hasAuthor: false },
-        { id: 'medicine', name: '의과대학', campus: 'nsc', category: null, hasCategory: true, hasAuthor: true },
-      ],
-    });
-    const result = parseDepartmentList(raw);
-    expect(result.map((d) => d.id)).toEqual(['skku-main', 'medicine']);
-  });
-
-  it('returns empty array when data missing', () => {
-    expect(parseDepartmentList(envelope({}))).toEqual([]);
-  });
-
-  it('maps all Department fields with sensible defaults', () => {
-    const raw = envelope({
-      departments: [
+      schemaVersion: 1,
+      tabs: [
         {
-          id: 'skku-main',
-          name: '학부통합(학사)',
-          campus: 'hssc',
-          category: '학사',
-          hasCategory: true,
-          hasAuthor: false,
+          key: 'dept',
+          label: '학과',
+          tabMode: 'picker',
+          picker: {
+            departments: [
+              { id: 'arch', name: '건축학과', campus: 'nsc' },
+              { id: 'biz', name: '경영학과', campus: 'hssc' },
+            ],
+            maxSelection: 5,
+            defaultDeptIds: [],
+          },
+        },
+        {
+          key: 'academic',
+          label: '학사',
+          tabMode: 'fixed',
+          fixed: { deptId: 'skku-notice02', name: '성균관대_통합(학사)', campus: 'both' },
         },
       ],
     });
-    const [dept] = parseDepartmentList(raw);
-    expect(dept).toEqual({
-      id: 'skku-main',
-      name: '학부통합(학사)',
-      campus: 'hssc',
-      category: '학사',
-      hasCategory: true,
-      hasAuthor: false,
+
+    const result = parseTabsConfig(raw);
+    expect(result.schemaVersion).toBe(1);
+    expect(result.tabs).toHaveLength(2);
+
+    const [picker, fixed] = result.tabs;
+    expect(picker.key).toBe('dept');
+    expect(picker.tabMode).toBe('picker');
+    expect(picker.picker?.departments).toHaveLength(2);
+    expect(picker.picker?.maxSelection).toBe(5);
+    expect(picker.picker?.defaultDeptIds).toEqual([]);
+
+    expect(fixed.key).toBe('academic');
+    expect(fixed.tabMode).toBe('fixed');
+    expect(fixed.fixed?.deptId).toBe('skku-notice02');
+  });
+
+  it('skips tabs with unknown tabMode (forward compat)', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        { key: 'academic', label: '학사', tabMode: 'fixed', fixed: { deptId: 'x', name: 'X', campus: 'both' } },
+        { key: 'future', label: 'Future', tabMode: 'some-new-mode' },
+        { key: 'dept', label: '학과', tabMode: 'picker', picker: { departments: [], maxSelection: 3, defaultDeptIds: [] } },
+      ],
     });
+
+    const result = parseTabsConfig(raw);
+    expect(result.tabs).toHaveLength(2);
+    expect(result.tabs.map((t) => t.key)).toEqual(['academic', 'dept']);
+  });
+
+  it('returns empty tabs when data missing', () => {
+    const result = parseTabsConfig(envelope({}));
+    expect(result.tabs).toEqual([]);
+    expect(result.schemaVersion).toBe(1);
+  });
+
+  it('skips tabs with empty key', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        { key: '', label: 'No Key', tabMode: 'fixed', fixed: { deptId: 'x', name: 'X', campus: 'both' } },
+        { key: 'valid', label: 'Valid', tabMode: 'fixed', fixed: { deptId: 'y', name: 'Y', campus: 'nsc' } },
+      ],
+    });
+    const result = parseTabsConfig(raw);
+    expect(result.tabs).toHaveLength(1);
+    expect(result.tabs[0].key).toBe('valid');
+  });
+
+  it('parses picker defaultDeptIds correctly', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'library',
+          label: '도서관',
+          tabMode: 'picker',
+          picker: {
+            departments: [{ id: 'lib-hssc', name: '학술정보관(인사캠)', campus: 'hssc' }],
+            maxSelection: 3,
+            defaultDeptIds: ['lib-hssc', 'lib-nsc'],
+          },
+        },
+      ],
+    });
+    const result = parseTabsConfig(raw);
+    expect(result.tabs[0].picker?.defaultDeptIds).toEqual(['lib-hssc', 'lib-nsc']);
   });
 });
 

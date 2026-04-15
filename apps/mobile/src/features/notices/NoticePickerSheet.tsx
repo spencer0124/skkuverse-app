@@ -8,28 +8,42 @@
 import { forwardRef, useCallback, useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import {
+  BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { Check } from 'lucide-react-native';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
-import type { Department } from '@skkuverse/shared';
+import type { TabDepartment } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
-const MAX_SELECTED = 3;
-
 interface Props {
-  items: Department[];
+  items: TabDepartment[];
   selectedIds: string[];
   onConfirm: (ids: string[]) => void;
+  /** Server-provided max selection count for this picker tab. */
+  maxSelection: number;
   /** Override the sheet title (defaults to notices.selectDept) */
   title?: string;
 }
 
 export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
-  function NoticePickerSheet({ items, selectedIds, onConfirm, title }, ref) {
+  function NoticePickerSheet({ items, selectedIds, onConfirm, maxSelection, title }, ref) {
     const { t, tpl } = useT();
     const [pending, setPending] = useState<string[]>(selectedIds);
+
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
 
     const handleChange = useCallback(
       (index: number) => {
@@ -47,10 +61,10 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
           return prev.filter((id) => id !== deptId);
         }
         // Enforce max 3
-        if (prev.length >= MAX_SELECTED) return prev;
+        if (prev.length >= maxSelection) return prev;
         return [...prev, deptId];
       });
-    }, []);
+    }, [maxSelection]);
 
     const handleConfirm = useCallback(() => {
       onConfirm(pending);
@@ -63,18 +77,19 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
         snapPoints={['50%']}
         enableDynamicSizing={false}
         onChange={handleChange}
+        backdropComponent={renderBackdrop}
       >
         <BottomSheetScrollView style={styles.content}>
           <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
             {title ?? t('notices.selectDept')}
           </Txt>
           <Txt typography="t7" color={SdsColors.grey500} style={styles.subtitle}>
-            {tpl('notices.selectDeptMax', MAX_SELECTED)}
+            {tpl('notices.selectDeptMax', maxSelection)}
           </Txt>
 
           {items.map((dept) => {
             const selected = pending.includes(dept.id);
-            const disabled = !selected && pending.length >= MAX_SELECTED;
+            const disabled = !selected && pending.length >= maxSelection;
             return (
               <Pressable
                 key={dept.id}

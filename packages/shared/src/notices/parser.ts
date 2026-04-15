@@ -5,9 +5,7 @@
  */
 
 import type { ApiEnvelope } from '../api/types';
-import { CRAWLER_ENABLED_DEPT_IDS } from './constants';
 import type {
-  Department,
   NoticeDetail,
   NoticeDetailSummary,
   NoticeEndAt,
@@ -17,6 +15,8 @@ import type {
   NoticePage,
   NoticePeriod,
   NoticeStartAt,
+  NoticeTab,
+  NoticeTabsConfig,
   NoticeSummaryType,
   NoticeSummaryDetails,
   NoticeAttachment,
@@ -55,17 +55,6 @@ function coerceSummaryType(raw: unknown): NoticeSummaryType {
   return typeof raw === 'string' && VALID_SUMMARY_TYPES.has(raw as NoticeSummaryType)
     ? (raw as NoticeSummaryType)
     : 'informational';
-}
-
-function parseDepartment(raw: Record<string, unknown>): Department {
-  return {
-    id: asString(raw.id),
-    name: asString(raw.name),
-    campus: asNullableString(raw.campus),
-    category: asNullableString(raw.category),
-    hasCategory: asBool(raw.hasCategory),
-    hasAuthor: asBool(raw.hasAuthor),
-  };
 }
 
 function parseStartAt(raw: unknown): NoticeStartAt | null {
@@ -203,25 +192,61 @@ function parseDetailSummary(raw: unknown): NoticeDetailSummary | null {
 // ── Public parsers ──
 
 /**
- * Parses GET /notices/departments response, filtering to the crawler-enabled
- * whitelist and preserving whitelist order (not server order).
+ * Parses GET /notices/tabs response.
+ *
+ * Unknown `tabMode` values are silently skipped for forward compatibility.
+ * If `schemaVersion` exceeds 1 (current supported version), parsing is still
+ * attempted best-effort — the caller handles the "0 valid tabs" case as error.
  */
-export function parseDepartmentList(envelope: ApiEnvelope<unknown>): Department[] {
+export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfig {
   const data = asRecord(envelope.data);
-  const rawList = Array.isArray(data.departments) ? (data.departments as unknown[]) : [];
+  const schemaVersion = asNumber(data.schemaVersion, 1);
+  const rawTabs = Array.isArray(data.tabs) ? (data.tabs as unknown[]) : [];
 
-  const byId = new Map<string, Department>();
-  for (const item of rawList) {
-    const dept = parseDepartment(asRecord(item));
-    if (dept.id) byId.set(dept.id, dept);
+  const tabs: NoticeTab[] = [];
+  for (const raw of rawTabs) {
+    const obj = asRecord(raw);
+    const tabMode = asString(obj.tabMode);
+    if (tabMode !== 'picker' && tabMode !== 'fixed') continue;
+
+    const tab: NoticeTab = {
+      key: asString(obj.key),
+      label: asString(obj.label),
+      tabMode,
+    };
+
+    if (tabMode === 'picker') {
+      const p = asRecord(obj.picker);
+      const rawDepts = Array.isArray(p.departments) ? (p.departments as unknown[]) : [];
+      tab.picker = {
+        departments: rawDepts.map((d) => {
+          const dd = asRecord(d);
+          return {
+            id: asString(dd.id),
+            name: asString(dd.name),
+            campus: asNullableString(dd.campus),
+          };
+        }),
+        maxSelection: asNumber(p.maxSelection, 5),
+        defaultDeptIds: Array.isArray(p.defaultDeptIds)
+          ? (p.defaultDeptIds as unknown[]).filter((x): x is string => typeof x === 'string')
+          : [],
+      };
+    }
+
+    if (tabMode === 'fixed') {
+      const f = asRecord(obj.fixed);
+      tab.fixed = {
+        deptId: asString(f.deptId),
+        name: asString(f.name),
+        campus: asString(f.campus, 'both'),
+      };
+    }
+
+    if (tab.key) tabs.push(tab);
   }
 
-  const ordered: Department[] = [];
-  for (const id of CRAWLER_ENABLED_DEPT_IDS) {
-    const dept = byId.get(id);
-    if (dept) ordered.push(dept);
-  }
-  return ordered;
+  return { schemaVersion, tabs };
 }
 
 /**

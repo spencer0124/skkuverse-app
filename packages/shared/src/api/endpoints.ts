@@ -35,7 +35,7 @@ export const ApiEndpoints = {
   appConfig: () => '/app/config',
 
   // ── Notices ──
-  noticesDepartments: () => '/notices/departments',
+  noticesTabs: () => '/notices/tabs',
   noticesByDept: (deptId: string) => `/notices/dept/${deptId}`,
   noticesMulti: () => '/notices',
   noticeDetail: (deptId: string, articleNo: number) =>

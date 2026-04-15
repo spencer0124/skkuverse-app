@@ -115,6 +115,39 @@ export interface NoticeDetailSummary {
   generatedAt: string;
 }
 
+// ── Server-driven tab config (GET /notices/tabs) ──
+
+export interface TabDepartment {
+  id: string;
+  name: string;
+  campus: string | null;
+}
+
+export interface PickerTabConfig {
+  departments: TabDepartment[];
+  maxSelection: number;
+  defaultDeptIds: string[];
+}
+
+export interface FixedTabConfig {
+  deptId: string;
+  name: string;
+  campus: string;
+}
+
+export interface NoticeTab {
+  key: string;
+  label: string;
+  tabMode: 'picker' | 'fixed';
+  picker?: PickerTabConfig;
+  fixed?: FixedTabConfig;
+}
+
+export interface NoticeTabsConfig {
+  schemaVersion: number;
+  tabs: NoticeTab[];
+}
+
 export interface NoticeDetail {
   id: string;
   deptId: string;

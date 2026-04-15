@@ -1,11 +1,14 @@
-export { CRAWLER_ENABLED_DEPT_IDS } from './constants';
-export type { CrawlerEnabledDeptId } from './constants';
 export {
-  parseDepartmentList,
+  parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
 } from './parser';
 export type {
+  TabDepartment,
+  PickerTabConfig,
+  FixedTabConfig,
+  NoticeTab,
+  NoticeTabsConfig,
   Department,
   NoticeSummaryType,
   NoticeStartAt,

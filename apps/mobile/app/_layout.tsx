@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
@@ -68,6 +69,7 @@ export default function RootLayout() {
         <SDSProvider>
           <QueryProvider>
             <InitGate>
+              <BottomSheetModalProvider>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="bus" options={{ headerShown: false }} />
@@ -91,6 +93,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <StatusBar style="dark" />
+              </BottomSheetModalProvider>
             </InitGate>
           </QueryProvider>
         </SDSProvider>

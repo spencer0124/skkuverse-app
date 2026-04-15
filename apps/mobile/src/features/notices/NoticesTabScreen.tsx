@@ -1,26 +1,26 @@
 /**
- * Top-level notices tab — 9-tab scrollable layout.
+ * Top-level notices tab — server-driven tab layout.
  *
- * 학과: merged list from user-selected departments (via useMultiDeptNoticeList)
- * 도서관: merged list from user-selected libraries (via useMultiDeptNoticeList)
- * 학사 / 장학 / 취업 / 모집 / 행사 / 기숙사 / 일반: single dept via useNoticeList
+ * Tab configuration (order, types, picker department lists, labels) is
+ * fetched from `GET /notices/tabs`. Two tab modes:
  *
- * Department / library selection is persisted in settingsStore and opened via
- * a half-screen bottom sheet picker.
+ * - `fixed`: single dept, deptId provided by server
+ * - `picker`: user selects 1..N departments via bottom sheet
+ *
+ * Department / library selection is persisted in settingsStore.pickerSelections
+ * keyed by server tab key (e.g. 'dept', 'library').
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  BottomSheetModal,
-  BottomSheetModalProvider,
-} from '@gorhom/bottom-sheet';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   SdsColors,
-  useNoticeDepartments,
+  useNoticeTabs,
   useSettingsStore,
   useT,
+  type NoticeTab,
 } from '@skkuverse/shared';
 import { Tab, Txt } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
@@ -29,215 +29,199 @@ import { NoticePickerSheet } from './NoticePickerSheet';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 
-// ── Tab configuration ──
+// ── Helpers ──
 
-const NOTICE_TABS = [
-  { key: 'hakgwa', labelKey: 'notices.hakgwa' },
-  { key: 'haksa', labelKey: 'notices.haksa' },
-  { key: 'scholarship', labelKey: 'notices.scholarship' },
-  { key: 'career', labelKey: 'notices.career' },
-  { key: 'recruit', labelKey: 'notices.recruit' },
-  { key: 'event', labelKey: 'notices.event' },
-  { key: 'library', labelKey: 'notices.library' },
-  { key: 'dorm', labelKey: 'notices.dorm' },
-  { key: 'general', labelKey: 'notices.general' },
-] as const;
+/**
+ * Returns the effective selected IDs for a picker tab, validating stored
+ * selections against the current server response and falling back as needed.
+ */
+function resolvePickerSelection(
+  tab: NoticeTab,
+  stored: string[] | undefined,
+): string[] {
+  const picker = tab.picker!;
+  const validIds = new Set(picker.departments.map((d) => d.id));
 
-type NoticeTab = (typeof NOTICE_TABS)[number]['key'];
+  if (stored && stored.length > 0) {
+    const valid = stored.filter((id) => validIds.has(id));
+    if (valid.length > 0) return valid;
+  }
 
-/** Tabs that use multi-dept picker */
-const MULTI_TABS = new Set<NoticeTab>(['hakgwa', 'library']);
+  // Fall back to server defaults
+  if (picker.defaultDeptIds.length > 0) {
+    return picker.defaultDeptIds.filter((id) => validIds.has(id));
+  }
 
-/** Maps single-dept tabs to their dept ID. */
-const TAB_DEPT_ID: Record<Exclude<NoticeTab, 'hakgwa' | 'library'>, string> = {
-  haksa: 'skku-notice02',
-  scholarship: 'skku-notice06',
-  career: 'skku-notice04',
-  recruit: 'skku-notice05',
-  event: 'skku-notice07',
-  dorm: 'dorm-seoul',
-  general: 'skku-general',
-};
-
-/** Library dept IDs — names are resolved from the server department list. */
-const LIBRARY_DEPT_IDS = ['lib-all', 'lib-seoul', 'lib-suwon'];
+  // Last resort: first department
+  return picker.departments.length > 0 ? [picker.departments[0].id] : [];
+}
 
 export function NoticesTabScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
-  const { data: departments, isLoading, isError, refetch } = useNoticeDepartments();
+  const { data: tabsConfig, isLoading, isError, refetch } = useNoticeTabs();
+  const tabs = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
 
-  const [activeTab, setActiveTab] = useState<NoticeTab>('hakgwa');
-  const deptSheetRef = useRef<BottomSheetModal>(null);
-  const libSheetRef = useRef<BottomSheetModal>(null);
+  // ── Tab state ──
+  const [activeTabKey, setActiveTabKey] = useState<string>('');
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set());
 
-  // ── Department (학과) picker state ──
-  const selectedDeptIds = useSettingsStore((s) => s.selectedDeptIds);
-  const setSelectedDeptIds = useSettingsStore((s) => s.setSelectedDeptIds);
+  // Initialize active tab to first server tab when data loads
+  useEffect(() => {
+    if (tabs.length > 0 && activeTabKey === '') {
+      setActiveTabKey(tabs[0].key);
+      setVisitedTabs(new Set([tabs[0].key]));
+    }
+  }, [tabs, activeTabKey]);
 
-  // Departments available for the 학과 picker (exclude skku-main and lib-*)
-  const pickableDepts = useMemo(
-    () => departments?.filter((d) => d.id !== 'skku-main' && !d.id.startsWith('lib-')) ?? [],
-    [departments],
-  );
-
-  // Library items from server department list, filtered by LIBRARY_DEPT_IDS
-  const pickableLibs = useMemo(() => {
-    if (!departments) return [];
-    return LIBRARY_DEPT_IDS
-      .map((id) => departments.find((d) => d.id === id))
-      .filter((d): d is NonNullable<typeof d> => d != null);
-  }, [departments]);
-
-  const deptSelectorLabel = useMemo(() => {
-    if (!departments) return '';
-    return selectedDeptIds
-      .map((id) => departments.find((d) => d.id === id)?.name ?? id)
-      .join(', ');
-  }, [departments, selectedDeptIds]);
-
-  const handleOpenDeptSheet = useCallback(() => {
-    deptSheetRef.current?.present();
-  }, []);
-
-  const handleConfirmDepts = useCallback(
-    (ids: string[]) => {
-      setSelectedDeptIds(ids);
-    },
-    [setSelectedDeptIds],
-  );
-
-  // ── Library (도서관) picker state ──
-  const selectedLibIds = useSettingsStore((s) => s.selectedLibIds);
-  const setSelectedLibIds = useSettingsStore((s) => s.setSelectedLibIds);
-
-  const libSelectorLabel = useMemo(() => {
-    if (!departments) return '';
-    return selectedLibIds
-      .map((id) => departments.find((d) => d.id === id)?.name ?? id)
-      .join(', ');
-  }, [departments, selectedLibIds]);
-
-  const handleOpenLibSheet = useCallback(() => {
-    libSheetRef.current?.present();
-  }, []);
-
-  const handleConfirmLibs = useCallback(
-    (ids: string[]) => {
-      setSelectedLibIds(ids);
-    },
-    [setSelectedLibIds],
-  );
-
-  // ── Tab lazy-mounting ──
-  const [visitedTabs, setVisitedTabs] = useState<Set<NoticeTab>>(
-    () => new Set<NoticeTab>(['hakgwa']),
-  );
   const handleTabChange = useCallback((tab: string) => {
-    const t = tab as NoticeTab;
     setVisitedTabs((prev) => {
-      if (prev.has(t)) return prev;
+      if (prev.has(tab)) return prev;
       const next = new Set(prev);
-      next.add(t);
+      next.add(tab);
       return next;
     });
-    setActiveTab(t);
+    setActiveTabKey(tab);
   }, []);
 
+  // ── Picker state (single sheet, dynamic binding) ──
+  const sheetRef = useRef<BottomSheetModal>(null);
+  const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
+
+  const pickerSelections = useSettingsStore((s) => s.pickerSelections);
+  const setPickerSelection = useSettingsStore((s) => s.setPickerSelection);
+
+  const openPicker = useCallback((tabKey: string) => {
+    setPickerTabKey(tabKey);
+    // Sheet present is deferred to next render after pickerTabKey updates
+  }, []);
+
+  // Present sheet when pickerTabKey changes to a valid tab
+  const activePickerTab = useMemo(
+    () => (pickerTabKey ? tabs.find((t) => t.key === pickerTabKey) : null),
+    [pickerTabKey, tabs],
+  );
+
+  useEffect(() => {
+    if (activePickerTab?.tabMode === 'picker') {
+      sheetRef.current?.present();
+    }
+  }, [activePickerTab]);
+
+  const handlePickerConfirm = useCallback(
+    (ids: string[]) => {
+      if (pickerTabKey) setPickerSelection(pickerTabKey, ids);
+    },
+    [pickerTabKey, setPickerSelection],
+  );
+
+  const hasValidTabs = tabs.length > 0;
+
   return (
-    <BottomSheetModalProvider>
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900}>
-            {t('notices.title')}
-          </Txt>
-        </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900}>
+          {t('notices.title')}
+        </Txt>
+      </View>
 
-        {isLoading ? (
-          <NoticeListSkeleton />
-        ) : isError || !departments || departments.length === 0 ? (
-          <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-        ) : (
-          <>
-            <Tab value={activeTab} onChange={handleTabChange} size="small" fluid>
-              {NOTICE_TABS.map(({ key, labelKey }) => (
-                <Tab.Item key={key} value={key}>
-                  {t(labelKey)}
-                </Tab.Item>
-              ))}
-            </Tab>
+      {isLoading ? (
+        <NoticeListSkeleton />
+      ) : isError || !hasValidTabs ? (
+        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+      ) : (
+        <>
+          <Tab value={activeTabKey} onChange={handleTabChange} size="small" fluid>
+            {tabs.map((tab) => (
+              <Tab.Item key={tab.key} value={tab.key}>
+                {tab.label}
+              </Tab.Item>
+            ))}
+          </Tab>
 
-            <View style={styles.panels}>
-              {/* 학과 panel (multi-dept with picker) */}
-              {visitedTabs.has('hakgwa') && (
-                <View
-                  style={[
-                    styles.panel,
-                    activeTab !== 'hakgwa' && styles.hidden,
-                  ]}
-                >
-                  <NoticeSelector
-                    label={deptSelectorLabel}
-                    onPress={handleOpenDeptSheet}
+          <View style={styles.panels}>
+            {tabs.map((tab) => {
+              if (!visitedTabs.has(tab.key)) return null;
+              const isActive = activeTabKey === tab.key;
+
+              if (tab.tabMode === 'picker' && tab.picker) {
+                return (
+                  <PickerPanel
+                    key={tab.key}
+                    tab={tab}
+                    isActive={isActive}
+                    storedIds={pickerSelections[tab.key]}
+                    onOpenPicker={() => openPicker(tab.key)}
                   />
-                  <NoticeListPanel deptIds={selectedDeptIds} />
-                </View>
-              )}
+                );
+              }
 
-              {/* 도서관 panel (multi-lib with picker) */}
-              {visitedTabs.has('library') && (
-                <View
-                  style={[
-                    styles.panel,
-                    activeTab !== 'library' && styles.hidden,
-                  ]}
-                >
-                  <NoticeSelector
-                    label={libSelectorLabel}
-                    onPress={handleOpenLibSheet}
-                  />
-                  <NoticeListPanel deptIds={selectedLibIds} />
-                </View>
-              )}
-
-              {/* All other tabs — single dept each */}
-              {NOTICE_TABS.map(({ key }) => {
-                if (MULTI_TABS.has(key)) return null;
-                if (!visitedTabs.has(key)) return null;
+              if (tab.tabMode === 'fixed' && tab.fixed) {
                 return (
                   <View
-                    key={key}
-                    style={[
-                      styles.panel,
-                      activeTab !== key && styles.hidden,
-                    ]}
+                    key={tab.key}
+                    style={[styles.panel, !isActive && styles.hidden]}
                   >
-                    <NoticeListPanel deptId={TAB_DEPT_ID[key as Exclude<NoticeTab, 'hakgwa' | 'library'>]} />
+                    <NoticeListPanel deptId={tab.fixed.deptId} />
                   </View>
                 );
-              })}
-            </View>
+              }
 
-            {/* Department picker sheet */}
-            <NoticePickerSheet
-              ref={deptSheetRef}
-              items={pickableDepts}
-              selectedIds={selectedDeptIds}
-              onConfirm={handleConfirmDepts}
-            />
+              return null; // unknown tabMode — skip
+            })}
+          </View>
 
-            {/* Library picker sheet */}
+          {/* Single picker sheet, dynamically bound to the active picker tab */}
+          {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
             <NoticePickerSheet
-              ref={libSheetRef}
-              items={pickableLibs}
-              selectedIds={selectedLibIds}
-              onConfirm={handleConfirmLibs}
-              title={t('notices.selectLib')}
+              ref={sheetRef}
+              items={activePickerTab.picker.departments}
+              selectedIds={resolvePickerSelection(
+                activePickerTab,
+                pickerSelections[activePickerTab.key],
+              )}
+              maxSelection={activePickerTab.picker.maxSelection}
+              onConfirm={handlePickerConfirm}
+              title={activePickerTab.label}
             />
-          </>
-        )}
-      </View>
-    </BottomSheetModalProvider>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+// ── Picker panel sub-component (avoids inline useMemo in loop) ──
+
+function PickerPanel({
+  tab,
+  isActive,
+  storedIds,
+  onOpenPicker,
+}: {
+  tab: NoticeTab;
+  isActive: boolean;
+  storedIds: string[] | undefined;
+  onOpenPicker: () => void;
+}) {
+  const selectedIds = useMemo(
+    () => resolvePickerSelection(tab, storedIds),
+    [tab, storedIds],
+  );
+
+  const selectorLabel = useMemo(
+    () =>
+      selectedIds
+        .map((id) => tab.picker!.departments.find((d) => d.id === id)?.name ?? id)
+        .join(', '),
+    [selectedIds, tab.picker],
+  );
+
+  return (
+    <View style={[styles.panel, !isActive && styles.hidden]}>
+      <NoticeSelector label={selectorLabel} onPress={onOpenPicker} />
+      <NoticeListPanel deptIds={selectedIds} />
+    </View>
   );
 }
 

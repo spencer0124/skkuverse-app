@@ -23,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetModal,
-  BottomSheetModalProvider,
 } from '@gorhom/bottom-sheet';
 import type { NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import {
@@ -161,7 +160,6 @@ export function CampusScreen() {
   );
 
   return (
-    <BottomSheetModalProvider>
       <View style={styles.root}>
         {/* Map (behind everything) */}
         {mapConfig && (
@@ -233,7 +231,6 @@ export function CampusScreen() {
           </>
         )}
       </View>
-    </BottomSheetModalProvider>
   );
 }
 

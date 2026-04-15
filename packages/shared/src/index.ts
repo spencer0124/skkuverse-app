@@ -157,14 +157,18 @@ export {
   parseBuildingSearchResult,
 } from './building';
 
-// ── Notice parsers + constants + types ──
+// ── Notice parsers + types ──
 export {
-  parseDepartmentList,
+  parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
-  CRAWLER_ENABLED_DEPT_IDS,
 } from './notices';
 export type {
+  TabDepartment,
+  PickerTabConfig,
+  FixedTabConfig,
+  NoticeTab,
+  NoticeTabsConfig,
   Department,
   NoticeSummaryType,
   NoticeStartAt,
@@ -179,7 +183,6 @@ export type {
   NoticeLocation,
   NoticeAttachment,
   NoticeEditInfo,
-  CrawlerEnabledDeptId,
 } from './notices';
 
 // ── Hooks ──
@@ -209,8 +212,8 @@ export {
   useLayerPolyline,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
-  useNoticeDepartments,
-  NOTICE_DEPARTMENTS_KEY,
+  useNoticeTabs,
+  NOTICE_TABS_KEY,
   useNoticeList,
   NOTICE_LIST_KEY,
   type UseNoticeListArgs,

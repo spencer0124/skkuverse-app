@@ -14,7 +14,7 @@ export { useLayerMarkers, useLayerPolyline } from './useMapLayers';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 
 // ── Notice hooks ──
-export { useNoticeDepartments, NOTICE_DEPARTMENTS_KEY } from './useNoticeDepartments';
+export { useNoticeTabs, NOTICE_TABS_KEY } from './useNoticeTabs';
 export { useNoticeList, NOTICE_LIST_KEY } from './useNoticeList';
 export type { UseNoticeListArgs } from './useNoticeList';
 export { useMultiDeptNoticeList, NOTICE_MULTI_KEY } from './useMultiDeptNoticeList';
