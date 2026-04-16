@@ -117,13 +117,15 @@ function parseRealtimeStation(raw: Raw): RealtimeStation {
 }
 
 function parseRealtimeScreenConfig(raw: Raw): RealtimeScreenConfig {
+  const stations = ((raw.stations as Raw[]) ?? []).map(parseRealtimeStation);
   return {
     ...(raw.dataEndpoint != null && {
       dataEndpoint: raw.dataEndpoint as string,
     }),
     refreshInterval: (raw.refreshInterval as number) ?? 15,
-    lastStationIndex: (raw.lastStationIndex as number) ?? 10,
-    stations: ((raw.stations as Raw[]) ?? []).map(parseRealtimeStation),
+    lastStationIndex:
+      (raw.lastStationIndex as number) ?? Math.max(0, stations.length - 1),
+    stations,
     features: (raw.features as Record<string, unknown>[]) ?? [],
   };
 }

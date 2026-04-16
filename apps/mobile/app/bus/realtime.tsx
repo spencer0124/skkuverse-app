@@ -82,7 +82,7 @@ export default function RealtimeScreen() {
 
   // Info button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
-  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info');
+  const infoUrl = serverInfoUrl ? devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info') : undefined;
 
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
@@ -133,7 +133,7 @@ export default function RealtimeScreen() {
             <BusMarker
               key={`${bus.carNumber}-${bus.stationIndex}-${i}`}
               bus={bus}
-              lastStationIndex={screenConfig?.lastStationIndex ?? 10}
+              lastStationIndex={screenConfig?.lastStationIndex ?? 0}
               color={themeColor}
               pollGeneration={pollGeneration.current}
             />
