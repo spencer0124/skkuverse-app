@@ -59,7 +59,7 @@ export default function ScheduleScreen() {
 
   // Info button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
-  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info');
+  const infoUrl = serverInfoUrl ? devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info') : undefined;
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
     router.push({
