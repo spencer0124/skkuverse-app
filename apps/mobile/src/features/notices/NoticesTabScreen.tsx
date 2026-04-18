@@ -182,6 +182,7 @@ export function NoticesTabScreen() {
               )}
               maxSelection={activePickerTab.picker.maxSelection}
               onConfirm={handlePickerConfirm}
+              onDismiss={() => setPickerTabKey(null)}
               title={activePickerTab.label}
             />
           )}

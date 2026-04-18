@@ -26,10 +26,12 @@ interface Props {
   maxSelection: number;
   /** Override the sheet title (defaults to notices.selectDept) */
   title?: string;
+  /** Called when the sheet is fully dismissed (backdrop or programmatic). */
+  onDismiss?: () => void;
 }
 
 export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
-  function NoticePickerSheet({ items, selectedIds, onConfirm, maxSelection, title }, ref) {
+  function NoticePickerSheet({ items, selectedIds, onConfirm, maxSelection, title, onDismiss }, ref) {
     const { t, tpl } = useT();
     const [pending, setPending] = useState<string[]>(selectedIds);
 
@@ -77,6 +79,7 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
         snapPoints={['50%']}
         enableDynamicSizing={false}
         onChange={handleChange}
+        onDismiss={onDismiss}
         backdropComponent={renderBackdrop}
       >
         <BottomSheetScrollView style={styles.content}>
