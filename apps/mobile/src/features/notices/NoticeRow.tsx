@@ -3,7 +3,7 @@ import { SdsColors, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import { Paperclip } from 'lucide-react-native';
-import { formatDeadlineBadge } from './utils/formatDeadlineBadge';
+import { formatDeadlineBadge, type DeadlineInfo } from './utils/formatDeadlineBadge';
 import { formatRelativeDate } from './utils/formatRelativeDate';
 
 interface Props {
@@ -15,14 +15,43 @@ interface Props {
 
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
+  normal: { color: '#03B26C', background: '#F0FAF6' },
+  closed: { color: '#8B95A1', background: '#F2F4F6' },
   eventToday: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
   inProgress: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
+  upcoming: { color: '#03B26C', background: '#F0FAF6' },
 };
-const DEFAULT_PILL = { color: SdsColors.grey600, background: '#F2F3F5' };
+const DEFAULT_PILL = { color: '#03B26C', background: '#F0FAF6' };
+
+function isFixedBadge(d: DeadlineInfo): boolean {
+  return d.pill.variant === 'closed';
+}
+
+function renderPill(info: DeadlineInfo) {
+  const colors = PILL_COLORS[info.pill.variant] ?? DEFAULT_PILL;
+  const label = info.context
+    ? `${info.pill.text} · ${info.context}`
+    : info.pill.text;
+  return (
+    <View style={[styles.pill, { backgroundColor: colors.background }]}>
+      <Txt
+        typography="t7"
+        fontWeight="bold"
+        color={colors.color}
+        numberOfLines={1}
+        style={styles.pillText}
+      >
+        {label}
+      </Txt>
+    </View>
+  );
+}
 
 export function NoticeRow({ item, onPress, showDepartment }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
   const deadline = formatDeadlineBadge(item.summary ?? null);
+  const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
+  const belowBadge  = deadline && !isFixedBadge(deadline) ? deadline : null;
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
   const relativeDate = formatRelativeDate(item.date, lang);
   const deptLabel = showDepartment ? item.department : undefined;
@@ -64,24 +93,22 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
                   {deptLabel}
                 </Txt>
               ) : null}
+              {item.hasAttachments ? (
+                <Paperclip size={12} color={SdsColors.grey400} style={styles.clipIcon} />
+              ) : null}
             </View>
           ) : null}
-          <View style={styles.titleRow}>
-            <Txt
-              typography="t5"
-              fontWeight="semiBold"
-              color={SdsColors.grey900}
-              numberOfLines={2}
-              lineBreakStrategyIOS="hangul-word"
-              textBreakStrategy="highQuality"
-              style={[styles.title, item.hasAttachments && styles.titleWithClip]}
-            >
-              {item.title}
-            </Txt>
-            {item.hasAttachments ? (
-              <Paperclip size={14} color={SdsColors.grey400} style={styles.clipIcon} />
-            ) : null}
-          </View>
+          <Txt
+            typography="t5"
+            fontWeight="semiBold"
+            color={SdsColors.grey900}
+            numberOfLines={2}
+            lineBreakStrategyIOS="hangul-word"
+            textBreakStrategy="highQuality"
+            style={[styles.title, fixedBadge && styles.titleWithBadge]}
+          >
+            {item.title}
+          </Txt>
           {oneLiner.length > 0 ? (
             <Txt
               typography="t7"
@@ -92,30 +119,13 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
               {oneLiner}
             </Txt>
           ) : null}
-          {deadline ? (
+          {belowBadge ? (
             <View style={styles.deadlineRow}>
-              <View
-                style={[
-                  styles.pill,
-                  {
-                    backgroundColor:
-                      (PILL_COLORS[deadline.pill.variant] ?? DEFAULT_PILL).background,
-                  },
-                ]}
-              >
-                <Txt
-                  typography="t7"
-                  fontWeight="bold"
-                  color={(PILL_COLORS[deadline.pill.variant] ?? DEFAULT_PILL).color}
-                  numberOfLines={1}
-                  style={styles.pillText}
-                >
-                  {deadline.context
-                    ? `${deadline.pill.text} · ${deadline.context}`
-                    : deadline.pill.text}
-                </Txt>
-              </View>
+              {renderPill(belowBadge)}
             </View>
+          ) : null}
+          {fixedBadge ? (
+            <View style={styles.fixedBadgeFixed}>{renderPill(fixedBadge)}</View>
           ) : null}
         </View>
       }
@@ -146,21 +156,21 @@ const styles = StyleSheet.create({
   deptText: {
     flexShrink: 1,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
   title: {
     fontSize: 16,
     lineHeight: 23,
     letterSpacing: -0.3,
   },
-  titleWithClip: {
-    flex: 1,
+  titleWithBadge: {
+    paddingRight: 56,
+  },
+  fixedBadgeFixed: {
+    position: 'absolute',
+    right: 0,
+    top: 22,
   },
   clipIcon: {
-    marginLeft: 6,
-    marginTop: 5,
+    marginLeft: 4,
   },
   subText: {
     fontSize: 13,
