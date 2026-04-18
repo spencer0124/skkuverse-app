@@ -19,7 +19,7 @@ const path = require("path");
 
 /** locale → display name (matching the Flutter project) */
 const LOCALIZED_NAMES = {
-  en: "SKKU BUS",
+  en: "skkuverse",
   ko: "스꾸버스",
   zh: "成均館 公交",
 };
@@ -40,7 +40,7 @@ function withLocalizedAppNameIOS(config) {
         const lprojDir = path.join(iosDir, `${iosLprojName(locale)}.lproj`);
         fs.mkdirSync(lprojDir, { recursive: true });
 
-        const content = `CFBundleDisplayName = "${name}";\n`;
+        const content = `CFBundleDisplayName = "${name}";\nCFBundleName = "${name}";\n`;
         fs.writeFileSync(path.join(lprojDir, "InfoPlist.strings"), content);
       }
 

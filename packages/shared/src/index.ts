@@ -44,7 +44,7 @@ export type { TranslationKey } from './i18n';
 
 // ── Stores ──
 export { authStore, useAuthStore } from './store/auth';
-export type { AuthState, AuthStore } from './store/auth';
+export type { AuthState, AuthStore, AuthUser } from './store/auth';
 export { useSettingsStore } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/settings';
 export { useMapLayerStore } from './store/map';

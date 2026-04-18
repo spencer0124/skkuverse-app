@@ -84,6 +84,21 @@ const ko = {
   'nav.info': '정보',
   'nav.transit': '이동',
   'nav.notices': '공지',
+  'nav.more': '전체',
+
+  // ── Auth ──
+  'auth.loginTitle': '성균관대 로그인',
+  'auth.loginSubtitle': '성균관대 학부생 전용\n@g.skku.edu 계정이 필요합니다',
+  'auth.googleSignIn': 'Google 계정으로 로그인',
+  'auth.domainNotAllowed': '성균관대 학부생 계정(@g.skku.edu)으로만\n로그인 가능합니다',
+  'auth.playServicesError': 'Google Play 서비스를 업데이트해 주세요',
+  'auth.unknownError': '로그인에 실패했어요. 다시 시도해 주세요',
+  'auth.signOut': '로그아웃',
+  'auth.signOutConfirm': '로그아웃하시겠어요?',
+  'auth.loginPrompt': '로그인하면 더 많은 기능을 사용할 수 있어요',
+
+  // ── Notices ──
+  'notices.loginRequired': '공지를 보려면 로그인이 필요해요',
 
   // ── Common ──
   'common.ok': '확인',
@@ -290,8 +305,23 @@ const en: TranslationMap = {
   'nav.info': 'Info',
   'nav.transit': 'Transit',
   'nav.notices': 'Notices',
+  'nav.more': 'More',
 
-  // ── Common ──
+  // ── Auth ──
+  'auth.loginTitle': 'SKKU Sign In',
+  'auth.loginSubtitle': 'For SKKU students only\nRequires a @g.skku.edu account',
+  'auth.googleSignIn': 'Sign in with Google',
+  'auth.domainNotAllowed': 'Only SKKU accounts (@g.skku.edu)\nare allowed',
+  'auth.playServicesError': 'Please update Google Play Services',
+  'auth.unknownError': 'Sign-in failed. Please try again.',
+  'auth.signOut': 'Sign out',
+  'auth.signOutConfirm': 'Sign out?',
+  'auth.loginPrompt': 'Sign in to access more features',
+
+  // ── Notices ──
+  'notices.loginRequired': 'Sign in to view notices',
+
+  // ── Common ���─
   'common.ok': 'ok',
   'common.close': 'Close',
   'common.retry': 'Retry',
@@ -494,6 +524,21 @@ const zh: TranslationMap = {
   'nav.info': '信息',
   'nav.transit': '出行',
   'nav.notices': '公告',
+  'nav.more': '全部',
+
+  // ── Auth ──
+  'auth.loginTitle': '成均馆大学登录',
+  'auth.loginSubtitle': '成均馆大学学生专用\n需要 @g.skku.edu 账号',
+  'auth.googleSignIn': '使用 Google 账号登录',
+  'auth.domainNotAllowed': '仅支持成均馆大学账号\n(@g.skku.edu)',
+  'auth.playServicesError': '请更新 Google Play 服务',
+  'auth.unknownError': '登录失败，请重试',
+  'auth.signOut': '退出登录',
+  'auth.signOutConfirm': '确定退出登录？',
+  'auth.loginPrompt': '登录后可使用更多功能',
+
+  // ── Notices ──
+  'notices.loginRequired': '登录后可查看公告',
 
   // ── Common ──
   'common.ok': '查看',

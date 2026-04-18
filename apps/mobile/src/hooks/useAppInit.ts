@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
-import auth from '@react-native-firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from '@react-native-firebase/auth';
 import { getLocales } from 'expo-localization';
 import {
   setAuthTokenProvider,
@@ -14,6 +14,7 @@ import {
 import type { AppLanguage } from '@skkuverse/shared';
 import mobileAds from 'react-native-google-mobile-ads';
 import { setCrashlyticsUserId } from '@/services/crashlytics';
+import { configureGoogleSignIn } from '@/services/google-auth';
 import {
   disableAnalyticsInDev,
   setAnalyticsUserId,
@@ -53,16 +54,19 @@ export function useAppInit() {
         // 0. Disable Analytics collection in dev builds
         await disableAnalyticsInDev();
 
-        // 1. Register token provider (decouples shared pkg from Firebase)
+        // 1. Configure Google Sign-In
+        configureGoogleSignIn();
+
+        // 2. Register token provider (decouples shared pkg from Firebase)
         setAuthTokenProvider(async (forceRefresh) => {
-          const user = auth().currentUser;
+          const user = getAuth().currentUser;
           if (!user) return null;
           return user.getIdToken(forceRefresh);
         });
 
         // 2. Anonymous sign-in if needed
-        if (!auth().currentUser) {
-          await auth().signInAnonymously();
+        if (!getAuth().currentUser) {
+          await signInAnonymously(getAuth());
         }
 
         // 3. Force-create API client singleton (interceptors attached)
@@ -75,12 +79,28 @@ export function useAppInit() {
         }
 
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
-        unsubscribe = auth().onAuthStateChanged((user) => {
+        unsubscribe = onAuthStateChanged(getAuth(), (user) => {
           if (user) {
-            authStore.getState().setAuthenticated(user.uid);
+            if (__DEV__) {
+              console.log('[auth] onAuthStateChanged:', {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                isAnonymous: user.isAnonymous,
+                providerData: user.providerData.map((p) => p.providerId),
+              });
+            }
+            authStore.getState().setAuthenticated({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              isAnonymous: user.isAnonymous,
+            });
             setAnalyticsUserId(user.uid);
             setCrashlyticsUserId(user.uid);
           } else {
+            if (__DEV__) console.log('[auth] onAuthStateChanged: signed out');
             authStore.getState().setUnauthenticated();
           }
         });

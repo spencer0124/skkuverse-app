@@ -24,6 +24,7 @@ const SCREEN_NAMES: Record<string, string> = {
   '/bus/schedule': 'bus_schedule_screen',
   '/map/hssc': 'map_hssc_screen',
   '/map/hssc-credit': 'map_hssc_credit_screen',
+  '/login': 'login_screen',
 };
 
 function resolveScreenName(
@@ -84,6 +85,13 @@ export default function RootLayout() {
                 <Stack.Screen name="map/hssc-credit" options={{ headerShown: false }} />
                 <Stack.Screen name="notices" options={{ headerShown: false }} />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="login"
+                  options={{
+                    headerShown: false,
+                    presentation: 'modal',
+                  }}
+                />
                 <Stack.Screen
                   name="sds-preview"
                   options={{

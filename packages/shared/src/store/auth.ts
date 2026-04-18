@@ -8,18 +8,32 @@ import { createStore, useStore } from 'zustand';
  *
  * Flutter source: lib/core/data/api_client.dart (ensureAuth)
  */
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  isAnonymous: boolean;
+}
+
 export interface AuthState {
   isInitialized: boolean;
   isAuthenticated: boolean;
+  isAnonymous: boolean;
+  isSigningOut: boolean;
   uid: string | null;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
   isLoading: boolean;
   error: string | null;
 }
 
 interface AuthActions {
   setLoading: () => void;
-  setAuthenticated: (uid: string) => void;
+  setAuthenticated: (user: AuthUser) => void;
   setUnauthenticated: () => void;
+  setSigningOut: (v: boolean) => void;
   setError: (message: string) => void;
 }
 
@@ -28,17 +42,26 @@ export type AuthStore = AuthState & AuthActions;
 export const authStore = createStore<AuthStore>((set) => ({
   isInitialized: false,
   isAuthenticated: false,
+  isAnonymous: true,
+  isSigningOut: false,
   uid: null,
+  email: null,
+  displayName: null,
+  photoURL: null,
   isLoading: true,
   error: null,
 
   setLoading: () => set({ isLoading: true, error: null }),
 
-  setAuthenticated: (uid) =>
+  setAuthenticated: (user) =>
     set({
       isInitialized: true,
       isAuthenticated: true,
-      uid,
+      isAnonymous: user.isAnonymous,
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
       isLoading: false,
       error: null,
     }),
@@ -47,10 +70,16 @@ export const authStore = createStore<AuthStore>((set) => ({
     set({
       isInitialized: true,
       isAuthenticated: false,
+      isAnonymous: true,
       uid: null,
+      email: null,
+      displayName: null,
+      photoURL: null,
       isLoading: false,
       error: null,
     }),
+
+  setSigningOut: (v) => set({ isSigningOut: v }),
 
   setError: (message) =>
     set({

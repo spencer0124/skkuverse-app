@@ -1,12 +1,12 @@
 import { Tabs } from "expo-router";
 import type { NavigationState } from "@react-navigation/native";
-import { /* Home, */ Map, Navigation, Bell } from "lucide-react-native";
+import { /* Home, */ Map, Navigation, Bell, Menu } from "lucide-react-native";
 import { Text } from "react-native";
 import { useT, useSettingsStore } from "@skkuverse/shared";
 import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
 
-const VALID_TABS: readonly TabRoute[] = ['campus', 'transit', 'notices'];
+const VALID_TABS: readonly TabRoute[] = ['campus', 'transit', 'notices', 'more'];
 
 export default function TabLayout() {
   const { t } = useT();
@@ -25,7 +25,8 @@ export default function TabLayout() {
           if (
             route?.name === 'campus' ||
             route?.name === 'transit' ||
-            route?.name === 'notices'
+            route?.name === 'notices' ||
+            route?.name === 'more'
           ) {
             logTabSwitch(route.name);
             setLastTab(route.name as TabRoute);
@@ -127,6 +128,27 @@ export default function TabLayout() {
               }}
             >
               {t("nav.transit")}
+            </Text>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: t("nav.more"),
+          tabBarIcon: ({ color }) => (
+            <Menu size={22} color={color} />
+          ),
+          tabBarLabel: ({ focused, color }) => (
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: focused ? "500" : "400",
+                color,
+                lineHeight: 10,
+              }}
+            >
+              {t("nav.more")}
             </Text>
           ),
         }}

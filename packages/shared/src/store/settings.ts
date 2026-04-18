@@ -7,7 +7,7 @@ export type Campus = 'hssc' | 'nsc';
 
 export type AppLanguage = 'ko' | 'en' | 'zh';
 
-export type TabRoute = 'campus' | 'transit' | 'notices';
+export type TabRoute = 'campus' | 'transit' | 'notices' | 'more';
 
 export interface SettingsState {
   preferredCampus: Campus;
