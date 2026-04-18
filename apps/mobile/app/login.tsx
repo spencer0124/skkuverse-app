@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@skkuverse/sds';
-import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
+import { SdsColors, SdsSpacing, useT, authStore } from '@skkuverse/shared';
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
 import { GoogleIcon } from '@/components/GoogleIcon';
 
@@ -17,7 +17,17 @@ export default function LoginScreen() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      await signInWithGoogle();
+      const result = await signInWithGoogle();
+      // Android: linkWithCredential doesn't fire onAuthStateChanged
+      // (same UID preserved), so manually sync the store.
+      const user = result.user;
+      authStore.getState().setAuthenticated({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        isAnonymous: user.isAnonymous,
+      });
       router.back();
     } catch (err) {
       if (err instanceof GoogleAuthError) {

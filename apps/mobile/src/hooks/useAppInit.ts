@@ -21,6 +21,7 @@ import {
   setAppLanguage,
   setPreferredCampus,
 } from '@/services/analytics';
+import { setupAppCheck } from '@/services/app-check';
 
 function resolveAppLanguage(): AppLanguage {
   const deviceLang = getLocales()[0]?.languageCode;
@@ -53,6 +54,9 @@ export function useAppInit() {
       try {
         // 0. Disable Analytics collection in dev builds
         await disableAnalyticsInDev();
+
+        // 0.5. Initialize App Check before any Firebase service calls
+        await setupAppCheck();
 
         // 1. Configure Google Sign-In
         configureGoogleSignIn();
