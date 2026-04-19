@@ -50,6 +50,25 @@ export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/setti
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
 
+// ── Notifications ──
+export type {
+  UserDocument,
+  DeviceDocument,
+  PreferencesDocument,
+} from './types/notifications';
+export {
+  TopicPrefix,
+  buildTopic,
+  parseTopic,
+  MANDATORY_TOPICS,
+} from './constants/topics';
+export type { TopicPrefixValue } from './constants/topics';
+export { useNotificationStore, notificationStore } from './store/notifications';
+export type {
+  NotificationStore,
+  PushPermissionStatus,
+} from './store/notifications';
+
 // ── SDUI types ──
 export type {
   SduiSection,

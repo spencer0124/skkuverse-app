@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { getAuth, signInAnonymously, onAuthStateChanged } from '@react-native-firebase/auth';
 import { getLocales } from 'expo-localization';
 import {
@@ -7,13 +8,14 @@ import {
   getApiClient,
   authStore,
   useSettingsStore,
+  useNotificationStore,
   SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
   t as translate,
 } from '@skkuverse/shared';
 import type { AppLanguage } from '@skkuverse/shared';
 import mobileAds from 'react-native-google-mobile-ads';
-import { setCrashlyticsUserId } from '@/services/crashlytics';
+import { setCrashlyticsUserId, logHandledError } from '@/services/crashlytics';
 import { configureGoogleSignIn } from '@/services/google-auth';
 import {
   disableAnalyticsInDev,
@@ -23,14 +25,25 @@ import {
 } from '@/services/analytics';
 import { setupAppCheck } from '@/services/app-check';
 import { setupNotificationChannels } from '@/services/notification-channels';
-import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
+import { ensureRegistered, checkPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
 import { getOrCreateDeviceId } from '@/services/device-id';
+import { initializeFirestoreNotifications } from '@/services/firestore-notifications';
+import { withRetry } from '@/utils/with-retry';
 
 function resolveAppLanguage(): AppLanguage {
   const deviceLang = getLocales()[0]?.languageCode;
   return (SUPPORTED_LANGUAGES as readonly string[]).includes(deviceLang ?? '')
     ? (deviceLang as AppLanguage)
     : DEFAULT_LANGUAGE;
+}
+
+/**
+ * Map AppLanguage ('ko' | 'en' | 'zh') to the subset the notification
+ * subsystem supports ('ko' | 'en'). Chinese users receive Korean copy
+ * because the server has no zh translation pipeline; see plan doc.
+ */
+function toNotificationLocale(lang: AppLanguage): 'ko' | 'en' {
+  return lang === 'en' ? 'en' : 'ko';
 }
 
 /**
@@ -107,29 +120,81 @@ export function useAppInit() {
           }
         });
 
-        // 5. FCM registration
-        // Correct order: requestPermission → ensureRegistered → getDeviceToken
-        // requestPermission() is idempotent — no dialog if already granted
+        // 5. FCM registration + Firestore bootstrap (Phase 2)
+        //
+        // Permission dialog is owned by Phase 3's master toggle — here we only
+        // read the current status. If already authorized (e.g. prior install
+        // with permission granted), we proceed to token + Firestore registration.
         await setupNotificationChannels();
-        getOrCreateDeviceId(); // ensure deviceId is persisted early
+        const deviceId = getOrCreateDeviceId();
+        useNotificationStore.getState().setDeviceId(deviceId);
 
-        // 5.1 Permission (idempotent — won't show dialog if already granted)
-        const permStatus = await requestPermission();
+        const permStatus = await checkPermission();
+        useNotificationStore.getState().setPermissionStatus(permStatus);
 
-        // 5.2 Register + get token if authorized
         if (permStatus === 'authorized' || permStatus === 'provisional') {
           await ensureRegistered();
-          const fcmToken = await getDeviceToken(); // waits for APNs token internally
-          if (__DEV__) {
-            console.log('[fcm] token:', fcmToken);
+          const fcmToken = await getDeviceToken();
+          if (__DEV__) console.log('[fcm] token:', fcmToken);
+          useNotificationStore.getState().setFcmToken(fcmToken);
+
+          // Fire-and-forget Firestore bootstrap.
+          // - Promise.all inside initializeFirestoreNotifications parallelizes reads
+          // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
+          // - logHandledError on exhaustion; app launch is NOT blocked on this path
+          const uid = getAuth().currentUser?.uid;
+          if (uid && fcmToken) {
+            const bootstrapLang = resolveAppLanguage();
+            const osLocale = toNotificationLocale(bootstrapLang);
+            const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+            const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+            withRetry(() =>
+              initializeFirestoreNotifications({
+                uid,
+                deviceId,
+                token: fcmToken,
+                platform,
+                appVersion,
+                osLocale,
+              }),
+            )
+              .then(() => {
+                useNotificationStore.getState().setIsTokenRegistered(true);
+              })
+              .catch((err) => {
+                logHandledError('notifications/init', err);
+              });
           }
-          // Phase 2: Firestore device registration here
         }
 
-        // 5.3 Safety net: if APNs token arrives late, onTokenRefresh catches it
+        // 5.3 Safety net: APNs token can arrive late (iOS cold start), or FCM
+        // token can rotate. Either way, re-register the device so Firestore
+        // stays in sync without waiting for another app launch.
         unsubToken = onTokenRefresh((token) => {
           if (__DEV__) console.log('[fcm] token refreshed:', token);
-          // Phase 2: Firestore re-registration here
+          useNotificationStore.getState().setFcmToken(token);
+
+          const uid = getAuth().currentUser?.uid;
+          const storedDeviceId = useNotificationStore.getState().deviceId;
+          if (!uid || !storedDeviceId) return;
+
+          const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+          const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+          const osLocale = toNotificationLocale(resolveAppLanguage());
+
+          withRetry(() =>
+            initializeFirestoreNotifications({
+              uid,
+              deviceId: storedDeviceId,
+              token,
+              platform,
+              appVersion,
+              osLocale,
+            }),
+          )
+            .then(() => useNotificationStore.getState().setIsTokenRegistered(true))
+            .catch((err) => logHandledError('notifications/token-refresh', err));
         });
 
         // 6. Initialize Google Mobile Ads SDK (non-blocking — can be slow on simulator)

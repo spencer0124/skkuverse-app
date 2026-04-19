@@ -32,3 +32,23 @@ export function setCrashlyticsUserId(uid: string) {
   if (__DEV__) return;
   crashlytics().setUserId(uid).catch(() => {});
 }
+
+/**
+ * Report a handled error with a semantic label (e.g. 'notifications/init').
+ * Unlike `recordError`, this is for non-fatal paths — Firestore bootstrap
+ * failures, optional retry exhaustion, etc. — where the app should continue
+ * running but Crashlytics should know the degradation happened.
+ */
+export function logHandledError(label: string, error: unknown) {
+  if (__DEV__) {
+    console.warn(`[crashlytics] ${label}:`, error);
+    return;
+  }
+  try {
+    crashlytics().log(label);
+    const err = error instanceof Error ? error : new Error(String(error));
+    crashlytics().recordError(err, label);
+  } catch {
+    // never throw from logging
+  }
+}

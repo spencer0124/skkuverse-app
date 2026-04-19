@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Skkuverse Firestore Security Rules — Phase 2 (option D, no notifications collection).
+//
+// Deploy from repo root:
+//   firebase deploy --only firestore:rules
+//
+// Admin SDK in Cloud Functions bypasses these rules, so server-only mutations
+// (future Cloud Function writes to devices/{id}.active, preference sync) work
+// regardless of the restrictions here.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // users/{uid} — locale + future user-level settings.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // users/{uid}/preferences/{doc} — subscribedTopics + enabled flag.
+      // The app reads/writes a fixed "main" doc; structure is future-proofed
+      // via the {doc} wildcard.
+      match /preferences/{doc} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // devices/{deviceId} — top-level so the Cloud Function can query by
+    // (active, notificationsEnabled, subscribedTopics) without hopping per uid.
+    //
+    // Writes require the caller's auth.uid to match the document's uid field;
+    // updates may not reassign uid. Deletes are disabled — unregister is
+    // expressed as setting active: false.
+    match /devices/{deviceId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.uid;
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.uid
+                    && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+  }
+}
