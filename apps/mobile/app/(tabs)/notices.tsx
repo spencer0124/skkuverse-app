@@ -1,18 +1,17 @@
 import { useRouter } from 'expo-router';
-import { useAuthStore, useT } from '@skkuverse/shared';
+import { useAuthStore, useSettingsStore } from '@skkuverse/shared';
 import { NoticesTabScreen } from '@/features/notices/NoticesTabScreen';
-import { NoticeLoginGate } from '@/features/notices/components/NoticeLoginGate';
+import { OnboardingLanding } from '@/features/notices/components/OnboardingLanding';
 
 export default function NoticesTab() {
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
   const router = useRouter();
-  const { t } = useT();
 
-  if (isAnonymous) {
+  if (isAnonymous || !onboardingCompleted) {
     return (
-      <NoticeLoginGate
-        description={t('notices.loginRequired')}
-        onLoginPress={() => router.push('/login')}
+      <OnboardingLanding
+        onStartPress={() => router.push('/onboarding')}
       />
     );
   }

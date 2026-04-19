@@ -15,6 +15,12 @@ export interface SettingsState {
   lastTab: TabRoute;
   /** Picker tab selections keyed by server tab key (e.g. 'dept', 'library'). */
   pickerSelections: Record<string, string[]>;
+  /** Whether the user has completed the onboarding flow. */
+  onboardingCompleted: boolean;
+  /** Primary department chosen during onboarding (temporary — will move to profileStore on server sync). */
+  primaryDeptId: string | null;
+  /** Interest departments chosen during onboarding, max 3 (temporary — will move to profileStore on server sync). */
+  interestDeptIds: string[];
 }
 
 interface SettingsActions {
@@ -22,6 +28,11 @@ interface SettingsActions {
   setAppLanguage: (language: AppLanguage) => void;
   setLastTab: (tab: TabRoute) => void;
   setPickerSelection: (tabKey: string, ids: string[]) => void;
+  completeOnboarding: (data: {
+    campus: Campus;
+    primaryDeptId: string;
+    interestDeptIds: string[];
+  }) => void;
 }
 
 export type SettingsStore = SettingsState & SettingsActions;
@@ -42,6 +53,9 @@ export const useSettingsStore = create<SettingsStore>()(
       appLanguage: 'ko',
       lastTab: 'notices',
       pickerSelections: {},
+      onboardingCompleted: false,
+      primaryDeptId: null,
+      interestDeptIds: [],
 
       setPreferredCampus: (campus) => set({ preferredCampus: campus }),
       setAppLanguage: (language) => set({ appLanguage: language }),
@@ -50,10 +64,17 @@ export const useSettingsStore = create<SettingsStore>()(
         set((s) => ({
           pickerSelections: { ...s.pickerSelections, [tabKey]: ids },
         })),
+      completeOnboarding: (data) =>
+        set({
+          preferredCampus: data.campus,
+          primaryDeptId: data.primaryDeptId,
+          interestDeptIds: data.interestDeptIds,
+          onboardingCompleted: true,
+        }),
     }),
     {
       name: 'settings',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => mmkvStateStorage),
       migrate: (persisted, version) => {
         const state = { ...(persisted as Record<string, unknown>) };
@@ -69,7 +90,13 @@ export const useSettingsStore = create<SettingsStore>()(
           delete state.selectedLibIds;
           delete state.setSelectedDeptIds;
           delete state.setSelectedLibIds;
-          return { ...state, pickerSelections } as unknown as SettingsStore;
+          state.pickerSelections = pickerSelections;
+        }
+        if ((version ?? 0) < 2) {
+          // Existing users skip onboarding; new installs get default false.
+          state.onboardingCompleted = true;
+          state.primaryDeptId = state.primaryDeptId ?? null;
+          state.interestDeptIds = state.interestDeptIds ?? [];
         }
         return state as unknown as SettingsStore;
       },

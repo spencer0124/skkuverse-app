@@ -10,6 +10,7 @@ import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
 import { SDSProvider } from '@skkuverse/sds';
 import { logScreenView } from '@/services/analytics';
+import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -52,6 +53,9 @@ function resolveScreenName(
  * Flutter source: lib/main.dart (runApp wrapping)
  */
 export default function RootLayout() {
+  // ── Notification tap & foreground message handling ──
+  useNotificationHandler();
+
   // ── Centralized screen view logging ──
   const pathname = usePathname();
   const params = useGlobalSearchParams<Record<string, string>>();
@@ -86,6 +90,14 @@ export default function RootLayout() {
                 <Stack.Screen name="notices" options={{ headerShown: false }} />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
                 <Stack.Screen
+                  name="onboarding"
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
                   name="login"
                   options={{
                     headerShown: false,
@@ -96,6 +108,13 @@ export default function RootLayout() {
                   name="sds-preview"
                   options={{
                     title: 'SDS Preview',
+                    presentation: 'modal',
+                  }}
+                />
+                {/* TODO: Remove — temporary FCM debug screen */}
+                <Stack.Screen
+                  name="debug-fcm"
+                  options={{
                     presentation: 'modal',
                   }}
                 />
