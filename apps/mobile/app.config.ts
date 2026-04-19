@@ -53,8 +53,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     googleServicesFile: "./google-services.json",
     adaptiveIcon: {
       foregroundImage: "./assets/images/android-icon-foreground.png",
-      backgroundImage: "./assets/images/android-icon-background.png",
-      backgroundColor: "#ffffff",
+      backgroundColor: "#1f3d2e",
+      monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     intentFilters: [
       {
