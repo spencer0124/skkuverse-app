@@ -27,6 +27,7 @@ yarn ios              # Type-check then run iOS
 yarn android          # Type-check then run Android
 yarn typecheck        # tsc --noEmit
 yarn lint             # expo lint (ESLint)
+npx expo prebuild --clean  # 네이티브 변경 후 clean prebuild
 
 # Webview
 cd apps/webview
@@ -80,7 +81,11 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 **Image dimension hint (크롤러 연동):** 크롤러가 `![{WxH} alt](url)` 포맷으로 이미지 원본 크기를 markdown alt text에 삽입. 앱의 `parseDimHint()`가 이를 파싱하여 이미지 로딩 전 정확한 크기의 shimmer skeleton을 overlay로 표시 → CLS(Cumulative Layout Shift) 제거. hint가 없는 이미지는 `getSizeWithHeaders` 완료 후 표시.
 
-**Notice row:** Toss-style 왼쪽 정렬 메타 (`3일 전 · 학과명` — multi-dept 탭에서만 학과명 표시). 첨부파일 있는 공지는 제목 옆 paperclip 아이콘.
+**Notice row:** Toss-style 왼쪽 정렬 메타 (`3일 전 · 학과명` — multi-dept 탭에서만 학과명 표시). 첨부파일 있는 공지는 제목 옆 paperclip 아이콘. 마감일 있는 공지는 deadline badge 표시 (D-day 기반 색상 시스템).
+
+**Login gate:** 공지사항 등 인증 필요 기능은 `NoticeLoginGate`로 Google 로그인 유도. `@g.skku.edu` 도메인 필수.
+
+**첨부파일:** `files.skkuverse.com` 프록시 경유. preview/download 버튼 제공.
 
 ### Design System (`@skkuverse/sds`)
 
@@ -99,14 +104,17 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 ## Key Technical Details
 
 - **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/android-naver-map-markers.md`)
-- **Auth/Analytics:** Firebase (auth, analytics, crashlytics)
+- **Auth/Analytics:** Firebase (auth, analytics, crashlytics, app-check). Google Sign-In (`@g.skku.edu` 도메인 제한). App Check은 iOS App Attest + Android Play Integrity.
+- **Push notifications:** Firebase Cloud Messaging (FCM) 사용 예정
+- **Data storage 원칙:** 유저 데이터는 모두 **Firebase** (Firestore/Auth), 공공 데이터(공지사항, 건물정보, 버스 등)는 **MongoDB** (백엔드 API 경유)
 - **Local storage:** `react-native-mmkv` for general state, `expo-secure-store` for sensitive data
 - **Animations:** React Native Reanimated 4 + Gesture Handler 2
 - **Bottom sheets:** `@gorhom/bottom-sheet`
 - **Icons:** `lucide-react-native`
 - **TypeScript strict mode** enabled across the monorepo
 - **iOS bundle ID:** `com.example.skkumap` / **Android package:** `com.zoyoong.skkubus`
-- **개발 실행:** Expo Go, expo-dev-client 사용하지 않음. `yarn ios` (`expo run:ios`)로 네이티브 빌드 직접 실행
+- **개발 실행:** Expo Go 사용하지 않음. **CNG (Continuous Native Generation)** 방식으로 `yarn ios` (`expo run:ios`) / `yarn android` (`expo run:android`)로 네이티브 빌드 직접 실행. 커스텀 네이티브 모듈(Firebase, Naver Maps 등) 사용을 위해 항상 네이티브 빌드 필요.
+- **네이티브 변경 후 실행:** 네이티브 코드에 영향을 주는 변경(패키지 추가/삭제, `app.config.ts` plugins 변경, 네이티브 모듈 설정 등) 후에는 반드시 `npx expo prebuild --clean` 후 `yarn ios` / `yarn android`로 실행
 - **EAS Build:** Configured in `apps/mobile/eas.json` (dev/preview/production profiles)
 - **Naver Map patch:** `patches/@mj-studio+react-native-naver-map+2.7.0.patch` (nil iconImage crash fix)
 - **Android dev environment:** CLI-only SDK (no Android Studio IDE), JDK 17, `ANDROID_HOME=~/Library/Android/sdk`

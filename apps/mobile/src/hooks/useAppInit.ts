@@ -22,6 +22,9 @@ import {
   setPreferredCampus,
 } from '@/services/analytics';
 import { setupAppCheck } from '@/services/app-check';
+import { setupNotificationChannels } from '@/services/notification-channels';
+import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
+import { getOrCreateDeviceId } from '@/services/device-id';
 
 function resolveAppLanguage(): AppLanguage {
   const deviceLang = getLocales()[0]?.languageCode;
@@ -49,6 +52,7 @@ export function useAppInit() {
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let unsubToken: (() => void) | undefined;
 
     async function init() {
       try {
@@ -75,12 +79,6 @@ export function useAppInit() {
 
         // 3. Force-create API client singleton (interceptors attached)
         getApiClient();
-
-        // 3.5. Initialize Google Mobile Ads SDK
-        const adapterStatuses = await mobileAds().initialize();
-        if (__DEV__) {
-          console.log('[AdMob] SDK initialized, adapter statuses:', JSON.stringify(adapterStatuses));
-        }
 
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
         unsubscribe = onAuthStateChanged(getAuth(), (user) => {
@@ -109,7 +107,39 @@ export function useAppInit() {
           }
         });
 
-        // 5. Sync OS locale → Zustand store + analytics
+        // 5. FCM registration
+        // Correct order: requestPermission → ensureRegistered → getDeviceToken
+        // requestPermission() is idempotent — no dialog if already granted
+        await setupNotificationChannels();
+        getOrCreateDeviceId(); // ensure deviceId is persisted early
+
+        // 5.1 Permission (idempotent — won't show dialog if already granted)
+        const permStatus = await requestPermission();
+
+        // 5.2 Register + get token if authorized
+        if (permStatus === 'authorized' || permStatus === 'provisional') {
+          await ensureRegistered();
+          const fcmToken = await getDeviceToken(); // waits for APNs token internally
+          if (__DEV__) {
+            console.log('[fcm] token:', fcmToken);
+          }
+          // Phase 2: Firestore device registration here
+        }
+
+        // 5.3 Safety net: if APNs token arrives late, onTokenRefresh catches it
+        unsubToken = onTokenRefresh((token) => {
+          if (__DEV__) console.log('[fcm] token refreshed:', token);
+          // Phase 2: Firestore re-registration here
+        });
+
+        // 6. Initialize Google Mobile Ads SDK (non-blocking — can be slow on simulator)
+        mobileAds().initialize().then((adapterStatuses) => {
+          if (__DEV__) {
+            console.log('[AdMob] SDK initialized, adapter statuses:', JSON.stringify(adapterStatuses));
+          }
+        }).catch(() => {});
+
+        // 6. Sync OS locale → Zustand store + analytics
         const lang = resolveAppLanguage();
         useSettingsStore.getState().setAppLanguage(lang);
         setAppLanguage(lang);
@@ -140,6 +170,7 @@ export function useAppInit() {
 
     return () => {
       unsubscribe?.();
+      unsubToken?.();
       appStateSubscription.remove();
     };
   }, []);

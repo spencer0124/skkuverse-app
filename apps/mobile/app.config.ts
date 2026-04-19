@@ -39,8 +39,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     buildNumber: "69",
     googleServicesFile: "./GoogleService-Info.plist",
     associatedDomains: ["applinks:skkuverse.com"],
+    entitlements: {
+      "aps-environment":
+        process.env.APP_ENV === "development" ? "development" : "production",
+    },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      UIBackgroundModes: ["remote-notification"],
     },
   },
   android: {
@@ -65,6 +70,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "@react-native-firebase/auth",
     "@react-native-firebase/crashlytics",
     "@react-native-firebase/app-check",
+    "@react-native-firebase/messaging",
     "@react-native-google-signin/google-signin",
     "expo-router",
     "expo-secure-store",
@@ -86,6 +92,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "./plugins/withFirebaseModularHeaders",
+    "./plugins/withPushNotificationsCapability",
     "./plugins/withLocalizedAppName",
     [
       "expo-splash-screen",
