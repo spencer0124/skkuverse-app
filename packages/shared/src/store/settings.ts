@@ -7,7 +7,7 @@ export type Campus = 'hssc' | 'nsc';
 
 export type AppLanguage = 'ko' | 'en' | 'zh';
 
-export type TabRoute = 'campus' | 'transit' | 'notices' | 'more';
+export type TabRoute = 'home' | 'campus' | 'transit' | 'notices';
 
 export interface SettingsState {
   preferredCampus: Campus;
@@ -74,7 +74,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'settings',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => mmkvStateStorage),
       migrate: (persisted, version) => {
         const state = { ...(persisted as Record<string, unknown>) };
@@ -97,6 +97,10 @@ export const useSettingsStore = create<SettingsStore>()(
           state.onboardingCompleted = true;
           state.primaryDeptId = state.primaryDeptId ?? null;
           state.interestDeptIds = state.interestDeptIds ?? [];
+        }
+        if ((version ?? 0) < 3) {
+          // 'more' tab removed; its content merged into 'home'.
+          if (state.lastTab === 'more') state.lastTab = 'home';
         }
         return state as unknown as SettingsStore;
       },
