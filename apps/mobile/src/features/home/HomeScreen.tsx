@@ -1,48 +1,47 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Pressable,
-  Dimensions,
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  Map,
-  Navigation,
-  Building2,
-  Coffee,
-  Bus,
-  Compass,
-  Bookmark,
-  Calendar,
-  ChevronRight,
-  User,
-} from 'lucide-react-native';
+import { ChevronRight, User } from 'lucide-react-native';
 import { Txt, Button, Dialog } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
+import {
+  TossfaceButtonGrid,
+  type TossfaceGridItem,
+} from '@/components/TossfaceButtonGrid';
+import { handleSduiAction } from '@/sdui/action-handler';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const GRID_MARGIN = 16;
-const GRID_GAP = 8;
-const GRID_COLS = 4;
-const GRID_ITEM_SIZE =
-  (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
-/* ── Mock grid menu data ── */
-const GRID_ITEMS = [
-  { icon: Bus, label: '셔틀버스', badge: null, route: '/(tabs)/transit' },
-  { icon: Map, label: '캠퍼스맵', badge: null, route: '/(tabs)/campus' },
-  { icon: Building2, label: '건물검색', badge: 'N', route: '/search' },
-  { icon: Navigation, label: '길찾기', badge: null, route: null },
-  { icon: Coffee, label: '편의시설', badge: null, route: null },
-  { icon: Bookmark, label: '즐겨찾기', badge: null, route: null },
-  { icon: Calendar, label: '학사일정', badge: null, route: null },
-  { icon: Compass, label: '주변탐색', badge: null, route: null },
+const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
+  {
+    id: 'lost_found',
+    title: '분실물',
+    emoji: '\u{1F9F3}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'webview',
+        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+        webviewTitle: '분실물',
+        webviewColor: '003626',
+      }),
+  },
+  {
+    id: 'inquiry',
+    title: '문의하기',
+    emoji: '\u{1F4AC}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'external',
+        actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
+      }),
+  },
 ];
 
 export function HomeScreen() {
@@ -59,13 +58,6 @@ export function HomeScreen() {
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
 
   const showProfile = !isAnonymous || isSigningOut;
-
-  const handleGridPress = useCallback(
-    (route: string | null) => {
-      if (route) router.push(route as never);
-    },
-    [router],
-  );
 
   const handleSignOut = async () => {
     setShowSignOutDialog(false);
@@ -99,18 +91,26 @@ export function HomeScreen() {
             </View>
           </View>
         ) : (
-          <View style={styles.loginCard}>
-            <Txt typography="t6" color={SdsColors.grey500} style={styles.loginPrompt}>
-              {t('auth.loginPrompt')}
-            </Txt>
-            <Button
-              type="primary"
-              size="medium"
-              onPress={() => router.push('/login')}
-            >
-              {t('auth.googleSignIn')}
-            </Button>
-          </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.profileCard,
+              pressed && styles.profileCardPressed,
+            ]}
+            onPress={() => router.push('/login')}
+          >
+            <View style={styles.avatarFallback}>
+              <User size={28} color={SdsColors.grey500} />
+            </View>
+            <View style={styles.profileText}>
+              <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
+                {t('auth.loginCardTitle')}
+              </Txt>
+              <Txt typography="t7" color={SdsColors.grey500}>
+                {t('auth.loginPrompt')}
+              </Txt>
+            </View>
+            <ChevronRight size={20} color={SdsColors.grey400} />
+          </Pressable>
         )}
 
         {/* ── Banner Card ── */}
@@ -128,28 +128,9 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Grid Menu ── */}
-        <View style={styles.gridContainer}>
-          {GRID_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Pressable
-                key={item.label}
-                style={styles.gridItem}
-                onPress={() => handleGridPress(item.route)}
-              >
-                <View style={styles.gridIconWrap}>
-                  <Icon size={26} color={SdsColors.grey800} />
-                  {item.badge && (
-                    <View style={styles.gridBadge}>
-                      <Text style={styles.gridBadgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.gridLabel}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
+        {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
+        <View style={styles.gridWrap}>
+          <TossfaceButtonGrid items={HOME_GRID_ITEMS} />
         </View>
 
         {/* ── Bottom Banner ── */}
@@ -226,13 +207,16 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  /* ── Profile ── */
+  /* ── Profile / Login card (same layout for both states) ── */
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SdsSpacing.lg,
     paddingVertical: SdsSpacing.lg,
     gap: SdsSpacing.md,
+  },
+  profileCardPressed: {
+    backgroundColor: SdsColors.grey50,
   },
   avatar: {
     width: 52,
@@ -250,15 +234,6 @@ const styles = StyleSheet.create({
   profileText: {
     flex: 1,
     gap: 2,
-  },
-  loginCard: {
-    alignItems: 'center',
-    paddingHorizontal: SdsSpacing.lg,
-    paddingVertical: SdsSpacing.xxl,
-    gap: SdsSpacing.lg,
-  },
-  loginPrompt: {
-    textAlign: 'center',
   },
 
   /* ── Banner ── */
@@ -289,48 +264,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  /* ── Grid ── */
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: 16,
+  /* ── Grid wrap ── */
+  gridWrap: {
     marginBottom: 20,
-    gap: 8,
-  },
-  gridItem: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: 16,
-    backgroundColor: SdsColors.grey50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: SdsColors.grey200,
-  },
-  gridIconWrap: {
-    position: 'relative',
-  },
-  gridBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -10,
-    backgroundColor: '#F04452',
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gridBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  gridLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: SdsColors.grey800,
   },
 
   /* ── Bottom Banner ── */
