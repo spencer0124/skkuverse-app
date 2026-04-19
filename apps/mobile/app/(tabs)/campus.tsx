@@ -15,18 +15,18 @@ export default function CampusTab() {
   return (
     <>
       <CampusScreen />
-      {/* TODO: Remove — temporary FCM debug button */}
-      <Pressable
-        style={debugBtnStyle.btn}
-        onPress={() => router.push('/debug-fcm')}
-      >
-        <Text style={debugBtnStyle.txt}>FCM</Text>
-      </Pressable>
+      {__DEV__ && (
+        <Pressable
+          style={debugBtnStyle.btn}
+          onPress={() => router.push('/debug-fcm')}
+        >
+          <Text style={debugBtnStyle.txt}>FCM</Text>
+        </Pressable>
+      )}
     </>
   );
 }
 
-// TODO: Remove
 const debugBtnStyle = StyleSheet.create({
   btn: {
     position: 'absolute',
