@@ -9,7 +9,6 @@ import { router } from 'expo-router';
 
 export interface NotificationData {
   type?: string;
-  notificationId?: string;
   deptId?: string;
   articleNo?: string;
   category?: string;

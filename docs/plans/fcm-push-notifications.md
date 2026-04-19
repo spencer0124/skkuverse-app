@@ -16,12 +16,14 @@
 │ 유저 정보 (locale 포함)  │ 버스 데이터               │
 │ 디바이스/토큰            │ 공지 데이터               │
 │ 알림 구독 preferences    │ 셔틀 시간표              │
-│ 알림 인박스 (notifications) │ 학과 정보              │
+│                         │ 학과 정보                │
 └─────────────────────────┴──────────────────────────┘
 ```
-- 앱 → Firestore 직접 읽기/쓰기 (디바이스 등록, 구독 관리, 유저 설정, 알림함 읽음 처리)
+- 앱 → Firestore 직접 읽기/쓰기 (디바이스 등록, 구독 관리, 유저 설정)
 - Node 서버 → 공지 발행 시 Cloud Function HTTP 호출만 (Firebase 의존성 제로)
-- Cloud Functions → Firestore 구독자 쿼리 + 알림 레코드 생성 + FCM 발송 + 토큰 cleanup (Admin SDK, Security Rules 우회)
+- Cloud Functions → Firestore 구독자 쿼리 + FCM 발송 + 토큰 cleanup (Admin SDK, Security Rules 우회)
+
+**알림함 (in-app inbox) 없음 — 옵션 D 채택:** 공지 자체는 스꾸버스의 기존 공지 탭이 풀 히스토리를 제공하므로 별도의 유저별 알림 레코드(`notifications` 컬렉션)를 만들지 않는다. 푸시는 fire-and-forget로 전달만 하고, 유저는 공지 탭에서 콘텐츠 열람. 대신 **미확인 알림의 가시성**은 앱 아이콘 뱃지(OS 레벨)와 탭바 뱃지(앱 내 UI) 두 가지로 확보 — 둘 다 로컬 카운터(Notifee + Zustand)로 관리하여 Firestore 비용 0원, 구현 복잡도 최소화.
 
 **페이로드 전략 — Hybrid (공통):**
 
@@ -35,7 +37,6 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
     "body": "2026년 1학기 국가장학금..."
   },
   "data": {
-    "notificationId": "abc123",
     "type": "notice",
     "deptId": "cs",
     "articleNo": "12345",
@@ -53,7 +54,7 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 ```
 
 - `notification` 필드 → 백그라운드·quit 상태에서 **OS가 자동 표시** (Notifee displayNotification 불필요)
-- `data` → 딥링크 메타 + 앱 내 알림함 연결 (`notificationId`로 Firestore 레코드 매핑)
+- `data` → 딥링크 메타 (탭하면 `type`/`deptId`/`articleNo`로 공지 상세로 이동)
 - `android.priority: high` → Doze mode 우회, 즉시 전달
 - `android.notification.channelId` → 카테고리별 중요도·소리·진동 분리
 - `fcmOptions.analyticsLabel` → Firebase Analytics 자동 이벤트(`notification_receive`/`notification_open`/`notification_dismiss`/`notification_foreground_receive`) 캠페인 분리
@@ -126,34 +127,7 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 > 앱 삭제 후 재설치 시 새 UUID. FCM token과 분리 (token은 refresh될 수 있지만 deviceId는 불변).
 > `getOrCreateDeviceId()` 함수로 구현.
 
-### `notifications/{notificationId}` (top-level collection, **NEW**)
-
-앱 내 알림함 + 읽음 처리용 신규 컬렉션. 수신자마다 레코드 1개.
-
-```ts
-{
-  uid: string;                   // 수신자 (Firestore 쿼리 기준)
-  type: 'notice';                // 타입 — 확장 지점 (향후 'bus_arrival', 'dorm' 등)
-  title: string;                 // 표시된 제목 (유저 언어로 서버가 선택)
-  body: string;
-  data: {                        // 타입별 자유 구조
-    deptId?: string;
-    articleNo?: string;
-    category?: string;
-  };
-  read: boolean;
-  createdAt: Timestamp;
-  readAt: Timestamp | null;
-  pushedAt: Timestamp;           // FCM 발송 시각 (failure tracking용)
-  expiresAt: Timestamp;          // ⭐ TTL — createdAt + 30d (자동 삭제)
-}
-```
-
-> **확장성 포인트:** `type` 필드로 공지·버스·기숙사·이벤트 등 구분. 앱 내 알림함 UI는 `type`별로 다른 아이콘·색상 렌더링.
-
-> **쓰기 권한:** 생성/삭제는 Cloud Function만(Admin SDK). 유저는 `read`/`readAt` 필드만 업데이트 가능.
-
-> **생명주기:** `expiresAt` 필드에 Firestore TTL 정책 활성화 → 30일 지난 알림 자동 삭제. 자세한 내용은 Phase 2.8 참조.
+> **`notifications/{id}` 컬렉션은 사용하지 않음 (옵션 D).** 원본 공지 히스토리는 MongoDB + 공지 탭이 이미 커버하고, 미확인 알림은 로컬 뱃지(Notifee + Zustand)로 처리. Firestore 비용 0원 + Security Rules 단순화 + Cloud Function 페이로드 경량화. 향후 "알림함" 재도입이 필요해지면 `type`/`deptId`/`articleNo` 딥링크 필드는 그대로 유지되고 `data.notificationId`만 추가하면 재확장 가능.
 
 ### Firestore Security Rules
 ```
@@ -176,15 +150,7 @@ service cloud.firestore {
                          || request.auth.uid == request.resource.data.uid;
     }
 
-    // 알림함 (top-level, NEW)
-    match /notifications/{id} {
-      allow read: if request.auth.uid == resource.data.uid;
-      allow update: if request.auth.uid == resource.data.uid
-                    && request.resource.data.diff(resource.data)
-                         .affectedKeys()
-                         .hasOnly(['read', 'readAt']);
-      allow create, delete: if false;  // 서버 전용 (Admin SDK는 우회)
-    }
+    // `notifications/{id}` 블록 없음 — 옵션 D에서 컬렉션 자체를 만들지 않음
   }
 }
 ```
@@ -453,22 +419,7 @@ export interface UserDocument {
   locale: 'ko' | 'en';
 }
 
-export interface NotificationDocument {
-  uid: string;
-  type: 'notice';                 // 향후 확장
-  title: string;
-  body: string;
-  data: {
-    deptId?: string;
-    articleNo?: string;
-    category?: string;
-  };
-  read: boolean;
-  createdAt: Date;
-  readAt: Date | null;
-  pushedAt: Date;
-  expiresAt: Date;                // TTL — createdAt + 30d
-}
+// `NotificationDocument` 없음 — 옵션 D에서 notifications 컬렉션 미사용
 ```
 
 ### 2.2 Firestore 서비스
@@ -507,23 +458,7 @@ disableNotifications(uid)
 // 실시간 구독 변경 감지 (multi-device sync)
 onPreferencesChanged(uid, callback) → onSnapshot listener → unsubscribe
 
-// === 알림함 (NEW) ===
-
-// 읽음 처리 (푸시 탭 + 인박스 탭 공용)
-markNotificationAsRead(notificationId)
-  → notifications/{id} update { read: true, readAt: now }
-
-// 모두 읽음 (batch)
-markAllNotificationsAsRead(uid)
-  → batch update where uid + read == false
-
-// 알림함 실시간 구독 (최근 50개)
-subscribeToNotifications(uid, callback, limit = 50)
-  → notifications
-      .where('uid', '==', uid)
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .onSnapshot → unsubscribe
+// 알림함(markNotificationAsRead, subscribeToNotifications 등) 함수 없음 — 옵션 D
 ```
 
 ### 2.3 Firestore Security Rules 배포
@@ -535,7 +470,7 @@ Phase 2 앱 작업의 일부로 배포:
 firebase deploy --only firestore:rules
 ```
 
-> `notifications/{id}` 규칙: `read` + `readAt`만 유저 업데이트 허용 (`diff().affectedKeys().hasOnly()` 체크). 생성/삭제는 서버 전용.
+> Rules는 `users`/`users/{uid}/preferences`/`devices`만 커버. `notifications`는 옵션 D에서 제거됨.
 > Node 서버 Admin SDK는 Rules 우회하므로 서버 PR과 무관.
 
 ### 2.4 Zustand 스토어
@@ -580,14 +515,7 @@ export function useNotificationPreferences(uid: string | null) {
 }
 ```
 
-**생성:** `apps/mobile/src/hooks/useNotificationInbox.ts` (알림함용 동일 패턴)
-
-```ts
-export function useNotificationInbox(uid: string | null, limit = 50) {
-  const [items, setItems] = useState<NotificationDocument[]>([]);
-  // subscribeToNotifications 래핑
-}
-```
+> **`useNotificationInbox` 훅 없음** — 옵션 D에서 알림함 UI 제거. 대신 뱃지 카운트는 Zustand store의 `unreadCount`로 Phase 3에서 처리.
 
 ### 2.6 앱 초기화에서 Firestore 등록
 
@@ -664,59 +592,13 @@ auth 변경 시 (anonymous → Google) uid 변경 → 디바이스 문서 uid �
 
 ### 2.7 exports 업데이트
 
-**수정:** `packages/shared/src/index.ts` — notification 타입, 스토어, topic 상수 export
+**수정:** `packages/shared/src/index.ts` — notification 타입(`UserDocument`, `DeviceDocument`, `PreferencesDocument`), 스토어, topic 상수 export
 
-### 2.8 `notifications` 컬렉션 생명주기 (TTL)
-
-**정책:** 생성 후 **30일 후 자동 삭제** (과거 공지는 기존 공지 탭에서 조회 가능 — 알림함은 "최근 상호작용" 용도).
-
-**구현 (1순위): Firestore TTL 필드**
-
-Cloud Function이 `notifications/{id}` 생성 시 `expiresAt` 필드를 30일 후 Timestamp로 설정:
-
-```ts
-const now = admin.firestore.Timestamp.now();
-const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-await notificationsRef.add({
-  // ...
-  createdAt: now,
-  pushedAt: now,
-  expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + thirtyDaysMs),
-});
-```
-
-Firebase Console에서 **1회 설정**:
-- Firestore → TTL 탭 → Add Policy
-- Collection: `notifications`
-- Timestamp field: `expiresAt`
-- 활성화 후 Firestore가 ~24시간 주기로 expire된 문서 자동 삭제 (**비과금**)
-
-**구현 (2순위, TTL 정책 사용 불가 시): scheduled Cloud Function**
-
-```ts
-// 주 1회 cron
-export const cleanupStaleNotifications = onSchedule('every monday 04:00', async () => {
-  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 30 * 86400 * 1000);
-  const stale = await db.collection('notifications')
-    .where('createdAt', '<', cutoff)
-    .limit(500)  // 배치 단위
-    .get();
-  const batch = db.batch();
-  stale.forEach(doc => batch.delete(doc.ref));
-  await batch.commit();
-});
-```
-
-**비용 시사점:**
-- 예상 write: 공지 100개/일 × 평균 수신자 500명 = 50K writes/day → ~$27/month @ Blaze
-- TTL 자동 삭제는 무과금 → 저장 비용도 30일 내로 유지
-- MVP 규모 (MAU ~5K)에선 문제 없음, 10K+ 도달 시 대안 A (공지별 캐시 + 유저별 read 분리 구조)로 전환 검토
-
-> **검증:** Phase 2 배포 후 24~48시간 경과 시 TTL 정책이 실제로 expire된 레코드를 삭제하는지 Firestore Console에서 확인.
+> **Phase 2.8 (notifications 컬렉션 TTL) 섹션 삭제됨** — 옵션 D 채택으로 `notifications` 컬렉션 자체가 없어서 TTL 정책·cleanup Cloud Function 모두 불필요.
 
 ---
 
-## Phase 3: Subscription UI + 알림함 + 읽음 처리
+## Phase 3: Subscription UI + 뱃지
 
 ### 3.1 알림 설정 화면
 
@@ -738,14 +620,16 @@ export const cleanupStaleNotifications = onSchedule('every monday 04:00', async 
 **생성:**
 - `apps/mobile/app/notifications/_layout.tsx`
 - `apps/mobile/app/notifications/settings.tsx`
-- `apps/mobile/app/notifications/inbox.tsx` (**NEW**)
 
 **수정:** `apps/mobile/app/_layout.tsx` — `<Stack.Screen name="notifications" />`
 
+> 알림함 라우트(`inbox.tsx`) 없음 — 옵션 D.
+
 ### 3.3 진입점
 
-**수정:** More 화면에 "알림 설정" 메뉴. `Bell` 아이콘 (lucide-react-native).
-**수정:** More 화면에 "알림함" 메뉴. `Inbox` 아이콘. Unread 뱃지 포함.
+**수정:** More 화면에 "알림 설정" 메뉴만. `Bell` 아이콘 (lucide-react-native).
+
+> "알림함" 메뉴는 추가하지 않음. 미확인 알림 가시성은 **공지 탭 뱃지(3.6)** 와 **앱 아이콘 뱃지(3.7)** 로 대체.
 
 ### 3.4 권한 요청 UX
 
@@ -789,39 +673,109 @@ onForegroundMessage(async (remoteMessage) => {
 >
 > 초기 구현은 (A) 유지. dogfooding에서 "알림 방해" 피드백 나오면 (B)로 전환 — `Platform.OS === 'ios'` 분기만 추가하면 되는 low-cost 변경.
 
-### 3.6 앱 내 알림함 화면 (**NEW**)
+### 3.6 공지 탭 뱃지 + 앱 아이콘 뱃지 (옵션 D 핵심)
 
-**생성:** `apps/mobile/src/features/notifications/NotificationInboxScreen.tsx`
+옵션 D는 알림함 UI가 없는 대신 **"미확인 알림이 있다"는 가시성**을 뱃지 두 종류로 제공한다.
 
-- `useNotificationInbox(uid)` onSnapshot으로 최근 50개 구독
-- 렌더링:
-  - `read: false` → 색깔 있는 배경 (unread 표시) + unread dot
-  - `read: true` → 회색 배경
-  - `type`별 아이콘 (현재는 `notice`만, `lucide` Bell)
-  - `createdAt` relative time ("3분 전")
-- 탭 시:
-  - `markNotificationAsRead(id)` 호출
-  - `navigateFromNotification(data)` 호출 (기존 router 재사용, `type` switch)
-- "모두 읽음" 버튼 → `markAllNotificationsAsRead(uid)` batch update
-- Empty state: "받은 알림이 없어요"
+#### 3.6.1 Zustand 로컬 카운터
 
-> **Pagination 정책 (MVP):** 최근 50개만 표시. 더 오래된 알림은 TTL 30일(Phase 2.8)로 자동 삭제되므로 유저가 실제로 "놓친 알림"을 못 보는 경우는 드뭄 — 원본 공지는 기존 공지 탭에서 전체 조회 가능. 장기 유저 대응이 필요해지면 cursor-based "더 보기" 버튼 추가 (createdAt desc + startAfter).
+**수정:** `packages/shared/src/store/notifications.ts`
 
-### 3.7 푸시 탭 시 읽음 처리
+```ts
+interface NotificationState {
+  // ... 기존 필드
+  unreadCount: number;
+}
+
+interface NotificationActions {
+  incrementUnread: () => void;      // 푸시 수신 시
+  resetUnread: () => void;          // 유저가 공지 탭 진입 시
+}
+```
+
+MMKV persist로 앱 재기동 후에도 카운터 유지.
+
+#### 3.6.2 수신 경로에서 카운터 + OS 뱃지 증가
+
+**수정:** `apps/mobile/src/services/background-messaging.ts`
+
+```ts
+import notifee from '@notifee/react-native';
+import { notificationStore } from '@skkuverse/shared';
+
+export async function backgroundMessageHandler(remoteMessage) {
+  if (__DEV__) console.log('[fcm] background:', remoteMessage.messageId);
+  await notifee.incrementBadgeCount(1);       // OS 앱 아이콘 뱃지 +1
+  notificationStore.getState().incrementUnread();  // 인앱 뱃지 +1
+}
+```
+
+**수정:** `apps/mobile/src/hooks/useNotificationHandler.ts` — `onForegroundMessage` 안쪽:
+
+```ts
+onForegroundMessage(async (remoteMessage) => {
+  const { notification, data } = remoteMessage;
+  if (!notification) return;
+
+  // 포그라운드는 OS가 자동 표시 안 함 → Notifee로 로컬 알림 (3.5)
+  await notifee.displayNotification({ ...fields });
+
+  // 뱃지 카운트 증가
+  await notifee.incrementBadgeCount(1);
+  notificationStore.getState().incrementUnread();
+});
+```
+
+#### 3.6.3 공지 탭 진입 시 리셋
+
+**수정:** `apps/mobile/app/(tabs)/notices.tsx` (또는 `NoticesTabScreen`)
+
+```ts
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import notifee from '@notifee/react-native';
+import { notificationStore } from '@skkuverse/shared';
+
+useFocusEffect(
+  useCallback(() => {
+    notifee.setBadgeCount(0);                    // OS 뱃지 제거
+    notificationStore.getState().resetUnread();  // 인앱 뱃지 제거
+  }, [])
+);
+```
+
+> **리셋 시점을 "공지 탭 진입"으로 잡는 이유:** 알림 = 새 공지 알림. 유저가 공지 탭을 열면 새 공지들을 이미 보게 되는 경로이므로 뱃지 목적 달성. 추가 read-tracking 없이 간단하게 해결.
+
+#### 3.6.4 공지 탭 뱃지 렌더링
+
+**수정:** `apps/mobile/app/(tabs)/_layout.tsx` — 공지 탭의 `tabBarBadge` prop.
+
+```tsx
+<Tabs.Screen
+  name="notices"
+  options={{
+    tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
+  }}
+/>
+```
+
+`unreadCount`는 Zustand store에서 selector로 구독. 0일 때 undefined 반환으로 뱃지 숨김.
+
+### 3.7 푸시 탭 시 딥링크 (읽음 처리 없음)
 
 **수정:** `apps/mobile/src/hooks/useNotificationHandler.ts`
 
 ```ts
 // getInitialNotification + onNotificationOpenedApp 공통 처리:
-const handlePress = async (remoteMessage) => {
+const handlePress = (remoteMessage) => {
   const data = remoteMessage?.data as NotificationData | undefined;
-  if (data?.notificationId) {
-    // fire-and-forget (실패해도 딥링크는 진행)
-    markNotificationAsRead(data.notificationId).catch(() => {});
-  }
   navigateFromNotification(data);
+  // markAsRead 없음 — 옵션 D에서는 Firestore notifications 없음
+  // 뱃지는 3.6.3에서 공지 탭 진입 시 자동 리셋
 };
 ```
+
+> 탭해서 들어간 공지 상세 화면을 벗어나 공지 탭으로 돌아오는 시점에 `useFocusEffect`가 발동 → 뱃지 자동 리셋.
 
 ### 3.8 언어 변경 → Firestore sync
 
@@ -867,13 +821,10 @@ updateUserLocale(uid, newLang);
 | `packages/shared/src/store/notifications.ts` | 2 |
 | `apps/mobile/src/services/firestore-notifications.ts` | 2 |
 | `apps/mobile/src/hooks/useNotificationPreferences.ts` | 2 |
-| `apps/mobile/src/hooks/useNotificationInbox.ts` | 2 |
 | `apps/mobile/firestore.rules` | 2 |
 | `apps/mobile/app/notifications/_layout.tsx` | 3 |
 | `apps/mobile/app/notifications/settings.tsx` | 3 |
-| `apps/mobile/app/notifications/inbox.tsx` | 3 |
 | `apps/mobile/src/features/notifications/NotificationSettingsScreen.tsx` | 3 |
-| `apps/mobile/src/features/notifications/NotificationInboxScreen.tsx` | 3 |
 | `apps/mobile/src/features/notifications/NotificationPromptSheet.tsx` | 3 |
 
 ### 기존 수정
@@ -883,8 +834,12 @@ updateUserLocale(uid, newLang);
 | `apps/mobile/app.config.ts` | 1 | plugin + entitlements (APP_ENV 분기) + UIBackgroundModes |
 | `apps/mobile/firebase.json` | 1 | messaging 설정 2줄 |
 | `apps/mobile/app/_layout.tsx` | 1,3 | handler hook + notifications route |
+| `apps/mobile/app/(tabs)/_layout.tsx` | 3 | 공지 탭 tabBarBadge (unreadCount) |
+| `apps/mobile/app/(tabs)/notices.tsx` | 3 | useFocusEffect로 뱃지 리셋 (Notifee + Zustand) |
 | `apps/mobile/src/hooks/useAppInit.ts` | 1,2 | FCM 등록 + 토큰 + deviceId + users/devices/preferences Firestore 등록 |
-| `apps/mobile/src/hooks/useNotificationHandler.ts` | 3 | foreground Notifee + 탭 시 markAsRead |
+| `apps/mobile/src/hooks/useNotificationHandler.ts` | 3 | foreground Notifee + 뱃지 증가 (markAsRead 없음) |
+| `apps/mobile/src/services/background-messaging.ts` | 3 | 뱃지 증가 (Notifee + Zustand) |
+| `packages/shared/src/store/notifications.ts` | 2,3 | unreadCount 필드 + increment/reset actions |
 | `packages/shared/src/index.ts` | 2 | notification 타입/스토어/상수 export |
 
 ### 삭제 대상 (이전 계획 잔재 — **이미 삭제됨 또는 애초에 생성하지 않음**)
@@ -893,6 +848,10 @@ updateUserLocale(uid, newLang);
 - ~~`title_ko`/`title_en`/`body_ko`/`body_en` data 필드~~ — 서버가 `notification.title`/`body`에 완성 문구 탑재
 - ~~background-messaging.ts의 `notifee.displayNotification`~~ — hybrid 페이로드로 OS 자동 표시
 - ~~Analytics 수동 `push_notification_open/receive` 로그~~ — Firebase 자동 이벤트로 대체
+- ~~`notifications` Firestore 컬렉션~~ — 옵션 D에서 미사용 (앱 아이콘/탭 뱃지는 로컬 카운터로 대체)
+- ~~`NotificationDocument` 타입, `markNotificationAsRead`, `subscribeToNotifications`, `useNotificationInbox`, `NotificationInboxScreen.tsx`, `inbox.tsx` 라우트~~ — 옵션 D
+- ~~`data.notificationId` 필드~~ — 읽음 처리 없으므로 불필요
+- ~~Phase 2.8 TTL 정책 / `cleanupStaleNotifications` Cloud Function~~ — `notifications` 컬렉션 없음
 
 ---
 
@@ -958,35 +917,31 @@ export const sendNotification = onRequest(async (req, res) => {
 });
 ```
 
-**2. `handleNoticeNotification` — 공지 발송 로직**
+**2. `handleNoticeNotification` — 공지 발송 로직 (옵션 D — 레코드 생성 없음)**
 
 ```
-1. Firestore notifications 레코드 수신자당 대량 생성 (batchedWrites)
-   - uid, type: 'notice', title (locale별), body (locale별),
-     data: { deptId, articleNo, category },
-     read: false, createdAt: now, pushedAt: now
-
-2. devices 쿼리 (한 번):
+1. devices 쿼리 (한 번):
    where active == true
      AND notificationsEnabled == true
      AND subscribedTopics array-contains-any topics  // ≤10개 제한 주의
 
-3. locale별 그룹핑: { ko: [...], en: [...] }
+2. locale별 그룹핑: { ko: [...], en: [...] }
 
-4. 각 그룹마다 sendEachForMulticast (500토큰씩 배치):
+3. 각 그룹마다 sendEachForMulticast (500토큰씩 배치):
    - locale별 문구 선택 (ko fallback — MVP ko-only 대응):
      const title = locale === 'en' ? (payload.title_en ?? payload.title_ko) : payload.title_ko;
      const body  = locale === 'en' ? (payload.body_en  ?? payload.body_ko ) : payload.body_ko;
    - notification.title/body = 위에서 선택한 문구
-   - data.notificationId = 해당 유저 notification 레코드 ID
-   - data.type = 'notice', data.deptId, data.articleNo, data.category
+   - data.type = 'notice', data.deptId, data.articleNo, data.category  // notificationId 없음 (옵션 D)
    - android.priority = 'high'
    - android.notification.channelId = mapCategoryToChannel(category)
    - apns.payload.aps.sound = 'default'
    - fcmOptions.analyticsLabel = `notice_${category}_v1`
 
-5. UNREGISTERED/INVALID_ARGUMENT → devices/{id}.active = false
+4. UNREGISTERED/INVALID_ARGUMENT → devices/{id}.active = false
 ```
+
+> **옵션 D 효과:** `notifications` 레코드 대량 생성(수신자당 1개) 단계가 사라져 **공지당 500 writes 완전 제거**. Cloud Function 실행 시간·Firestore 비용 동반 감소.
 
 > **ko-only MVP 시사점:** 현재 `payload.title_en`/`body_en`이 null로 넘어오므로 locale='en' 유저도 `??` fallback에 의해 한국어 문구 수신. 영문 번역 파이프라인이 생기면 fallback이 자연스럽게 en 문구를 우선 선택 → 코드 변경 없음.
 
@@ -1096,7 +1051,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 1. Firestore `devices/{deviceId}` 문서 생성 확인 (locale 포함)
 2. `users/{uid}.locale` + `users/{uid}/preferences` 읽기/쓰기
 3. auth 변경 → 토큰 재등록
-4. Security Rules (다른 uid 차단 + `notifications`의 read/readAt만 업데이트 허용)
+4. Security Rules (다른 uid 차단) — `notifications` 규칙 없음 확인 (옵션 D)
 5. `getOrCreateDeviceId()` → MMKV persist 확인
 
 ### Phase 3
@@ -1106,10 +1061,10 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 4. 마스터 OFF → `enabled: false`, `subscribedTopics` 유지
 5. 마스터 다시 ON → 이전 구독 복원
 6. MANDATORY_TOPICS 비활성 토글
-7. 포그라운드 수신 → Notifee 로컬 알림 표시
-8. 백그라운드 수신 → **OS 자동 표시** (Notifee 호출 없음 — 중복 없음 확인)
-9. 알림 탭 → `notifications/{id}.read = true` 확인 + 딥링크
-10. 앱 내 알림함 → unread 뱃지 / "모두 읽음" 동작
+7. 포그라운드 수신 → Notifee 로컬 알림 표시 + **앱 아이콘 뱃지 +1 + 공지 탭 뱃지 +1**
+8. 백그라운드 수신 → **OS 자동 표시** (Notifee 호출 없음 — 중복 없음 확인) + **앱 아이콘 뱃지 +1**
+9. 알림 탭 → 딥링크 (`/notices/{deptId}/{articleNo}`)
+10. 공지 탭 진입 → 앱 아이콘 뱃지 0으로 리셋 + 탭바 뱃지 제거 (`useFocusEffect`)
 11. 언어 변경 → `users.locale` → Cloud Function → `devices.locale` 전파 확인 (다음 알림부터 언어 변경)
 12. **Firebase Analytics DebugView 실시간 확인:**
     ```bash
@@ -1127,11 +1082,12 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
     `fcmOptions.analyticsLabel`(예: `notice_scholarship_v1`) 값이 이벤트 파라미터에 태깅되는지 함께 확인. → 카테고리별 오픈율 분석에 활용.
 
 ### 통합 E2E (출시 전)
-1. 서버 공지 발행 → Android/iOS 알림 수신
-2. 탭 → 딥링크 → 공지 상세 + 알림함에서 read 상태 확인
+1. 서버 공지 발행 → Android/iOS 알림 수신 + 앱 아이콘 뱃지 +1
+2. 탭 → 딥링크 → 공지 상세 → 공지 탭으로 돌아오면 뱃지 자동 리셋
 3. 언어 전환 → 다음 알림 언어 변경
 4. 구독 해제 → 미수신 확인
 5. 마스터 OFF → 전체 미수신 확인
+6. 앱 종료 후 재기동 → Zustand `unreadCount` 영속성 확인 (MMKV persist)
 
 ---
 
@@ -1150,9 +1106,10 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 11. **`syncPreferencesToDevices`/`syncUserLocaleToDevices` 무한루프 방지** — devices onUpdate 트리거 만들지 않기. sync-originated change 구분 필요 시 `_syncedAt` 필드로 판별
 12. **토글 debounce** — 알림 설정 화면에서 Firestore write를 500ms debounce. sync Cloud Function 과도 실행 방지
 13. **Hybrid 페이로드 중복 표시 함정** — 백그라운드 핸들러에서 절대 `notifee.displayNotification()` 호출 금지. OS 자동 표시 + Notifee로 **2회 알림** 발생. 포그라운드에서만 Notifee 호출
-14. **Cloud Function `type` 계약** — 신규 타입 추가 시 기존 `handleNoticeNotification`과 동일한 페이로드 계약(`notification` 필드 + `data.notificationId` 필수) 유지
-15. **`notifications` 쓰기 제약** — 앱은 `read`/`readAt`만 업데이트 가능(Security Rules). 생성/삭제는 Cloud Function Admin SDK 전용
-16. **Android hybrid intent 주의** — Android 백그라운드에서 hybrid 페이로드 수신 시 data는 `onNewIntent` 경유. RNFirebase `getInitialNotification()`/`onNotificationOpenedApp()`이 추상화하지만, 네이티브 Activity launchMode 변경 시 회귀 가능. 자세한 사항은 [FCM 공식 문서](https://firebase.google.com/docs/cloud-messaging/customize-messages/set-message-type)
+14. **Cloud Function `type` 계약** — 신규 타입 추가 시 기존 `handleNoticeNotification`과 동일한 페이로드 계약(`notification` 필드 + `data.type`/딥링크 필드 필수) 유지
+15. **Android hybrid intent 주의** — Android 백그라운드에서 hybrid 페이로드 수신 시 data는 `onNewIntent` 경유. RNFirebase `getInitialNotification()`/`onNotificationOpenedApp()`이 추상화하지만, 네이티브 Activity launchMode 변경 시 회귀 가능. 자세한 사항은 [FCM 공식 문서](https://firebase.google.com/docs/cloud-messaging/customize-messages/set-message-type)
+16. **뱃지 멀티 디바이스 싱크 미지원 (옵션 D 제약)** — `unreadCount`는 Zustand + MMKV 로컬 카운터라 폰/태블릿 간 독립. 한 기기에서 공지 탭 열어도 다른 기기의 뱃지는 남아있음. 스꾸버스 유저 대부분이 단일 기기 사용이라 실용상 무시 가능. 멀티 디바이스 싱크가 필요해지면 옵션 A(Firestore `notifications` 컬렉션 + onSnapshot)로 전환 가능 — 이 경우 딥링크 필드(`type`/`deptId`/`articleNo`)는 그대로 재사용
+17. **뱃지 리셋 타이밍** — 공지 탭 `useFocusEffect`에서 `notifee.setBadgeCount(0)` + `store.resetUnread()`. 알림 탭→딥링크(공지 상세)→뒤로(공지 탭) 흐름에서 마지막 단계에 자동 발동. 공지 탭을 경유하지 않는 진입 경로는 없으므로 누락 케이스 없음
 
 ---
 
@@ -1213,24 +1170,27 @@ Phase 2 Firestore 통합이 공식 진입점/검증 수단으로 대체하므로
 ### Phase 2: Firestore Integration — 미착수
 
 - [ ] Phase 1 임시 코드 제거 (debug-fcm, FCM 플로팅 버튼, 임시 requestPermission)
-- [ ] 2.1 타입 정의 (users, devices, preferences, **notifications** — `expiresAt` 포함)
-- [ ] 2.2 firestore-notifications.ts (device + preferences + **inbox** 함수)
-- [ ] 2.3 Security Rules 배포 (`notifications` 규칙 포함)
-- [ ] 2.4 Zustand notification store
-- [ ] 2.5 useNotificationPreferences + **useNotificationInbox** 훅
+- [ ] 2.1 타입 정의 (`UserDocument`, `DeviceDocument`, `PreferencesDocument`)
+- [ ] 2.2 firestore-notifications.ts (device + preferences 함수만, 알림함 함수 없음)
+- [ ] 2.3 Security Rules 배포 (users + preferences + devices만. `notifications` 없음)
+- [ ] 2.4 Zustand notification store (`unreadCount` 포함)
+- [ ] 2.5 useNotificationPreferences 훅만 (useNotificationInbox 없음)
 - [ ] 2.6 useAppInit에 device/user/preferences 등록 통합 (Promise.all + withRetry)
 - [ ] 2.7 shared exports
-- [ ] 2.8 Firestore TTL 정책 활성화 (`notifications.expiresAt` 30d)
 
-### Phase 3: UI + 알림함 + 읽음 처리 — 미착수
+### Phase 3: UI + 뱃지 — 미착수
 
 - [ ] 3.1 NotificationSettingsScreen
-- [ ] 3.2 `app/notifications/{settings,inbox}.tsx` 라우트
-- [ ] 3.3 More 화면 진입점 (설정 + 알림함)
+- [ ] 3.2 `app/notifications/settings.tsx` 라우트 (inbox 라우트 없음)
+- [ ] 3.3 More 화면 진입점 (설정만, 알림함 없음)
 - [ ] 3.4 권한 요청 UX
 - [ ] 3.5 포그라운드 Notifee displayNotification
-- [ ] 3.6 NotificationInboxScreen
-- [ ] 3.7 푸시 탭 시 markNotificationAsRead
+- [ ] 3.6 뱃지 설계
+  - [ ] 3.6.1 Zustand `unreadCount` + `incrementUnread`/`resetUnread` actions
+  - [ ] 3.6.2 background/foreground 핸들러에서 `notifee.incrementBadgeCount(1)` + `incrementUnread()`
+  - [ ] 3.6.3 공지 탭 `useFocusEffect`에서 `setBadgeCount(0)` + `resetUnread()`
+  - [ ] 3.6.4 탭바 `tabBarBadge` (unreadCount)
+- [ ] 3.7 푸시 탭 시 딥링크만 (markAsRead 없음)
 - [ ] 3.8 언어 변경 → updateUserLocale
 - [ ] 3.9 Analytics 자동 이벤트 확인만 (수동 로그 없음)
 
