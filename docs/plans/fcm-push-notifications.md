@@ -60,6 +60,8 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 
 **다국어:** **서버가 `users.locale` 기준으로 언어 선택해서 `notification.title`/`body`에 완성 문구 탑재**. 앱 단에서 `title_ko`/`title_en` 분기 로직 없음. iOS NSE도 사용하지 않음.
 
+> **현재 상태 (2026-04-19) — ko-only 운영:** MongoDB `Notice` 스키마에 **한국어 필드만 존재**. 영문 번역 파이프라인은 향후 작업(`skkuverse-ai`에서 생성 예정). 아키텍처는 locale-ready로 유지 — `users.locale`·`devices.locale` 필드와 Cloud Function의 locale별 그룹핑은 MVP부터 구현. 당장 모든 유저(`locale: 'ko' | 'en'`)에게 **한국어 문구만 발송** (Cloud Function의 `title_en ?? title_ko` fallback 경유). 영문 데이터 추가 시 Node 서버에서 `title_en`을 채우기 시작하면 코드 변경 없이 자동 전환.
+
 **구독 스키마:** 통합 topics 배열 + prefix
 ```ts
 // Topic 네임스페이스:
@@ -143,12 +145,15 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
   createdAt: Timestamp;
   readAt: Timestamp | null;
   pushedAt: Timestamp;           // FCM 발송 시각 (failure tracking용)
+  expiresAt: Timestamp;          // ⭐ TTL — createdAt + 30d (자동 삭제)
 }
 ```
 
 > **확장성 포인트:** `type` 필드로 공지·버스·기숙사·이벤트 등 구분. 앱 내 알림함 UI는 `type`별로 다른 아이콘·색상 렌더링.
 
 > **쓰기 권한:** 생성/삭제는 Cloud Function만(Admin SDK). 유저는 `read`/`readAt` 필드만 업데이트 가능.
+
+> **생명주기:** `expiresAt` 필드에 Firestore TTL 정책 활성화 → 30일 지난 알림 자동 삭제. 자세한 내용은 Phase 2.8 참조.
 
 ### Firestore Security Rules
 ```
@@ -363,6 +368,8 @@ export const MANDATORY_TOPICS: readonly string[] = [
 ] as const;
 ```
 
+> **MVP 정책:** MANDATORY_TOPICS는 현재 `[]` (empty). Security Rules의 "MANDATORY_TOPICS 강제 포함" 체크는 empty set subset 조건으로 자동 통과. 향후 긴급 공지(예: `'urgent:announcement'` — 학교 전체 공지, 시스템 점검 등)가 필요해지면 이 배열에 추가. 배열 변경 시 기존 유저의 `preferences` 문서에도 반영 필요 — 서버 Admin SDK로 일괄 migration 권장 (모든 유저가 next launch 때 자동 포함되긴 하지만 기존 devices가 즉시 topic에 등록돼야 그 시점부터 수신).
+
 ### 1.10 알림 딥링크 라우터
 
 **생성:** `apps/mobile/src/services/notification-router.ts`
@@ -460,6 +467,7 @@ export interface NotificationDocument {
   createdAt: Date;
   readAt: Date | null;
   pushedAt: Date;
+  expiresAt: Date;                // TTL — createdAt + 30d
 }
 ```
 
@@ -585,45 +593,126 @@ export function useNotificationInbox(uid: string | null, limit = 50) {
 
 **수정:** `apps/mobile/src/hooks/useAppInit.ts`
 
-토큰 획득 후:
+토큰 획득 후 — **병렬화로 Firestore 왕복 시간 최소화** (앱 기동 지연 방지):
+
 ```ts
 const deviceId = getOrCreateDeviceId();
 
-// 신규 유저: users/{uid} 문서 없으면 locale 필드 포함해서 생성
-const userDoc = await getUserDoc(uid);
-if (!userDoc) {
-  const lang = resolveAppLanguage(); // 'ko' | 'en'
-  await updateUserLocale(uid, lang);
-}
+// 1. 필수 초기화 병렬 조회
+const [userDoc, prefsDoc] = await Promise.all([
+  getUserDoc(uid),
+  getPreferences(uid),
+]);
 
-// 신규 유저: preferences 문서 없으면 default 생성
-const prefsDoc = await getPreferences(uid);
+// 2. 없는 문서 동시 생성
+const bootstrap: Promise<void>[] = [];
+if (!userDoc) {
+  bootstrap.push(updateUserLocale(uid, resolveAppLanguage()));
+}
 if (!prefsDoc) {
-  await updatePreferences(uid, {
+  bootstrap.push(updatePreferences(uid, {
     enabled: false,
     subscribedTopics: [...MANDATORY_TOPICS],
-  });
+  }));
 }
+await Promise.all(bootstrap);
 
-// device 등록 (preferences + locale 모두 복제)
-const prefs = prefsDoc ?? { enabled: false, subscribedTopics: [...MANDATORY_TOPICS] };
+// 3. Device 등록 (preferences + locale 복제)
+const finalPrefs = prefsDoc ?? { enabled: false, subscribedTopics: [...MANDATORY_TOPICS] };
 const locale = userDoc?.locale ?? resolveAppLanguage();
 if (token) {
   await registerDevice(deviceId, {
     uid, token, platform, appVersion, lastActive: now, active: true,
-    subscribedTopics: prefs.subscribedTopics,
-    notificationsEnabled: prefs.enabled,
+    subscribedTopics: finalPrefs.subscribedTopics,
+    notificationsEnabled: finalPrefs.enabled,
     locale,
   });
 }
 ```
 
+**재시도 + 앱 기동 block 방지:**
+
+```ts
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try { return await fn(); }
+    catch (err) {
+      if (attempt === maxAttempts) throw err;
+      await new Promise(r => setTimeout(r, 2 ** attempt * 500)); // 1s, 2s, 4s
+    }
+  }
+  throw new Error('unreachable');
+}
+
+// useAppInit 본체:
+try {
+  await withRetry(() => initializeFirestoreNotifications(uid, token));
+} catch (err) {
+  // 기동 block 금지 — 알림만 실패, 앱은 정상 사용 가능
+  reportCrashlytics('notifications/init', err);
+}
+```
+
+**설계 의도:**
+- 순차 실행(왕복 3~5회) → 병렬화로 대략 1 왕복 시간으로 단축
+- 3회 exponential backoff (1s / 2s / 4s)로 네트워크 플레어 대응
+- 전체 실패 시 Crashlytics 리포트만, `setIsReady(true)` 블로킹 금지 — 알림 기능은 off-critical
+- offline 기동 시에도 앱 전반 기능 사용 가능 (알림 등록은 다음 온라인 기동 시 재시도)
+
 auth 변경 시 (anonymous → Google) uid 변경 → 디바이스 문서 uid 업데이트.
-언어 변경 시 `updateUserLocale(uid, newLang)` 호출 → Cloud Function이 devices 전파.
+언어 변경 시 `updateUserLocale(uid, newLang)` 호출 → Cloud Function `syncUserLocaleToDevices`가 devices 자동 전파.
 
 ### 2.7 exports 업데이트
 
 **수정:** `packages/shared/src/index.ts` — notification 타입, 스토어, topic 상수 export
+
+### 2.8 `notifications` 컬렉션 생명주기 (TTL)
+
+**정책:** 생성 후 **30일 후 자동 삭제** (과거 공지는 기존 공지 탭에서 조회 가능 — 알림함은 "최근 상호작용" 용도).
+
+**구현 (1순위): Firestore TTL 필드**
+
+Cloud Function이 `notifications/{id}` 생성 시 `expiresAt` 필드를 30일 후 Timestamp로 설정:
+
+```ts
+const now = admin.firestore.Timestamp.now();
+const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+await notificationsRef.add({
+  // ...
+  createdAt: now,
+  pushedAt: now,
+  expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + thirtyDaysMs),
+});
+```
+
+Firebase Console에서 **1회 설정**:
+- Firestore → TTL 탭 → Add Policy
+- Collection: `notifications`
+- Timestamp field: `expiresAt`
+- 활성화 후 Firestore가 ~24시간 주기로 expire된 문서 자동 삭제 (**비과금**)
+
+**구현 (2순위, TTL 정책 사용 불가 시): scheduled Cloud Function**
+
+```ts
+// 주 1회 cron
+export const cleanupStaleNotifications = onSchedule('every monday 04:00', async () => {
+  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 30 * 86400 * 1000);
+  const stale = await db.collection('notifications')
+    .where('createdAt', '<', cutoff)
+    .limit(500)  // 배치 단위
+    .get();
+  const batch = db.batch();
+  stale.forEach(doc => batch.delete(doc.ref));
+  await batch.commit();
+});
+```
+
+**비용 시사점:**
+- 예상 write: 공지 100개/일 × 평균 수신자 500명 = 50K writes/day → ~$27/month @ Blaze
+- TTL 자동 삭제는 무과금 → 저장 비용도 30일 내로 유지
+- MVP 규모 (MAU ~5K)에선 문제 없음, 10K+ 도달 시 대안 A (공지별 캐시 + 유저별 read 분리 구조)로 전환 검토
+
+> **검증:** Phase 2 배포 후 24~48시간 경과 시 TTL 정책이 실제로 expire된 레코드를 삭제하는지 Firestore Console에서 확인.
 
 ---
 
@@ -693,6 +782,13 @@ onForegroundMessage(async (remoteMessage) => {
 
 > **백그라운드 핸들러에서는 `displayNotification` 호출 금지.** Hybrid 페이로드에서 OS가 이미 표시 중 → 중복 발생.
 
+> **iOS UX 주의:** iOS는 관례상 앱 사용 중 알림 표시가 방해로 느껴질 수 있음. Phase 3 실기기 dogfooding 단계에서 유저 피드백 기준으로 전환 고려:
+> - **(A) 양쪽 다 Notifee** `displayNotification` — 현 계획, iOS에서도 상단 헤드업 배너 표시
+> - **(B) Android = Notifee, iOS = in-app toast** — SDS Toast 컴포넌트 활용 또는 신규 작성. iOS 전용 UX 관례 준수
+> - **(C) 양쪽 다 in-app toast** — 플랫폼 일관성
+>
+> 초기 구현은 (A) 유지. dogfooding에서 "알림 방해" 피드백 나오면 (B)로 전환 — `Platform.OS === 'ios'` 분기만 추가하면 되는 low-cost 변경.
+
 ### 3.6 앱 내 알림함 화면 (**NEW**)
 
 **생성:** `apps/mobile/src/features/notifications/NotificationInboxScreen.tsx`
@@ -708,6 +804,8 @@ onForegroundMessage(async (remoteMessage) => {
   - `navigateFromNotification(data)` 호출 (기존 router 재사용, `type` switch)
 - "모두 읽음" 버튼 → `markAllNotificationsAsRead(uid)` batch update
 - Empty state: "받은 알림이 없어요"
+
+> **Pagination 정책 (MVP):** 최근 50개만 표시. 더 오래된 알림은 TTL 30일(Phase 2.8)로 자동 삭제되므로 유저가 실제로 "놓친 알림"을 못 보는 경우는 드뭄 — 원본 공지는 기존 공지 탭에서 전체 조회 가능. 장기 유저 대응이 필요해지면 cursor-based "더 보기" 버튼 추가 (createdAt desc + startAfter).
 
 ### 3.7 푸시 탭 시 읽음 처리
 
@@ -818,10 +916,12 @@ async function publishNotice(notice) {
       type: 'notice',                  // ⭐ 확장 지점
       noticeId: notice.id,
       topics: computeTopics(notice),  // ["category:scholarship", "dept:cs"]
-      title_ko: notice.title_ko,
-      title_en: notice.title_en,
-      body_ko: notice.summary_ko,
-      body_en: notice.summary_en,
+      title_ko: notice.title,         // MongoDB에 한국어 필드만 존재
+      body_ko: notice.summary,
+      // ko-only MVP: title_en/body_en은 현재 null. Cloud Function이 ko fallback.
+      // 영문 번역 파이프라인 구축 시 이 두 필드만 채우면 locale='en' 유저가 자동으로 영문 수신.
+      title_en: notice.title_en ?? null,
+      body_en: notice.summary_en ?? null,
       deptId: notice.deptId,
       articleNo: notice.articleNo,
       category: notice.category,
@@ -830,7 +930,7 @@ async function publishNotice(notice) {
 }
 ```
 
-> 다국어 문구는 **Cloud Function 측에서 locale별로 선택**해서 `notification.title`/`body`에 탑재. Node는 ko/en 두 버전 모두 실어서 전달.
+> 다국어 문구는 **Cloud Function 측에서 locale별로 선택**해서 `notification.title`/`body`에 탑재. 현재 MVP는 ko-only — Node는 한국어만 보내고 영문은 `null` 또는 생략. 향후 영문 데이터 추가 시 Node 측 코드만 업데이트.
 
 ### Firebase Cloud Functions (별도 workspace: `functions/`)
 
@@ -874,7 +974,10 @@ export const sendNotification = onRequest(async (req, res) => {
 3. locale별 그룹핑: { ko: [...], en: [...] }
 
 4. 각 그룹마다 sendEachForMulticast (500토큰씩 배치):
-   - notification.title/body = 해당 locale 문구
+   - locale별 문구 선택 (ko fallback — MVP ko-only 대응):
+     const title = locale === 'en' ? (payload.title_en ?? payload.title_ko) : payload.title_ko;
+     const body  = locale === 'en' ? (payload.body_en  ?? payload.body_ko ) : payload.body_ko;
+   - notification.title/body = 위에서 선택한 문구
    - data.notificationId = 해당 유저 notification 레코드 ID
    - data.type = 'notice', data.deptId, data.articleNo, data.category
    - android.priority = 'high'
@@ -884,6 +987,8 @@ export const sendNotification = onRequest(async (req, res) => {
 
 5. UNREGISTERED/INVALID_ARGUMENT → devices/{id}.active = false
 ```
+
+> **ko-only MVP 시사점:** 현재 `payload.title_en`/`body_en`이 null로 넘어오므로 locale='en' 유저도 `??` fallback에 의해 한국어 문구 수신. 영문 번역 파이프라인이 생기면 fallback이 자연스럽게 en 문구를 우선 선택 → 코드 변경 없음.
 
 **3. `syncPreferencesToDevices` — Firestore onUpdate trigger**
 
@@ -905,15 +1010,57 @@ users/{uid}.locale 변경 감지
 **5. `cleanupStaleDevices` — scheduled function**
 
 ```
-주기 cron (월 1회 등)
+주기 cron (주 1회)
   → lastActive가 N개월 이전인 devices soft delete
+  → UNREGISTERED 토큰으로 인한 유령 device 문서 정리 속도 개선 (월→주)
+  → 빈번한 디바이스 변경(폰 교체, 앱 재설치) 환경 대응
 ```
+
+> **유령 device 가설:** 앱 재설치 시 새 deviceId가 발급되고 기존 document는 active 상태로 남음. sendEachForMulticast에서 `UNREGISTERED` 반환되면 즉시 `active:false`로 바뀌지만, 그전까지는 불필요한 FCM 호출 발생. 주 1회 cron으로 빠른 정리.
 
 ### 인증
 
 Node → Cloud Function 호출 시 `X-API-Key` 헤더 검증 (환경변수).
 Google Cloud IAM은 스꾸 규모엔 오버엔지니어링.
 Cloud Function URL은 `FCM_FANOUT_URL` env 변수로 관리 (dev/prod 분리 가능).
+
+### Cloud Functions 배포
+
+**위치:** monorepo 루트 `functions/` workspace (또는 별도 저장소). 앱 workspace와 의존성 분리.
+**스택:** TypeScript + `firebase-functions` v6 + `firebase-admin` v12 + Node 20 런타임.
+
+**배포 명령 (MVP — 수동):**
+```bash
+# 개별 function 배포 (권장 — 테스트 범위 명확)
+firebase deploy --only functions:sendNotification
+firebase deploy --only functions:syncPreferencesToDevices,functions:syncUserLocaleToDevices
+
+# 전체 배포 (초기 셋업 시)
+firebase deploy --only functions
+```
+
+**Secrets 관리:**
+```bash
+# 1st gen: functions config
+firebase functions:config:set cloud.api_key="$(openssl rand -hex 32)"
+
+# 2nd gen 마이그레이션 시: Secret Manager (권장)
+firebase functions:secrets:set CLOUD_FUNCTION_API_KEY
+```
+
+**향후 자동화:** GitHub Actions (`.github/workflows/deploy-functions.yml`) — `main` 브랜치 `functions/` 하위 변경 push 시 `firebase deploy --only functions` 자동 실행. MVP는 수동으로 충분.
+
+**로컬 테스트:**
+```bash
+# Firestore + Functions emulator
+firebase emulators:start --only functions,firestore
+
+# Cloud Function HTTP 호출 테스트 (Node 서버 연동 전)
+curl -X POST http://localhost:5001/{project}/us-central1/sendNotification \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: local-dev-key" \
+  -d '{ "type": "notice", "topics": ["category:scholarship"], ... }'
+```
 
 ### Cloud Functions 세대
 
@@ -964,7 +1111,20 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 9. 알림 탭 → `notifications/{id}.read = true` 확인 + 딥링크
 10. 앱 내 알림함 → unread 뱃지 / "모두 읽음" 동작
 11. 언어 변경 → `users.locale` → Cloud Function → `devices.locale` 전파 확인 (다음 알림부터 언어 변경)
-12. Firebase Analytics → `notification_receive`/`notification_open` 이벤트 자동 기록 확인
+12. **Firebase Analytics DebugView 실시간 확인:**
+    ```bash
+    # Android
+    adb shell setprop debug.firebase.analytics.app com.zoyoong.skkubus
+
+    # iOS: Xcode → Edit Scheme → Run → Arguments → "-FIRDebugEnabled"
+    ```
+    Firebase Console → Analytics → DebugView에서 알림 수신/탭 시 다음 이벤트가 실시간 기록되는지 확인:
+    - `notification_receive` (백그라운드·quit 수신)
+    - `notification_open` (탭)
+    - `notification_dismiss` (스와이프)
+    - `notification_foreground_receive` (포그라운드 수신)
+
+    `fcmOptions.analyticsLabel`(예: `notice_scholarship_v1`) 값이 이벤트 파라미터에 태깅되는지 함께 확인. → 카테고리별 오픈율 분석에 활용.
 
 ### 통합 E2E (출시 전)
 1. 서버 공지 발행 → Android/iOS 알림 수신
@@ -986,7 +1146,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 7. **iOS `registerDeviceForRemoteMessages()`** — `auto_register: false` 시 필수. 안 하면 `UNREGISTERED` 에러
 8. **Firestore Security Rules** — Phase 2에서 앱 코드와 함께 배포. Admin SDK는 우회
 9. **RNFB 버전 일치** — firestore 추가 시 기존 모듈과 같은 메이저 버전 유지
-10. **`array-contains-any` 최대 10개** — 공지당 topics 10개 이하 유지. 초과 시 쿼리 분할 필요
+10. **`array-contains-any` 최대 10개** — 공지당 topics 10개 이하 유지. 초과 시 쿼리 분할 필요. **전학과 공지 대응 (향후):** 68개 학과 전체 대상 공지가 필요해지면 `dept:all` 와일드카드 토픽 도입 — MANDATORY_TOPICS 또는 가입 시 default로 모든 유저가 자동 구독. Phase 3 착수 후 실제 운영 데이터 기준으로 필요성 재평가. MVP는 현 구조로 충분
 11. **`syncPreferencesToDevices`/`syncUserLocaleToDevices` 무한루프 방지** — devices onUpdate 트리거 만들지 않기. sync-originated change 구분 필요 시 `_syncedAt` 필드로 판별
 12. **토글 debounce** — 알림 설정 화면에서 Firestore write를 500ms debounce. sync Cloud Function 과도 실행 방지
 13. **Hybrid 페이로드 중복 표시 함정** — 백그라운드 핸들러에서 절대 `notifee.displayNotification()` 호출 금지. OS 자동 표시 + Notifee로 **2회 알림** 발생. 포그라운드에서만 Notifee 호출
@@ -1036,22 +1196,31 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 - ❌ FCM 토큰 발급 불가 — 시뮬레이터에서 `aps-environment` entitlement가 strip됨 (자동 서명 제약)
 - ✅ 실기기 TestFlight → 토큰 발급 + 알림 수신 성공 (2026-04-19 완료)
 
-### 남은 임시 코드 (Phase 2 착수 전 제거 필요)
+### 남은 임시 코드 (**Phase 2 PR에서 제거**)
 
-- `app/debug-fcm.tsx` — FCM 디버그 화면
-- `app/(tabs)/campus.tsx` — 빨간 "FCM" 플로팅 버튼
-- `src/hooks/useAppInit.ts` — `requestPermission()` 임시 호출 + `debugFcmToken` state
+Phase 2 Firestore 통합이 공식 진입점/검증 수단으로 대체하므로 Phase 2 PR 시작 시 일괄 제거:
+
+- `app/debug-fcm.tsx` — FCM 디버그 화면 → 알림 설정 화면(Phase 3)이 공식 진입점
+- `app/(tabs)/campus.tsx` — 빨간 "FCM" 플로팅 버튼 → 제거
+- `src/hooks/useAppInit.ts` — `requestPermission()` 임시 호출 + `debugFcmToken` state → Phase 3 마스터 토글이 공식 권한 요청 지점
 - `plugins/withPushNotificationsCapability.js` — **유지** (production에도 필요)
+
+**대체 확인 수단 (Phase 2+ 이후):**
+- FCM 토큰: Firestore Console → `devices/{deviceId}` 문서 직접 확인
+- 권한 상태: iOS 설정 앱 / Android 앱 정보 → 알림
+- 수신 테스트: Firebase Console → Cloud Messaging → Send test message
 
 ### Phase 2: Firestore Integration — 미착수
 
-- [ ] 2.1 타입 정의 (users, devices, preferences, **notifications**)
+- [ ] Phase 1 임시 코드 제거 (debug-fcm, FCM 플로팅 버튼, 임시 requestPermission)
+- [ ] 2.1 타입 정의 (users, devices, preferences, **notifications** — `expiresAt` 포함)
 - [ ] 2.2 firestore-notifications.ts (device + preferences + **inbox** 함수)
 - [ ] 2.3 Security Rules 배포 (`notifications` 규칙 포함)
 - [ ] 2.4 Zustand notification store
 - [ ] 2.5 useNotificationPreferences + **useNotificationInbox** 훅
-- [ ] 2.6 useAppInit에 device/user/preferences 등록 통합 (locale 포함)
+- [ ] 2.6 useAppInit에 device/user/preferences 등록 통합 (Promise.all + withRetry)
 - [ ] 2.7 shared exports
+- [ ] 2.8 Firestore TTL 정책 활성화 (`notifications.expiresAt` 30d)
 
 ### Phase 3: UI + 알림함 + 읽음 처리 — 미착수
 
