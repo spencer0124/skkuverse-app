@@ -48,10 +48,7 @@ import {
   type PreferencesDocument,
   type TranslationKey,
 } from '@skkuverse/shared';
-import {
-  disableNotifications,
-  updatePreferences,
-} from '@/services/firestore-notifications';
+import { updatePreferences } from '@/services/firestore-notifications';
 import {
   checkPermission,
   requestPermission,
@@ -95,26 +92,52 @@ export default function NotificationSettingsScreen() {
   }, [prefs]);
 
   // ── Debounced Firestore write ──
+  //
+  // Two buffers: writeTimer holds the scheduled flush, pendingPrefs holds
+  // the latest value to write. On unmount we clear the timer AND flush the
+  // pending value synchronously — otherwise toggling then pressing back
+  // within 500ms discards the change (the earlier bug that made Firestore
+  // only appear to update after app restart).
+  //
+  // uid is captured via ref so the cleanup doesn't need uid in deps.
   const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrefs = useRef<PreferencesDocument | null>(null);
+  const uidRef = useRef<string | null>(uid);
+  useEffect(() => {
+    uidRef.current = uid;
+  }, [uid]);
+
+  const flushNow = useCallback(() => {
+    if (writeTimer.current) {
+      clearTimeout(writeTimer.current);
+      writeTimer.current = null;
+    }
+    const toWrite = pendingPrefs.current;
+    const currentUid = uidRef.current;
+    pendingPrefs.current = null;
+    if (!currentUid || !toWrite) return;
+    void updatePreferences(currentUid, toWrite).catch((err) => {
+      logHandledError('notifications/update-preferences', err);
+    });
+  }, []);
 
   const scheduleWrite = useCallback(
     (next: PreferencesDocument) => {
-      if (!uid) return;
+      if (!uidRef.current) return;
+      pendingPrefs.current = next;
       if (writeTimer.current) clearTimeout(writeTimer.current);
-      writeTimer.current = setTimeout(() => {
-        void updatePreferences(uid, next).catch((err) => {
-          logHandledError('notifications/update-preferences', err);
-        });
-      }, DEBOUNCE_MS);
+      writeTimer.current = setTimeout(flushNow, DEBOUNCE_MS);
     },
-    [uid],
+    [flushNow],
   );
 
   useEffect(() => {
+    // Flush on unmount so a toggle followed by a quick back-navigation
+    // still reaches Firestore.
     return () => {
-      if (writeTimer.current) clearTimeout(writeTimer.current);
+      flushNow();
     };
-  }, []);
+  }, [flushNow]);
 
   // ── P1-5: refresh permission state when screen regains focus ──
   useFocusEffect(
@@ -152,16 +175,15 @@ export default function NotificationSettingsScreen() {
         scheduleWrite(next);
       } else {
         // Keep subscribedTopics intact so re-enabling restores them.
+        // Write the full prefs document (not disableNotifications) so any
+        // pending topic toggles still land — updatePreferences is the single
+        // write path, keeping behavior uniform across toggles.
         const next: PreferencesDocument = {
           ...localPrefs,
           enabled: false,
         };
         setLocalPrefs(next);
-        // Use disableNotifications for clarity — writes only {enabled:false}.
-        if (writeTimer.current) clearTimeout(writeTimer.current);
-        void disableNotifications(uid).catch((err) => {
-          logHandledError('notifications/disable', err);
-        });
+        scheduleWrite(next);
       }
     },
     [uid, localPrefs, scheduleWrite, setPermissionStatus],
