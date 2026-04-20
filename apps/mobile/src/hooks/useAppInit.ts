@@ -27,7 +27,10 @@ import { setupAppCheck } from '@/services/app-check';
 import { setupNotificationChannels } from '@/services/notification-channels';
 import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
 import { getOrCreateDeviceId } from '@/services/device-id';
-import { initializeFirestoreNotifications } from '@/services/firestore-notifications';
+import {
+  initializeFirestoreNotifications,
+  updateUserLocale,
+} from '@/services/firestore-notifications';
 import { withRetry } from '@/utils/with-retry';
 
 /**
@@ -54,11 +57,12 @@ function resolveAppLanguage(): AppLanguage {
 
 /**
  * Map AppLanguage ('ko' | 'en' | 'zh') to the subset the notification
- * subsystem supports ('ko' | 'en'). Chinese users receive Korean copy
- * because the server has no zh translation pipeline; see plan doc.
+ * subsystem supports ('ko' | 'en'). Chinese users fall through to English
+ * (not Korean) — less jarring for non-Korean readers until the zh pipeline
+ * ships. Settings screen surfaces a hint banner explaining this.
  */
 function toNotificationLocale(lang: AppLanguage): 'ko' | 'en' {
-  return lang === 'en' ? 'en' : 'ko';
+  return lang === 'ko' ? 'ko' : 'en';
 }
 
 /**
@@ -251,9 +255,24 @@ export function useAppInit() {
       },
     );
 
+    // P0-3: mid-session language change → Firestore users.locale.
+    // Keep the side-effect here (not in shared/setAppLanguage) so packages/shared
+    // stays pure state and mobile owns the Firestore dependency. Cloud Function
+    // syncUserLocaleToDevices propagates the change to devices.locale.
+    const unsubLocale = useSettingsStore.subscribe((state, prev) => {
+      if (state.appLanguage === prev.appLanguage) return;
+      const uid = getAuth().currentUser?.uid;
+      if (!uid) return;
+      const nextLocale = toNotificationLocale(state.appLanguage);
+      void updateUserLocale(uid, nextLocale).catch((err) => {
+        logHandledError('notifications/locale-sync', err);
+      });
+    });
+
     return () => {
       unsubscribe?.();
       unsubToken?.();
+      unsubLocale();
       appStateSubscription.remove();
     };
   }, []);

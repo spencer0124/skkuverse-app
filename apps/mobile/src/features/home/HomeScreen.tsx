@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronRight, User } from 'lucide-react-native';
+import { BellRing, ChevronRight, User } from 'lucide-react-native';
 import { Txt, Button, Dialog } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
@@ -145,6 +145,25 @@ export function HomeScreen() {
               <ChevronRight size={14} color={SdsColors.brand} />
             </View>
           </View>
+        </Pressable>
+
+        {/* ── Notification settings entry (Entry Point A) ── */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.settingsRow,
+            pressed && styles.settingsRowPressed,
+          ]}
+          onPress={() => router.push('/notifications/settings' as never)}
+        >
+          <View style={styles.settingsIconWrap}>
+            <BellRing size={20} color={SdsColors.grey700} />
+          </View>
+          <View style={styles.settingsTextWrap}>
+            <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+              {t('notifications.settings')}
+            </Txt>
+          </View>
+          <ChevronRight size={18} color={SdsColors.grey400} />
         </Pressable>
 
         {/* ── Sign-out button (for signed-in users, moved from former '전체' tab) ── */}
@@ -301,6 +320,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: SdsColors.brand,
+  },
+
+  /* ── Settings row (notification settings entry) ── */
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SdsSpacing.lg,
+    paddingVertical: SdsSpacing.md,
+    gap: SdsSpacing.md,
+  },
+  settingsRowPressed: {
+    backgroundColor: SdsColors.grey50,
+  },
+  settingsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: SdsColors.grey100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsTextWrap: {
+    flex: 1,
   },
 
   /* ── Sign-out ── */

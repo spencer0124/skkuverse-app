@@ -325,6 +325,24 @@ const ko = {
   'onboarding.oauthErrorTitle': '성균관대 계정이 아니에요',
   'onboarding.oauthErrorDescription': '성대생 전용이라\n@g.skku.edu 계정이 필요해요',
   'onboarding.oauthErrorRetry': '다시 해보기',
+
+  // ── Notifications (Phase 3) ──
+  'notifications.settings': '알림 설정',
+  'notifications.master': '알림 받기',
+  'notifications.masterDesc': '꺼두면 모든 알림이 멈춰요',
+  'notifications.categories': '공지 카테고리',
+  'notifications.departments': '학과 공지',
+  'notifications.departmentHint': '학과 선택은 공지 탭에서 바꿀 수 있어요',
+  'notifications.mandatory': '기본 구독',
+  'notifications.permissionDenied': '알림 권한이 꺼져 있어요',
+  'notifications.permissionDeniedDesc': '설정에서 알림을 켜주세요',
+  'notifications.openSettings': '설정으로 이동',
+  'notifications.cancel': '취소',
+  'notifications.loginRequired': '알림 설정은 로그인이 필요해요',
+  'notifications.loginCta': '로그인하기',
+  'notifications.zhHint': '중국어 알림은 준비 중이에요. 지금은 영어로 전송돼요',
+  'notifications.loadError': '알림 설정을 불러오지 못했어요',
+  'notifications.retry': '다시 시도',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -585,6 +603,24 @@ const en: TranslationMap = {
   'onboarding.oauthErrorTitle': 'Not an SKKU account',
   'onboarding.oauthErrorDescription': 'SKKU students only\nAn @g.skku.edu account is required',
   'onboarding.oauthErrorRetry': 'Try again',
+
+  // ── Notifications (Phase 3) ──
+  'notifications.settings': 'Notifications',
+  'notifications.master': 'Receive notifications',
+  'notifications.masterDesc': 'Turn off to pause all notifications',
+  'notifications.categories': 'Notice categories',
+  'notifications.departments': 'Department notices',
+  'notifications.departmentHint': 'Change department selection in the Notices tab',
+  'notifications.mandatory': 'Default',
+  'notifications.permissionDenied': 'Notifications are blocked',
+  'notifications.permissionDeniedDesc': 'Allow notifications in Settings',
+  'notifications.openSettings': 'Open Settings',
+  'notifications.cancel': 'Cancel',
+  'notifications.loginRequired': 'Log in to manage notifications',
+  'notifications.loginCta': 'Log in',
+  'notifications.zhHint': 'Chinese notifications are coming soon — you\'ll get English for now',
+  'notifications.loadError': 'Could not load notification settings',
+  'notifications.retry': 'Retry',
 };
 
 const zh: TranslationMap = {
@@ -841,6 +877,24 @@ const zh: TranslationMap = {
   'onboarding.oauthErrorTitle': '不是成均馆大学账号',
   'onboarding.oauthErrorDescription': '仅限成大学生\n需要 @g.skku.edu 账号',
   'onboarding.oauthErrorRetry': '重试',
+
+  // ── Notifications (Phase 3) ──
+  'notifications.settings': '通知设置',
+  'notifications.master': '接收通知',
+  'notifications.masterDesc': '关闭后所有通知都会暂停',
+  'notifications.categories': '公告类别',
+  'notifications.departments': '院系公告',
+  'notifications.departmentHint': '可在公告页面更改院系选择',
+  'notifications.mandatory': '默认订阅',
+  'notifications.permissionDenied': '通知权限已关闭',
+  'notifications.permissionDeniedDesc': '请在系统设置中打开通知',
+  'notifications.openSettings': '前往设置',
+  'notifications.cancel': '取消',
+  'notifications.loginRequired': '管理通知需要登录',
+  'notifications.loginCta': '登录',
+  'notifications.zhHint': '中文通知准备中 — 暂时以英文发送',
+  'notifications.loadError': '无法加载通知设置',
+  'notifications.retry': '重试',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

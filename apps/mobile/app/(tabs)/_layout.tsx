@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import type { NavigationState } from "@react-navigation/native";
 import { Home, Map, Navigation, Bell } from "lucide-react-native";
 import { Text } from "react-native";
-import { useT, useSettingsStore } from "@skkuverse/shared";
+import { useT, useSettingsStore, useNotificationStore } from "@skkuverse/shared";
 import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
 
@@ -24,8 +24,14 @@ export default function TabLayout() {
   const { t } = useT();
   const lastTab = useSettingsStore((s) => s.lastTab);
   const setLastTab = useSettingsStore((s) => s.setLastTab);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   const initialTab: TabRoute = VALID_TABS.includes(lastTab) ? lastTab : 'notices';
+
+  // tabBarBadge expects number | string | undefined; 0/null hide the badge
+  // but falsy numbers still render in some RN versions — use undefined.
+  const noticesBadge: number | string | undefined =
+    unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined;
 
   return (
     <Tabs
@@ -77,6 +83,7 @@ export default function TabLayout() {
         name="notices"
         options={{
           title: t("nav.notices"),
+          tabBarBadge: noticesBadge,
           tabBarIcon: ({ color }) => (
             <Bell size={22} color={color} />
           ),

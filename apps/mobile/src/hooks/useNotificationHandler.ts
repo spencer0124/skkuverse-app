@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import notifee from '@notifee/react-native';
+import { notificationStore } from '@skkuverse/shared';
 import {
   getInitialNotification,
   onNotificationOpenedApp,
@@ -8,6 +10,7 @@ import {
   navigateFromNotification,
   type NotificationData,
 } from '@/services/notification-router';
+import { mapCategoryToChannel } from '@/services/notification-channels';
 
 /**
  * Root-level hook that handles notification taps and foreground messages.
@@ -18,7 +21,7 @@ import {
  * 1. Quit-state: App launched by tapping a notification → getInitialNotification
  * 2. Background-state: App brought to foreground by tap → onNotificationOpenedApp
  * 3. Foreground: Message arrives while app is visible → onForegroundMessage
- *    (Phase 3 will add Notifee in-app notification display here)
+ *    (Notifee displayNotification + badge increment; OS does NOT auto-show in foreground)
  */
 export function useNotificationHandler() {
   const initialHandled = useRef(false);
@@ -42,11 +45,37 @@ export function useNotificationHandler() {
     });
 
     // 3. Foreground: message arrives while app is active
-    const unsubscribeForeground = onForegroundMessage((message) => {
+    const unsubscribeForeground = onForegroundMessage(async (message) => {
       if (__DEV__) {
         console.log('[fcm] foreground message:', message.messageId, message.data);
       }
-      // Phase 3: Notifee displayNotification here
+
+      const { notification, data } = message;
+      if (!notification) return;
+
+      const category =
+        typeof data?.category === 'string' ? data.category : undefined;
+
+      try {
+        await notifee.displayNotification({
+          title: notification.title,
+          body: notification.body,
+          android: {
+            channelId: mapCategoryToChannel(category),
+            pressAction: { id: 'default' },
+          },
+        });
+      } catch (e) {
+        if (__DEV__) console.warn('[notifee] displayNotification failed:', e);
+      }
+
+      try {
+        await notifee.incrementBadgeCount(1);
+      } catch (e) {
+        if (__DEV__) console.warn('[notifee] incrementBadgeCount failed:', e);
+      }
+
+      notificationStore.getState().incrementUnread();
     });
 
     return () => {

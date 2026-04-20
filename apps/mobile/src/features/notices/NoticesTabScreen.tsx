@@ -12,13 +12,18 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import notifee from '@notifee/react-native';
+import { Settings } from 'lucide-react-native';
 import {
   SdsColors,
   useNoticeTabs,
   useSettingsStore,
+  useNotificationStore,
   useT,
   type NoticeTab,
 } from '@skkuverse/shared';
@@ -59,8 +64,20 @@ function resolvePickerSelection(
 export function NoticesTabScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const router = useRouter();
   const { data: tabsConfig, isLoading, isError, refetch } = useNoticeTabs();
   const tabs = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
+
+  // Badge reconcile on tab focus — see P0-1 β. Resets both the OS app-icon
+  // badge (iOS authoritative) and the in-app Zustand counter (tabBarBadge
+  // authoritative on Android). Keeps empty deps so the callback identity is
+  // stable across focus events.
+  useFocusEffect(
+    useCallback(() => {
+      void notifee.setBadgeCount(0).catch(() => {});
+      useNotificationStore.getState().resetUnread();
+    }, []),
+  );
 
   // ── Tab state ──
   const [activeTabKey, setActiveTabKey] = useState<string>('');
@@ -123,6 +140,15 @@ export function NoticesTabScreen() {
         <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900}>
           {t('notices.title')}
         </Txt>
+        <Pressable
+          hitSlop={12}
+          onPress={() => router.push('/notifications/settings' as never)}
+          accessibilityRole="button"
+          accessibilityLabel={t('notifications.settings')}
+          style={styles.headerAction}
+        >
+          <Settings size={22} color={SdsColors.grey700} />
+        </Pressable>
       </View>
 
       {isLoading ? (
@@ -232,8 +258,13 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  headerAction: {
+    marginLeft: 'auto',
   },
   panels: {
     flex: 1,
