@@ -28,7 +28,7 @@ const DEVICES = 'devices';
 
 export async function getUserDoc(uid: string): Promise<UserDocument | null> {
   const snap = await firestore().collection(USERS).doc(uid).get();
-  if (!snap.exists) return null;
+  if (!snap.exists()) return null;
   return snap.data() as UserDocument;
 }
 
@@ -41,7 +41,7 @@ export async function getPreferences(
     .collection(PREFERENCES)
     .doc(PREFERENCES_DOC_ID)
     .get();
-  if (!snap.exists) return null;
+  if (!snap.exists()) return null;
   return snap.data() as PreferencesDocument;
 }
 
@@ -125,7 +125,7 @@ export function onPreferencesChanged(
     .doc(PREFERENCES_DOC_ID)
     .onSnapshot(
       (snap: FirebaseFirestoreTypes.DocumentSnapshot) => {
-        if (!snap.exists) {
+        if (!snap.exists()) {
           callback(null);
           return;
         }

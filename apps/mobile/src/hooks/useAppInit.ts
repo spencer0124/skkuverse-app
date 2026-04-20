@@ -25,7 +25,7 @@ import {
 } from '@/services/analytics';
 import { setupAppCheck } from '@/services/app-check';
 import { setupNotificationChannels } from '@/services/notification-channels';
-import { ensureRegistered, checkPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
+import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import { initializeFirestoreNotifications } from '@/services/firestore-notifications';
 import { withRetry } from '@/utils/with-retry';
@@ -122,14 +122,17 @@ export function useAppInit() {
 
         // 5. FCM registration + Firestore bootstrap (Phase 2)
         //
-        // Permission dialog is owned by Phase 3's master toggle — here we only
-        // read the current status. If already authorized (e.g. prior install
-        // with permission granted), we proceed to token + Firestore registration.
+        // Use requestPermission() here because it's idempotent on iOS — no
+        // dialog appears if permission is already granted/denied. This gives
+        // us correct behavior on first launch (prompt shows) without spurious
+        // prompts on subsequent launches. Phase 3 will add a richer permission
+        // UX via a master toggle, but the real OS-level dialog still flows
+        // through here.
         await setupNotificationChannels();
         const deviceId = getOrCreateDeviceId();
         useNotificationStore.getState().setDeviceId(deviceId);
 
-        const permStatus = await checkPermission();
+        const permStatus = await requestPermission();
         useNotificationStore.getState().setPermissionStatus(permStatus);
 
         if (permStatus === 'authorized' || permStatus === 'provisional') {
