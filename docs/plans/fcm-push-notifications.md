@@ -1153,30 +1153,44 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 - ❌ FCM 토큰 발급 불가 — 시뮬레이터에서 `aps-environment` entitlement가 strip됨 (자동 서명 제약)
 - ✅ 실기기 TestFlight → 토큰 발급 + 알림 수신 성공 (2026-04-19 완료)
 
-### 남은 임시 코드 (**Phase 2 PR에서 제거**)
+### 디버그 진입점 (유지 — Phase 3까지)
 
-Phase 2 Firestore 통합이 공식 진입점/검증 수단으로 대체하므로 Phase 2 PR 시작 시 일괄 제거:
+Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의도적으로 **유지**로 전환:
 
-- `app/debug-fcm.tsx` — FCM 디버그 화면 → 알림 설정 화면(Phase 3)이 공식 진입점
-- `app/(tabs)/campus.tsx` — 빨간 "FCM" 플로팅 버튼 → 제거
-- `src/hooks/useAppInit.ts` — `requestPermission()` 임시 호출 + `debugFcmToken` state → Phase 3 마스터 토글이 공식 권한 요청 지점
-- `plugins/withPushNotificationsCapability.js` — **유지** (production에도 필요)
+- `app/debug-fcm.tsx` — **유지**. Phase 2 전용으로 확장됨: permission/auth/token/Firestore docs/raw getLocales() 전체 진단 + Run Bootstrap Now / Request Permission / Open Settings / Copy Dump 액션. Phase 3 설정 화면 안정 후 제거.
+- `app/(tabs)/campus.tsx` 빨간 "FCM" 플로팅 버튼 — **유지** (`__DEV__` 가드 없음, TestFlight에서도 노출). Phase 3 설정 화면이 공식 진입점 되면 제거.
+- `src/hooks/useAppInit.ts` `requestPermission()` 호출 — **유지**. iOS에서 idempotent하므로 Phase 3 마스터 토글과 공존 가능.
+- `plugins/withPushNotificationsCapability.js` — **영구 유지** (production 필수).
 
-**대체 확인 수단 (Phase 2+ 이후):**
-- FCM 토큰: Firestore Console → `devices/{deviceId}` 문서 직접 확인
-- 권한 상태: iOS 설정 앱 / Android 앱 정보 → 알림
+**Phase 2 이후 공식 확인 수단:**
+- FCM 토큰: Firestore Console → `devices/{deviceId}` 문서 직접 확인 or 디버그 화면
+- 권한 상태: iOS 설정 앱 / Android 앱 정보 → 알림 or 디버그 화면
 - 수신 테스트: Firebase Console → Cloud Messaging → Send test message
 
-### Phase 2: Firestore Integration — 미착수
+### Phase 2: Firestore Integration — ✅ 완료 (2026-04-20)
 
-- [ ] Phase 1 임시 코드 제거 (debug-fcm, FCM 플로팅 버튼, 임시 requestPermission)
-- [ ] 2.1 타입 정의 (`UserDocument`, `DeviceDocument`, `PreferencesDocument`)
-- [ ] 2.2 firestore-notifications.ts (device + preferences 함수만, 알림함 함수 없음)
-- [ ] 2.3 Security Rules 배포 (users + preferences + devices만. `notifications` 없음)
-- [ ] 2.4 Zustand notification store (`unreadCount` 포함)
-- [ ] 2.5 useNotificationPreferences 훅만 (useNotificationInbox 없음)
-- [ ] 2.6 useAppInit에 device/user/preferences 등록 통합 (Promise.all + withRetry)
-- [ ] 2.7 shared exports
+**주요 커밋:**
+- `b865c33` — Phase 2 Firestore device/preferences bootstrap (types, service, rules, store, hook, useAppInit integration)
+- `b599a23` — requestPermission 복귀 + on-device debug screen (checkPermission이 팝업 못 띄워 신규 기기 bootstrap 미발동 이슈 해결)
+- `9315e8b` — locale이 preference order를 따르고 매 launch마다 refresh (기존 users.locale stale 값 문제 해결)
+
+- [x] Phase 1 임시 코드 정리 (requestPermission 복귀, debug-fcm은 Phase 2 도구로 확장)
+- [x] 2.1 타입 정의 (`UserDocument`, `DeviceDocument`, `PreferencesDocument`)
+- [x] 2.2 firestore-notifications.ts (device + preferences 함수만, 알림함 함수 없음)
+- [x] 2.3 Security Rules 배포 (users + preferences + devices만. `notifications` 없음)
+- [x] 2.4 Zustand notification store (`unreadCount` 포함)
+- [x] 2.5 useNotificationPreferences 훅만 (useNotificationInbox 없음)
+- [x] 2.6 useAppInit에 device/user/preferences 등록 통합 (Promise.all + withRetry + Crashlytics logHandledError)
+- [x] 2.7 shared exports
+- [x] Firestore Security Rules live 배포 (`skkubus-95723`)
+- [x] TestFlight 빌드 3.5.1-102 업로드 + 실기기 검증 완료
+- [x] OTA 2회 beta 채널 배포 (debug screen + locale refresh fix)
+
+**Phase 2 구현 세부:**
+- `users/{uid}.locale`은 매 launch마다 OS detect 결과로 refresh (preference list iterate, `getLocales()` 전체 순회 후 첫 supported 반환). `'zh'` → `'ko'` fallback.
+- `devices/{deviceId}.locale`도 osLocale 직접 사용 (stale userDoc 무시).
+- bootstrap은 fire-and-forget — withRetry 3회 (1s/2s/4s) 후 실패 시 Crashlytics `notifications/init` 라벨로 기록, 앱 기동 block 금지.
+- onTokenRefresh 리스너도 동일 initializeFirestoreNotifications 재호출 — APNs 늦게 도착하거나 FCM 토큰 로테이션 시 자가치유.
 
 ### Phase 3: UI + 뱃지 — 미착수
 

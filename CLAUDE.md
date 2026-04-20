@@ -105,7 +105,7 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 - **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/android-naver-map-markers.md`)
 - **Auth/Analytics:** Firebase (auth, analytics, crashlytics, app-check). Google Sign-In (`@g.skku.edu` 도메인 제한). App Check은 iOS App Attest + Android Play Integrity.
-- **Push notifications:** Firebase Cloud Messaging (FCM) 사용 예정
+- **Push notifications:** FCM via `@react-native-firebase/messaging` + `@notifee/react-native`. **Phase 1** (토큰 수신·딥링크) + **Phase 2** (Firestore `users`/`preferences`/`devices` bootstrap) 완료. 옵션 D 채택 — 알림함 없음, 뱃지는 Zustand+Notifee 로컬. Phase 3 (설정 UI + 뱃지) 진행 예정. 자세한 내용은 `docs/plans/fcm-push-notifications.md`. 임시 진단 화면 `app/debug-fcm.tsx` — 캠퍼스 탭 우상단 빨간 "FCM" 버튼으로 진입 (Phase 3 안정 후 제거)
 - **Data storage 원칙:** 유저 데이터는 모두 **Firebase** (Firestore/Auth), 공공 데이터(공지사항, 건물정보, 버스 등)는 **MongoDB** (백엔드 API 경유)
 - **Local storage:** `react-native-mmkv` for general state, `expo-secure-store` for sensitive data
 - **Animations:** React Native Reanimated 4 + Gesture Handler 2
