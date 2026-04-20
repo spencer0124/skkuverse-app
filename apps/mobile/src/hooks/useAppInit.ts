@@ -30,11 +30,26 @@ import { getOrCreateDeviceId } from '@/services/device-id';
 import { initializeFirestoreNotifications } from '@/services/firestore-notifications';
 import { withRetry } from '@/utils/with-retry';
 
+/**
+ * Walks the user's ordered preference list from `getLocales()` and returns
+ * the first entry whose languageCode is supported. This matches iOS behavior
+ * where a bilingual user with "English > Korean" at Settings → General →
+ * Language & Region → Preferred Language Order expects English UI even
+ * though their Region is set to South Korea.
+ *
+ * The previous implementation read only `getLocales()[0]`, so if the top
+ * preference happened to be unsupported (e.g. Spanish) we fell straight to
+ * DEFAULT_LANGUAGE and ignored the user's second preference entirely.
+ */
 function resolveAppLanguage(): AppLanguage {
-  const deviceLang = getLocales()[0]?.languageCode;
-  return (SUPPORTED_LANGUAGES as readonly string[]).includes(deviceLang ?? '')
-    ? (deviceLang as AppLanguage)
-    : DEFAULT_LANGUAGE;
+  const supported = SUPPORTED_LANGUAGES as readonly string[];
+  for (const locale of getLocales()) {
+    const code = locale.languageCode;
+    if (code && supported.includes(code)) {
+      return code as AppLanguage;
+    }
+  }
+  return DEFAULT_LANGUAGE;
 }
 
 /**

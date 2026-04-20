@@ -163,15 +163,18 @@ export async function initializeFirestoreNotifications(
 ): Promise<void> {
   const { uid, deviceId, token, platform, appVersion, osLocale } = params;
 
-  // 1. Parallel read
+  // 1. Parallel read — existing prefs override new defaults; locale is
+  //    always refreshed from the OS below (users/{uid}.locale tracks the
+  //    current device's top preference, not a one-time snapshot).
   const [userDoc, prefsDoc] = await Promise.all([
     getUserDoc(uid),
     getPreferences(uid),
   ]);
 
-  // 2. Create missing docs in parallel
+  // 2. Locale: always sync to current OS detection on each launch.
+  //    prefs: create defaults only if missing (respects user toggles from Phase 3 UI).
   const bootstrap: Promise<void>[] = [];
-  if (!userDoc) {
+  if (userDoc?.locale !== osLocale) {
     bootstrap.push(updateUserLocale(uid, osLocale));
   }
   if (!prefsDoc) {
@@ -186,12 +189,12 @@ export async function initializeFirestoreNotifications(
     await Promise.all(bootstrap);
   }
 
-  // 3. Device registration with replicated fields
+  // 3. Device registration with replicated fields — locale mirrors the OS,
+  //    not a stale cached userDoc value (that was the ko-sticky bug).
   const finalPrefs: PreferencesDocument = prefsDoc ?? {
     enabled: false,
     subscribedTopics: [...MANDATORY_TOPICS],
   };
-  const finalLocale = userDoc?.locale ?? osLocale;
 
   await registerDevice(deviceId, {
     uid,
@@ -202,6 +205,6 @@ export async function initializeFirestoreNotifications(
     active: true,
     subscribedTopics: finalPrefs.subscribedTopics,
     notificationsEnabled: finalPrefs.enabled,
-    locale: finalLocale,
+    locale: osLocale,
   });
 }

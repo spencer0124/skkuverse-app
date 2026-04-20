@@ -10,11 +10,17 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
+import { getLocales } from 'expo-localization';
 import { Stack } from 'expo-router';
 import messaging from '@react-native-firebase/messaging';
 import firestore from '@react-native-firebase/firestore';
 import { getAuth } from '@react-native-firebase/auth';
-import { useNotificationStore } from '@skkuverse/shared';
+import {
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+  useNotificationStore,
+} from '@skkuverse/shared';
+import type { AppLanguage } from '@skkuverse/shared';
 import {
   ensureRegistered,
   requestPermission,
@@ -35,6 +41,14 @@ import { initializeFirestoreNotifications } from '@/services/firestore-notificat
 interface DebugState {
   platform: string;
   appVersion: string;
+  // Locale detection
+  rawLocales: {
+    languageTag: string | null;
+    languageCode: string | null;
+    regionCode: string | null;
+  }[];
+  resolvedAppLanguage: string;
+  notificationLocale: string;
   // auth
   uid: string | null;
   isAnonymous: boolean | null;
@@ -65,9 +79,30 @@ interface DebugState {
   error: string | null;
 }
 
+// Mirror of useAppInit's resolveAppLanguage — debug screen shows the same
+// result so we can spot divergence between what the OS offers and what we
+// actually pick.
+function resolveAppLanguageLocal(): AppLanguage {
+  const supported = SUPPORTED_LANGUAGES as readonly string[];
+  for (const locale of getLocales()) {
+    const code = locale.languageCode;
+    if (code && supported.includes(code)) {
+      return code as AppLanguage;
+    }
+  }
+  return DEFAULT_LANGUAGE;
+}
+
+function toNotificationLocaleLocal(lang: AppLanguage): 'ko' | 'en' {
+  return lang === 'en' ? 'en' : 'ko';
+}
+
 const INITIAL: DebugState = {
   platform: Platform.OS,
   appVersion: Constants.expoConfig?.version ?? '0.0.0',
+  rawLocales: [],
+  resolvedAppLanguage: '?',
+  notificationLocale: '?',
   uid: null,
   isAnonymous: null,
   authProviders: [],
@@ -114,6 +149,16 @@ export default function DebugFcmScreen() {
     const next: DebugState = { ...INITIAL };
 
     try {
+      // Locale detection diagnostics
+      next.rawLocales = getLocales().map((l) => ({
+        languageTag: l.languageTag ?? null,
+        languageCode: l.languageCode ?? null,
+        regionCode: l.regionCode ?? null,
+      }));
+      const resolved = resolveAppLanguageLocal();
+      next.resolvedAppLanguage = resolved;
+      next.notificationLocale = toNotificationLocaleLocal(resolved);
+
       const user = getAuth().currentUser;
       next.uid = user?.uid ?? null;
       next.isAnonymous = user?.isAnonymous ?? null;
@@ -256,15 +301,20 @@ export default function DebugFcmScreen() {
       const appVersion = Constants.expoConfig?.version ?? '0.0.0';
       const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
 
+      const resolved = resolveAppLanguageLocal();
+      const osLocale = toNotificationLocaleLocal(resolved);
       await initializeFirestoreNotifications({
         uid: user.uid,
         deviceId,
         token,
         platform,
         appVersion,
-        osLocale: 'ko',
+        osLocale,
       });
-      Alert.alert('Bootstrap OK', '3 documents written/refreshed');
+      Alert.alert(
+        'Bootstrap OK',
+        `locale sent: ${osLocale} (resolved from "${resolved}")`,
+      );
     } catch (e) {
       Alert.alert('Bootstrap FAILED', String(e));
     }
@@ -296,6 +346,25 @@ export default function DebugFcmScreen() {
         <Section title="Platform / App">
           <Row label="platform" value={state.platform} />
           <Row label="appVersion" value={state.appVersion} />
+        </Section>
+
+        <Section title="Locale detection">
+          <Row
+            label="resolveAppLanguage()"
+            value={state.resolvedAppLanguage}
+          />
+          <Row
+            label="toNotificationLocale()"
+            value={state.notificationLocale}
+          />
+          <Row
+            label="raw getLocales() (ordered)"
+            value={JSON.stringify(state.rawLocales, null, 2)}
+            mono
+            onCopy={() =>
+              copy(JSON.stringify(state.rawLocales, null, 2))
+            }
+          />
         </Section>
 
         <Section title="Auth">
