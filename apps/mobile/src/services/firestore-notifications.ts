@@ -1,12 +1,39 @@
 import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
+import appCheck from '@react-native-firebase/app-check';
 import { MANDATORY_TOPICS } from '@skkuverse/shared';
 import type {
   DeviceDocument,
   PreferencesDocument,
   UserDocument,
 } from '@skkuverse/shared';
+
+/**
+ * Force-refresh the App Check token before a Firestore write.
+ *
+ * Workaround for a known Firebase SDK bug where a stale App Check token
+ * causes server-side PERMISSION_DENIED on writes while the local cache still
+ * accepts the mutation. The Promise resolves, onSnapshot fires with the local
+ * cache, but the write never reaches the server until the app is restarted
+ * (which issues a fresh App Check token). Users perceive this as "settings
+ * only sync after app kill + reopen".
+ *
+ * References:
+ *   - flutterfire#12799 (Firestore doesn't pick up refreshed App Check token)
+ *   - firebase-android-sdk#5235 (AppCheck doesn't schedule auto-refresh when
+ *     a stored token exists)
+ *
+ * Failures are swallowed — if the refresh fails, we let the write proceed
+ * with the cached token so we never block on a bad network.
+ */
+async function primeAppCheck(): Promise<void> {
+  try {
+    await appCheck().getToken(true);
+  } catch (e) {
+    if (__DEV__) console.warn('[app-check] pre-write refresh failed:', e);
+  }
+}
 
 /**
  * Firestore service for the push-notification subsystem (Phase 2, option D).
@@ -51,6 +78,7 @@ export async function updateUserLocale(
   uid: string,
   locale: 'ko' | 'en',
 ): Promise<void> {
+  await primeAppCheck();
   await firestore()
     .collection(USERS)
     .doc(uid)
@@ -61,6 +89,7 @@ export async function updatePreferences(
   uid: string,
   prefs: PreferencesDocument,
 ): Promise<void> {
+  await primeAppCheck();
   // MANDATORY_TOPICS are always included (and deduped); security is defense
   // in depth — the plan notes MANDATORY_TOPICS is currently empty, so this
   // set is a no-op today but future-proofs the write path.
@@ -77,9 +106,26 @@ export async function updatePreferences(
     .collection(PREFERENCES)
     .doc(PREFERENCES_DOC_ID)
     .set(payload);
+  // Best-effort observation: wait for server ACK in the background so stuck
+  // mutations are visible in logs. We don't propagate timeout because the
+  // local cache already reflects the change and Firestore will retry once
+  // connectivity / tokens recover. See primeAppCheck() above for why this
+  // matters (stale App Check token silently parks writes).
+  const timeoutId = setTimeout(() => {
+    if (__DEV__) {
+      console.warn(
+        '[firestore] preferences write not ACKed after 6s — likely stale App Check token, will retry on next launch',
+      );
+    }
+  }, 6000);
+  firestore()
+    .waitForPendingWrites()
+    .then(() => clearTimeout(timeoutId))
+    .catch(() => clearTimeout(timeoutId));
 }
 
 export async function disableNotifications(uid: string): Promise<void> {
+  await primeAppCheck();
   await firestore()
     .collection(USERS)
     .doc(uid)
@@ -92,6 +138,7 @@ export async function registerDevice(
   deviceId: string,
   data: DeviceDocument,
 ): Promise<void> {
+  await primeAppCheck();
   // serverTimestamp() avoids clock-skew between client and server.
   await firestore()
     .collection(DEVICES)
@@ -106,6 +153,7 @@ export async function registerDevice(
 }
 
 export async function unregisterDevice(deviceId: string): Promise<void> {
+  await primeAppCheck();
   await firestore()
     .collection(DEVICES)
     .doc(deviceId)

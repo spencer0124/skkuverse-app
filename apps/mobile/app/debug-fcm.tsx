@@ -14,7 +14,9 @@ import { getLocales } from 'expo-localization';
 import { Stack } from 'expo-router';
 import messaging from '@react-native-firebase/messaging';
 import firestore from '@react-native-firebase/firestore';
+import appCheck from '@react-native-firebase/app-check';
 import { getAuth } from '@react-native-firebase/auth';
+import * as Updates from 'expo-updates';
 import {
   SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
@@ -75,6 +77,18 @@ interface DebugState {
   prefsTopics: string[] | null;
   deviceDocExists: boolean | null;
   deviceDocData: Record<string, unknown> | null;
+  // OTA / expo-updates
+  otaUpdateId: string | null;
+  otaCreatedAt: string | null;
+  otaChannel: string | null;
+  otaRuntimeVersion: string | null;
+  otaIsEmbeddedLaunch: boolean | null;
+  // App Check
+  appCheckTokenPrefix: string | null;
+  appCheckLastRefresh: string | null;
+  // Firestore write probe
+  probeLatencyMs: number | null;
+  probeResult: string | null;
   // error surface
   error: string | null;
 }
@@ -125,6 +139,15 @@ const INITIAL: DebugState = {
   prefsTopics: null,
   deviceDocExists: null,
   deviceDocData: null,
+  otaUpdateId: null,
+  otaCreatedAt: null,
+  otaChannel: null,
+  otaRuntimeVersion: null,
+  otaIsEmbeddedLaunch: null,
+  appCheckTokenPrefix: null,
+  appCheckLastRefresh: null,
+  probeLatencyMs: null,
+  probeResult: null,
   error: null,
 };
 
@@ -149,6 +172,30 @@ export default function DebugFcmScreen() {
     const next: DebugState = { ...INITIAL };
 
     try {
+      // OTA / expo-updates — confirms which JS bundle is actually running
+      try {
+        next.otaUpdateId = Updates.updateId ?? null;
+        next.otaCreatedAt = Updates.createdAt
+          ? Updates.createdAt.toISOString()
+          : null;
+        next.otaChannel = Updates.channel ?? null;
+        next.otaRuntimeVersion = Updates.runtimeVersion ?? null;
+        next.otaIsEmbeddedLaunch = Updates.isEmbeddedLaunch ?? null;
+      } catch (e) {
+        next.error = `updates read: ${String(e)}`;
+      }
+
+      // App Check token — force refresh to detect stale-token Firestore issues
+      try {
+        const token = await appCheck().getToken(false);
+        next.appCheckTokenPrefix = token.token
+          ? `${token.token.slice(0, 16)}…`
+          : '(empty)';
+        next.appCheckLastRefresh = new Date().toISOString();
+      } catch (e) {
+        next.appCheckTokenPrefix = `ERR: ${String(e)}`;
+      }
+
       // Locale detection diagnostics
       next.rawLocales = getLocales().map((l) => ({
         languageTag: l.languageTag ?? null,
@@ -327,6 +374,80 @@ export default function DebugFcmScreen() {
     Linking.openSettings().catch(() => {});
   }
 
+  async function handleProbeWrite() {
+    setBusy(true);
+    setBusyLabel('Probing write…');
+    const t0 = Date.now();
+    try {
+      const user = getAuth().currentUser;
+      if (!user) throw new Error('no auth user');
+
+      // 1. Force-refresh App Check token
+      const tRefreshStart = Date.now();
+      await appCheck().getToken(true);
+      const tRefresh = Date.now() - tRefreshStart;
+
+      // 2. Touch preferences doc with a dummy _probe timestamp field
+      const tWriteStart = Date.now();
+      await firestore()
+        .collection('users')
+        .doc(user.uid)
+        .collection('preferences')
+        .doc('main')
+        .set(
+          { _probe: firestore.FieldValue.serverTimestamp() },
+          { merge: true },
+        );
+      const tWrite = Date.now() - tWriteStart;
+
+      // 3. Wait for server ACK — this is the REAL test
+      const tAckStart = Date.now();
+      let tAck = -1;
+      try {
+        await Promise.race([
+          firestore().waitForPendingWrites(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('timeout 8s')), 8000),
+          ),
+        ]);
+        tAck = Date.now() - tAckStart;
+      } catch (e) {
+        tAck = -1;
+        setState((s) => ({
+          ...s,
+          probeResult: `STUCK: ${String(e)} (refresh=${tRefresh}ms, set=${tWrite}ms)`,
+          probeLatencyMs: Date.now() - t0,
+        }));
+        Alert.alert(
+          'Probe — STUCK',
+          `Write didn't reach server within 8s.\n\nrefresh=${tRefresh}ms\nset=${tWrite}ms\nack=timeout\n\nLikely App Check / auth token issue.`,
+        );
+        setBusy(false);
+        setBusyLabel('');
+        return;
+      }
+
+      setState((s) => ({
+        ...s,
+        probeResult: `OK: refresh=${tRefresh}ms set=${tWrite}ms ack=${tAck}ms`,
+        probeLatencyMs: Date.now() - t0,
+      }));
+      Alert.alert(
+        'Probe — OK',
+        `refresh=${tRefresh}ms\nset=${tWrite}ms\nack=${tAck}ms`,
+      );
+    } catch (e) {
+      setState((s) => ({
+        ...s,
+        probeResult: `ERR: ${String(e)}`,
+        probeLatencyMs: Date.now() - t0,
+      }));
+      Alert.alert('Probe FAILED', String(e));
+    }
+    setBusy(false);
+    setBusyLabel('');
+  }
+
   async function handleCopyDump() {
     const dump = JSON.stringify(state, null, 2);
     await Clipboard.setStringAsync(dump);
@@ -346,6 +467,47 @@ export default function DebugFcmScreen() {
         <Section title="Platform / App">
           <Row label="platform" value={state.platform} />
           <Row label="appVersion" value={state.appVersion} />
+        </Section>
+
+        <Section title="OTA / expo-updates">
+          <Row
+            label="isEmbeddedLaunch"
+            value={String(state.otaIsEmbeddedLaunch)}
+          />
+          <Row
+            label="updateId"
+            value={state.otaUpdateId ?? '(embedded)'}
+            mono
+            onCopy={
+              state.otaUpdateId ? () => copy(state.otaUpdateId!) : undefined
+            }
+          />
+          <Row label="createdAt" value={state.otaCreatedAt ?? '(n/a)'} />
+          <Row label="channel" value={state.otaChannel ?? '(n/a)'} />
+          <Row
+            label="runtimeVersion"
+            value={state.otaRuntimeVersion ?? '(n/a)'}
+          />
+        </Section>
+
+        <Section title="App Check">
+          <Row
+            label="token prefix"
+            value={state.appCheckTokenPrefix ?? '(null)'}
+            mono
+          />
+          <Row
+            label="last refresh (this screen)"
+            value={state.appCheckLastRefresh ?? '(never)'}
+          />
+        </Section>
+
+        <Section title="Firestore write probe">
+          <Row label="result" value={state.probeResult ?? '(not run)'} mono />
+          <Row
+            label="total latency"
+            value={state.probeLatencyMs != null ? `${state.probeLatencyMs}ms` : '(n/a)'}
+          />
         </Section>
 
         <Section title="Locale detection">
@@ -491,6 +653,14 @@ export default function DebugFcmScreen() {
         >
           <Text style={[styles.buttonText, styles.buttonTextPrimary]}>
             🚀 Run Bootstrap Now
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.button, styles.buttonPrimary]}
+          onPress={handleProbeWrite}
+        >
+          <Text style={[styles.buttonText, styles.buttonTextPrimary]}>
+            🔬 Probe write (refresh + set + ack timing)
           </Text>
         </Pressable>
         <Pressable style={styles.button} onPress={handleOpenSettings}>
