@@ -8,12 +8,14 @@
  *  - zh locale hint banner (P1-8) when appLanguage === 'zh'
  *  - Anonymous gate — redirects to login (uid is required to edit preferences)
  *
- * Writes are optimistic + debounced 500ms. Firestore onSnapshot keeps the view
- * eventually consistent across devices; we mirror prefs → localPrefs whenever
- * the snapshot changes.
+ * Writes are optimistic at the UI layer and awaited inline in the handler.
+ * We deliberately do NOT debounce — the prior debounce orphaned the write
+ * promise across screen unmounts and the Firestore write stream stalled until
+ * next app launch. Firestore onSnapshot keeps localPrefs consistent with the
+ * server value once it lands.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -56,8 +58,6 @@ import {
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { logHandledError } from '@/services/crashlytics';
 
-const DEBOUNCE_MS = 500;
-
 export default function NotificationSettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -91,53 +91,29 @@ export default function NotificationSettingsScreen() {
     if (prefs) setLocalPrefs(prefs);
   }, [prefs]);
 
-  // ── Debounced Firestore write ──
+  // ── Inline Firestore write ──
   //
-  // Two buffers: writeTimer holds the scheduled flush, pendingPrefs holds
-  // the latest value to write. On unmount we clear the timer AND flush the
-  // pending value synchronously — otherwise toggling then pressing back
-  // within 500ms discards the change (the earlier bug that made Firestore
-  // only appear to update after app restart).
+  // Earlier revisions used a 500ms debounce + fire-and-forget write on unmount.
+  // That created an orphan-promise race: the write was enqueued in Firestore's
+  // mutation queue but the SDK's write stream stalled because no JS-level
+  // awaiter held the promise chain across screen teardown. The mutation only
+  // flushed on next app cold start (see firebase-js-sdk #6515, #3816).
   //
-  // uid is captured via ref so the cleanup doesn't need uid in deps.
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPrefs = useRef<PreferencesDocument | null>(null);
-  const uidRef = useRef<string | null>(uid);
-  useEffect(() => {
-    uidRef.current = uid;
-  }, [uid]);
-
-  const flushNow = useCallback(() => {
-    if (writeTimer.current) {
-      clearTimeout(writeTimer.current);
-      writeTimer.current = null;
-    }
-    const toWrite = pendingPrefs.current;
-    const currentUid = uidRef.current;
-    pendingPrefs.current = null;
-    if (!currentUid || !toWrite) return;
-    void updatePreferences(currentUid, toWrite).catch((err) => {
-      logHandledError('notifications/update-preferences', err);
-    });
-  }, []);
-
-  const scheduleWrite = useCallback(
-    (next: PreferencesDocument) => {
-      if (!uidRef.current) return;
-      pendingPrefs.current = next;
-      if (writeTimer.current) clearTimeout(writeTimer.current);
-      writeTimer.current = setTimeout(flushNow, DEBOUNCE_MS);
+  // Fix: each toggle awaits updatePreferences inline from its handler. Writes
+  // are idempotent (full payload replace), so rapid toggles safely converge.
+  // The original debounce motive ("avoid syncPreferencesToDevices Cloud
+  // Function thrash") is moot — that function isn't deployed.
+  const writeAndLog = useCallback(
+    async (next: PreferencesDocument) => {
+      if (!uid) return;
+      try {
+        await updatePreferences(uid, next);
+      } catch (err) {
+        logHandledError('notifications/update-preferences', err);
+      }
     },
-    [flushNow],
+    [uid],
   );
-
-  useEffect(() => {
-    // Flush on unmount so a toggle followed by a quick back-navigation
-    // still reaches Firestore.
-    return () => {
-      flushNow();
-    };
-  }, [flushNow]);
 
   // ── P1-5: refresh permission state when screen regains focus ──
   useFocusEffect(
@@ -172,26 +148,24 @@ export default function NotificationSettingsScreen() {
           enabled: true,
         };
         setLocalPrefs(next);
-        scheduleWrite(next);
+        await writeAndLog(next);
       } else {
         // Keep subscribedTopics intact so re-enabling restores them.
-        // Write the full prefs document (not disableNotifications) so any
-        // pending topic toggles still land — updatePreferences is the single
-        // write path, keeping behavior uniform across toggles.
         const next: PreferencesDocument = {
           ...localPrefs,
           enabled: false,
         };
         setLocalPrefs(next);
-        scheduleWrite(next);
+        await writeAndLog(next);
       }
     },
-    [uid, localPrefs, scheduleWrite, setPermissionStatus],
+    [uid, localPrefs, writeAndLog, setPermissionStatus],
   );
 
   const handleToggleTopic = useCallback(
-    (topic: string, nextValue: boolean) => {
+    async (topic: string, nextValue: boolean) => {
       if (MANDATORY_TOPICS.includes(topic)) return; // defense in depth
+      if (!uid) return;
       const currentSet = new Set(localPrefs.subscribedTopics);
       if (nextValue) {
         currentSet.add(topic);
@@ -203,9 +177,9 @@ export default function NotificationSettingsScreen() {
         subscribedTopics: [...currentSet],
       };
       setLocalPrefs(next);
-      scheduleWrite(next);
+      await writeAndLog(next);
     },
-    [localPrefs, scheduleWrite],
+    [uid, localPrefs, writeAndLog],
   );
 
   const isSubscribed = useCallback(

@@ -374,6 +374,25 @@ export default function DebugFcmScreen() {
     Linking.openSettings().catch(() => {});
   }
 
+  async function handleReconnectFirestore() {
+    setBusy(true);
+    setBusyLabel('Reconnecting Firestore…');
+    try {
+      const t0 = Date.now();
+      await firestore().disableNetwork();
+      await firestore().enableNetwork();
+      const elapsed = Date.now() - t0;
+      Alert.alert(
+        'Firestore reconnected',
+        `disableNetwork → enableNetwork cycle completed in ${elapsed}ms. Any parked mutations should now flush.`,
+      );
+    } catch (e) {
+      Alert.alert('Reconnect FAILED', String(e));
+    }
+    setBusy(false);
+    setBusyLabel('');
+  }
+
   async function handleProbeWrite() {
     setBusy(true);
     setBusyLabel('Probing write…');
@@ -661,6 +680,11 @@ export default function DebugFcmScreen() {
         >
           <Text style={[styles.buttonText, styles.buttonTextPrimary]}>
             🔬 Probe write (refresh + set + ack timing)
+          </Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={handleReconnectFirestore}>
+          <Text style={styles.buttonText}>
+            🔌 Reconnect Firestore (disable → enable network)
           </Text>
         </Pressable>
         <Pressable style={styles.button} onPress={handleOpenSettings}>

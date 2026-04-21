@@ -24,6 +24,7 @@ import {
   setPreferredCampus,
 } from '@/services/analytics';
 import { setupAppCheck } from '@/services/app-check';
+import firestore from '@react-native-firebase/firestore';
 import { setupNotificationChannels } from '@/services/notification-channels';
 import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
 import { getOrCreateDeviceId } from '@/services/device-id';
@@ -32,6 +33,17 @@ import {
   updateUserLocale,
 } from '@/services/firestore-notifications';
 import { withRetry } from '@/utils/with-retry';
+
+// Verbose Firestore logging in dev builds so write-stream stalls become
+// visible (otherwise the SDK silently parks mutations on certain timings).
+// No-op in release builds.
+if (__DEV__) {
+  try {
+    firestore.setLogLevel('debug');
+  } catch {
+    /* ignore — some RNFB versions swallow the call off module scope */
+  }
+}
 
 /**
  * Walks the user's ordered preference list from `getLocales()` and returns

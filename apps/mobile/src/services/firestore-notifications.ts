@@ -106,22 +106,6 @@ export async function updatePreferences(
     .collection(PREFERENCES)
     .doc(PREFERENCES_DOC_ID)
     .set(payload);
-  // Best-effort observation: wait for server ACK in the background so stuck
-  // mutations are visible in logs. We don't propagate timeout because the
-  // local cache already reflects the change and Firestore will retry once
-  // connectivity / tokens recover. See primeAppCheck() above for why this
-  // matters (stale App Check token silently parks writes).
-  const timeoutId = setTimeout(() => {
-    if (__DEV__) {
-      console.warn(
-        '[firestore] preferences write not ACKed after 6s — likely stale App Check token, will retry on next launch',
-      );
-    }
-  }, 6000);
-  firestore()
-    .waitForPendingWrites()
-    .then(() => clearTimeout(timeoutId))
-    .catch(() => clearTimeout(timeoutId));
 }
 
 export async function disableNotifications(uid: string): Promise<void> {
