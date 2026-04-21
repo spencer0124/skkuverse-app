@@ -8,6 +8,7 @@ import type {
   PreferencesDocument,
   UserDocument,
 } from '@skkuverse/shared';
+import { logHandledError } from '@/services/crashlytics';
 
 /**
  * Force-refresh the App Check token before a Firestore write.
@@ -29,9 +30,20 @@ import type {
  */
 async function primeAppCheck(): Promise<void> {
   try {
-    await appCheck().getToken(true);
+    const { token } = await appCheck().getToken(true);
+    // [fcm-diag] temporary: confirm whether App Check actually returns a fresh
+    // token on every call. If Firestore writes still stall while this logs a
+    // changing token head, the cache lives inside Firestore (H3), not inside
+    // the App Check module.
+    console.log(
+      '[fcm-diag] app-check token head:',
+      token.slice(0, 24),
+      'len:',
+      token.length,
+    );
   } catch (e) {
-    if (__DEV__) console.warn('[app-check] pre-write refresh failed:', e);
+    console.warn('[fcm-diag] app-check refresh FAILED:', e);
+    logHandledError('fcm-diag/app-check-refresh', e);
   }
 }
 
@@ -89,23 +101,45 @@ export async function updatePreferences(
   uid: string,
   prefs: PreferencesDocument,
 ): Promise<void> {
-  await primeAppCheck();
-  // MANDATORY_TOPICS are always included (and deduped); security is defense
-  // in depth — the plan notes MANDATORY_TOPICS is currently empty, so this
-  // set is a no-op today but future-proofs the write path.
-  const mergedTopics = [
-    ...new Set([...prefs.subscribedTopics, ...MANDATORY_TOPICS]),
-  ];
-  const payload: PreferencesDocument = {
+  // [fcm-diag] temporary instrumentation: measure write-path timing so we can
+  // tell a local-cache-only resolve (<50ms, no server ack) apart from a real
+  // server round-trip, and catch the case where the handler never fires at all.
+  const t0 = Date.now();
+  console.log('[fcm-diag] updatePreferences START', {
+    uid,
     enabled: prefs.enabled,
-    subscribedTopics: mergedTopics,
-  };
-  await firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID)
-    .set(payload);
+    topicCount: prefs.subscribedTopics.length,
+  });
+  try {
+    await primeAppCheck();
+    const mergedTopics = [
+      ...new Set([...prefs.subscribedTopics, ...MANDATORY_TOPICS]),
+    ];
+    const payload: PreferencesDocument = {
+      enabled: prefs.enabled,
+      subscribedTopics: mergedTopics,
+    };
+    await firestore()
+      .collection(USERS)
+      .doc(uid)
+      .collection(PREFERENCES)
+      .doc(PREFERENCES_DOC_ID)
+      .set(payload);
+    console.log(
+      '[fcm-diag] updatePreferences SET resolved in',
+      Date.now() - t0,
+      'ms',
+    );
+  } catch (e) {
+    console.warn(
+      '[fcm-diag] updatePreferences ERROR after',
+      Date.now() - t0,
+      'ms:',
+      e,
+    );
+    logHandledError('fcm-diag/update-preferences', e);
+    throw e;
+  }
 }
 
 export async function disableNotifications(uid: string): Promise<void> {
@@ -164,7 +198,15 @@ export function onPreferencesChanged(
         callback(snap.data() as PreferencesDocument);
       },
       (err) => {
-        if (__DEV__) console.warn('[firestore-notifications] onSnapshot error:', err);
+        // [fcm-diag] temporary: surface error CODE (not just message) so we can
+        // distinguish permission-denied (App Check) from unauthenticated (auth)
+        // from unavailable (network). Crashlytics log promotes this out of the
+        // dev-only warn so release builds can confirm the fix in production.
+        // v24 types: FirestoreError is aliased to Error and drops the `code`
+        // field from the type, but the runtime object still carries it.
+        const code = (err as { code?: string }).code;
+        console.warn('[fcm-diag] onSnapshot error:', code, err.message);
+        logHandledError('fcm-diag/onSnapshot', err);
       },
     );
 }
