@@ -29,6 +29,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
     env: process.env.EXPO_PUBLIC_ENV,
+    // Debug-only. Surfaced so app-check.ts can pass it into
+    // provider.configure({ debugToken }) — RN Firebase then setenv()'s
+    // FIRAAppCheckDebugToken, which is the only App Check debug-token
+    // injection path that reliably works on iOS Simulator (UserDefaults
+    // fallback is silently ignored for unclear reasons — likely GULUserDefaults
+    // caching interaction). In release builds these are undefined so the
+    // debug provider is never instantiated anyway.
+    firebaseAppCheckDebugTokenIos: process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
+    firebaseAppCheckDebugTokenAndroid: process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
     eas: {
       projectId: "43e326a2-2f25-4317-a341-a107a52c5405",
     },
