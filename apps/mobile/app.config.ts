@@ -34,10 +34,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // FIRAAppCheckDebugToken, which is the only App Check debug-token
     // injection path that reliably works on iOS Simulator (UserDefaults
     // fallback is silently ignored for unclear reasons — likely GULUserDefaults
-    // caching interaction). In release builds these are undefined so the
-    // debug provider is never instantiated anyway.
-    firebaseAppCheckDebugTokenIos: process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
-    firebaseAppCheckDebugTokenAndroid: process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
+    // caching interaction).
+    //
+    // Guard: stripped from beta / production bundles so the debug token
+    // does NOT end up shipped to TestFlight or App Store builds of a
+    // public repo. In those builds __DEV__ is false and the provider is
+    // App Attest / Play Integrity anyway, so the debug token would be
+    // dead weight even if present — but defense in depth.
+    ...(process.env.EAS_BUILD_PROFILE === "beta" ||
+    process.env.EAS_BUILD_PROFILE === "production"
+      ? {}
+      : {
+          firebaseAppCheckDebugTokenIos:
+            process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
+          firebaseAppCheckDebugTokenAndroid:
+            process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
+        }),
     eas: {
       projectId: "43e326a2-2f25-4317-a341-a107a52c5405",
     },
