@@ -1192,7 +1192,78 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - bootstrap은 fire-and-forget — withRetry 3회 (1s/2s/4s) 후 실패 시 Crashlytics `notifications/init` 라벨로 기록, 앱 기동 block 금지.
 - onTokenRefresh 리스너도 동일 initializeFirestoreNotifications 재호출 — APNs 늦게 도착하거나 FCM 토큰 로테이션 시 자가치유.
 
-### Phase 3: UI + 뱃지 — 미착수
+### Phase 3: UI + 뱃지 — ✅ 완료 (2026-04-22)
+
+**완료 커밋 요약 (chronological):**
+- `497ebe9 feat(notifications): Phase 3 — settings UI + badge + foreground display` — UI + 뱃지 + 포그라운드 Notifee
+- `082a14b fix(notifications): flush pending write on unmount` — (후속 commit 81cb070 로 대체)
+- `085c2ce fix(notifications): force-refresh App Check token before Firestore writes` — primeAppCheck 도입
+- `81cb070 fix(notifications): remove debounce orphan-promise race, await writes inline` — toggle write 경로 race 제거
+- `fdef8a1 chore(fcm): diag instrumentation for preferences-write stall` — `[fcm-diag]` 진단 로그 (TestFlight 안정 후 revert 예정)
+- `9c27e41 fix(app-check): inject debug token via JS provider.configure on iOS simulator` — **debug token 주입 경로 fix (아래 섹션 참조)**
+- `b2ca214 fix(app-check): strip debug token from beta/production bundles` — prod/beta 번들에서 debug token extras 제거
+
+**실기기 / TestFlight 확인 남은 것:**
+- [ ] TestFlight 빌드에서 App Attest 경로로 App Check 정상 작동
+- [ ] Android 실기기 / Emulator 에서 Play Integrity 경로 확인
+- [ ] 백그라운드/킬드 수신 시 OS 자동 표시 + 뱃지 +1
+- [ ] 1주일 dogfooding 후 `[fcm-diag]` 로그 revert
+
+### Phase 3 디버깅 기록: App Check debug token on iOS Simulator
+
+**증상 (user-visible):** 알림 설정 화면에서 토글 ON/OFF 시 UI는 즉시 반응하지만 Firebase Console `users/{uid}/preferences/main` 문서는 안 바뀜. 앱 kill + 재실행해야 전 세션의 토글 결과가 문서에 반영됨.
+
+**뿌리 원인 (5겹):**
+
+1. `.env` 의 `FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS` 가 **네이티브 iOS 에 연결된 적 없음.** `@react-native-firebase/app-check` Expo plugin 은 `AppDelegate.swift` 에 `RNFBAppCheckModule.sharedInstance()` 한 줄만 삽입 — `.env` 참조 로직 없음.
+2. 그래서 AppCheckCore 의 `GACAppCheckDebugProvider` 는 env var 도 UserDefaults 도 비어있는 상태로 시작 → **매 실행마다 새 random UUID 생성**해서 UserDefaults 에 저장.
+3. 이 random UUID 는 Firebase Console 의 debug tokens 에 등록돼 있지 않으므로 `POST .../exchangeDebugToken` 이 **HTTP 403 `"App attestation failed."`** 반환.
+4. App Check 토큰 없이 Firestore `.set()` 하면 offline persistence 가 로컬 캐시에 반영 (→ `onSnapshot` 은 즉시 새 값 emit, UI 는 정상 갱신) 후 서버로 retry. 서버는 거부, mutation 은 **pending-writes queue 에 적재**.
+5. 콜드 스타트 시 queue 가 disk persist 되어 retry 재개 → 어느 시점에 토큰 교환이 우연히 성공하면 queue flush → 사용자에게 "재실행 후 한꺼번에 반영" 으로 보임.
+
+**fix (`9c27e41` + `b2ca214`):**
+
+```ts
+// app.config.ts — EAS_BUILD_PROFILE gate
+extra: {
+  ...(process.env.EAS_BUILD_PROFILE === "beta" ||
+  process.env.EAS_BUILD_PROFILE === "production"
+    ? {}
+    : {
+        firebaseAppCheckDebugTokenIos:
+          process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
+        firebaseAppCheckDebugTokenAndroid:
+          process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
+      }),
+  // ...
+}
+
+// src/services/app-check.ts — provider.configure에 debugToken 전달
+const extra = Constants.expoConfig?.extra ?? {};
+provider.configure({
+  apple: {
+    provider: __DEV__ ? 'debug' : 'appAttestWithDeviceCheckFallback',
+    ...(__DEV__ && extra.firebaseAppCheckDebugTokenIos
+      ? { debugToken: extra.firebaseAppCheckDebugTokenIos as string }
+      : {}),
+  },
+  // android 동일 패턴
+});
+```
+
+RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받으면 `setenv("FIRAAppCheckDebugToken", value)` 호출 → AppCheckCore 가 `NSProcessInfo.processInfo.environment` 에서 직접 읽음 → UserDefaults 경로 우회.
+
+**왜 UserDefaults 경로는 안 되는지:** `GACAppCheckDebugProvider` 소스상으로는 UserDefaults (`GACAppCheckDebugToken` key) 가 정상 fallback 으로 동작해야 함. 실제로 `xcrun simctl spawn booted defaults write com.example.skkumap GACAppCheckDebugToken <uuid>` 로 값을 써도 앱은 이 값을 안 읽고 다른(auto-generated) UUID 를 계속 씀. 추정 원인은 GULUserDefaults 의 초기 캐싱/container path mismatch 이지만 결론은 "이 경로는 믿지 말 것 — JS setenv 경로 쓸 것".
+
+**실기기(App Attest) 시에는 debug token 이 존재해도 무시됨.** `__DEV__ === false` 에서 `provider: 'appAttestWithDeviceCheckFallback'` 이 선택돼 `FIRAppAttestProvider` 가 instantiate, debug token 은 dead code path. `EAS_BUILD_PROFILE` gate 까지 같이 쓰면 bundle 자체에도 안 들어감.
+
+**시뮬레이터 동작 안 할 때 디버그 순서:**
+1. Metro 에 `[fcm-diag] app-check refresh FAILED: ... 403 ... "App attestation failed"` 뜨는지 확인 (diag 로그 유지 중)
+2. `.env` 의 `FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS` 값과 Firebase Console → Project → App Check → iOS 앱 (`com.example.skkumap`) → Manage debug tokens 리스트가 **대소문자까지 정확히** 일치하는지 확인
+3. `.env` 만 바꾸고 rebuild 안 했으면 `npx expo prebuild --clean && yarn ios` — `app.config.ts extras` 는 빌드 타임에 박히므로 네이티브 재빌드 필요
+4. 위 모두 맞는데 여전히 실패면 `Constants.expoConfig?.extra.firebaseAppCheckDebugTokenIos` 가 런타임에 undefined 아닌지 확인 (빌드 시 `.env` 를 못 읽었을 수 있음)
+
+
 
 - [ ] 3.1 NotificationSettingsScreen
 - [ ] 3.2 `app/notifications/settings.tsx` 라우트 (inbox 라우트 없음)
