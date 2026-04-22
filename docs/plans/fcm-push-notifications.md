@@ -1279,6 +1279,29 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 - [ ] 3.8 언어 변경 → updateUserLocale
 - [ ] 3.9 Analytics 자동 이벤트 확인만 (수동 로그 없음)
 
+### Known Issue: @react-native-firebase/* v24 lockstep bump blocked
+
+**Attempted 2026-04-22:** `yarn workspace mobile add @react-native-firebase/{app,auth,analytics,crashlytics,firestore,messaging}@^24.0.0` → `npx expo prebuild --clean` → `yarn ios`. Packages install cleanly (peer-dep warnings only), typecheck + lint pass, but iOS native build fails with:
+
+```
+❌ RNFBFirestoreCommon.h:40 — expected a type (RCTPromiseRejectBlock)
+❌ RNFBFirestoreCollectionModule.h:28 — declaration of 'RCTBridgeModule' must be
+    imported from module 'RNFBApp.RNFBAppModule' before it is required
+```
+
+This is the Firebase-with-modular-headers-and-static-frameworks error class. Our `plugins/withFirebaseModularHeaders.js` applies:
+- `$RNFirebaseAsStaticFramework = true`
+- `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES` on all pods
+- `CLANG_ENABLE_MODULES = NO` on targets starting with `RNFB*`
+
+These patches were sufficient for v23. In v24 RN Firebase apparently added stricter Clang module declarations for Firestore internals, and our post_install hook runs **before** `react_native_post_install` which may reset the flags. Several possible next steps (untried):
+- Move the withFirebaseModularHeaders snippet AFTER `react_native_post_install` in the post_install block so React Native's defaults don't override ours.
+- Widen `CLANG_ENABLE_MODULES = NO` to more targets (not just RNFB*) — maybe dependencies of RNFB need it too.
+- Switch back to dynamic frameworks (`useFrameworks: "dynamic"` in expo-build-properties) — v24 may assume that.
+- Inspect v24 release notes / invertase/react-native-firebase issue tracker for `'RCTBridgeModule' must be imported from module 'RNFBApp.RNFBAppModule'` resolutions.
+
+Reverted back to 23.8.8 for app/auth/analytics/crashlytics/firestore/messaging to restore working state. `@react-native-firebase/app-check` remains at 24.0.0 because it was already there pre-session and the peer-dep violation has not caused observable issues (App Check works fine per Phase 3 debug-token section above). Next session should taskbox ~1 hour specifically for this bump attempt.
+
 ### Phase 4: iOS NSE — ❌ **전략 폐기 (섹션 삭제됨)**
 
 서버가 `users.locale` 기준 `notification.title`/`body` 선택 → NSE로 다국어 처리 불필요.
