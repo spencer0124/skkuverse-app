@@ -1,0 +1,29 @@
+{
+  "name": "functions",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Skkuverse Cloud Functions",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint --ext .ts src"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1",
+    "firebase-functions": "^7.2.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^8.57.0"
+  }
+}

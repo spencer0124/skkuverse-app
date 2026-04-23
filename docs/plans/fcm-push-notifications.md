@@ -1206,6 +1206,12 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - `085c2ce fix(notifications): force-refresh App Check token before Firestore writes` — primeAppCheck 도입
 - `81cb070 fix(notifications): remove debounce orphan-promise race, await writes inline` — toggle write 경로 race 제거
 - `fdef8a1 chore(fcm): diag instrumentation for preferences-write stall` — `[fcm-diag]` 진단 로그 (TestFlight 안정 후 revert 예정)
+- (후속) `chore(fcm): diag logging for Firestore realtime listener path` — `[fcm-diag]` 로그 범위 확장. Revert 범위에 다음 파일들 포함:
+  - `apps/mobile/src/services/firestore-notifications.ts` (onPreferencesChanged ATTACH/DETACH/fire + snapshot metadata, updatePreferences prime/set timing split, primeAppCheck UNCHANGED/ROTATED detection, initializeFirestoreNotifications START/reads/END)
+  - `apps/mobile/src/hooks/useNotificationPreferences.ts` (effect run, callback with diff-vs-prior, cleanup)
+  - `apps/mobile/src/hooks/useAppInit.ts` (onAuthStateChanged uid transition log, 3x `[fcm-diag] bootstrap ... FAILED` warn, firestore.setLogLevel confirmation log)
+  - `apps/mobile/src/features/notifications/NotificationSettingsScreen.tsx` (localPrefs sync from onSnapshot with change detection, writeAndLog START/SUCCESS/FAILED)
+  - 전체 grep: `grep -rn '\[fcm-diag\]' apps/mobile/src` → 모두 제거
 - `9c27e41 fix(app-check): inject debug token via JS provider.configure on iOS simulator` — **debug token 주입 경로 fix (아래 섹션 참조)**
 - `b2ca214 fix(app-check): strip debug token from beta/production bundles` — prod/beta 번들에서 debug token extras 제거
 
@@ -1213,7 +1219,11 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - [ ] TestFlight 빌드에서 App Attest 경로로 App Check 정상 작동
 - [ ] Android 실기기 / Emulator 에서 Play Integrity 경로 확인
 - [ ] 백그라운드/킬드 수신 시 OS 자동 표시 + 뱃지 +1
-- [ ] 1주일 dogfooding 후 `[fcm-diag]` 로그 revert
+- [x] **preferences ↔ devices drift fix 완료 (2026-04-23)** — Option B (CF 배포) 채택. `syncPreferencesToDevices` (2nd gen, asia-northeast3, retry + age guard + diff guard + maxInstances: 10) 배포 완료. 실측 latency ~0.3초. `functions/src/sync-preferences-to-devices.ts`. 기존 테스트용 CF 6개 (`KingoLogin`, `SetToken`, `LiveActivity_*`, `*Live*`) 같이 삭제됨. 6 → 1 clean slate. Phase 3 디버깅 기록 #2 + Phase 3 과금/주의사항 섹션 참조.
+- [x] **`[fcm-diag]` 로그 revert 완료 (2026-04-23)** — 4개 파일 (`firestore-notifications.ts` / `useNotificationPreferences.ts` / `useAppInit.ts` / `NotificationSettingsScreen.tsx`) 전부 원래 dev-only 패턴으로 복원. 디버깅 기법 두 개는 아래 "Phase 3 디버깅 기법 정리" 섹션에 문서화만 남김 (필요 시 재적용하기 위한 reference).
+- [ ] **Node 20 → 22 runtime bump** — Node 20 deprecated 2026-04-30. `functions/package.json` 의 `engines.node` 를 `"22"` 로 변경 후 `firebase deploy --only functions:syncPreferencesToDevices --force`. 7일 내 긴급.
+- [ ] **GCP Billing budget alert 설정** — 월 $5 budget + $1/$3/$5 이메일 알림. runaway CF 시 사전 차단. Firebase Console → ⚙ → Usage and billing → Billing account → "예산 만들기". 5분.
+- [ ] **나머지 CF 4개 배포** — 아래 "CF 배포 현황 및 잔여" 섹션 참조.
 
 ### Phase 3 디버깅 기록: App Check debug token on iOS Simulator
 
@@ -1270,6 +1280,114 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 4. 위 모두 맞는데 여전히 실패면 `Constants.expoConfig?.extra.firebaseAppCheckDebugTokenIos` 가 런타임에 undefined 아닌지 확인 (빌드 시 `.env` 를 못 읽었을 수 있음)
 
 
+### Phase 3 디버깅 기록 #2: preferences ↔ devices drift (원래 "Kill 때만 반영" 증상의 진짜 원인, 2026-04-23)
+
+**증상 (user-visible):** 알림 설정 화면에서 토글해도 "실제 푸시가 기존 구독 그대로 옴 / 앱을 껐다 켜야 반영됨". Phase 3 디버깅 #1 의 App Check 원인 제거 후에도 이 증상이 남아 있었음.
+
+**원인:** `users/{uid}/preferences/main` 과 `devices/{deviceId}` 가 같은 `subscribedTopics` / `notificationsEnabled` 필드를 **중복 저장 (replica)** 하도록 설계됨 (쿼리 최적화 목적 — Cloud Function이 devices를 topic별로 쿼리해서 FCM 발송). 원래 Phase 2 설계는 서버에 Firestore `onWrite` 트리거 Cloud Function `syncPreferencesToDevices` 를 두고 복제를 담당시킴. **이 Cloud Function은 배포되지 않았음.** `NotificationSettingsScreen.tsx:104` 주석 참조.
+
+결과:
+- `updatePreferences()` (토글 시 호출) — `users/.../preferences/main` 만 씀
+- `registerDevice()` (devices 문서 쓰는 유일 경로) — **bootstrap / token refresh / auth transition 시에만 호출** (`useAppInit`)
+- 토글 시 → preferences 는 실시간 업데이트 ✅, devices 는 stale ❌
+- 앱 kill + 재실행 → `initializeFirestoreNotifications` 이 fresh preferences 읽어서 `registerDevice` 로 devices 에 복제 → "재실행해야 반영" 증상
+
+**실제 검증 (2026-04-23 세션 로그):**
+- `preferences/main.subscribedTopics = [academic]` (updateTime 10:53:34, 마지막 토글 시각과 정확히 일치)
+- `devices/{deviceId}.subscribedTopics = [recruitment, scholarship, career, academic, event]` (updateTime 10:51:39 — 그 세션 bootstrap 때 값 그대로)
+- FCM 타겟팅은 devices 기반 → 유저가 academic만 남기려 해도 실제 푸시는 5개 다 배송됨.
+
+**수정 옵션:**
+
+| 옵션 | 내용 | 비용 | 다기기 커버 |
+|------|------|------|-------------|
+| A | 클라이언트 사이드 미러: `updatePreferences` 내부에서 `devices/{deviceId}` 도 같은 트랜잭션으로 업데이트 | 5분 | 현재 기기만 |
+| B | Cloud Function `syncPreferencesToDevices` (Phase 2 원래 설계) 실제 배포 | CF 배포 + Firestore onWrite trigger 비용 | ✅ 다기기 전부 |
+| C | A + B 병행 — 현재 기기는 client-side zero-latency, 다기기는 CF 가 propagate | A+B 합산 | ✅ + 최저 latency |
+| D | `devices.subscribedTopics` 필드 제거, preferences 를 single source of truth, Cloud Function 이 발송 시 join | 아키텍처 변경 | ✅ (drift 원천 차단) |
+
+단일 기기 dogfooding 단계 → **A 먼저 적용 / 다기기 공식 출시 전 B 추가**. CF 배포 자원 확보되면 **C** 로 정리.
+
+**2026-04-23 결정 및 실행:** 바로 **Option B (CF)** 채택 배포. Client-side mirror (Option A) 는 미적용 — 실측 서버 ack latency 0.3초가 체감상 충분히 빠름. C 는 필요 시 후속.
+
+### CF 배포 현황 및 잔여 (2026-04-23)
+
+| # | CF 이름 | 상태 | 비고 |
+|---|--------|------|------|
+| 1 | `syncPreferencesToDevices` | ✅ 배포 완료 (2026-04-23, asia-northeast3) | drift 해결. retry + age guard + diff guard + maxInstances:10 |
+| 2 | `sendNotification` (HTTP) | ❌ 미배포 | **진짜 푸시 발송 entry point.** API key 인증 + type 분기. Node 백엔드가 공지 발행 시 호출. |
+| 3 | `handleNoticeNotification` | ❌ 미배포 | `sendNotification` 의 helper. devices 쿼리 + locale 그룹핑 + multicast FCM 발송 + UNREGISTERED cleanup. 실제 푸시 배송 담당. |
+| 4 | `syncUserLocaleToDevices` | ❌ 미배포 | `users/{uid}.locale` onUpdate → devices 에 locale 복제. 언어 변경 시 다음 알림부터 새 언어. |
+| 5 | `cleanupStaleDevices` | ❌ 미배포 | scheduled cron (주 1회). N개월 이상 inactive devices 정리. 유령 document 방지. 선택. |
+
+**"진짜 푸시 알림" 은 CF #2 + #3 조합.** 이게 없으면 백엔드에서 공지 발행해도 유저 기기에 푸시 도착 안 함 (now-까지는 devices 만 갱신될 뿐 발송 경로 없음). 앞선 plan 섹션 `### Firebase Cloud Functions` 의 코드 스케치 참조하여 별도 PR/plan 으로 구현.
+
+**CF #2+3 배포 전 할 일:** Node 백엔드에서 CF HTTP endpoint 호출하는 코드 + `X-API-Key` 인증용 secret 공유 + topic 포맷 (`category:scholarship` 등) 발행 측 convention 합의.
+
+### Phase 3 운영 가이드 — 과금/보안 주의 (2026-04-23 배포 후)
+
+**예상 월 비용 (DAU 700–800 기준):**
+- Invocations: ~11K/월 (유저 토글 ~6K + bootstrap redundant ~5K)
+- 무료 티어 (2M invocations, 400K GB-초) 대비 < 1% — **월 $0 예상**
+- Firestore 유발 과금: 일 370 reads + 730 writes — 무료 티어 (50K reads/20K writes per day) 대비 < 4%
+
+**위험 레벨별 방어 체크:**
+
+| 위험도 | 항목 | 현재 방어 | 필요 추가 조치 |
+|--------|------|---------|------|
+| 🔴 | Retry amplification (버그 시 최대 7일 재시도) | event age guard 10분 + maxInstances 10 | 운영 지표 주간 체크 |
+| 🔴 | Admin SDK 가 Firestore rules 우회 | `.where('uid', '==', uid)` 스코프 + whitelist field-value update | 코드 리뷰 시 반드시 확인 |
+| 🟡 | diff guard false negative | Set 비교 | `PreferencesDocument` 스키마 변경 시 PR review sync |
+| 🟡 | 미래 trigger 루프 | 현재 devices 에 쓰는 CF 는 이 1개뿐 | 새 CF 추가 시 경로 루프 리뷰 |
+| 🟡 | Artifact Registry 누적 | 1-day cleanup policy 자동 설정됨 (asia-northeast3) | 없음 |
+| 🟡 | Cloud Build 분 (배포 시) | 수동 배포만 (CI 없음) | CI 추가 시 대책 필요 |
+| 🟢 | Eventarc / Network egress | 규모 아직 충분 | 없음 |
+
+**Budget alert 권장:** Firebase Console → ⚙ → Usage and billing → Billing account → "예산 만들기" → 월 $5 + $1/$3/$5 이메일 알림. 5분. 버그로 비용 폭주 시 하루 안에 감지.
+
+**주간 확인 habit:** Firebase Console → Functions → `syncPreferencesToDevices` 하단 메트릭 (Invocations, Errors, Median execution time, Active instances). 이상 징후 (예: Errors > 0, Instances 급증) 바로 보임.
+
+**Node 20 → 22 긴급:** Node 20 runtime 2026-04-30 deprecated (7일 뒤). `functions/package.json` 의 `engines.node: "20"` → `"22"` 변경 후 `firebase deploy --only functions:syncPreferencesToDevices --force` 로 재배포. 안 하면 5/1 이후 배포 자체가 블록됨 (기존 함수는 2026-10-30 까지 계속 동작).
+
+### Phase 3 디버깅 기법 정리 (이 세션에서 확립, 향후 재활용)
+
+**1. Firestore snapshot metadata 의 완전한 가시성 — `includeMetadataChanges: true`**
+
+Default `onSnapshot()` 은 **metadata-only change 를 fire 하지 않음**. 즉 local write 의 `hasPendingWrites: true → false` (서버 ack), `fromCache: true → false` (listener server-connected 전환) 같은 transition 은 data 가 동일하면 snapshot 이 emit 되지 않음. 디버깅 중 "write 가 서버 도달 못 함 (ack snapshot 없음)" 으로 **오판** 유발.
+
+```ts
+// firestore-notifications.ts:onPreferencesChanged — 세션 로그의 결정적 signal 확보용
+.onSnapshot(
+  { includeMetadataChanges: true },  // ← 디버깅용 플래그
+  (snap) => { ... },
+  (err) => { ... },
+)
+```
+
+켜두면 매 write 당 기대 시퀀스:
+```
+fire N: fromCache=false, hasPendingWrites=true   (local echo, 새 data)
+fire N+1 (~50-500ms 뒤): fromCache=false, hasPendingWrites=false   (server ack, data 동일)
+```
+
+성능 영향 거의 없음 (개별 doc listener 한정). 상시 유지할지는 팀 판단 — dogfood 기간엔 유지 권장.
+
+**2. Firestore REST API 로 server-truth 검증 — Firebase Console 신뢰 말 것**
+
+Firebase Console 자체가 Firestore listener 사용하는 웹앱이라 **stale 뷰를 보일 수 있음** (backgrounded tab, wss upgrade 실패, 내부 cache). 증상 확인할 때 Console 화면만 봤다가 오진 가능. Ground truth 는 REST API.
+
+`~/.config/configstore/firebase-tools.json` 에 저장된 Firebase CLI refresh_token 으로 OAuth access_token 발급 → `firestore.googleapis.com/v1/...` 로 직접 조회. Node 스크립트 한 방에 가능 (이 세션의 검증 스크립트 참조, 대략 40줄).
+
+엔드포인트:
+```
+GET https://firestore.googleapis.com/v1/projects/skkubus-95723/databases/(default)/documents/<path>
+Authorization: Bearer <access_token>
+```
+
+`createTime` + `updateTime` 필드가 각 문서에 자동 포함되므로 drift 검증 시 두 replica 의 `updateTime` 비교로 바로 판정 가능.
+
+**일반 원칙:** data 복제를 두는 시스템에서는 두 replica 의 `updateTime` 비교를 디버깅 first-step으로 삼을 것. 같은 updateTime 이면 동기 OK, 다르면 drift 의심. 본 세션에서는 `updateTime` 차이 2분 = stale bootstrap 으로 즉시 결론 도출.
+
 
 - [ ] 3.1 NotificationSettingsScreen
 - [ ] 3.2 `app/notifications/settings.tsx` 라우트 (inbox 라우트 없음)
@@ -1312,3 +1430,74 @@ Reverted back to 23.8.8 for app/auth/analytics/crashlytics/firestore/messaging t
 
 서버가 `users.locale` 기준 `notification.title`/`body` 선택 → NSE로 다국어 처리 불필요.
 App Groups UserDefaults sync, NSE 타겟, NSE provisioning profile, `mutable-content` 플래그 모두 사용하지 않음.
+
+---
+
+## Delivery CF — ✅ 배포 완료 (2026-04-23)
+
+**구독 파이프라인과 짝이 되는 발송 파이프라인.** Phase 1~3 + `syncPreferencesToDevices` 까지가 "유저 → Firestore" 구독 상태 관리였다면, 이 섹션은 "외부 트리거 → FCM → 유저 기기" 배송을 담당.
+
+### 구현 구조
+
+```
+크롤러/백엔드 ──(POST + X-API-Key)──▶ sendNotification (dispatcher)
+                                            │
+                                            ▼
+                                     handleNoticeNotification
+                                            │
+                                  devices where active==true
+                                    AND notificationsEnabled==true
+                                    AND subscribedTopics array-contains-any
+                                            │
+                                  locale 별 그룹 → sendEachForMulticast (500배치)
+                                            │
+                                            ▼
+                                     FCM → APNs/Play ──▶ 유저 기기
+                                            │
+                                     Allowlist cleanup
+                                (UNREGISTERED/INVALID_REGISTRATION_TOKEN만)
+```
+
+### 핵심 파일
+
+| 파일 | 역할 |
+|---|---|
+| `functions/src/send-notification.ts` | HTTP dispatcher — `defineSecret('FCM_API_KEY')` + timingSafeEqual + POST-only + type switch |
+| `functions/src/handle-notice.ts` | notice 핸들러 — payload 검증 + devices 쿼리 + locale 그룹 + FCM 발송 + allowlist cleanup + 구조화 로깅 |
+| `functions/src/channels.ts` | `mapCategoryToChannel()` — 앱 측 `notification-channels.ts` 와 SYNC |
+| `functions/src/types.ts` | `UserDocument`, `DeviceDocument`, `NoticeNotificationPayload`, `NotificationRequest` — `packages/shared/src/types/notifications.ts` 와 SYNC |
+| `apps/mobile/firestore.indexes.json` | composite index (active + notificationsEnabled + subscribedTopics) |
+
+### 설계 결정 기록
+
+1. **`messaging/invalid-argument` 는 cleanup allowlist 에서 의도적 제외** — payload-wide 에러 (4KB 초과, reserved data key, bad TTL 등) 에서도 떠서, 포함하면 bad payload 한 건으로 healthy 500 기기가 `active:false` 로 꺼지는 대규모 데이터 손실 footgun. Allowlist 는 `registration-token-not-registered` + `invalid-registration-token` 두 개만 — unknown 에러 코드는 fail-closed (cleanup 안 함).
+
+2. **`.trim()` 방어 on Secret value** — `openssl rand -hex 32 | firebase functions:secrets:set --data-file -` 저장 시 **openssl 출력의 trailing `\n` 까지 secret 값에 포함**되어 CF 의 `timingSafeEqual` length 선체크에서 valid 호출이 전부 401 되던 함정. 코드 레벨 `.trim()` 으로 저장 방식 무관한 방어.
+
+3. **FCM `data` 는 `Record<string, string>`** — v1 API 는 runtime validation 에서 non-string value 를 throw. optional 필드는 undefined 시 객체에서 제외해야 안전 (TypeScript 타입만으로는 런타임 보장 못함).
+
+4. **Composite index 선언적 관리** — Firestore 콘솔의 에러 링크 클릭 수동 생성 대신 `firestore.indexes.json` 에 박아서 코드리뷰 가시성 + 환경 재현성 확보. 배포 순서는 indexes → CF (CF 먼저 배포하면 첫 호출이 `FAILED_PRECONDITION`).
+
+5. **HTTP method POST 전용 + `timingSafeEqual`** — GET/OPTIONS 은 405, key 비교는 length 선체크 후 timing-safe equal.
+
+6. **`handleNoticeNotification` 은 export 하되 `index.ts` 에서 re-export 안 함** — dispatcher 가 호출하지만 독립 HTTP endpoint 로 노출되지 않음 (2nd gen CF 는 onRequest 객체만 endpoint 화).
+
+### 검증
+
+- **E2E**: Test 2 (valid payload, `category:academic`) → `HTTP 200 {sent:1,failed:1,cleanedUp:0}` + 본인 iOS Simulator 에 실제 푸시 도달.
+- **Critical 회귀 방지**: Test 3 (5KB+ body) → FCM 이 `invalid-argument` 리턴 → CF 응답 `{sent:0,failed:2,cleanedUp:0}` — **healthy 기기 `active:true` 유지 확인**.
+- **카테고리 라우팅**: 구독한 3개 (scholarship, career, recruitment) 만 `sent:1`, 미구독 5개 (academic, event, library, dorm, general) 는 `sent:0` — devices 쿼리 필터 동작 확인.
+
+### 운영 주의사항
+
+- **Secret Manager 의 `FCM_API_KEY`** — `firebase functions:secrets:access` 로만 가치 있고, 코드/커밋/이미지 어디에도 저장 금지. Rotation: `openssl rand -hex 32 | firebase functions:secrets:set FCM_API_KEY --data-file -` → CF 재배포 → 이전 버전 `destroy`.
+- **Payload 계약 (`NoticeNotificationPayload`) 은 외부 API 계약** — 수정 시 백엔드 측 호출 코드 동시 수정 필요. `type` 확장은 dispatcher switch 케이스 + 신규 핸들러 모듈 추가.
+- **구조화 로깅** — Cloud Logging 에서 `jsonPayload.noticeId="..."` 필터로 단일 호출 추적 가능. failed/cleanedUp 급증 시 최우선 확인 지표.
+
+### 아직 안 한 것 (Tier 2 follow-up)
+
+- `syncUserLocaleToDevices` CF — `users/{uid}.locale` 변경 → devices 전파
+- `cleanupStaleDevices` scheduled CF — 주 1회 cron, 오래된 inactive device 정리
+- Idempotency (동일 `noticeId` dedup) — 현재 백엔드 책임
+- Rate limiting — API key 유출 대응
+- TestFlight/Play Internal Testing 실기기 검증 (App Attest / Play Integrity 경로)
