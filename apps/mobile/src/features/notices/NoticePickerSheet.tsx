@@ -21,7 +21,12 @@ import { Txt } from '@skkuverse/sds';
 interface Props {
   items: TabDepartment[];
   selectedIds: string[];
-  onConfirm: (ids: string[]) => void;
+  /**
+   * Called on "완료" with the new selection. The parent receives both the
+   * new ids and the old ids so it can compute added/removed diffs without
+   * re-reading the zustand store (avoids a read/write ordering coupling).
+   */
+  onConfirm: (newIds: string[], context: { oldIds: string[] }) => void;
   /** Server-provided max selection count for this picker tab. */
   maxSelection: number;
   /** Override the sheet title (defaults to notices.selectDept) */
@@ -69,9 +74,9 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
     }, [maxSelection]);
 
     const handleConfirm = useCallback(() => {
-      onConfirm(pending);
+      onConfirm(pending, { oldIds: selectedIds });
       (ref as React.RefObject<BottomSheetModal>).current?.dismiss();
-    }, [pending, onConfirm, ref]);
+    }, [pending, selectedIds, onConfirm, ref]);
 
     return (
       <BottomSheetModal

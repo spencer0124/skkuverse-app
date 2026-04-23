@@ -106,6 +106,67 @@ export async function updatePreferences(
     .set(payload);
 }
 
+/**
+ * Discriminated union — exactly one of `add` or `remove` per call. Per-call
+ * atomic via Firestore `arrayUnion`/`arrayRemove` sentinels. Prevents the
+ * "last-writer-wins" lost update race that full-array replace would incur
+ * when the caller's `prefs` snapshot is a stale realtime listener value.
+ *
+ * No in-function sequencing — sequencing a union-then-remove across two
+ * `update()` calls is NOT atomic at the document level, so the API shape
+ * forbids callers from even asking for it.
+ */
+export type SubscribedTopicsDelta =
+  | { add: string[]; remove?: never }
+  | { add?: never; remove: string[] };
+
+export async function updateSubscribedTopics(
+  uid: string,
+  delta: SubscribedTopicsDelta,
+): Promise<void> {
+  const docRef = firestore()
+    .collection(USERS)
+    .doc(uid)
+    .collection(PREFERENCES)
+    .doc(PREFERENCES_DOC_ID);
+
+  if ('add' in delta && delta.add && delta.add.length > 0) {
+    await primeAppCheck();
+    await docRef.update({
+      subscribedTopics: firestore.FieldValue.arrayUnion(...delta.add),
+    });
+    return;
+  }
+
+  if ('remove' in delta && delta.remove && delta.remove.length > 0) {
+    const mandatoryConflict = delta.remove.filter((t) =>
+      MANDATORY_TOPICS.includes(t),
+    );
+    if (mandatoryConflict.length > 0) {
+      if (__DEV__) {
+        throw new Error(
+          `[firestore-notifications] attempted to remove mandatory topics: ${mandatoryConflict.join(', ')}`,
+        );
+      }
+      logHandledError(
+        'notifications/mandatory-remove-attempt',
+        new Error(`mandatory removal attempt: ${mandatoryConflict.join(', ')}`),
+      );
+    }
+    const safeRemove = delta.remove.filter(
+      (t) => !MANDATORY_TOPICS.includes(t),
+    );
+    if (safeRemove.length === 0) return;
+
+    await primeAppCheck();
+    await docRef.update({
+      subscribedTopics: firestore.FieldValue.arrayRemove(...safeRemove),
+    });
+    return;
+  }
+  // Empty delta — no-op.
+}
+
 export async function disableNotifications(uid: string): Promise<void> {
   await primeAppCheck();
   await firestore()

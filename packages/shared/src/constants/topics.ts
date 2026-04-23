@@ -20,6 +20,27 @@ export function buildTopic(prefix: string, id: string): string {
   return `${prefix}:${id}`;
 }
 
+/**
+ * Maps a picker tab's `key` (from /notices/tabs) to the FCM topic prefix used
+ * for its selected deptIds. Backend + CF contract: `dept:{id}`, `library:{id}`,
+ * `dorm:{id}`. Fixed tabs always use `category:{tabKey}` and never go through
+ * this helper.
+ *
+ * Returns `undefined` for unknown tab keys — callers must skip emission so
+ * forward-compat picker types the app doesn't yet understand don't get
+ * miscategorised as `dept:*`.
+ */
+export function pickerPrefixForTabKey(tabKey: string): string | undefined {
+  switch (tabKey) {
+    case 'dept':
+      return TopicPrefix.DEPT;
+    case 'library':
+      return TopicPrefix.LIBRARY;
+    default:
+      return undefined;
+  }
+}
+
 export function parseTopic(topic: string): { prefix: string; id: string } {
   const colonIndex = topic.indexOf(':');
   if (colonIndex === -1) return { prefix: '', id: topic };

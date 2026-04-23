@@ -1501,3 +1501,35 @@ App Groups UserDefaults sync, NSE 타겟, NSE provisioning profile, `mutable-con
 - Idempotency (동일 `noticeId` dedup) — 현재 백엔드 책임
 - Rate limiting — API key 유출 대응
 - TestFlight/Play Internal Testing 실기기 검증 (App Attest / Play Integrity 경로)
+
+---
+
+## Phase 3.1 v3 재개정 (2026-04-23) — 설정 탭 가시성 + picker prefix 버그 수정
+
+**배경 버그 2개 (동시 수정):**
+
+1. **Picker 탭 숨김:** `NotificationSettingsScreen` 이 `pickerTabs.flatMap(...)` 로 선택된 deptId 가 있을 때만 렌더 → 도서관 picker 를 한 번도 선택 안 한 유저는 도서관 섹션이 통째로 안 보임. 9개 탭 중 5~6개만 노출되는 문제로 드러남.
+
+2. **Picker 토픽 prefix 하드코딩:** 도서관 선택 시에도 `buildTopic('dept', deptId)` 가 호출되어 Firestore 에 `dept:lib-hssc` 가 저장. 백엔드는 `library:lib-hssc` 로 발송 → CF `array-contains-any` 매칭 실패 → 도서관 푸시는 **구조적으로 매칭 불가능** 상태였음. 즉 유저가 도서관 구독 UI 를 켜도 delivery 가 0 건.
+
+**해결 구조:**
+
+- `pickerPrefixForTabKey(tabKey)` 헬퍼 신설 (`packages/shared/src/constants/topics.ts`). `dept → 'dept'`, `library → 'library'`, unknown → undefined. 호출부는 undefined 이면 헤더까지 skip + dev warn.
+- `updateSubscribedTopics(uid, delta)` delta API 신설. `SubscribedTopicsDelta` 는 discriminated union `{ add } | { remove }` — 동시 호출을 타입 레벨에서 차단 (2-write 시퀀스가 원자 아닌 함정 회피). 내부는 Firestore `arrayUnion`/`arrayRemove` 로 per-call atomic. MANDATORY 제거 시도는 dev throw + prod silent filter.
+- Picker 편집 = notices 탭에서만. `NoticePickerSheet` 는 pure 유지 — `onConfirm(newIds, { oldIds })` 시그니처로 emit 만. 모든 비즈니스 로직 (diff / cascade / pending) 은 `NoticesTabScreen` 의 callback 에서 처리. zustand SSOT 유지.
+- Cascade 제거는 fire-and-forget (`await` 없이) — sheet dismiss 애니메이션이 네트워크 latency 뒤로 밀리지 않게. 실패 시 `logHandledError` 만.
+- `AddedItemsNotificationSheet` 신규 — picker 의 onDismiss 에서 present (애니메이션 overlap race 회피). 1개 추가 = express [네/나중에]. N개 추가 = 체크박스 리스트 (**기본 체크 OFF**, 분리 원칙 적용). Dismissal = "나중에" = no-op.
+- 알림 설정 화면은 view-only. 9개 탭 서버 순서대로 iterate, fixed → 단일 토글, picker → 헤더 + 들여쓰기 dept 토글 + (선택 0개면 "공지 탭으로 가기" 링크). 개별 dept 토글은 delta API 직접 write.
+
+**런칭 전 정책:** legacy `dept:{libId}` 데이터 없음 가정 → migration 코드 스킵. 다음 picker confirm 시 cascade remove (`arrayRemove`) + opt-in sheet add (`arrayUnion`) 로 자연 수렴.
+
+**완료된 체크리스트 (실기기 검증은 별도):**
+
+- `yarn lint` / 모바일 `tsc --noEmit` / `yarn test:rules` / shared `vitest` — 전부 green.
+- 시뮬레이터 수동 QA 항목 12개 (이 PR 의 sibling plan `~/.claude/plans/fcm-snoopy-goblet.md` 참조).
+
+**다음 작업:**
+
+- 딥링크 파라미터 (`?tab=dept&openPicker=true`) + 수신 로직 — "공지 탭으로 가기" 링크가 3 step 탭 없이 picker 를 바로 열도록.
+- Cascade write 실패 시 toast + retry (런칭 후 hardening).
+- Mobile 용 test harness (vitest + RNTL) 도입 후 delta API / picker diff / sheet 유닛 테스트 소급 추가 — 이번 PR 에선 mobile 테스트 러너 미설치로 shared 패키지 테스트만 포함.

@@ -343,6 +343,19 @@ const ko = {
   'notifications.zhHint': '중국어 알림은 준비 중이에요. 지금은 영어로 전송돼요',
   'notifications.loadError': '알림 설정을 불러오지 못했어요',
   'notifications.retry': '다시 시도',
+
+  // ── Picker → AddedItemsNotificationSheet (v3) ──
+  'notifications.addedSheet.titleSingle': '{0} 공지 알림을 받을까요?',
+  'notifications.addedSheet.titleMulti': '추가한 공지 알림을 받을까요?',
+  'notifications.addedSheet.descSingle': '언제든 알림 설정에서 끌 수 있어요',
+  'notifications.addedSheet.descMulti': '받고 싶은 공지만 체크해주세요',
+  'notifications.addedSheet.confirmSingle': '네, 받을게요',
+  'notifications.addedSheet.confirmMulti': '선택한 공지만 받기',
+  'notifications.addedSheet.later': '나중에',
+
+  // ── Settings picker section (v3: view-only + "공지 탭으로" link) ──
+  'notifications.pickerEmpty': '선택한 항목이 없어요',
+  'notifications.goToNotices': '공지 탭에서 선택하기',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -621,6 +634,17 @@ const en: TranslationMap = {
   'notifications.zhHint': 'Chinese notifications are coming soon — you\'ll get English for now',
   'notifications.loadError': 'Could not load notification settings',
   'notifications.retry': 'Retry',
+
+  'notifications.addedSheet.titleSingle': 'Get {0} notifications?',
+  'notifications.addedSheet.titleMulti': 'Get notifications for what you added?',
+  'notifications.addedSheet.descSingle': 'You can turn this off anytime in settings',
+  'notifications.addedSheet.descMulti': 'Check the ones you want to receive',
+  'notifications.addedSheet.confirmSingle': 'Yes, notify me',
+  'notifications.addedSheet.confirmMulti': 'Turn on selected',
+  'notifications.addedSheet.later': 'Later',
+
+  'notifications.pickerEmpty': 'Nothing selected yet',
+  'notifications.goToNotices': 'Select in the Notices tab',
 };
 
 const zh: TranslationMap = {
@@ -895,6 +919,17 @@ const zh: TranslationMap = {
   'notifications.zhHint': '中文通知准备中 — 暂时以英文发送',
   'notifications.loadError': '无法加载通知设置',
   'notifications.retry': '重试',
+
+  'notifications.addedSheet.titleSingle': '接收 {0} 公告通知吗？',
+  'notifications.addedSheet.titleMulti': '接收刚添加的公告通知吗？',
+  'notifications.addedSheet.descSingle': '随时可在通知设置中关闭',
+  'notifications.addedSheet.descMulti': '勾选想要接收的公告',
+  'notifications.addedSheet.confirmSingle': '好，通知我',
+  'notifications.addedSheet.confirmMulti': '仅开启已选',
+  'notifications.addedSheet.later': '稍后',
+
+  'notifications.pickerEmpty': '尚未选择',
+  'notifications.goToNotices': '前往公告页面选择',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

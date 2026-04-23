@@ -21,18 +21,25 @@ import notifee from '@notifee/react-native';
 import { Settings } from 'lucide-react-native';
 import {
   SdsColors,
+  buildTopic,
+  pickerPrefixForTabKey,
+  useAuthStore,
   useNoticeTabs,
   useSettingsStore,
   useNotificationStore,
   useT,
   type NoticeTab,
+  type TabDepartment,
 } from '@skkuverse/shared';
 import { Tab, Txt } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
 import { NoticePickerSheet } from './NoticePickerSheet';
+import { AddedItemsNotificationSheet } from './AddedItemsNotificationSheet';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
+import { updateSubscribedTopics } from '@/services/firestore-notifications';
+import { logHandledError } from '@/services/crashlytics';
 
 // ── Helpers ──
 
@@ -103,10 +110,26 @@ export function NoticesTabScreen() {
 
   // ── Picker state (single sheet, dynamic binding) ──
   const sheetRef = useRef<BottomSheetModal>(null);
+  const addedSheetRef = useRef<BottomSheetModal>(null);
   const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
 
   const pickerSelections = useSettingsStore((s) => s.pickerSelections);
   const setPickerSelection = useSettingsStore((s) => s.setPickerSelection);
+  const uid = useAuthStore((s) => s.uid);
+  const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const subscriptionUid = !isAnonymous ? uid : null;
+
+  // Pending items added in the last picker confirm. Consumed by the picker's
+  // onDismiss callback to present the opt-in sheet after the dismiss
+  // animation completes — @gorhom/bottom-sheet overlaps dismiss+present into
+  // a native race if done synchronously.
+  type PendingAdded = {
+    tabKey: string;
+    addedIds: string[];
+    departments: TabDepartment[];
+    prefix: string;
+  };
+  const [pendingAdded, setPendingAdded] = useState<PendingAdded | null>(null);
 
   const openPicker = useCallback((tabKey: string) => {
     setPickerTabKey(tabKey);
@@ -126,11 +149,79 @@ export function NoticesTabScreen() {
   }, [activePickerTab]);
 
   const handlePickerConfirm = useCallback(
-    (ids: string[]) => {
-      if (pickerTabKey) setPickerSelection(pickerTabKey, ids);
+    (newIds: string[], { oldIds }: { oldIds: string[] }) => {
+      if (!pickerTabKey) return;
+      const tab = tabs.find((x) => x.key === pickerTabKey);
+      if (!tab || !tab.picker) return;
+
+      // SSOT update — zustand store. This is the only writer for pickerSelections.
+      setPickerSelection(pickerTabKey, newIds);
+
+      const prefix = pickerPrefixForTabKey(pickerTabKey);
+      if (!prefix) {
+        if (__DEV__) {
+          console.warn(
+            '[notifications] no topic prefix for picker tab',
+            pickerTabKey,
+          );
+        }
+        return;
+      }
+
+      const added = newIds.filter((id) => !oldIds.includes(id));
+      const removed = oldIds.filter((id) => !newIds.includes(id));
+
+      // Cascade removal is fire-and-forget — awaiting would delay the sheet
+      // dismiss animation behind Firestore latency.
+      if (removed.length > 0 && subscriptionUid) {
+        const removedTopics = removed.map((id) => buildTopic(prefix, id));
+        updateSubscribedTopics(subscriptionUid, {
+          remove: removedTopics,
+        }).catch((e) => {
+          logHandledError('notifications/cascade-remove', e);
+        });
+      }
+
+      if (added.length > 0 && subscriptionUid) {
+        setPendingAdded({
+          tabKey: pickerTabKey,
+          addedIds: added,
+          departments: tab.picker.departments,
+          prefix,
+        });
+      }
     },
-    [pickerTabKey, setPickerSelection],
+    [pickerTabKey, tabs, setPickerSelection, subscriptionUid],
   );
+
+  // Picker sheet onDismiss → if a pending add exists, surface the opt-in sheet.
+  const handlePickerDismiss = useCallback(() => {
+    setPickerTabKey(null);
+    if (pendingAdded) {
+      addedSheetRef.current?.present();
+    }
+  }, [pendingAdded]);
+
+  const handleAddedResolve = useCallback(
+    (checkedIds: string[]) => {
+      if (pendingAdded && subscriptionUid && checkedIds.length > 0) {
+        const topics = checkedIds.map((id) =>
+          buildTopic(pendingAdded.prefix, id),
+        );
+        updateSubscribedTopics(subscriptionUid, { add: topics }).catch((e) => {
+          logHandledError('notifications/cascade-add', e);
+        });
+      }
+      setPendingAdded(null);
+      addedSheetRef.current?.dismiss();
+    },
+    [pendingAdded, subscriptionUid],
+  );
+
+  const handleAddedDismiss = useCallback(() => {
+    // Swipe / backdrop / "Later" — no-op on subscriptions.
+    setPendingAdded(null);
+  }, []);
 
   const hasValidTabs = tabs.length > 0;
 
@@ -208,8 +299,19 @@ export function NoticesTabScreen() {
               )}
               maxSelection={activePickerTab.picker.maxSelection}
               onConfirm={handlePickerConfirm}
-              onDismiss={() => setPickerTabKey(null)}
+              onDismiss={handlePickerDismiss}
               title={activePickerTab.label}
+            />
+          )}
+
+          {/* Opt-in sheet presented from the picker's onDismiss, not inline. */}
+          {pendingAdded && (
+            <AddedItemsNotificationSheet
+              ref={addedSheetRef}
+              addedIds={pendingAdded.addedIds}
+              departments={pendingAdded.departments}
+              onResolve={handleAddedResolve}
+              onDismiss={handleAddedDismiss}
             />
           )}
         </>

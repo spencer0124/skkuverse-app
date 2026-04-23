@@ -1,21 +1,25 @@
 /**
- * Notification settings screen (Phase 3).
+ * Notification settings — view-only layout (v3).
  *
- * Structure:
- *  - Master toggle (preferences.enabled + OS permission request on ON)
- *  - Category section (fixed notice tabs → category:{tabKey})
- *  - Department section (picker tabs → dept:{deptId}, only user's current selections)
- *  - zh locale hint banner (P1-8) when appLanguage === 'zh'
- *  - Anonymous gate — redirects to login (uid is required to edit preferences)
+ * Renders all 9 server tabs (fixed + picker) in the order returned by
+ * GET /notices/tabs. The screen is view-only: picker edits happen
+ * exclusively in the notices tab's picker sheet flow (single edit channel).
  *
- * Writes are optimistic at the UI layer and awaited inline in the handler.
- * We deliberately do NOT debounce — the prior debounce orphaned the write
- * promise across screen unmounts and the Firestore write stream stalled until
- * next app launch. Firestore onSnapshot keeps localPrefs consistent with the
- * server value once it lands.
+ *  - Master toggle: preferences.enabled + OS permission request on ON.
+ *  - Fixed tab row: single toggle on topic `category:{tabKey}`.
+ *  - Picker tab section: header + indented toggles for each selected deptId
+ *    (topic = `{pickerPrefixForTabKey(tab.key)}:{deptId}`). Empty state
+ *    links to the notices tab root (deep-linking with auto-open picker is
+ *    out of scope this PR).
+ *  - Unknown tabMode / unknown picker tabKey → rendered as null with a
+ *    `__DEV__` warning, never an empty shell.
+ *
+ * Writes use `updateSubscribedTopics` delta API (arrayUnion / arrayRemove)
+ * for per-call atomicity. The master toggle still uses `updatePreferences`
+ * since it writes the `enabled` field, which is orthogonal to the array.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -41,6 +45,7 @@ import {
   SdsColors,
   SdsSpacing,
   buildTopic,
+  pickerPrefixForTabKey,
   useAuthStore,
   useNoticeTabs,
   useNotificationStore,
@@ -50,7 +55,10 @@ import {
   type PreferencesDocument,
   type TranslationKey,
 } from '@skkuverse/shared';
-import { updatePreferences } from '@/services/firestore-notifications';
+import {
+  updatePreferences,
+  updateSubscribedTopics,
+} from '@/services/firestore-notifications';
 import {
   checkPermission,
   requestPermission,
@@ -81,7 +89,6 @@ export default function NotificationSettingsScreen() {
     refetch: refetchTabs,
   } = useNoticeTabs();
 
-  // ── Optimistic local state (Firestore onSnapshot mirrors into this) ──
   const [localPrefs, setLocalPrefs] = useState<PreferencesDocument>({
     enabled: false,
     subscribedTopics: [...MANDATORY_TOPICS],
@@ -91,31 +98,6 @@ export default function NotificationSettingsScreen() {
     if (prefs) setLocalPrefs(prefs);
   }, [prefs]);
 
-  // ── Inline Firestore write ──
-  //
-  // Earlier revisions used a 500ms debounce + fire-and-forget write on unmount.
-  // That created an orphan-promise race: the write was enqueued in Firestore's
-  // mutation queue but the SDK's write stream stalled because no JS-level
-  // awaiter held the promise chain across screen teardown. The mutation only
-  // flushed on next app cold start (see firebase-js-sdk #6515, #3816).
-  //
-  // Fix: each toggle awaits updatePreferences inline from its handler. Writes
-  // are idempotent (full payload replace), so rapid toggles safely converge.
-  // The original debounce motive ("avoid syncPreferencesToDevices Cloud
-  // Function thrash") is moot — that function isn't deployed.
-  const writeAndLog = useCallback(
-    async (next: PreferencesDocument) => {
-      if (!uid) return;
-      try {
-        await updatePreferences(uid, next);
-      } catch (err) {
-        logHandledError('notifications/update-preferences', err);
-      }
-    },
-    [uid],
-  );
-
-  // ── P1-5: refresh permission state when screen regains focus ──
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -128,7 +110,6 @@ export default function NotificationSettingsScreen() {
     }, [setPermissionStatus]),
   );
 
-  // ── Toggle handlers ──
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
   const handleToggleMaster = useCallback(
@@ -136,7 +117,6 @@ export default function NotificationSettingsScreen() {
       if (!uid) return;
 
       if (nextValue) {
-        // Ask OS for permission (idempotent on iOS).
         const status = await requestPermission();
         setPermissionStatus(status);
         if (status !== 'authorized' && status !== 'provisional') {
@@ -148,38 +128,53 @@ export default function NotificationSettingsScreen() {
           enabled: true,
         };
         setLocalPrefs(next);
-        await writeAndLog(next);
+        try {
+          await updatePreferences(uid, next);
+        } catch (err) {
+          logHandledError('notifications/update-preferences', err);
+        }
       } else {
-        // Keep subscribedTopics intact so re-enabling restores them.
         const next: PreferencesDocument = {
           ...localPrefs,
           enabled: false,
         };
         setLocalPrefs(next);
-        await writeAndLog(next);
+        try {
+          await updatePreferences(uid, next);
+        } catch (err) {
+          logHandledError('notifications/update-preferences', err);
+        }
       }
     },
-    [uid, localPrefs, writeAndLog, setPermissionStatus],
+    [uid, localPrefs, setPermissionStatus],
   );
 
   const handleToggleTopic = useCallback(
     async (topic: string, nextValue: boolean) => {
-      if (MANDATORY_TOPICS.includes(topic)) return; // defense in depth
+      if (MANDATORY_TOPICS.includes(topic)) return;
       if (!uid) return;
+
+      // Optimistic local update for instant UI.
       const currentSet = new Set(localPrefs.subscribedTopics);
-      if (nextValue) {
-        currentSet.add(topic);
-      } else {
-        currentSet.delete(topic);
-      }
-      const next: PreferencesDocument = {
+      if (nextValue) currentSet.add(topic);
+      else currentSet.delete(topic);
+      setLocalPrefs({
         enabled: localPrefs.enabled,
         subscribedTopics: [...currentSet],
-      };
-      setLocalPrefs(next);
-      await writeAndLog(next);
+      });
+
+      // Delta write — per-call atomic, no multi-device lost update race.
+      try {
+        if (nextValue) {
+          await updateSubscribedTopics(uid, { add: [topic] });
+        } else {
+          await updateSubscribedTopics(uid, { remove: [topic] });
+        }
+      } catch (err) {
+        logHandledError('notifications/toggle-topic', err);
+      }
     },
-    [uid, localPrefs, writeAndLog],
+    [uid, localPrefs],
   );
 
   const isSubscribed = useCallback(
@@ -187,15 +182,9 @@ export default function NotificationSettingsScreen() {
     [localPrefs.subscribedTopics],
   );
 
-  // ── Tab-driven rows ──
-  const tabs: NoticeTab[] = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
-  const fixedTabs = useMemo(() => tabs.filter((x) => x.tabMode === 'fixed'), [tabs]);
-  const pickerTabs = useMemo(() => tabs.filter((x) => x.tabMode === 'picker'), [tabs]);
-
+  const tabs: NoticeTab[] = tabsConfig?.tabs ?? [];
   const masterOff = !localPrefs.enabled;
   const subsectionsDisabled = masterOff || prefsLoading;
-
-  // ── Early returns ──
 
   if (!authReady) {
     return (
@@ -212,7 +201,6 @@ export default function NotificationSettingsScreen() {
       <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* zh hint banner */}
         {appLanguage === 'zh' && (
           <View style={styles.hintBanner}>
             <Txt typography="t7" color={SdsColors.grey700}>
@@ -239,102 +227,48 @@ export default function NotificationSettingsScreen() {
           }
         />
 
-        {/* Categories */}
-        {fixedTabs.length > 0 && (
-          <View style={[styles.section, subsectionsDisabled && styles.sectionDisabled]}>
-            <ListHeader
-              title={
-                <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
-                  {t('notifications.categories')}
-                </ListHeader.TitleParagraph>
-              }
-            />
-            {fixedTabs.map((tab) => {
-              const topic = buildTopic('category', tab.key);
-              const mandatory = MANDATORY_TOPICS.includes(topic);
-              return (
-                <ListRow
-                  key={topic}
-                  contents={
-                    mandatory ? (
-                      <ListRow.Texts
-                        type="2RowTypeA"
-                        top={tab.label}
-                        bottom={t('notifications.mandatory')}
-                      />
-                    ) : (
-                      <ListRow.Texts type="1RowTypeA" top={tab.label} />
-                    )
-                  }
-                  right={
-                    <Switch
-                      checked={mandatory || isSubscribed(topic)}
-                      onCheckedChange={(v) => handleToggleTopic(topic, v)}
-                      disabled={mandatory || subsectionsDisabled}
-                    />
-                  }
-                />
-              );
-            })}
-          </View>
-        )}
+        {/* Server-ordered single iteration over every tab */}
+        {tabs.map((tab) => {
+          if (tab.tabMode === 'fixed') {
+            return (
+              <FixedTabRow
+                key={tab.key}
+                tab={tab}
+                isSubscribed={isSubscribed}
+                onToggleTopic={handleToggleTopic}
+                disabled={subsectionsDisabled}
+                sectionStyle={subsectionsDisabled ? styles.sectionDisabled : undefined}
+                mandatoryLabel={t('notifications.mandatory')}
+              />
+            );
+          }
+          if (tab.tabMode === 'picker') {
+            return (
+              <PickerTabSection
+                key={tab.key}
+                tab={tab}
+                selectedIds={pickerSelections[tab.key] ?? []}
+                isSubscribed={isSubscribed}
+                onToggleTopic={handleToggleTopic}
+                onGoToNotices={() => router.push('/(tabs)/notices' as never)}
+                disabled={subsectionsDisabled}
+                sectionStyle={subsectionsDisabled ? styles.sectionDisabled : undefined}
+                emptyLabel={t('notifications.pickerEmpty')}
+                goToNoticesLabel={t('notifications.goToNotices')}
+                mandatoryLabel={t('notifications.mandatory')}
+              />
+            );
+          }
+          if (__DEV__) {
+            console.warn(
+              '[notifications] unsupported tabMode:',
+              (tab as { tabMode?: string }).tabMode,
+              tab.key,
+            );
+          }
+          return null;
+        })}
 
-        {/* Departments (only user's selected depts per picker tab) */}
-        {pickerTabs.length > 0 && (
-          <View style={[styles.section, subsectionsDisabled && styles.sectionDisabled]}>
-            <ListHeader
-              title={
-                <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
-                  {t('notifications.departments')}
-                </ListHeader.TitleParagraph>
-              }
-            />
-
-            {pickerTabs.flatMap((tab) => {
-              const selectedIds = pickerSelections[tab.key] ?? [];
-              const picker = tab.picker;
-              if (!picker || selectedIds.length === 0) return [];
-
-              return selectedIds.map((deptId) => {
-                const dept = picker.departments.find((d) => d.id === deptId);
-                if (!dept) return null;
-                const topic = buildTopic('dept', deptId);
-                const mandatory = MANDATORY_TOPICS.includes(topic);
-                return (
-                  <ListRow
-                    key={topic}
-                    contents={
-                      mandatory ? (
-                        <ListRow.Texts
-                          type="2RowTypeA"
-                          top={dept.name}
-                          bottom={t('notifications.mandatory')}
-                        />
-                      ) : (
-                        <ListRow.Texts type="1RowTypeA" top={dept.name} />
-                      )
-                    }
-                    right={
-                      <Switch
-                        checked={mandatory || isSubscribed(topic)}
-                        onCheckedChange={(v) => handleToggleTopic(topic, v)}
-                        disabled={mandatory || subsectionsDisabled}
-                      />
-                    }
-                  />
-                );
-              });
-            })}
-
-            <View style={styles.hint}>
-              <Txt typography="t7" color={SdsColors.grey500}>
-                {t('notifications.departmentHint')}
-              </Txt>
-            </View>
-          </View>
-        )}
-
-        {/* Tabs-error retry */}
         {tabsError && !tabsLoading && (
           <View style={styles.retryBlock}>
             <Txt typography="t6" color={SdsColors.grey600}>
@@ -391,7 +325,147 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-// ── Sub-components ──
+// ── Row / section components ──
+
+function FixedTabRow({
+  tab,
+  isSubscribed,
+  onToggleTopic,
+  disabled,
+  sectionStyle,
+  mandatoryLabel,
+}: {
+  tab: NoticeTab;
+  isSubscribed: (topic: string) => boolean;
+  onToggleTopic: (topic: string, next: boolean) => void;
+  disabled: boolean;
+  sectionStyle: object | undefined;
+  mandatoryLabel: string;
+}) {
+  const topic = buildTopic('category', tab.key);
+  const mandatory = MANDATORY_TOPICS.includes(topic);
+  return (
+    <View style={[styles.section, sectionStyle]}>
+      <ListRow
+        contents={
+          mandatory ? (
+            <ListRow.Texts
+              type="2RowTypeA"
+              top={tab.label}
+              bottom={mandatoryLabel}
+            />
+          ) : (
+            <ListRow.Texts type="1RowTypeA" top={tab.label} />
+          )
+        }
+        right={
+          <Switch
+            checked={mandatory || isSubscribed(topic)}
+            onCheckedChange={(v) => onToggleTopic(topic, v)}
+            disabled={mandatory || disabled}
+          />
+        }
+      />
+    </View>
+  );
+}
+
+function PickerTabSection({
+  tab,
+  selectedIds,
+  isSubscribed,
+  onToggleTopic,
+  onGoToNotices,
+  disabled,
+  sectionStyle,
+  emptyLabel,
+  goToNoticesLabel,
+  mandatoryLabel,
+}: {
+  tab: NoticeTab;
+  selectedIds: string[];
+  isSubscribed: (topic: string) => boolean;
+  onToggleTopic: (topic: string, next: boolean) => void;
+  onGoToNotices: () => void;
+  disabled: boolean;
+  sectionStyle: object | undefined;
+  emptyLabel: string;
+  goToNoticesLabel: string;
+  mandatoryLabel: string;
+}) {
+  const prefix = pickerPrefixForTabKey(tab.key);
+  if (!prefix) {
+    if (__DEV__) {
+      console.warn('[notifications] no topic prefix for picker tab', tab.key);
+    }
+    return null;
+  }
+
+  const picker = tab.picker;
+  if (!picker) return null;
+
+  const hasSelection = selectedIds.length > 0;
+
+  return (
+    <View style={[styles.section, sectionStyle]}>
+      <ListHeader
+        title={
+          <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+            {tab.label}
+          </ListHeader.TitleParagraph>
+        }
+      />
+
+      {hasSelection ? (
+        selectedIds.map((deptId) => {
+          const dept = picker.departments.find((d) => d.id === deptId);
+          if (!dept) return null;
+          const topic = buildTopic(prefix, deptId);
+          const mandatory = MANDATORY_TOPICS.includes(topic);
+          return (
+            <View key={topic} style={styles.indentedRow}>
+              <ListRow
+                contents={
+                  mandatory ? (
+                    <ListRow.Texts
+                      type="2RowTypeA"
+                      top={dept.name}
+                      bottom={mandatoryLabel}
+                    />
+                  ) : (
+                    <ListRow.Texts type="1RowTypeA" top={dept.name} />
+                  )
+                }
+                right={
+                  <Switch
+                    checked={mandatory || isSubscribed(topic)}
+                    onCheckedChange={(v) => onToggleTopic(topic, v)}
+                    disabled={mandatory || disabled}
+                  />
+                }
+              />
+            </View>
+          );
+        })
+      ) : (
+        <View style={styles.emptyBlock}>
+          <Txt typography="t6" color={SdsColors.grey500}>
+            {emptyLabel}
+          </Txt>
+          <Button
+            type="dark"
+            style="weak"
+            size="tiny"
+            onPress={onGoToNotices}
+            disabled={disabled}
+          >
+            {goToNoticesLabel}
+          </Button>
+        </View>
+      )}
+    </View>
+  );
+}
 
 function ScreenHeader({
   title,
@@ -494,9 +568,14 @@ const styles = StyleSheet.create({
   sectionDisabled: {
     opacity: 0.4,
   },
-  hint: {
-    paddingHorizontal: 24,
-    paddingVertical: 8,
+  indentedRow: {
+    paddingLeft: SdsSpacing.lg,
+  },
+  emptyBlock: {
+    paddingHorizontal: SdsSpacing.lg,
+    paddingVertical: SdsSpacing.md,
+    gap: SdsSpacing.sm,
+    alignItems: 'flex-start',
   },
   retryBlock: {
     alignItems: 'center',
