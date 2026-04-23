@@ -23,6 +23,7 @@ import {
   SdsColors,
   buildTopic,
   pickerPrefixForTabKey,
+  resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
   useSettingsStore,
@@ -40,33 +41,6 @@ import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { updateSubscribedTopics } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
-
-// ── Helpers ──
-
-/**
- * Returns the effective selected IDs for a picker tab, validating stored
- * selections against the current server response and falling back as needed.
- */
-function resolvePickerSelection(
-  tab: NoticeTab,
-  stored: string[] | undefined,
-): string[] {
-  const picker = tab.picker!;
-  const validIds = new Set(picker.departments.map((d) => d.id));
-
-  if (stored && stored.length > 0) {
-    const valid = stored.filter((id) => validIds.has(id));
-    if (valid.length > 0) return valid;
-  }
-
-  // Fall back to server defaults
-  if (picker.defaultDeptIds.length > 0) {
-    return picker.defaultDeptIds.filter((id) => validIds.has(id));
-  }
-
-  // Last resort: first department
-  return picker.departments.length > 0 ? [picker.departments[0].id] : [];
-}
 
 export function NoticesTabScreen() {
   const insets = useSafeAreaInsets();

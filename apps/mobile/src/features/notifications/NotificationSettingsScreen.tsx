@@ -46,6 +46,7 @@ import {
   SdsSpacing,
   buildTopic,
   pickerPrefixForTabKey,
+  resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
   useNotificationStore,
@@ -243,11 +244,19 @@ export default function NotificationSettingsScreen() {
             );
           }
           if (tab.tabMode === 'picker') {
+            // Share the same (stored → server defaults → first dept) fallback
+            // as NoticesTabScreen so picker defaults appear here without a
+            // prior picker confirm. Empty state only surfaces in the degenerate
+            // case where the server returns neither defaults nor departments.
+            const resolvedIds = resolvePickerSelection(
+              tab,
+              pickerSelections[tab.key],
+            );
             return (
               <PickerTabSection
                 key={tab.key}
                 tab={tab}
-                selectedIds={pickerSelections[tab.key] ?? []}
+                selectedIds={resolvedIds}
                 isSubscribed={isSubscribed}
                 onToggleTopic={handleToggleTopic}
                 onGoToNotices={() => router.push('/(tabs)/notices' as never)}

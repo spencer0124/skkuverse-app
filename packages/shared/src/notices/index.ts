@@ -3,6 +3,7 @@ export {
   parseNoticePage,
   parseNoticeDetail,
 } from './parser';
+export { resolvePickerSelection } from './picker';
 export type {
   TabDepartment,
   PickerTabConfig,

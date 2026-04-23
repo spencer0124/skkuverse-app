@@ -154,11 +154,27 @@ export function OnboardingScreen() {
   // ── Completion (Step 5) ──
   const handleComplete = useCallback(() => {
     if (!state.campus || !state.primaryDeptId) return;
-    useSettingsStore.getState().completeOnboarding({
+    const store = useSettingsStore.getState();
+    store.completeOnboarding({
       campus: state.campus,
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
     });
+    // Seed the dept picker from the onboarding choices so notices tab and
+    // notification settings both show them immediately (instead of silently
+    // falling back to server defaults). Primary first, then interests; dedup.
+    // Truncate to the server `dept` picker's maxSelection (3 — see
+    // skkuverse-server/features/notices/categories.json).
+    const combined: string[] = [];
+    const seen = new Set<string>();
+    for (const id of [state.primaryDeptId, ...state.interestDeptIds]) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        combined.push(id);
+      }
+    }
+    const DEPT_PICKER_MAX = 3;
+    store.setPickerSelection('dept', combined.slice(0, DEPT_PICKER_MAX));
     router.dismissAll();
   }, [state.campus, state.primaryDeptId, state.interestDeptIds, router]);
 

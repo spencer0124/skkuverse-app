@@ -182,6 +182,7 @@ export {
   parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
+  resolvePickerSelection,
 } from './notices';
 export type {
   TabDepartment,
