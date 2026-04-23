@@ -1,27 +1,38 @@
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SearchField, Txt } from '@skkuverse/sds';
-import { SdsColors, type Campus, useT } from '@skkuverse/shared';
-import { MOCK_DEPARTMENTS } from '../data/mock-departments';
+import {
+  SdsColors,
+  useT,
+  type Campus,
+  type TabDepartment,
+} from '@skkuverse/shared';
 import { DeptRow } from './DeptRow';
 
 interface Props {
   campus: Campus;
+  departments: TabDepartment[];
   selectedId: string | null;
   onSelect: (deptId: string) => void;
 }
 
-export function PrimaryDeptStep({ campus, selectedId, onSelect }: Props) {
+export function PrimaryDeptStep({
+  campus,
+  departments: sourceDepartments,
+  selectedId,
+  onSelect,
+}: Props) {
   const { t } = useT();
   const [query, setQuery] = useState('');
 
   const departments = useMemo(() => {
-    const filtered = MOCK_DEPARTMENTS.filter(
-      (d) => d.campus === campus || d.campus === 'both',
+    // `campus == null` tolerant: server may use null for "any-campus" entries.
+    const filtered = sourceDepartments.filter(
+      (d) => d.campus === campus || d.campus === 'both' || d.campus == null,
     );
     if (!query.trim()) return filtered;
     return filtered.filter((d) => d.name.includes(query.trim()));
-  }, [campus, query]);
+  }, [campus, sourceDepartments, query]);
 
   return (
     <View style={styles.container}>

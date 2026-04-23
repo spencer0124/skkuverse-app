@@ -21,9 +21,3 @@ export type OnboardingAction =
 
 export const MAX_INTEREST_DEPTS = 3;
 export const TOTAL_STEPS = 5;
-
-export interface Department {
-  id: string;
-  name: string;
-  campus: 'hssc' | 'nsc' | 'both';
-}

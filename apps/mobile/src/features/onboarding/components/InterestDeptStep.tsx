@@ -1,34 +1,45 @@
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SearchField, Txt } from '@skkuverse/sds';
-import { SdsColors, type Campus, useT } from '@skkuverse/shared';
-import { MOCK_DEPARTMENTS } from '../data/mock-departments';
+import {
+  SdsColors,
+  useT,
+  type Campus,
+  type TabDepartment,
+} from '@skkuverse/shared';
 import { MAX_INTEREST_DEPTS } from '../types';
 import { DeptRow } from './DeptRow';
 
 interface Props {
   campus: Campus;
   primaryDeptId: string;
+  departments: TabDepartment[];
   selectedIds: string[];
   onToggle: (deptId: string) => void;
 }
 
-export function InterestDeptStep({ campus, primaryDeptId, selectedIds, onToggle }: Props) {
+export function InterestDeptStep({
+  campus,
+  primaryDeptId,
+  departments: sourceDepartments,
+  selectedIds,
+  onToggle,
+}: Props) {
   const { t } = useT();
   const [query, setQuery] = useState('');
   const atMax = selectedIds.length >= MAX_INTEREST_DEPTS;
 
-  const primaryDept = MOCK_DEPARTMENTS.find((d) => d.id === primaryDeptId);
+  const primaryDept = sourceDepartments.find((d) => d.id === primaryDeptId);
 
   const departments = useMemo(() => {
-    const filtered = MOCK_DEPARTMENTS.filter(
+    const filtered = sourceDepartments.filter(
       (d) =>
         d.id !== primaryDeptId &&
-        (d.campus === campus || d.campus === 'both'),
+        (d.campus === campus || d.campus === 'both' || d.campus == null),
     );
     if (!query.trim()) return filtered;
     return filtered.filter((d) => d.name.includes(query.trim()));
-  }, [campus, primaryDeptId, query]);
+  }, [campus, primaryDeptId, sourceDepartments, query]);
 
   return (
     <View style={styles.container}>

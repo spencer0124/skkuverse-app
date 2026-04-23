@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
-import { BackHandler } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button } from '@skkuverse/sds';
-import { useSettingsStore, useT, type Campus } from '@skkuverse/shared';
+import { Button, Txt } from '@skkuverse/sds';
+import {
+  SdsColors,
+  useNoticeTabs,
+  useSettingsStore,
+  useT,
+  type Campus,
+  type TabDepartment,
+} from '@skkuverse/shared';
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { GoogleIcon } from '@/components/GoogleIcon';
@@ -83,6 +90,19 @@ export function OnboardingScreen() {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Server-driven dept list. Fetched once; dept picker lists are embedded in
+  // /notices/tabs so we reuse the same hook the notices tab + settings use.
+  const {
+    data: tabsConfig,
+    isLoading: tabsLoading,
+    isError: tabsError,
+    refetch: refetchTabs,
+  } = useNoticeTabs();
+  const deptList: TabDepartment[] = useMemo(() => {
+    const deptTab = tabsConfig?.tabs.find((t) => t.key === 'dept');
+    return deptTab?.picker?.departments ?? [];
+  }, [tabsConfig]);
 
   // ── Android back handler ──
   useEffect(() => {
@@ -216,6 +236,35 @@ export function OnboardingScreen() {
 
   // ── Render step content ──
   const renderStep = () => {
+    // Steps 2/3/4 depend on the server dept list. Show a loading / error
+    // placeholder instead of a half-empty picker so the user doesn't
+    // complete onboarding with an invalid (empty) selection set.
+    const needsDeptData = state.step >= 2 && state.step <= 4;
+    if (needsDeptData && tabsLoading && deptList.length === 0) {
+      return (
+        <View style={stepStyles.placeholder}>
+          <ActivityIndicator size="large" color={SdsColors.grey500} />
+        </View>
+      );
+    }
+    if (needsDeptData && tabsError && deptList.length === 0) {
+      return (
+        <View style={stepStyles.placeholder}>
+          <Txt typography="t6" color={SdsColors.grey600} style={stepStyles.errorText}>
+            {t('notifications.loadError')}
+          </Txt>
+          <Button
+            type="dark"
+            style="weak"
+            size="tiny"
+            onPress={() => refetchTabs()}
+          >
+            {t('notifications.retry')}
+          </Button>
+        </View>
+      );
+    }
+
     switch (state.step) {
       case 1:
         return (
@@ -228,6 +277,7 @@ export function OnboardingScreen() {
         return (
           <PrimaryDeptStep
             campus={state.campus!}
+            departments={deptList}
             selectedId={state.primaryDeptId}
             onSelect={(deptId: string) => dispatch({ type: 'SET_PRIMARY_DEPT', deptId })}
           />
@@ -237,6 +287,7 @@ export function OnboardingScreen() {
           <InterestDeptStep
             campus={state.campus!}
             primaryDeptId={state.primaryDeptId!}
+            departments={deptList}
             selectedIds={state.interestDeptIds}
             onToggle={(deptId: string) => dispatch({ type: 'TOGGLE_INTEREST_DEPT', deptId })}
           />
@@ -247,6 +298,7 @@ export function OnboardingScreen() {
             campus={state.campus!}
             primaryDeptId={state.primaryDeptId!}
             interestDeptIds={state.interestDeptIds}
+            departments={deptList}
             loginError={loginError}
           />
         );
@@ -299,3 +351,15 @@ export function OnboardingScreen() {
     </>
   );
 }
+
+const stepStyles = StyleSheet.create({
+  placeholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  errorText: {
+    textAlign: 'center',
+  },
+});

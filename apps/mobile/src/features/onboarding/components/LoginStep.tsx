@@ -1,25 +1,37 @@
 import { StyleSheet, View } from 'react-native';
 import { Txt } from '@skkuverse/sds';
-import { SdsColors, SdsSpacing, useT, type Campus } from '@skkuverse/shared';
-import { MOCK_DEPARTMENTS } from '../data/mock-departments';
+import {
+  SdsColors,
+  SdsSpacing,
+  useT,
+  type Campus,
+  type TabDepartment,
+} from '@skkuverse/shared';
 
 interface Props {
   campus: Campus;
   primaryDeptId: string;
   interestDeptIds: string[];
+  departments: TabDepartment[];
   loginError: string | null;
 }
 
-export function LoginStep({ campus, primaryDeptId, interestDeptIds, loginError }: Props) {
+export function LoginStep({
+  campus,
+  primaryDeptId,
+  interestDeptIds,
+  departments,
+  loginError,
+}: Props) {
   const { t } = useT();
 
   const campusName = campus === 'hssc'
     ? t('onboarding.hsscName')
     : t('onboarding.nscName');
 
-  const primaryName = MOCK_DEPARTMENTS.find((d) => d.id === primaryDeptId)?.name ?? '';
+  const primaryName = departments.find((d) => d.id === primaryDeptId)?.name ?? '';
   const interestNames = interestDeptIds
-    .map((id) => MOCK_DEPARTMENTS.find((d) => d.id === id)?.name)
+    .map((id) => departments.find((d) => d.id === id)?.name)
     .filter(Boolean)
     .join(', ') || t('onboarding.summaryNone');
 
