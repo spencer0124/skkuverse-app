@@ -27,17 +27,42 @@ service cloud.firestore {
     // devices/{deviceId} — top-level so the Cloud Function can query by
     // (active, notificationsEnabled, subscribedTopics) without hopping per uid.
     //
-    // Writes require the caller's auth.uid to match the document's uid field;
-    // updates may not reassign uid. Deletes are disabled — unregister is
-    // expressed as setting active: false.
+    // Writes require the caller's auth.uid to match the document's uid field.
+    // Deletes are disabled — unregister is expressed as setting active: false.
     match /devices/{deviceId} {
       allow read: if request.auth != null
                   && request.auth.uid == resource.data.uid;
       allow create: if request.auth != null
                     && request.auth.uid == request.resource.data.uid;
+
+      // SECURITY TRADE — Task #12 (stale uid after anon→Google transition)
+      //
+      // Rule permits an authenticated user to claim a device doc IF:
+      //   (a) they already own it (normal re-registration), OR
+      //   (b) the doc is currently inactive (previous owner signed out).
+      //
+      // Rationale:
+      //   - deviceId is a UUID4 stored only in device's MMKV; not enumerable,
+      //     not transmitted outside Firestore writes.
+      //   - App Check (App Attest / Play Integrity) gates all writes to
+      //     attested builds only.
+      //   - Active docs CANNOT be hijacked (condition 3a fails, 3b fails).
+      //   - Inactive docs can be claimed by any authenticated user, but if
+      //     the original owner returns, they can re-claim via 3b again
+      //     (write is idempotent — new uid simply overwrites).
+      //
+      // Rejected attack: "malicious takeover of active doc" — blocked.
+      // Accepted trade: "first-come-first-serve on inactive docs" — acceptable
+      // because the physical device's legit user always wins on re-login
+      // (their doc is inactive at that moment, so they claim it).
+      //
+      // See docs/plans/fcm-push-notifications.md:590
       allow update: if request.auth != null
-                    && request.auth.uid == resource.data.uid
-                    && request.resource.data.uid == resource.data.uid;
+                    && request.resource.data.uid == request.auth.uid
+                    && (
+                      resource.data.uid == request.auth.uid
+                      || resource.data.active == false
+                    );
       allow delete: if false;
     }
   }

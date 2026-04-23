@@ -10,6 +10,7 @@
     "android": "cd apps/mobile && expo run:android",
     "ios": "cd apps/mobile && expo run:ios",
     "lint": "expo lint",
+    "test:rules": "JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin:$PATH firebase emulators:exec --only firestore \"node --test apps/mobile/firestore.rules.test.mjs\"",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -17,5 +18,9 @@
     "patch-package": "^8.0.1",
     "react": "19.1.0",
     "react-native": "0.81.5"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "firebase": "^12.12.1"
   }
 }

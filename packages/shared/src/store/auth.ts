@@ -27,6 +27,10 @@ export interface AuthState {
   photoURL: string | null;
   isLoading: boolean;
   error: string | null;
+  // Task #12: survives through sign-out → anon-re-sign-in. Detects uid
+  // transitions in useAppInit so devices/{id}.uid can be re-written.
+  // Do NOT reset in setUnauthenticated — that kills transition detection.
+  lastKnownUid: string | null;
 }
 
 interface AuthActions {
@@ -50,6 +54,7 @@ export const authStore = createStore<AuthStore>((set) => ({
   photoURL: null,
   isLoading: true,
   error: null,
+  lastKnownUid: null,
 
   setLoading: () => set({ isLoading: true, error: null }),
 
@@ -66,6 +71,10 @@ export const authStore = createStore<AuthStore>((set) => ({
       error: null,
     }),
 
+  // IMPORTANT: uses explicit field-set (partial merge), NOT set(initialState).
+  // This is intentional — lastKnownUid must survive through sign-out so
+  // useAppInit can detect the subsequent anon re-sign-in as a transition.
+  // If this is ever refactored to reset-all, Task #12's uid migration dies.
   setUnauthenticated: () =>
     set({
       isInitialized: true,

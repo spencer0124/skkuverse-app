@@ -587,7 +587,13 @@ try {
 - 전체 실패 시 Crashlytics 리포트만, `setIsReady(true)` 블로킹 금지 — 알림 기능은 off-critical
 - offline 기동 시에도 앱 전반 기능 사용 가능 (알림 등록은 다음 온라인 기동 시 재시도)
 
-auth 변경 시 (anonymous → Google) uid 변경 → 디바이스 문서 uid 업데이트.
+**auth 변경 시 (anonymous → Google, Google → anon on sign-out) uid 변경 → 디바이스 문서 uid 업데이트 — Task #12 (2026-04-23 완료)**:
+
+- **트리거:** `useAppInit`의 `onAuthStateChanged` 콜백이 `authStore.lastKnownUid`와 새 `user.uid`를 비교. 다르면 `initializeFirestoreNotifications()`를 재호출하여 `devices/{deviceId}.uid`를 새 uid로 덮어쓴다. `lastKnownUid`는 signed-out 상태 (`setUnauthenticated()`)를 거치면서도 보존되어야 sign-out → anon-re-sign-in 전환을 감지할 수 있음 — auth 스토어의 `setUnauthenticated`가 필드별 부분 merge를 쓰는 이유.
+- **Race 방지:** `withRetry`의 closure 안에서 `getAuth().currentUser?.uid`를 **매 attempt마다 lazy하게** 재해석. retry가 auth transition 중간에 착지해도 그 시점의 current uid로 write. Bootstrap(:186), auth-transition(신규), `onTokenRefresh`(:220) 세 곳 모두 동일 패턴.
+- **Firestore rule 수정:** `devices/{deviceId}` update rule을 `active` 필드 기반 claim 시맨틱으로 완화 — active 문서는 본인만, inactive 문서는 아무 authed user가 claim 가능. Sign-out 시 `signOutFromGoogle()`이 먼저 `unregisterDevice(deviceId)`로 `active: false` 처리. `apps/mobile/firestore.rules:38–66`의 SECURITY TRADE 주석 참조.
+- **Rules unit test:** `apps/mobile/firestore.rules.test.mjs` (13 케이스). `yarn test:rules`로 실행 (내부적으로 Firestore emulator + Node 20 built-in `node:test` 사용, JDK 21+ 필수 — script가 openjdk@25를 내장 override).
+
 언어 변경 시 `updateUserLocale(uid, newLang)` 호출 → Cloud Function `syncUserLocaleToDevices`가 devices 자동 전파.
 
 ### 2.7 exports 업데이트

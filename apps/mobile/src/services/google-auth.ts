@@ -13,6 +13,9 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { authStore } from '@skkuverse/shared';
+import { getOrCreateDeviceId } from '@/services/device-id';
+import { unregisterDevice } from '@/services/firestore-notifications';
+import { logHandledError } from '@/services/crashlytics';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
 
@@ -100,12 +103,31 @@ export async function signInWithGoogle() {
 export async function signOutFromGoogle() {
   authStore.getState().setSigningOut(true);
   try {
+    // Task #12: deactivate the current device doc BEFORE signing out, while
+    // auth.uid still matches devices/{id}.uid. This turns the sign-out
+    // transition into a clean "inactive doc → new uid claims it" flow under
+    // the updated Firestore rule. If this fails, the new anon uid can still
+    // reclaim the doc via the relaxed rule's "resource.data.active == false"
+    // branch — but only if active is already false at the time of reclaim,
+    // which is why we try here first.
+    try {
+      const deviceId = getOrCreateDeviceId();
+      await unregisterDevice(deviceId);
+    } catch (err) {
+      // Log but don't block sign-out — user intent trumps housekeeping.
+      // The next auth transition fires the migration path as a fallback.
+      logHandledError('notifications/pre-signout-unregister', err);
+    }
+
     await GoogleSignin.signOut();
     await signOut(getAuth());
+
     try {
       await signInAnonymously(getAuth());
     } catch (err) {
       console.warn('[google-auth] Anonymous re-sign-in failed', err);
+      logHandledError('notifications/signout-anon-resign-in', err);
+      // Next app launch: useAppInit retries anon sign-in at line ~121.
     }
   } finally {
     authStore.getState().setSigningOut(false);

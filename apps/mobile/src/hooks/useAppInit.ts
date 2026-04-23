@@ -126,10 +126,18 @@ export function useAppInit() {
 
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
         unsubscribe = onAuthStateChanged(getAuth(), (user) => {
+          // Task #12: detect uid transitions (anon → Google, Google → new-anon
+          // on sign-out, credential-already-in-use fallback). On transition,
+          // re-run the Firestore bootstrap so devices/{id}.uid follows the
+          // current authenticated uid. Relies on lastKnownUid surviving the
+          // null/signed-out intermediate state — see auth store comment.
+          const prevUid = authStore.getState().lastKnownUid;
+
           if (user) {
             if (__DEV__) {
               console.log('[auth] onAuthStateChanged:', {
-                uid: user.uid,
+                prevUid,
+                newUid: user.uid,
                 email: user.email,
                 displayName: user.displayName,
                 isAnonymous: user.isAnonymous,
@@ -145,9 +153,60 @@ export function useAppInit() {
             });
             setAnalyticsUserId(user.uid);
             setCrashlyticsUserId(user.uid);
+
+            // Transition detection. First-login case (prevUid === null) is
+            // skipped here — the bootstrap block below handles it. We only
+            // fire migration when there's a real uid change on the same
+            // physical device.
+            //
+            // deviceId is read from getOrCreateDeviceId() directly rather
+            // than useNotificationStore, because the auth listener can fire
+            // before line ~165's setDeviceId() runs. The function is
+            // MMKV-cached and idempotent, so this is free.
+            //
+            // fcmToken may legitimately be null (permission denied, APNs
+            // still pending) — in that case no device doc exists yet and
+            // there is nothing to migrate. onTokenRefresh at line ~220 will
+            // register the doc under the then-current uid when the token
+            // eventually arrives. No recovery path needed here.
+            if (prevUid && prevUid !== user.uid) {
+              const deviceId = getOrCreateDeviceId();
+              const fcmToken = useNotificationStore.getState().fcmToken;
+              if (deviceId && fcmToken) {
+                const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+                const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+                const osLocale = toNotificationLocale(resolveAppLanguage());
+
+                withRetry(() => {
+                  // Resolve uid lazily per attempt so retries track the
+                  // current auth state — guards against a mid-retry
+                  // transition landing a stale uid (Task #12 race).
+                  const currentUid = getAuth().currentUser?.uid;
+                  if (!currentUid) {
+                    throw new Error('no authenticated user');
+                  }
+                  return initializeFirestoreNotifications({
+                    uid: currentUid,
+                    deviceId,
+                    token: fcmToken,
+                    platform,
+                    appVersion,
+                    osLocale,
+                  });
+                }).catch((err) =>
+                  logHandledError('notifications/auth-transition', err),
+                );
+              }
+            }
+
+            authStore.setState({ lastKnownUid: user.uid });
           } else {
             if (__DEV__) console.log('[auth] onAuthStateChanged: signed out');
             authStore.getState().setUnauthenticated();
+            // ⚠️ lastKnownUid is intentionally preserved through this branch.
+            // The next onAuthStateChanged(user) fires with the new anon uid
+            // after signInAnonymously, and we need prevUid != newUid to
+            // detect that transition. Resetting here breaks Task #12.
           }
         });
 
@@ -176,23 +235,31 @@ export function useAppInit() {
           // - Promise.all inside initializeFirestoreNotifications parallelizes reads
           // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
           // - logHandledError on exhaustion; app launch is NOT blocked on this path
-          const uid = getAuth().currentUser?.uid;
-          if (uid && fcmToken) {
+          //
+          // Task #12: uid is resolved lazily per retry attempt (inside the
+          // closure) rather than captured once. This way, a retry landing
+          // after a uid transition writes the current uid, not the stale
+          // one that was live at the initial call.
+          if (fcmToken) {
             const bootstrapLang = resolveAppLanguage();
             const osLocale = toNotificationLocale(bootstrapLang);
             const appVersion = Constants.expoConfig?.version ?? '0.0.0';
             const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
 
-            withRetry(() =>
-              initializeFirestoreNotifications({
-                uid,
+            withRetry(() => {
+              const currentUid = getAuth().currentUser?.uid;
+              if (!currentUid) {
+                throw new Error('no authenticated user');
+              }
+              return initializeFirestoreNotifications({
+                uid: currentUid,
                 deviceId,
                 token: fcmToken,
                 platform,
                 appVersion,
                 osLocale,
-              }),
-            )
+              });
+            })
               .then(() => {
                 useNotificationStore.getState().setIsTokenRegistered(true);
               })
@@ -209,24 +276,29 @@ export function useAppInit() {
           if (__DEV__) console.log('[fcm] token refreshed:', token);
           useNotificationStore.getState().setFcmToken(token);
 
-          const uid = getAuth().currentUser?.uid;
           const storedDeviceId = useNotificationStore.getState().deviceId;
-          if (!uid || !storedDeviceId) return;
+          if (!storedDeviceId) return;
 
           const appVersion = Constants.expoConfig?.version ?? '0.0.0';
           const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
           const osLocale = toNotificationLocale(resolveAppLanguage());
 
-          withRetry(() =>
-            initializeFirestoreNotifications({
-              uid,
+          // Lazy uid resolution per retry attempt — see Task #12 race notes
+          // at the bootstrap block above.
+          withRetry(() => {
+            const currentUid = getAuth().currentUser?.uid;
+            if (!currentUid) {
+              throw new Error('no authenticated user');
+            }
+            return initializeFirestoreNotifications({
+              uid: currentUid,
               deviceId: storedDeviceId,
               token,
               platform,
               appVersion,
               osLocale,
-            }),
-          )
+            });
+          })
             .then(() => useNotificationStore.getState().setIsTokenRegistered(true))
             .catch((err) => logHandledError('notifications/token-refresh', err));
         });
