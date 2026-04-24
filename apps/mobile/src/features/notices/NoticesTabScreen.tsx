@@ -30,13 +30,11 @@ import {
   useNotificationStore,
   useT,
   type NoticeTab,
-  type TabDepartment,
 } from '@skkuverse/shared';
 import { Tab, Txt } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
 import { NoticePickerSheet } from './NoticePickerSheet';
-import { AddedItemsNotificationSheet } from './AddedItemsNotificationSheet';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { updateSubscribedTopics } from '@/services/firestore-notifications';
@@ -84,7 +82,6 @@ export function NoticesTabScreen() {
 
   // ── Picker state (single sheet, dynamic binding) ──
   const sheetRef = useRef<BottomSheetModal>(null);
-  const addedSheetRef = useRef<BottomSheetModal>(null);
   const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
 
   const pickerSelections = useSettingsStore((s) => s.pickerSelections);
@@ -92,18 +89,6 @@ export function NoticesTabScreen() {
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const subscriptionUid = !isAnonymous ? uid : null;
-
-  // Pending items added in the last picker confirm. Consumed by the picker's
-  // onDismiss callback to present the opt-in sheet after the dismiss
-  // animation completes — @gorhom/bottom-sheet overlaps dismiss+present into
-  // a native race if done synchronously.
-  type PendingAdded = {
-    tabKey: string;
-    addedIds: string[];
-    departments: TabDepartment[];
-    prefix: string;
-  };
-  const [pendingAdded, setPendingAdded] = useState<PendingAdded | null>(null);
 
   const openPicker = useCallback((tabKey: string) => {
     setPickerTabKey(tabKey);
@@ -122,14 +107,26 @@ export function NoticesTabScreen() {
     }
   }, [activePickerTab]);
 
+  // Picker confirm sync semantics (v4):
+  // - Store update is unconditional — the picker drives the *view* regardless
+  //   of notification state.
+  // - Subscription sync runs only if the tab's notification is currently ON
+  //   (ANY prefix-topic present in Firestore prefs). Under the category-level
+  //   UX the tab toggle covers all picker selections together, so the picker
+  //   edit must add new items AND drop items no longer selected AND clean up
+  //   any stale prefix-topics left over from the v3 per-item UX. We compute
+  //   the full target set via resolvePickerSelection (same source of truth as
+  //   the settings screen) and diff against the live prefix-scoped subset.
   const handlePickerConfirm = useCallback(
-    (newIds: string[], { oldIds }: { oldIds: string[] }) => {
+    (newIds: string[]) => {
       if (!pickerTabKey) return;
       const tab = tabs.find((x) => x.key === pickerTabKey);
       if (!tab || !tab.picker) return;
 
-      // SSOT update — zustand store. This is the only writer for pickerSelections.
+      // SSOT update — zustand store. Only writer for pickerSelections.
       setPickerSelection(pickerTabKey, newIds);
+
+      if (!subscriptionUid) return;
 
       const prefix = pickerPrefixForTabKey(pickerTabKey);
       if (!prefix) {
@@ -142,59 +139,50 @@ export function NoticesTabScreen() {
         return;
       }
 
-      const added = newIds.filter((id) => !oldIds.includes(id));
-      const removed = oldIds.filter((id) => !newIds.includes(id));
+      // Call-time read — avoids a stale closure on the in-flight optimistic
+      // snapshot from rapid successive confirms.
+      const currentTopics =
+        useNotificationStore.getState().preferences.subscribedTopics;
+      const existingForPrefix = currentTopics.filter((topic) =>
+        topic.startsWith(`${prefix}:`),
+      );
 
-      // Cascade removal is fire-and-forget — awaiting would delay the sheet
-      // dismiss animation behind Firestore latency.
-      if (removed.length > 0 && subscriptionUid) {
-        const removedTopics = removed.map((id) => buildTopic(prefix, id));
-        updateSubscribedTopics(subscriptionUid, {
-          remove: removedTopics,
-        }).catch((e) => {
-          logHandledError('notifications/cascade-remove', e);
+      // Tab is OFF (no prefix-topic present) → picker edit has no subscription
+      // effect. Keep store change, skip the write.
+      if (existingForPrefix.length === 0) return;
+
+      const targetTopics = resolvePickerSelection(tab, newIds).map((id) =>
+        buildTopic(prefix, id),
+      );
+      const targetSet = new Set(targetTopics);
+      const currentSet = new Set(currentTopics);
+
+      const toAdd = targetTopics.filter((topic) => !currentSet.has(topic));
+      const toRemove = existingForPrefix.filter(
+        (topic) => !targetSet.has(topic),
+      );
+
+      // Firestore delta API disallows mixed add+remove in one call, so we
+      // sequence them. Fire-and-forget to keep the sheet dismiss animation
+      // off the network critical path.
+      if (toAdd.length > 0) {
+        updateSubscribedTopics(subscriptionUid, { add: toAdd }).catch((e) => {
+          logHandledError('notifications/picker-sync-add', e);
         });
       }
-
-      if (added.length > 0 && subscriptionUid) {
-        setPendingAdded({
-          tabKey: pickerTabKey,
-          addedIds: added,
-          departments: tab.picker.departments,
-          prefix,
-        });
+      if (toRemove.length > 0) {
+        updateSubscribedTopics(subscriptionUid, { remove: toRemove }).catch(
+          (e) => {
+            logHandledError('notifications/picker-sync-remove', e);
+          },
+        );
       }
     },
     [pickerTabKey, tabs, setPickerSelection, subscriptionUid],
   );
 
-  // Picker sheet onDismiss → if a pending add exists, surface the opt-in sheet.
   const handlePickerDismiss = useCallback(() => {
     setPickerTabKey(null);
-    if (pendingAdded) {
-      addedSheetRef.current?.present();
-    }
-  }, [pendingAdded]);
-
-  const handleAddedResolve = useCallback(
-    (checkedIds: string[]) => {
-      if (pendingAdded && subscriptionUid && checkedIds.length > 0) {
-        const topics = checkedIds.map((id) =>
-          buildTopic(pendingAdded.prefix, id),
-        );
-        updateSubscribedTopics(subscriptionUid, { add: topics }).catch((e) => {
-          logHandledError('notifications/cascade-add', e);
-        });
-      }
-      setPendingAdded(null);
-      addedSheetRef.current?.dismiss();
-    },
-    [pendingAdded, subscriptionUid],
-  );
-
-  const handleAddedDismiss = useCallback(() => {
-    // Swipe / backdrop / "Later" — no-op on subscriptions.
-    setPendingAdded(null);
   }, []);
 
   const hasValidTabs = tabs.length > 0;
@@ -275,17 +263,6 @@ export function NoticesTabScreen() {
               onConfirm={handlePickerConfirm}
               onDismiss={handlePickerDismiss}
               title={activePickerTab.label}
-            />
-          )}
-
-          {/* Opt-in sheet presented from the picker's onDismiss, not inline. */}
-          {pendingAdded && (
-            <AddedItemsNotificationSheet
-              ref={addedSheetRef}
-              addedIds={pendingAdded.addedIds}
-              departments={pendingAdded.departments}
-              onResolve={handleAddedResolve}
-              onDismiss={handleAddedDismiss}
             />
           )}
         </>
