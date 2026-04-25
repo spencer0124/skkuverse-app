@@ -20,19 +20,20 @@ describe('parseTabsConfig', () => {
           label: '학과',
           tabMode: 'picker',
           picker: {
-            departments: [
+            sources: [
               { id: 'arch', name: '건축학과', campus: 'nsc' },
               { id: 'biz', name: '경영학과', campus: 'hssc' },
             ],
             maxSelection: 5,
-            defaultDeptIds: [],
+            defaultIds: [],
+            campusDefaultIds: {},
           },
         },
         {
           key: 'academic',
           label: '학사',
           tabMode: 'fixed',
-          fixed: { deptId: 'skku-notice02', name: '성균관대_통합(학사)', campus: 'both' },
+          fixed: { sourceId: 'skku-notice02', name: '성균관대_통합(학사)', campus: 'both' },
         },
       ],
     });
@@ -44,22 +45,23 @@ describe('parseTabsConfig', () => {
     const [picker, fixed] = result.tabs;
     expect(picker.key).toBe('dept');
     expect(picker.tabMode).toBe('picker');
-    expect(picker.picker?.departments).toHaveLength(2);
+    expect(picker.picker?.sources).toHaveLength(2);
     expect(picker.picker?.maxSelection).toBe(5);
-    expect(picker.picker?.defaultDeptIds).toEqual([]);
+    expect(picker.picker?.defaultIds).toEqual([]);
+    expect(picker.picker?.campusDefaultIds).toEqual({ hssc: [], nsc: [] });
 
     expect(fixed.key).toBe('academic');
     expect(fixed.tabMode).toBe('fixed');
-    expect(fixed.fixed?.deptId).toBe('skku-notice02');
+    expect(fixed.fixed?.sourceId).toBe('skku-notice02');
   });
 
   it('skips tabs with unknown tabMode (forward compat)', () => {
     const raw = envelope({
       schemaVersion: 1,
       tabs: [
-        { key: 'academic', label: '학사', tabMode: 'fixed', fixed: { deptId: 'x', name: 'X', campus: 'both' } },
+        { key: 'academic', label: '학사', tabMode: 'fixed', fixed: { sourceId: 'x', name: 'X', campus: 'both' } },
         { key: 'future', label: 'Future', tabMode: 'some-new-mode' },
-        { key: 'dept', label: '학과', tabMode: 'picker', picker: { departments: [], maxSelection: 3, defaultDeptIds: [] } },
+        { key: 'dept', label: '학과', tabMode: 'picker', picker: { sources: [], maxSelection: 3, defaultIds: [], campusDefaultIds: {} } },
       ],
     });
 
@@ -78,8 +80,8 @@ describe('parseTabsConfig', () => {
     const raw = envelope({
       schemaVersion: 1,
       tabs: [
-        { key: '', label: 'No Key', tabMode: 'fixed', fixed: { deptId: 'x', name: 'X', campus: 'both' } },
-        { key: 'valid', label: 'Valid', tabMode: 'fixed', fixed: { deptId: 'y', name: 'Y', campus: 'nsc' } },
+        { key: '', label: 'No Key', tabMode: 'fixed', fixed: { sourceId: 'x', name: 'X', campus: 'both' } },
+        { key: 'valid', label: 'Valid', tabMode: 'fixed', fixed: { sourceId: 'y', name: 'Y', campus: 'nsc' } },
       ],
     });
     const result = parseTabsConfig(raw);
@@ -87,7 +89,7 @@ describe('parseTabsConfig', () => {
     expect(result.tabs[0].key).toBe('valid');
   });
 
-  it('parses picker defaultDeptIds correctly', () => {
+  it('parses defaultIds + campusDefaultIds and filters ghost ids by sources list', () => {
     const raw = envelope({
       schemaVersion: 1,
       tabs: [
@@ -96,15 +98,79 @@ describe('parseTabsConfig', () => {
           label: '도서관',
           tabMode: 'picker',
           picker: {
-            departments: [{ id: 'lib-hssc', name: '학술정보관(인사캠)', campus: 'hssc' }],
+            sources: [
+              { id: 'lib-hssc', name: '중앙학술정보관', campus: 'hssc' },
+              { id: 'lib-nsc', name: '삼성학술정보관', campus: 'nsc' },
+              { id: 'lib-all', name: '학술정보관 본부', campus: 'both' },
+            ],
             maxSelection: 3,
-            defaultDeptIds: ['lib-hssc', 'lib-nsc'],
+            defaultIds: ['lib-all', 'ghost-id'],
+            campusDefaultIds: {
+              hssc: ['lib-hssc', 'another-ghost'],
+              nsc: ['lib-nsc'],
+            },
           },
         },
       ],
     });
-    const result = parseTabsConfig(raw);
-    expect(result.tabs[0].picker?.defaultDeptIds).toEqual(['lib-hssc', 'lib-nsc']);
+    const picker = parseTabsConfig(raw).tabs[0].picker;
+    expect(picker?.defaultIds).toEqual(['lib-all']);
+    expect(picker?.campusDefaultIds).toEqual({
+      hssc: ['lib-hssc'],
+      nsc: ['lib-nsc'],
+    });
+  });
+
+  it('normalizes missing campusDefaultIds to empty hssc/nsc arrays', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'library',
+          label: '도서관',
+          tabMode: 'picker',
+          picker: {
+            sources: [{ id: 'lib-all', name: '본부', campus: null }],
+            maxSelection: 3,
+            defaultIds: ['lib-all'],
+            // campusDefaultIds intentionally omitted
+          },
+        },
+      ],
+    });
+    expect(parseTabsConfig(raw).tabs[0].picker?.campusDefaultIds).toEqual({
+      hssc: [],
+      nsc: [],
+    });
+  });
+
+  it('drops unknown campus keys in campusDefaultIds', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'dorm',
+          label: '기숙사',
+          tabMode: 'picker',
+          picker: {
+            sources: [
+              { id: 'dorm-hssc', name: '명륜학사', campus: 'hssc' },
+              { id: 'dorm-nsc', name: '봉룡학사', campus: 'nsc' },
+            ],
+            maxSelection: 2,
+            defaultIds: [],
+            campusDefaultIds: {
+              hssc: ['dorm-hssc'],
+              future_campus: ['dorm-hssc'],
+            },
+          },
+        },
+      ],
+    });
+    expect(parseTabsConfig(raw).tabs[0].picker?.campusDefaultIds).toEqual({
+      hssc: ['dorm-hssc'],
+      nsc: [],
+    });
   });
 });
 
@@ -114,7 +180,7 @@ describe('parseNoticePage', () => {
       notices: [
         {
           id: '66f0a1b2c3d4e5f6a7b8c9d0',
-          deptId: 'skku-main',
+          sourceId: 'skku-main',
           articleNo: 12345,
           title: '2026학년도 1학기 수강신청 안내',
           category: '학사',
@@ -164,7 +230,7 @@ describe('parseNoticePage', () => {
       notices: [
         {
           id: 'x',
-          deptId: 'skku-main',
+          sourceId: 'skku-main',
           articleNo: 1,
           title: 't',
           category: null,
@@ -194,7 +260,7 @@ describe('parseNoticePage', () => {
       notices: [
         {
           id: 'x',
-          deptId: 'skku-main',
+          sourceId: 'skku-main',
           articleNo: 1,
           title: 't',
           category: null,
@@ -224,7 +290,7 @@ describe('parseNoticePage', () => {
       notices: [
         {
           id: 'x',
-          deptId: 'skku-main',
+          sourceId: 'skku-main',
           articleNo: 1,
           title: 't',
           category: null,
@@ -261,7 +327,7 @@ describe('parseNoticePage', () => {
       notices: [
         {
           id: 'x',
-          deptId: 'skku-main',
+          sourceId: 'skku-main',
           articleNo: 1,
           title: 't',
           category: null,
@@ -288,7 +354,7 @@ describe('parseNoticeDetail', () => {
   it('parses a full notice detail envelope', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 999,
       title: '중요 공지',
       category: '안내',
@@ -337,7 +403,7 @@ describe('parseNoticeDetail', () => {
   it('tolerates null summary and missing optional fields', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -363,7 +429,7 @@ describe('parseNoticeDetail', () => {
   it('parses single period + single location (Sample 1: Samsung 채용설명회)', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -425,7 +491,7 @@ describe('parseNoticeDetail', () => {
   it('parses multi-phase periods + multi-location (Sample 2: 등록금 납부)', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -487,7 +553,7 @@ describe('parseNoticeDetail', () => {
   it('parses deadline-only period with empty locations (Sample 3: 안전교육)', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -540,7 +606,7 @@ describe('parseNoticeDetail', () => {
   it('returns null details when AI returned no structured info', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -574,7 +640,7 @@ describe('parseNoticeDetail', () => {
   it('ignores unknown extra keys inside details (forward-compat)', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -623,7 +689,7 @@ describe('parseNoticeDetail', () => {
   it('parsePeriods returns [] for non-array input', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,
@@ -656,7 +722,7 @@ describe('parseNoticeDetail', () => {
   it('parseLocations filters out entries with empty detail', () => {
     const raw = envelope({
       id: 'abc',
-      deptId: 'skku-main',
+      sourceId: 'skku-main',
       articleNo: 1,
       title: 't',
       category: null,

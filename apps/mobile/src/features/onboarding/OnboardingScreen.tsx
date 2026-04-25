@@ -5,12 +5,13 @@ import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
+  computeOnboardingPickerSeed,
   useNoticeTabs,
   useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
-  type TabDepartment,
+  type TabSource,
 } from '@skkuverse/shared';
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
@@ -107,9 +108,9 @@ export function OnboardingScreen() {
     isError: tabsError,
     refetch: refetchTabs,
   } = useNoticeTabs();
-  const deptList: TabDepartment[] = useMemo(() => {
+  const deptList: TabSource[] = useMemo(() => {
     const deptTab = tabsConfig?.tabs.find((t) => t.key === 'dept');
-    return deptTab?.picker?.departments ?? [];
+    return deptTab?.picker?.sources ?? [];
   }, [tabsConfig]);
 
   // ── Android back handler ──
@@ -234,24 +235,32 @@ export function OnboardingScreen() {
   }, [t]);
 
   // ── Completion (Step 5) ──
-  // Seeds Firestore preferences/main with intent: master ON, notices ON,
-  // dept picker = primary + interests (deduped, capped by server's
-  // dept.picker.maxSelection — no client magic number). The CF
-  // onPreferencesWrite trigger derives subscribedTopics within ~1-3s.
-  // zustand `completeOnboarding` continues to track the local "did this
-  // user finish onboarding?" flag.
+  // Seeds Firestore preferences/main with intent: master ON, notices ON.
+  // pickerSelections per tab:
+  //   - dept: user picks (primary + interests, deduped, capped by server's
+  //     dept.picker.maxSelection — no client magic number).
+  //   - library / dorm: common defaults + campus-specific defaults derived
+  //     from the server's defaultIds + campusDefaultIds (computed via
+  //     computeOnboardingPickerSeed). User can uncheck in Settings later
+  //     (soft default — no UI lock).
+  //   - general (and any other picker tab without defaults): key omitted →
+  //     derive() emits 0 topics rather than an explicit empty-list intent.
+  // The CF onPreferencesWrite trigger derives subscribedTopics within ~1-3s.
+  // zustand `completeOnboarding` continues to track the local "did this user
+  // finish onboarding?" flag.
   const handleComplete = useCallback(async () => {
     if (!state.campus || !state.primaryDeptId) return;
+    const campus: Campus = state.campus;
     const settingsStore = useSettingsStore.getState();
     settingsStore.completeOnboarding({
-      campus: state.campus,
+      campus,
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
     });
 
     const uid = authStore.getState().uid;
     if (uid) {
-      // Compute deduped seed + cap by server maxSelection
+      // dept: user picks (deduped + capped)
       const combined: string[] = [];
       const seen = new Set<string>();
       for (const id of [state.primaryDeptId, ...state.interestDeptIds]) {
@@ -264,8 +273,25 @@ export function OnboardingScreen() {
       const maxPicks = deptTab?.picker?.maxSelection ?? combined.length;
       const seedDeptIds = combined.slice(0, maxPicks);
 
+      const pickerSelections: Record<string, string[]> = { dept: seedDeptIds };
+
+      // library / dorm get campus-aware seeds. Other picker tabs (general)
+      // currently have no defaults configured server-side — omit so the CF
+      // derive trigger emits 0 topics for them rather than persisting an
+      // explicit empty-list intent that would later look like "user opted
+      // out" in the settings UI.
+      for (const seedKey of ['library', 'dorm']) {
+        const tab = tabsConfig?.tabs.find((t) => t.key === seedKey);
+        if (tab) {
+          const seed = computeOnboardingPickerSeed(tab, campus);
+          if (seed.length > 0) {
+            pickerSelections[seedKey] = seed;
+          }
+        }
+      }
+
       try {
-        await seedOnboardingPreferences(uid, seedDeptIds);
+        await seedOnboardingPreferences(uid, pickerSelections);
       } catch (err) {
         // Non-fatal: user can re-toggle in Settings if the write fails.
         logHandledError('onboarding/seed-prefs', err);
@@ -354,7 +380,7 @@ export function OnboardingScreen() {
         return (
           <PrimaryDeptStep
             campus={state.campus!}
-            departments={deptList}
+            sources={deptList}
             selectedId={state.primaryDeptId}
             onSelect={(deptId: string) => dispatch({ type: 'SET_PRIMARY_DEPT', deptId })}
           />
@@ -364,7 +390,7 @@ export function OnboardingScreen() {
           <InterestDeptStep
             campus={state.campus!}
             primaryDeptId={state.primaryDeptId!}
-            departments={deptList}
+            sources={deptList}
             selectedIds={state.interestDeptIds}
             onToggle={(deptId: string) => dispatch({ type: 'TOGGLE_INTEREST_DEPT', deptId })}
           />
@@ -375,7 +401,7 @@ export function OnboardingScreen() {
             campus={state.campus!}
             primaryDeptId={state.primaryDeptId!}
             interestDeptIds={state.interestDeptIds}
-            departments={deptList}
+            sources={deptList}
             loginError={loginError}
           />
         );

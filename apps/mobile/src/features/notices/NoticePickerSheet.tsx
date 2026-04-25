@@ -15,11 +15,11 @@ import {
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import { CheckIcon } from 'phosphor-react-native';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
-import type { TabDepartment } from '@skkuverse/shared';
+import type { TabSource } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
 interface Props {
-  items: TabDepartment[];
+  items: TabSource[];
   selectedIds: string[];
   /**
    * Called on "완료" with the new selection. The parent receives both the
@@ -60,16 +60,16 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
       [selectedIds],
     );
 
-    const handleToggle = useCallback((deptId: string) => {
+    const handleToggle = useCallback((sourceId: string) => {
       setPending((prev) => {
-        if (prev.includes(deptId)) {
+        if (prev.includes(sourceId)) {
           // Enforce min 1
           if (prev.length <= 1) return prev;
-          return prev.filter((id) => id !== deptId);
+          return prev.filter((id) => id !== sourceId);
         }
         // Enforce max 3
         if (prev.length >= maxSelection) return prev;
-        return [...prev, deptId];
+        return [...prev, sourceId];
       });
     }, [maxSelection]);
 

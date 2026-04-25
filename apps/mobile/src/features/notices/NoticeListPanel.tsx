@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import {
   SdsColors,
   useNoticeList,
-  useMultiDeptNoticeList,
+  useMultiSourceNoticeList,
   useSettingsStore,
   useT,
   type AppLanguage,
@@ -24,21 +24,21 @@ import { NoticeEmptyState } from './EmptyState';
 import { groupNoticesByDate } from './utils/groupNotices';
 
 type Props =
-  | { deptId: string; deptIds?: never }
-  | { deptId?: never; deptIds: string[] };
+  | { sourceId: string; sourceIds?: never }
+  | { sourceId?: never; sourceIds: string[] };
 
 export function NoticeListPanel(props: Props) {
-  const multi = 'deptIds' in props && props.deptIds != null;
+  const multi = 'sourceIds' in props && props.sourceIds != null;
   const router = useRouter();
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
 
   const singleResult = useNoticeList({
-    deptId: multi ? '' : props.deptId!,
+    sourceId: multi ? '' : props.sourceId!,
     enabled: !multi,
   });
-  const multiResult = useMultiDeptNoticeList({
-    deptIds: multi ? props.deptIds! : [],
+  const multiResult = useMultiSourceNoticeList({
+    sourceIds: multi ? props.sourceIds! : [],
     enabled: multi,
   });
 
@@ -63,12 +63,12 @@ export function NoticeListPanel(props: Props) {
     [items, lang],
   );
 
-  const navDeptId = multi ? undefined : props.deptId;
+  const navSourceId = multi ? undefined : props.sourceId;
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
-      router.push(`/notices/${navDeptId ?? n.deptId}/${n.articleNo}` as never);
+      router.push(`/notices/${navSourceId ?? n.sourceId}/${n.articleNo}` as never);
     },
-    [router, navDeptId],
+    [router, navSourceId],
   );
 
   const onEndReached = useCallback(() => {

@@ -1,11 +1,11 @@
 /**
- * Paginated notice list query across multiple departments.
+ * Paginated notice list query across multiple sources.
  *
  * Uses cursor-based infinite query. Server contract:
- *   GET /notices?deptIds=a,b&limit=20&type=…&cursor=…
+ *   GET /notices?sourceIds=a,b&limit=20&type=…&cursor=…
  *   → { notices: [...], nextCursor: string | null, hasMore: boolean }
  *
- * deptIds are sorted before joining to guarantee stable cache keys
+ * sourceIds are sorted before joining to guarantee stable cache keys
  * regardless of the order the caller provides them.
  */
 
@@ -19,18 +19,18 @@ export const NOTICE_MULTI_KEY = ['notices', 'multi'] as const;
 
 const PAGE_LIMIT = 20;
 
-export interface UseMultiDeptNoticeListArgs {
-  deptIds: string[];
+export interface UseMultiSourceNoticeListArgs {
+  sourceIds: string[];
   type?: NoticeSummaryType;
   enabled?: boolean;
 }
 
-export function useMultiDeptNoticeList({
-  deptIds,
+export function useMultiSourceNoticeList({
+  sourceIds,
   type,
   enabled = true,
-}: UseMultiDeptNoticeListArgs) {
-  const sortedKey = deptIds.slice().sort().join(',');
+}: UseMultiSourceNoticeListArgs) {
+  const sortedKey = sourceIds.slice().sort().join(',');
 
   return useInfiniteQuery<
     NoticePage,
@@ -44,7 +44,7 @@ export function useMultiDeptNoticeList({
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = {
         limit: PAGE_LIMIT,
-        deptIds: sortedKey,
+        sourceIds: sortedKey,
       };
       if (type) params.type = type;
       if (pageParam) params.cursor = pageParam;
@@ -57,7 +57,7 @@ export function useMultiDeptNoticeList({
       throw result.failure;
     },
     getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined),
-    enabled: enabled && deptIds.length > 0,
+    enabled: enabled && sourceIds.length > 0,
     staleTime: 2 * 60_000,
   });
 }

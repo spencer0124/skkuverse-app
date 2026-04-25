@@ -10,7 +10,7 @@ export type NoticeSummaryType =
   | 'event'
   | 'informational';
 
-export interface Department {
+export interface NoticeSource {
   id: string;
   name: string;
   campus: string | null;
@@ -39,7 +39,7 @@ export interface NoticeListItemSummary {
 
 export interface NoticeListItem {
   id: string;
-  deptId: string;
+  sourceId: string;
   articleNo: number;
   title: string;
   category: string | null;
@@ -117,20 +117,23 @@ export interface NoticeDetailSummary {
 
 // ── Server-driven tab config (GET /notices/tabs) ──
 
-export interface TabDepartment {
+export interface TabSource {
   id: string;
   name: string;
   campus: string | null;
 }
 
 export interface PickerTabConfig {
-  departments: TabDepartment[];
+  sources: TabSource[];
   maxSelection: number;
-  defaultDeptIds: string[];
+  /** Always seeded at onboarding regardless of campus. */
+  defaultIds: string[];
+  /** Campus-conditional: seeded only if user's campus matches the key. */
+  campusDefaultIds: { hssc: string[]; nsc: string[] };
 }
 
 export interface FixedTabConfig {
-  deptId: string;
+  sourceId: string;
   name: string;
   campus: string;
 }
@@ -150,7 +153,7 @@ export interface NoticeTabsConfig {
 
 export interface NoticeDetail {
   id: string;
-  deptId: string;
+  sourceId: string;
   articleNo: number;
   title: string;
   category: string | null;

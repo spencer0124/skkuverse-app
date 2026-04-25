@@ -92,7 +92,7 @@ function parseNoticeListItem(raw: Record<string, unknown>): NoticeListItem {
   const editCount = asNumber(raw.editCount, 0);
   return {
     id: asString(raw.id),
-    deptId: asString(raw.deptId),
+    sourceId: asString(raw.sourceId),
     articleNo: asNumber(raw.articleNo),
     title: asString(raw.title),
     category: asNullableString(raw.category),
@@ -217,27 +217,49 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
 
     if (tabMode === 'picker') {
       const p = asRecord(obj.picker);
-      const rawDepts = Array.isArray(p.departments) ? (p.departments as unknown[]) : [];
+      const rawSources = Array.isArray(p.sources) ? (p.sources as unknown[]) : [];
+      const sources = rawSources.map((s) => {
+        const ss = asRecord(s);
+        return {
+          id: asString(ss.id),
+          name: asString(ss.name),
+          campus: asNullableString(ss.campus),
+        };
+      });
+      const validIds = new Set(sources.map((s) => s.id));
+
+      const defaultIds = Array.isArray(p.defaultIds)
+        ? (p.defaultIds as unknown[]).filter(
+            (x): x is string => typeof x === 'string' && validIds.has(x),
+          )
+        : [];
+
+      // campusDefaultIds: object with optional 'hssc' / 'nsc' arrays. Unknown
+      // keys are dropped, non-array values become []; ids are filtered against
+      // the picker's known source list so a stale config can't seed a ghost id.
+      const rawCampus = asRecord(p.campusDefaultIds);
+      const parseCampusList = (raw: unknown): string[] =>
+        Array.isArray(raw)
+          ? (raw as unknown[]).filter(
+              (x): x is string => typeof x === 'string' && validIds.has(x),
+            )
+          : [];
+
       tab.picker = {
-        departments: rawDepts.map((d) => {
-          const dd = asRecord(d);
-          return {
-            id: asString(dd.id),
-            name: asString(dd.name),
-            campus: asNullableString(dd.campus),
-          };
-        }),
+        sources,
         maxSelection: asNumber(p.maxSelection, 5),
-        defaultDeptIds: Array.isArray(p.defaultDeptIds)
-          ? (p.defaultDeptIds as unknown[]).filter((x): x is string => typeof x === 'string')
-          : [],
+        defaultIds,
+        campusDefaultIds: {
+          hssc: parseCampusList(rawCampus.hssc),
+          nsc: parseCampusList(rawCampus.nsc),
+        },
       };
     }
 
     if (tabMode === 'fixed') {
       const f = asRecord(obj.fixed);
       tab.fixed = {
-        deptId: asString(f.deptId),
+        sourceId: asString(f.sourceId),
         name: asString(f.name),
         campus: asString(f.campus, 'both'),
       };
@@ -250,7 +272,7 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
 }
 
 /**
- * Parses GET /notices/dept/:deptId response.
+ * Parses GET /notices/source/:sourceId response.
  */
 export function parseNoticePage(envelope: ApiEnvelope<unknown>): NoticePage {
   const data = asRecord(envelope.data);
@@ -263,14 +285,14 @@ export function parseNoticePage(envelope: ApiEnvelope<unknown>): NoticePage {
 }
 
 /**
- * Parses GET /notices/:deptId/:articleNo response.
+ * Parses GET /notices/:sourceId/:articleNo response.
  */
 export function parseNoticeDetail(envelope: ApiEnvelope<unknown>): NoticeDetail {
   const data = asRecord(envelope.data);
   const attachments = Array.isArray(data.attachments) ? (data.attachments as unknown[]) : [];
   return {
     id: asString(data.id),
-    deptId: asString(data.deptId),
+    sourceId: asString(data.sourceId),
     articleNo: asNumber(data.articleNo),
     title: asString(data.title),
     category: asNullableString(data.category),

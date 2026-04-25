@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 
 export interface NotificationData {
   type?: string;
-  deptId?: string;
+  sourceId?: string;
   articleNo?: string;
   category?: string;
 }
@@ -23,8 +23,8 @@ export function navigateFromNotification(data: NotificationData | undefined): bo
 
   switch (data.type) {
     case 'notice': {
-      if (!data.deptId || !data.articleNo) return false;
-      router.push(`/notices/${data.deptId}/${data.articleNo}`);
+      if (!data.sourceId || !data.articleNo) return false;
+      router.push(`/notices/${data.sourceId}/${data.articleNo}`);
       return true;
     }
     default:

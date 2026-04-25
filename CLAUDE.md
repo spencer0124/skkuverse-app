@@ -80,7 +80,7 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 ### Notices Feature (`src/features/notices/`)
 
-**Tab layout:** Server-driven via `GET /notices/tabs`. 서버가 탭 종류, 순서, 타입(`fixed`/`picker`), picker 학과 목록, `maxSelection`, `defaultDeptIds`를 모두 내려줌. 현재 9탭: 학과 / 학사 / 장학 / 취업 / 모집 / 행사 / 도서관 / 기숙사 / 일반. `tabMode: "picker"` 탭은 multi-dept picker (BottomSheetModal, multi-select).
+**Tab layout:** Server-driven via `GET /notices/tabs`. 서버가 탭 종류, 순서, 타입(`fixed`/`picker`), picker source 목록, `maxSelection`, `defaultIds` + `campusDefaultIds`를 모두 내려줌. 현재 9탭: 학과 / 학사 / 장학 / 취업 / 모집 / 행사 / 도서관 / 기숙사 / 일반. `tabMode: "picker"` 탭은 multi-source picker (BottomSheetModal, multi-select).
 
 **Markdown rendering:** `react-native-marked` (major in `apps/mobile/package.json`), custom `NoticeRenderer` extending `Renderer`:
 - `image()`: `RefererImage` component — SKKU 이미지 서버의 Referer 요구사항 대응 + dimension hint 기반 shimmer placeholder

@@ -4,11 +4,11 @@
  * Tab configuration (order, types, picker department lists, labels) is
  * fetched from `GET /notices/tabs`. Two tab modes:
  *
- * - `fixed`: single dept, deptId provided by server
+ * - `fixed`: single source, sourceId provided by server
  * - `picker`: user selects 1..N departments via bottom sheet (dept,
  *   library, dorm, general)
  *
- * Department / library / dorm / general selection is persisted in Firestore
+ * Picker (dept / library / dorm / general) selection is persisted in Firestore
  * `users/{uid}/preferences/main.pickerSelections` and synced to all of
  * the user's devices (v5 SSOT). Local zustand subscribes via onSnapshot.
  *
@@ -20,13 +20,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, StyleSheet } from 'react-native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import notifee from '@notifee/react-native';
-import { Bell, BellOff } from 'lucide-react-native';
 import {
   SdsColors,
   resolvePickerSelection,
@@ -36,7 +33,7 @@ import {
   useT,
   type NoticeTab,
 } from '@skkuverse/shared';
-import { Tab, Txt } from '@skkuverse/sds';
+import { Tab } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
 import { NoticePickerSheet } from './NoticePickerSheet';
@@ -46,9 +43,7 @@ import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 
 export function NoticesTabScreen() {
-  const insets = useSafeAreaInsets();
   const { t } = useT();
-  const router = useRouter();
   const { data: tabsConfig, isLoading, isError, refetch } = useNoticeTabs();
   const tabs = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
 
@@ -89,14 +84,11 @@ export function NoticesTabScreen() {
   const sheetRef = useRef<BottomSheetModal>(null);
   const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
 
-  // Picker selections + categoryEnabled both come from Firestore-synced store.
-  // The `?? {}` fallback keeps the screen render-safe in the brief window
-  // between mount and the first onSnapshot pump from useAppInit.
+  // Picker selections come from Firestore-synced store. The `?? {}` fallback
+  // keeps the screen render-safe in the brief window between mount and the
+  // first onSnapshot pump from useAppInit.
   const pickerSelections = useNotificationStore(
     (s) => s.preferences.pickerSelections ?? {},
-  );
-  const noticesCategoryEnabled = useNotificationStore(
-    (s) => s.preferences.categoryEnabled?.notices ?? false,
   );
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
@@ -141,26 +133,7 @@ export function NoticesTabScreen() {
   const hasValidTabs = tabs.length > 0;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Txt typography="t3" fontWeight="bold" color={SdsColors.grey900}>
-          {t('notices.title')}
-        </Txt>
-        <Pressable
-          hitSlop={12}
-          onPress={() => router.push('/notifications/settings' as never)}
-          accessibilityRole="button"
-          accessibilityLabel={t('notifications.settings')}
-          style={styles.headerAction}
-        >
-          {noticesCategoryEnabled ? (
-            <Bell size={22} color={SdsColors.grey700} />
-          ) : (
-            <BellOff size={22} color={SdsColors.grey500} />
-          )}
-        </Pressable>
-      </View>
-
+    <View style={styles.container}>
       {isLoading ? (
         <NoticeListSkeleton />
       ) : isError || !hasValidTabs ? (
@@ -198,7 +171,7 @@ export function NoticesTabScreen() {
                     key={tab.key}
                     style={[styles.panel, !isActive && styles.hidden]}
                   >
-                    <NoticeListPanel deptId={tab.fixed.deptId} />
+                    <NoticeListPanel sourceId={tab.fixed.sourceId} />
                   </View>
                 );
               }
@@ -211,7 +184,7 @@ export function NoticesTabScreen() {
           {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
             <NoticePickerSheet
               ref={sheetRef}
-              items={activePickerTab.picker.departments}
+              items={activePickerTab.picker.sources}
               selectedIds={resolvePickerSelection(
                 activePickerTab,
                 pickerSelections[activePickerTab.key],
@@ -249,7 +222,7 @@ function PickerPanel({
   const selectorLabel = useMemo(
     () =>
       selectedIds
-        .map((id) => tab.picker!.departments.find((d) => d.id === id)?.name ?? id)
+        .map((id) => tab.picker!.sources.find((s) => s.id === id)?.name ?? id)
         .join(', '),
     [selectedIds, tab.picker],
   );
@@ -257,7 +230,7 @@ function PickerPanel({
   return (
     <View style={[styles.panel, !isActive && styles.hidden]}>
       <NoticeSelector label={selectorLabel} onPress={onOpenPicker} />
-      <NoticeListPanel deptIds={selectedIds} />
+      <NoticeListPanel sourceIds={selectedIds} />
     </View>
   );
 }
@@ -266,15 +239,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SdsColors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerAction: {
-    marginLeft: 'auto',
   },
   panels: {
     flex: 1,

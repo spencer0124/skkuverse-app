@@ -36,8 +36,8 @@ export const ApiEndpoints = {
 
   // ── Notices ──
   noticesTabs: () => '/notices/tabs',
-  noticesByDept: (deptId: string) => `/notices/dept/${deptId}`,
+  noticesBySource: (sourceId: string) => `/notices/source/${sourceId}`,
   noticesMulti: () => '/notices',
-  noticeDetail: (deptId: string, articleNo: number) =>
-    `/notices/${deptId}/${articleNo}`,
+  noticeDetail: (sourceId: string, articleNo: number) =>
+    `/notices/${sourceId}/${articleNo}`,
 } as const;

@@ -71,7 +71,7 @@ export interface NoticeNotificationPayload {
   body_ko: string;
   title_en?: string | null;
   body_en?: string | null;
-  deptId?: string;
+  sourceId?: string;
   articleNo?: string;
   category?: string;
 }
