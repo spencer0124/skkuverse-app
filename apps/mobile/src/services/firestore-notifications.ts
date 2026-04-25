@@ -177,6 +177,49 @@ export async function disableNotifications(uid: string): Promise<void> {
     .update({ enabled: false });
 }
 
+// ── v5 SSOT write API (Phase C) ─────────────────────────────────────
+//
+// Three thin wrappers that each issue a single dot-path `update()`.
+// No transactions — Firestore queues writes offline; transactions fail
+// immediately offline (campus wifi sucks, dead spots happen).
+// CF onPreferencesWrite trigger derives `subscribedTopics` server-side
+// from the intent fields these wrappers write. Rules (Phase F) block
+// any client write of `subscribedTopics`/`derivedAt`.
+
+function prefsRef(uid: string) {
+  return firestore()
+    .collection(USERS)
+    .doc(uid)
+    .collection(PREFERENCES)
+    .doc(PREFERENCES_DOC_ID);
+}
+
+export async function setMasterEnabled(
+  uid: string,
+  enabled: boolean,
+): Promise<void> {
+  await primeAppCheck();
+  await prefsRef(uid).update({ enabled });
+}
+
+export async function setCategoryEnabled(
+  uid: string,
+  key: 'essential' | 'services' | 'notices',
+  on: boolean,
+): Promise<void> {
+  await primeAppCheck();
+  await prefsRef(uid).update({ [`categoryEnabled.${key}`]: on });
+}
+
+export async function setPickerSelectionRemote(
+  uid: string,
+  tabKey: string,
+  ids: string[],
+): Promise<void> {
+  await primeAppCheck();
+  await prefsRef(uid).update({ [`pickerSelections.${tabKey}`]: ids });
+}
+
 export async function registerDevice(
   deviceId: string,
   data: DeviceDocument,
