@@ -30,7 +30,7 @@ const ICONS = [
   { tab: 'home', phosphor: 'house' },
   { tab: 'bell', phosphor: 'bell' },
   { tab: 'compass', phosphor: 'compass' },
-  { tab: 'navigation', phosphor: 'navigation-arrow' },
+  { tab: 'path', phosphor: 'path' },
 ];
 
 const BASE_SIZE = 22;

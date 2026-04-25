@@ -5,7 +5,7 @@ import {
   HouseIcon,
   BellIcon,
   CompassIcon,
-  NavigationArrowIcon,
+  PathIcon,
 } from "phosphor-react-native";
 import { Platform, Text } from "react-native";
 import {
@@ -114,8 +114,8 @@ export default function TabLayout() {
         <NativeTabs.Trigger name="transit">
           <Icon
             src={{
-              default: require('../../assets/tab-icons/navigation-outline.png'),
-              selected: require('../../assets/tab-icons/navigation-filled.png'),
+              default: require('../../assets/tab-icons/path-outline.png'),
+              selected: require('../../assets/tab-icons/path-filled.png'),
             }}
           />
           <Label>{t("nav.transit")}</Label>
@@ -219,7 +219,7 @@ export default function TabLayout() {
         options={{
           title: t("nav.transit"),
           tabBarIcon: ({ focused, color }) => (
-            <NavigationArrowIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
+            <PathIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text
