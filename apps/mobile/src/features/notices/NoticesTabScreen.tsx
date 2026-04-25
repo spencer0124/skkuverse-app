@@ -5,10 +5,18 @@
  * fetched from `GET /notices/tabs`. Two tab modes:
  *
  * - `fixed`: single dept, deptId provided by server
- * - `picker`: user selects 1..N departments via bottom sheet
+ * - `picker`: user selects 1..N departments via bottom sheet (dept,
+ *   library, dorm, general)
  *
- * Department / library selection is persisted in settingsStore.pickerSelections
- * keyed by server tab key (e.g. 'dept', 'library').
+ * Department / library / dorm / general selection is persisted in Firestore
+ * `users/{uid}/preferences/main.pickerSelections` and synced to all of
+ * the user's devices (v5 SSOT). Local zustand subscribes via onSnapshot.
+ *
+ * Top-right bell icon: contextual deeplink to NotificationSettingsScreen.
+ * Strikethrough variant when `categoryEnabled.notices === false` — Toss
+ * pattern of "show current state without owning a duplicate UI." Master
+ * toggle is intentionally NOT exposed here; that destructive control
+ * lives only in the global Settings entry.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,15 +26,12 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import notifee from '@notifee/react-native';
-import { Settings } from 'lucide-react-native';
+import { Bell, BellOff } from 'lucide-react-native';
 import {
   SdsColors,
-  buildTopic,
-  pickerPrefixForTabKey,
   resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
-  useSettingsStore,
   useNotificationStore,
   useT,
   type NoticeTab,
@@ -37,7 +42,7 @@ import { NoticeSelector } from './NoticeSelector';
 import { NoticePickerSheet } from './NoticePickerSheet';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
-import { updateSubscribedTopics } from '@/services/firestore-notifications';
+import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 
 export function NoticesTabScreen() {
@@ -84,8 +89,13 @@ export function NoticesTabScreen() {
   const sheetRef = useRef<BottomSheetModal>(null);
   const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
 
-  const pickerSelections = useSettingsStore((s) => s.pickerSelections);
-  const setPickerSelection = useSettingsStore((s) => s.setPickerSelection);
+  // Picker selections + categoryEnabled both come from Firestore-synced store.
+  const pickerSelections = useNotificationStore(
+    (s) => s.preferences.pickerSelections,
+  );
+  const noticesCategoryEnabled = useNotificationStore(
+    (s) => s.preferences.categoryEnabled?.notices ?? false,
+  );
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const subscriptionUid = !isAnonymous ? uid : null;
@@ -97,7 +107,7 @@ export function NoticesTabScreen() {
 
   // Present sheet when pickerTabKey changes to a valid tab
   const activePickerTab = useMemo(
-    () => (pickerTabKey ? tabs.find((t) => t.key === pickerTabKey) : null),
+    () => (pickerTabKey ? tabs.find((tab) => tab.key === pickerTabKey) : null),
     [pickerTabKey, tabs],
   );
 
@@ -107,78 +117,19 @@ export function NoticesTabScreen() {
     }
   }, [activePickerTab]);
 
-  // Picker confirm sync semantics (v4):
-  // - Store update is unconditional — the picker drives the *view* regardless
-  //   of notification state.
-  // - Subscription sync runs only if the tab's notification is currently ON
-  //   (ANY prefix-topic present in Firestore prefs). Under the category-level
-  //   UX the tab toggle covers all picker selections together, so the picker
-  //   edit must add new items AND drop items no longer selected AND clean up
-  //   any stale prefix-topics left over from the v3 per-item UX. We compute
-  //   the full target set via resolvePickerSelection (same source of truth as
-  //   the settings screen) and diff against the live prefix-scoped subset.
+  // v5 SSOT: client writes only intent. CF onPreferencesWrite derives
+  // subscribedTopics. No diff-sync, no resolvePickerSelection roundtrip,
+  // no Guard logic — just persist the user's chosen ids.
   const handlePickerConfirm = useCallback(
     (newIds: string[]) => {
-      if (!pickerTabKey) return;
-      const tab = tabs.find((x) => x.key === pickerTabKey);
-      if (!tab || !tab.picker) return;
-
-      // SSOT update — zustand store. Only writer for pickerSelections.
-      setPickerSelection(pickerTabKey, newIds);
-
-      if (!subscriptionUid) return;
-
-      const prefix = pickerPrefixForTabKey(pickerTabKey);
-      if (!prefix) {
-        if (__DEV__) {
-          console.warn(
-            '[notifications] no topic prefix for picker tab',
-            pickerTabKey,
-          );
-        }
-        return;
-      }
-
-      // Call-time read — avoids a stale closure on the in-flight optimistic
-      // snapshot from rapid successive confirms.
-      const currentTopics =
-        useNotificationStore.getState().preferences.subscribedTopics;
-      const existingForPrefix = currentTopics.filter((topic) =>
-        topic.startsWith(`${prefix}:`),
+      if (!pickerTabKey || !subscriptionUid) return;
+      setPickerSelectionRemote(subscriptionUid, pickerTabKey, newIds).catch(
+        (e) => {
+          logHandledError('notifications/picker-set', e);
+        },
       );
-
-      // Tab is OFF (no prefix-topic present) → picker edit has no subscription
-      // effect. Keep store change, skip the write.
-      if (existingForPrefix.length === 0) return;
-
-      const targetTopics = resolvePickerSelection(tab, newIds).map((id) =>
-        buildTopic(prefix, id),
-      );
-      const targetSet = new Set(targetTopics);
-      const currentSet = new Set(currentTopics);
-
-      const toAdd = targetTopics.filter((topic) => !currentSet.has(topic));
-      const toRemove = existingForPrefix.filter(
-        (topic) => !targetSet.has(topic),
-      );
-
-      // Firestore delta API disallows mixed add+remove in one call, so we
-      // sequence them. Fire-and-forget to keep the sheet dismiss animation
-      // off the network critical path.
-      if (toAdd.length > 0) {
-        updateSubscribedTopics(subscriptionUid, { add: toAdd }).catch((e) => {
-          logHandledError('notifications/picker-sync-add', e);
-        });
-      }
-      if (toRemove.length > 0) {
-        updateSubscribedTopics(subscriptionUid, { remove: toRemove }).catch(
-          (e) => {
-            logHandledError('notifications/picker-sync-remove', e);
-          },
-        );
-      }
     },
-    [pickerTabKey, tabs, setPickerSelection, subscriptionUid],
+    [pickerTabKey, subscriptionUid],
   );
 
   const handlePickerDismiss = useCallback(() => {
@@ -200,7 +151,11 @@ export function NoticesTabScreen() {
           accessibilityLabel={t('notifications.settings')}
           style={styles.headerAction}
         >
-          <Settings size={22} color={SdsColors.grey700} />
+          {noticesCategoryEnabled ? (
+            <Bell size={22} color={SdsColors.grey700} />
+          ) : (
+            <BellOff size={22} color={SdsColors.grey500} />
+          )}
         </Pressable>
       </View>
 

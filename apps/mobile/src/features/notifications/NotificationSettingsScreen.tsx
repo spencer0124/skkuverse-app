@@ -1,28 +1,23 @@
 /**
- * Notification settings — tab-level on/off (v4).
+ * Notification settings — v5 SSOT (Firestore-driven, server-derived).
  *
- * Renders all server tabs (fixed + picker) in the order returned by
- * GET /notices/tabs as a single unified row per tab. Per-sub-item picking
- * (e.g. selecting individual departments/libraries) has been removed from
- * this screen — picker tabs now toggle the union of (user selection ∪ server
- * defaults) as a single subscription set. The picker sheet in the notices tab
- * still exists, but is a view-only filter for the notice list.
+ * Three category toggles + master toggle. Picker sub-row exposes the
+ * user's subscribed departments and a deep entry into NoticePickerSheet
+ * for editing. All UI state is read from `useNotificationStore.preferences`
+ * which is itself fed by an onSnapshot listener — so changes from another
+ * device propagate here automatically.
  *
- *  - Master toggle: preferences.enabled + OS permission request on ON.
- *  - Per-tab toggle:
- *     - fixed  → topic = [`category:${tab.key}`]
- *     - picker → topics = resolvePickerSelection(tab, stored).map(buildTopic)
- *  - isTabEnabled: intersection of target topics with subscribedTopics is
- *    non-empty. This is intentionally lenient — stale partial subscriptions
- *    (e.g. left over from the v3 per-item UX) read as "on" and get fully
- *    re-synchronised on the next toggle flip or notices-tab picker confirm.
+ * Writes use the v5 thin wrappers: setMasterEnabled / setCategoryEnabled /
+ * setPickerSelectionRemote. The CF onPreferencesWrite trigger derives
+ * `subscribedTopics` server-side; clients never write derived fields
+ * (Rules block it from Phase F onward).
  *
- * Writes use `updateSubscribedTopics` delta API (arrayUnion / arrayRemove)
- * for per-call atomicity — the master toggle still uses `updatePreferences`
- * since it writes the `enabled` field, which is orthogonal to the array.
+ * Two entry points to this screen (Toss pattern):
+ *   1. Settings tab → 알림 (global)
+ *   2. NoticesTabScreen → bell icon (deeplink to here, no separate sheet)
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -34,20 +29,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Button, Dialog, ListRow, Switch, Txt } from '@skkuverse/sds';
 import {
-  Button,
-  Dialog,
-  ListRow,
-  Switch,
-  Txt,
-} from '@skkuverse/sds';
-import {
-  MANDATORY_TOPICS,
   SdsColors,
   SdsSpacing,
-  buildTopic,
-  pickerPrefixForTabKey,
   resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
@@ -55,19 +42,21 @@ import {
   useSettingsStore,
   useT,
   type NoticeTab,
-  type PreferencesDocument,
   type TranslationKey,
 } from '@skkuverse/shared';
 import {
-  updatePreferences,
-  updateSubscribedTopics,
+  setCategoryEnabled,
+  setMasterEnabled,
+  setPickerSelectionRemote,
 } from '@/services/firestore-notifications';
 import {
   checkPermission,
   requestPermission,
 } from '@/services/messaging';
-import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { logHandledError } from '@/services/crashlytics';
+import { NoticePickerSheet } from '@/features/notices/NoticePickerSheet';
+
+const DEPT_TAB_KEY = 'dept';
 
 export default function NotificationSettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -76,33 +65,18 @@ export default function NotificationSettingsScreen() {
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const appLanguage = useSettingsStore((s) => s.appLanguage);
-  const pickerSelections = useSettingsStore((s) => s.pickerSelections);
+  const preferences = useNotificationStore((s) => s.preferences);
   const permissionStatus = useNotificationStore((s) => s.permissionStatus);
   const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
 
   const authReady = !!uid && !isAnonymous;
 
-  const { prefs, loading: prefsLoading } = useNotificationPreferences(
-    authReady ? uid : null,
-  );
   const {
     data: tabsConfig,
     isLoading: tabsLoading,
     isError: tabsError,
     refetch: refetchTabs,
   } = useNoticeTabs();
-
-  const [localPrefs, setLocalPrefs] = useState<PreferencesDocument>({
-    enabled: false,
-    categoryEnabled: { essential: false, services: false, notices: false },
-    pickerSelections: {},
-    subscribedTopics: [...MANDATORY_TOPICS],
-    derivedAt: null,
-  });
-
-  useEffect(() => {
-    if (prefs) setLocalPrefs(prefs);
-  }, [prefs]);
 
   useFocusEffect(
     useCallback(() => {
@@ -117,11 +91,11 @@ export default function NotificationSettingsScreen() {
   );
 
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const sheetRef = useRef<BottomSheetModal>(null);
 
   const handleToggleMaster = useCallback(
     async (nextValue: boolean) => {
       if (!uid) return;
-
       if (nextValue) {
         const status = await requestPermission();
         setPermissionStatus(status);
@@ -129,106 +103,72 @@ export default function NotificationSettingsScreen() {
           setShowPermissionDialog(true);
           return;
         }
-        const next: PreferencesDocument = {
-          ...localPrefs,
-          enabled: true,
-        };
-        setLocalPrefs(next);
-        try {
-          await updatePreferences(uid, next);
-        } catch (err) {
-          logHandledError('notifications/update-preferences', err);
-        }
-      } else {
-        const next: PreferencesDocument = {
-          ...localPrefs,
-          enabled: false,
-        };
-        setLocalPrefs(next);
-        try {
-          await updatePreferences(uid, next);
-        } catch (err) {
-          logHandledError('notifications/update-preferences', err);
-        }
       }
-    },
-    [uid, localPrefs, setPermissionStatus],
-  );
-
-  // Compute the topic set backing a single tab row.
-  // Picker tabs fan out to the resolved selection (user picks ∪ server
-  // defaults ∪ first-dept fallback) — the same set NoticesTabScreen renders,
-  // so the tab toggle is a promise about every item the user can see.
-  const topicsForTab = useCallback(
-    (tab: NoticeTab): string[] => {
-      if (tab.tabMode === 'fixed') {
-        return [buildTopic('category', tab.key)];
-      }
-      if (tab.tabMode === 'picker') {
-        const prefix = pickerPrefixForTabKey(tab.key);
-        if (!prefix) {
-          if (__DEV__) {
-            console.warn(
-              '[notifications] no topic prefix for picker tab',
-              tab.key,
-            );
-          }
-          return [];
-        }
-        return resolvePickerSelection(tab, pickerSelections[tab.key]).map(
-          (id) => buildTopic(prefix, id),
-        );
-      }
-      return [];
-    },
-    [pickerSelections],
-  );
-
-  const isTabEnabled = useCallback(
-    (tab: NoticeTab): boolean => {
-      const targets = topicsForTab(tab);
-      if (targets.length === 0) return false;
-      const subs = new Set(localPrefs.subscribedTopics);
-      return targets.some((topic) => subs.has(topic));
-    },
-    [topicsForTab, localPrefs.subscribedTopics],
-  );
-
-  const handleToggleTab = useCallback(
-    async (tab: NoticeTab, nextValue: boolean) => {
-      if (!uid) return;
-      const targets = topicsForTab(tab);
-      if (targets.length === 0) return;
-
-      // Optimistic local update so the switch settles without awaiting the
-      // round-trip. onSnapshot reconciliation will overwrite on error.
-      const nextSet = new Set(localPrefs.subscribedTopics);
-      if (nextValue) {
-        targets.forEach((topic) => nextSet.add(topic));
-      } else {
-        targets.forEach((topic) => nextSet.delete(topic));
-      }
-      setLocalPrefs({
-        ...localPrefs,
-        subscribedTopics: [...nextSet],
-      });
-
       try {
-        if (nextValue) {
-          await updateSubscribedTopics(uid, { add: targets });
-        } else {
-          await updateSubscribedTopics(uid, { remove: targets });
-        }
+        await setMasterEnabled(uid, nextValue);
       } catch (err) {
-        logHandledError('notifications/tab-toggle', err);
+        logHandledError('notifications/set-master', err);
       }
     },
-    [uid, localPrefs, topicsForTab],
+    [uid, setPermissionStatus],
   );
 
-  const tabs: NoticeTab[] = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
-  const masterOff = !localPrefs.enabled;
-  const subsectionsDisabled = masterOff || prefsLoading;
+  const handleToggleCategory = useCallback(
+    async (key: 'essential' | 'services' | 'notices', nextValue: boolean) => {
+      if (!uid) return;
+      try {
+        await setCategoryEnabled(uid, key, nextValue);
+      } catch (err) {
+        logHandledError('notifications/set-category', err);
+      }
+    },
+    [uid],
+  );
+
+  // ── Dept picker sheet ─────────────────────────────────────────────
+  const deptTab = useMemo<NoticeTab | undefined>(
+    () => tabsConfig?.tabs.find((tab) => tab.key === DEPT_TAB_KEY),
+    [tabsConfig],
+  );
+
+  const subscribedDeptIds = useMemo(
+    () =>
+      deptTab
+        ? resolvePickerSelection(
+            deptTab,
+            preferences.pickerSelections[DEPT_TAB_KEY],
+          )
+        : [],
+    [deptTab, preferences.pickerSelections],
+  );
+
+  const subscribedDeptNames = useMemo(() => {
+    if (!deptTab?.picker) return [];
+    const map = new Map(
+      deptTab.picker.departments.map((d) => [d.id, d.name]),
+    );
+    return subscribedDeptIds.map((id) => map.get(id) ?? id);
+  }, [deptTab, subscribedDeptIds]);
+
+  const openDeptPicker = useCallback(() => {
+    sheetRef.current?.present();
+  }, []);
+
+  const handlePickerConfirm = useCallback(
+    async (newIds: string[]) => {
+      if (!uid) return;
+      try {
+        await setPickerSelectionRemote(uid, DEPT_TAB_KEY, newIds);
+      } catch (err) {
+        logHandledError('notifications/set-picker', err);
+      }
+    },
+    [uid],
+  );
+
+  const masterOff = !preferences.enabled;
+  const categoryDisabled = masterOff;
+  const noticesEnabled = preferences.categoryEnabled?.notices === true;
 
   if (!authReady) {
     return (
@@ -242,7 +182,10 @@ export default function NotificationSettingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
+      <ScreenHeader
+        title={t('notifications.settings')}
+        onBack={() => router.back()}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {appLanguage === 'zh' && (
@@ -264,42 +207,69 @@ export default function NotificationSettingsScreen() {
           }
           right={
             <Switch
-              checked={localPrefs.enabled}
+              checked={preferences.enabled}
               onCheckedChange={handleToggleMaster}
-              disabled={prefsLoading}
             />
           }
         />
 
-        {/* One unified row per server tab — picker vs fixed distinction is
-            absorbed by topicsForTab(). */}
-        {tabs.map((tab) => {
-          if (tab.tabMode !== 'fixed' && tab.tabMode !== 'picker') {
-            if (__DEV__) {
-              console.warn(
-                '[notifications] unsupported tabMode:',
-                (tab as { tabMode?: string }).tabMode,
-                tab.key,
-              );
-            }
-            return null;
-          }
-          const targets = topicsForTab(tab);
-          const mandatoryForTab = targets.some((topic) =>
-            MANDATORY_TOPICS.includes(topic),
-          );
-          return (
-            <TabRow
-              key={tab.key}
-              tab={tab}
-              checked={mandatoryForTab || isTabEnabled(tab)}
-              onToggle={(v) => handleToggleTab(tab, v)}
-              disabled={mandatoryForTab || subsectionsDisabled}
-              sectionStyle={subsectionsDisabled ? styles.sectionDisabled : undefined}
-              bottomLabel={mandatoryForTab ? t('notifications.mandatory') : undefined}
-            />
-          );
-        })}
+        {/* Three categories */}
+        <CategoryRow
+          label={t('notifications.essential')}
+          checked={preferences.categoryEnabled?.essential ?? false}
+          disabled={categoryDisabled}
+          onToggle={(v) => handleToggleCategory('essential', v)}
+        />
+        <CategoryRow
+          label={t('notifications.services')}
+          checked={preferences.categoryEnabled?.services ?? false}
+          disabled={categoryDisabled}
+          onToggle={(v) => handleToggleCategory('services', v)}
+        />
+        <CategoryRow
+          label={t('notifications.notices')}
+          checked={noticesEnabled}
+          disabled={categoryDisabled}
+          onToggle={(v) => handleToggleCategory('notices', v)}
+        />
+
+        {/* Notices sub-section: subscribed depts + edit entry */}
+        {noticesEnabled && deptTab?.picker && (
+          <View
+            style={[
+              styles.subSection,
+              categoryDisabled && styles.disabledOpacity,
+            ]}
+          >
+            <Txt
+              typography="t7"
+              color={SdsColors.grey600}
+              style={styles.subSectionLabel}
+            >
+              {t('notifications.subscribedDepts')}
+            </Txt>
+            {subscribedDeptNames.map((name, idx) => (
+              <View key={`${name}-${idx}`} style={styles.subRow}>
+                <Txt typography="t6" color={SdsColors.grey900}>
+                  • {name}
+                </Txt>
+              </View>
+            ))}
+            <Pressable
+              onPress={openDeptPicker}
+              disabled={categoryDisabled}
+              style={({ pressed }) => [
+                styles.editRow,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Txt typography="t6" color={SdsColors.grey900}>
+                {t('notifications.editDept')}
+              </Txt>
+              <ChevronRight size={20} color={SdsColors.grey600} />
+            </Pressable>
+          </View>
+        )}
 
         {tabsError && !tabsLoading && (
           <View style={styles.retryBlock}>
@@ -319,6 +289,18 @@ export default function NotificationSettingsScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Picker sheet — bound to dept tab for the Settings entry */}
+      {deptTab?.picker && (
+        <NoticePickerSheet
+          ref={sheetRef}
+          items={deptTab.picker.departments}
+          selectedIds={subscribedDeptIds}
+          maxSelection={deptTab.picker.maxSelection}
+          onConfirm={handlePickerConfirm}
+          title={deptTab.label}
+        />
+      )}
 
       <Dialog.Confirm
         open={showPermissionDialog}
@@ -357,37 +339,23 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-// ── Row / section components ──
+// ── Sub-components ──────────────────────────────────────────────────
 
-function TabRow({
-  tab,
+function CategoryRow({
+  label,
   checked,
-  onToggle,
   disabled,
-  sectionStyle,
-  bottomLabel,
+  onToggle,
 }: {
-  tab: NoticeTab;
+  label: string;
   checked: boolean;
-  onToggle: (next: boolean) => void;
   disabled: boolean;
-  sectionStyle: object | undefined;
-  bottomLabel: string | undefined;
+  onToggle: (next: boolean) => void;
 }) {
   return (
-    <View style={[styles.section, sectionStyle]}>
+    <View style={[styles.section, disabled && styles.disabledOpacity]}>
       <ListRow
-        contents={
-          bottomLabel ? (
-            <ListRow.Texts
-              type="2RowTypeA"
-              top={tab.label}
-              bottom={bottomLabel}
-            />
-          ) : (
-            <ListRow.Texts type="1RowTypeA" top={tab.label} />
-          )
-        }
+        contents={<ListRow.Texts type="1RowTypeA" top={label} />}
         right={
           <Switch
             checked={checked}
@@ -498,8 +466,31 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 8,
   },
-  sectionDisabled: {
+  disabledOpacity: {
     opacity: 0.4,
+  },
+  subSection: {
+    marginTop: 4,
+    marginHorizontal: 16,
+    paddingLeft: SdsSpacing.lg,
+    paddingVertical: SdsSpacing.sm,
+    gap: SdsSpacing.xs,
+  },
+  subSectionLabel: {
+    paddingTop: SdsSpacing.xs,
+    paddingBottom: SdsSpacing.xs,
+  },
+  subRow: {
+    paddingVertical: 4,
+  },
+  editRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: SdsSpacing.sm,
+  },
+  pressed: {
+    opacity: 0.6,
   },
   retryBlock: {
     alignItems: 'center',

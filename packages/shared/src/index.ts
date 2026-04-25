@@ -60,8 +60,6 @@ export {
   TopicPrefix,
   buildTopic,
   parseTopic,
-  pickerPrefixForTabKey,
-  MANDATORY_TOPICS,
 } from './constants/topics';
 export type { TopicPrefixValue } from './constants/topics';
 export { useNotificationStore, notificationStore } from './store/notifications';

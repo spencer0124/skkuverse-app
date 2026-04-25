@@ -2,7 +2,6 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
 import appCheck from '@react-native-firebase/app-check';
-import { MANDATORY_TOPICS } from '@skkuverse/shared';
 import type {
   DeviceDocument,
   PreferencesDocument,
@@ -37,12 +36,20 @@ async function primeAppCheck(): Promise<void> {
 }
 
 /**
- * Firestore service for the push-notification subsystem (Phase 2, option D).
+ * Firestore service for the push-notification subsystem (v5 SSOT, option D).
  *
  * Pattern mirrors services/analytics.ts — thin wrappers around the Firebase SDK.
  * Callers are expected to handle errors; this module does not swallow them
  * because useAppInit wraps bootstrap calls in withRetry() and reports to
  * Crashlytics on exhaustion.
+ *
+ * v5 design (2026-04-25):
+ * - Clients write only intent: enabled / categoryEnabled / pickerSelections.
+ * - The Cloud Function `onPreferencesWrite` derives `subscribedTopics`
+ *   server-side; Firestore Rules (Phase F) block client writes of derived
+ *   fields. The three `set*` wrappers below are the only client write API.
+ * - No transactions — Firestore queues writes offline, transactions fail
+ *   immediately offline (campus wifi sucks, dead spots happen).
  *
  * No `notifications` collection — option D. Only users / preferences / devices.
  */
@@ -51,6 +58,14 @@ const USERS = 'users';
 const PREFERENCES = 'preferences';
 const PREFERENCES_DOC_ID = 'main';
 const DEVICES = 'devices';
+
+function prefsRef(uid: string) {
+  return firestore()
+    .collection(USERS)
+    .doc(uid)
+    .collection(PREFERENCES)
+    .doc(PREFERENCES_DOC_ID);
+}
 
 // ── Reads ────────────────────────────────────────────────────────
 
@@ -63,12 +78,7 @@ export async function getUserDoc(uid: string): Promise<UserDocument | null> {
 export async function getPreferences(
   uid: string,
 ): Promise<PreferencesDocument | null> {
-  const snap = await firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID)
-    .get();
+  const snap = await prefsRef(uid).get();
   if (!snap.exists()) return null;
   return snap.data() as PreferencesDocument;
 }
@@ -84,114 +94,6 @@ export async function updateUserLocale(
     .collection(USERS)
     .doc(uid)
     .set({ locale } satisfies UserDocument, { merge: true });
-}
-
-export async function updatePreferences(
-  uid: string,
-  prefs: PreferencesDocument,
-): Promise<void> {
-  await primeAppCheck();
-  const mergedTopics = [
-    ...new Set([...prefs.subscribedTopics, ...MANDATORY_TOPICS]),
-  ];
-  const payload: PreferencesDocument = {
-    ...prefs,
-    subscribedTopics: mergedTopics,
-  };
-  await firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID)
-    .set(payload);
-}
-
-/**
- * Discriminated union — exactly one of `add` or `remove` per call. Per-call
- * atomic via Firestore `arrayUnion`/`arrayRemove` sentinels. Prevents the
- * "last-writer-wins" lost update race that full-array replace would incur
- * when the caller's `prefs` snapshot is a stale realtime listener value.
- *
- * No in-function sequencing — sequencing a union-then-remove across two
- * `update()` calls is NOT atomic at the document level, so the API shape
- * forbids callers from even asking for it.
- */
-export type SubscribedTopicsDelta =
-  | { add: string[]; remove?: never }
-  | { add?: never; remove: string[] };
-
-export async function updateSubscribedTopics(
-  uid: string,
-  delta: SubscribedTopicsDelta,
-): Promise<void> {
-  const docRef = firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID);
-
-  if ('add' in delta && delta.add && delta.add.length > 0) {
-    await primeAppCheck();
-    await docRef.update({
-      subscribedTopics: firestore.FieldValue.arrayUnion(...delta.add),
-    });
-    return;
-  }
-
-  if ('remove' in delta && delta.remove && delta.remove.length > 0) {
-    const mandatoryConflict = delta.remove.filter((t) =>
-      MANDATORY_TOPICS.includes(t),
-    );
-    if (mandatoryConflict.length > 0) {
-      if (__DEV__) {
-        throw new Error(
-          `[firestore-notifications] attempted to remove mandatory topics: ${mandatoryConflict.join(', ')}`,
-        );
-      }
-      logHandledError(
-        'notifications/mandatory-remove-attempt',
-        new Error(`mandatory removal attempt: ${mandatoryConflict.join(', ')}`),
-      );
-    }
-    const safeRemove = delta.remove.filter(
-      (t) => !MANDATORY_TOPICS.includes(t),
-    );
-    if (safeRemove.length === 0) return;
-
-    await primeAppCheck();
-    await docRef.update({
-      subscribedTopics: firestore.FieldValue.arrayRemove(...safeRemove),
-    });
-    return;
-  }
-  // Empty delta — no-op.
-}
-
-export async function disableNotifications(uid: string): Promise<void> {
-  await primeAppCheck();
-  await firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID)
-    .update({ enabled: false });
-}
-
-// ── v5 SSOT write API (Phase C) ─────────────────────────────────────
-//
-// Three thin wrappers that each issue a single dot-path `update()`.
-// No transactions — Firestore queues writes offline; transactions fail
-// immediately offline (campus wifi sucks, dead spots happen).
-// CF onPreferencesWrite trigger derives `subscribedTopics` server-side
-// from the intent fields these wrappers write. Rules (Phase F) block
-// any client write of `subscribedTopics`/`derivedAt`.
-
-function prefsRef(uid: string) {
-  return firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID);
 }
 
 export async function setMasterEnabled(
@@ -218,6 +120,29 @@ export async function setPickerSelectionRemote(
 ): Promise<void> {
   await primeAppCheck();
   await prefsRef(uid).update({ [`pickerSelections.${tabKey}`]: ids });
+}
+
+/**
+ * Onboarding completion seed (Phase E).
+ *
+ * Replaces the doc with explicit intent defaults: master ON, essential +
+ * notices ON, services OFF, dept picker seeded from onboarding choices.
+ * `subscribedTopics: []` — the CF onPreferencesWrite trigger fills it in
+ * within 1~3s after this write lands.
+ */
+export async function seedOnboardingPreferences(
+  uid: string,
+  deptIds: string[],
+): Promise<void> {
+  await primeAppCheck();
+  const seed: PreferencesDocument = {
+    enabled: true,
+    categoryEnabled: { essential: true, services: false, notices: true },
+    pickerSelections: { dept: deptIds },
+    subscribedTopics: [],
+    derivedAt: null,
+  };
+  await prefsRef(uid).set(seed);
 }
 
 export async function registerDevice(
@@ -252,23 +177,18 @@ export function onPreferencesChanged(
   uid: string,
   callback: (prefs: PreferencesDocument | null) => void,
 ): () => void {
-  return firestore()
-    .collection(USERS)
-    .doc(uid)
-    .collection(PREFERENCES)
-    .doc(PREFERENCES_DOC_ID)
-    .onSnapshot(
-      (snap: FirebaseFirestoreTypes.DocumentSnapshot) => {
-        if (!snap.exists()) {
-          callback(null);
-          return;
-        }
-        callback(snap.data() as PreferencesDocument);
-      },
-      (err) => {
-        logHandledError('notifications/onSnapshot', err);
-      },
-    );
+  return prefsRef(uid).onSnapshot(
+    (snap: FirebaseFirestoreTypes.DocumentSnapshot) => {
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+      callback(snap.data() as PreferencesDocument);
+    },
+    (err) => {
+      logHandledError('notifications/onSnapshot', err);
+    },
+  );
 }
 
 // ── Bootstrap orchestration ──────────────────────────────────────
@@ -283,50 +203,51 @@ interface BootstrapParams {
 }
 
 /**
- * Phase 2.6 orchestration — called once from useAppInit per launch.
+ * Bootstrap orchestration — called once from useAppInit per launch.
  *
  * 1. Parallel read of users/{uid} and users/{uid}/preferences/main
- * 2. If either missing, create both (in parallel) using the OS locale /
- *    MANDATORY_TOPICS defaults
- * 3. Register/refresh devices/{deviceId} with the latest token + locale +
- *    subscribedTopics + notificationsEnabled copies (query-optimization
- *    replication of preferences fields and users.locale)
+ * 2. Lazily seed missing user/preferences with intent-only defaults.
+ *    The CF onPreferencesWrite derives subscribedTopics on first write.
+ *    Onboarding writes its own seed (Phase E) which supersedes this minimal
+ *    default; this branch handles app reinstalls or anon→Google transitions
+ *    where onboarding doesn't run.
+ * 3. Register/refresh devices/{deviceId} with replicated subscribedTopics +
+ *    notificationsEnabled fields (query-optimization replicas; CF
+ *    syncPreferencesToDevices keeps them in sync after derive runs).
  */
 export async function initializeFirestoreNotifications(
   params: BootstrapParams,
 ): Promise<void> {
   const { uid, deviceId, token, platform, appVersion, osLocale } = params;
 
-  // 1. Parallel read — existing prefs override new defaults; locale is
-  //    always refreshed from the OS below (users/{uid}.locale tracks the
-  //    current device's top preference, not a one-time snapshot).
   const [userDoc, prefsDoc] = await Promise.all([
     getUserDoc(uid),
     getPreferences(uid),
   ]);
 
-  // 2. Locale: always sync to current OS detection on each launch.
-  //    prefs: create defaults only if missing (respects user toggles from Phase 3 UI).
   const bootstrap: Promise<void>[] = [];
   if (userDoc?.locale !== osLocale) {
     bootstrap.push(updateUserLocale(uid, osLocale));
   }
+
   const defaultPrefs: PreferencesDocument = {
     enabled: false,
     categoryEnabled: { essential: false, services: false, notices: false },
     pickerSelections: {},
-    subscribedTopics: [...MANDATORY_TOPICS],
+    subscribedTopics: [],
     derivedAt: null,
   };
   if (!prefsDoc) {
-    bootstrap.push(updatePreferences(uid, defaultPrefs));
+    // Use full set with merge:false to create the doc with the v5 shape.
+    // Rules (Phase F) require subscribedTopics to be empty on create —
+    // defaultPrefs.subscribedTopics = [] satisfies this.
+    await primeAppCheck();
+    bootstrap.push(prefsRef(uid).set(defaultPrefs));
   }
   if (bootstrap.length > 0) {
     await Promise.all(bootstrap);
   }
 
-  // 3. Device registration with replicated fields — locale mirrors the OS,
-  //    not a stale cached userDoc value (that was the ko-sticky bug).
   const finalPrefs: PreferencesDocument = prefsDoc ?? defaultPrefs;
 
   await registerDevice(deviceId, {
