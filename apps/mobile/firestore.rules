@@ -33,18 +33,29 @@ service cloud.firestore {
       match /preferences/main {
         allow read: if request.auth != null && request.auth.uid == uid;
 
+        // ESSENTIAL LOCK — categoryEnabled.essential 은 항상 true 여야 함.
+        // UI lock + CF derive override + 이 Rules 의 3중 방어. legacy 사용자
+        // 없는 단계라 단순 형태 — 어떤 write 든 essential != true 면 거부.
         allow create: if request.auth != null
                       && request.auth.uid == uid
                       && (
                         !('subscribedTopics' in request.resource.data) ||
                         request.resource.data.subscribedTopics.size() == 0
+                      )
+                      && (
+                        !('categoryEnabled' in request.resource.data) ||
+                        request.resource.data.categoryEnabled.essential == true
                       );
 
         allow update: if request.auth != null
                       && request.auth.uid == uid
                       && !request.resource.data.diff(resource.data)
                             .affectedKeys()
-                            .hasAny(['subscribedTopics', 'derivedAt']);
+                            .hasAny(['subscribedTopics', 'derivedAt'])
+                      && (
+                        !('categoryEnabled' in request.resource.data) ||
+                        request.resource.data.categoryEnabled.essential == true
+                      );
 
         allow delete: if false;
       }

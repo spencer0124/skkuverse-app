@@ -276,7 +276,8 @@ const prefsRef = (ctx, uid) =>
 
 const intentDoc = (overrides = {}) => ({
   enabled: false,
-  categoryEnabled: { essential: false, services: false, notices: false },
+  // essential 은 항상 true (UI lock + CF derive override + Rules block 의 Rules 측).
+  categoryEnabled: { essential: true, services: false, notices: false },
   noticeTabEnabled: {},
   pickerSelections: {},
   subscribedTopics: [],
@@ -408,5 +409,38 @@ describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () =>
     });
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertFails(prefsRef(ctx, 'uid-1').delete());
+  });
+
+  // ── ESSENTIAL LOCK — categoryEnabled.essential must always be true ─
+
+  test('owner creates preferences with categoryEnabled.essential = false → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').set(
+        intentDoc({
+          categoryEnabled: { essential: false, services: false, notices: false },
+        }),
+      ),
+    );
+  });
+
+  test('owner updates categoryEnabled.essential = false → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({ 'categoryEnabled.essential': false }),
+    );
+  });
+
+  test('owner updates categoryEnabled.essential = true (idempotent) → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'categoryEnabled.essential': true }),
+    );
   });
 });

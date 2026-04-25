@@ -344,6 +344,25 @@ const ko = {
   'notifications.zhHint': '중국어 알림은 준비 중이에요. 지금은 영어로 전송돼요',
   'notifications.loadError': '알림 설정을 불러오지 못했어요',
   'notifications.retry': '다시 시도',
+  // ── Phase 5 detail screens — BadgeNavRow drill-in ──
+  'notifications.essentialSubtitle': '안전·인증 알림',
+  'notifications.servicesSubtitle': '앱 업데이트·공지',
+  'notifications.noticesSubtitle': '학과·도서관·기숙사 등 9개 탭',
+  'notifications.essentialDetailSwitchLabel': '필수 알림 받기',
+  'notifications.essentialDetailDesc': '안전·인증 등 끌 수 없는 알림에 대한 설정이에요',
+  'notifications.essentialLockedTitle': '필수 알림은 끌 수 없어요',
+  'notifications.essentialLockedBody':
+    '계정 보안과 본인 인증과 관련된 알림으로, 사용자 보호를 위해 항상 켜져 있어요.',
+  'notifications.servicesDetailSwitchLabel': '서비스 알림 받기',
+  'notifications.servicesDetailDesc': '앱 업데이트·점검 안내 등 운영 관련 알림',
+  'notifications.servicesIncludesTitle': '포함되는 알림',
+  'notifications.servicesIncludes1': '새 기능 안내',
+  'notifications.servicesIncludes2': '정기 점검 일정',
+  'notifications.servicesIncludes3': '중요한 운영 공지',
+  'notifications.noticesDetailSwitchLabel': '공지 알림 받기',
+  'notifications.noticesDetailDesc': '구독 중인 학과·도서관·기숙사·일반 공지',
+  'notifications.masterOffHint': '전체 알림이 꺼져 있어요. 알림을 받으려면 먼저 전체 알림을 켜주세요.',
+  'notifications.noticesCategoryOffHint': '공지 카테고리가 꺼져 있어 알림이 오지 않아요.',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -623,6 +642,30 @@ const en: TranslationMap = {
   'notifications.zhHint': 'Chinese notifications are coming soon — you\'ll get English for now',
   'notifications.loadError': 'Could not load notification settings',
   'notifications.retry': 'Retry',
+  // ── Phase 5 detail screens ──
+  'notifications.essentialSubtitle': 'Security & verification',
+  'notifications.servicesSubtitle': 'App updates & announcements',
+  'notifications.noticesSubtitle': '9 tabs — dept, library, dorms…',
+  'notifications.essentialDetailSwitchLabel': 'Receive essential alerts',
+  'notifications.essentialDetailDesc':
+    'Settings for alerts that cannot be turned off, such as safety and verification',
+  'notifications.essentialLockedTitle': 'Essential alerts cannot be turned off',
+  'notifications.essentialLockedBody':
+    'These alerts relate to account security and identity verification, so they are always on to protect you.',
+  'notifications.servicesDetailSwitchLabel': 'Receive service alerts',
+  'notifications.servicesDetailDesc':
+    'App updates, maintenance notices, and other operational alerts',
+  'notifications.servicesIncludesTitle': 'What\'s included',
+  'notifications.servicesIncludes1': 'New feature announcements',
+  'notifications.servicesIncludes2': 'Scheduled maintenance',
+  'notifications.servicesIncludes3': 'Important operational notices',
+  'notifications.noticesDetailSwitchLabel': 'Receive notice alerts',
+  'notifications.noticesDetailDesc':
+    'Notices you\'ve subscribed to — department, library, dorms, general',
+  'notifications.masterOffHint':
+    'All notifications are off. Turn on the master switch first to receive any alerts.',
+  'notifications.noticesCategoryOffHint':
+    'The notices category is off — no notice alerts will be delivered.',
 };
 
 const zh: TranslationMap = {
@@ -898,6 +941,24 @@ const zh: TranslationMap = {
   'notifications.zhHint': '中文通知准备中 — 暂时以英文发送',
   'notifications.loadError': '无法加载通知设置',
   'notifications.retry': '重试',
+  // ── Phase 5 detail screens ──
+  'notifications.essentialSubtitle': '安全·身份验证',
+  'notifications.servicesSubtitle': '应用更新·公告',
+  'notifications.noticesSubtitle': '院系·图书馆·宿舍等 9 个标签',
+  'notifications.essentialDetailSwitchLabel': '接收必要通知',
+  'notifications.essentialDetailDesc': '关于安全·身份验证等无法关闭的通知设置',
+  'notifications.essentialLockedTitle': '必要通知无法关闭',
+  'notifications.essentialLockedBody': '这些通知涉及账号安全与身份验证，为保护用户始终保持开启。',
+  'notifications.servicesDetailSwitchLabel': '接收服务通知',
+  'notifications.servicesDetailDesc': '应用更新·维护通知等运营相关消息',
+  'notifications.servicesIncludesTitle': '包含的通知',
+  'notifications.servicesIncludes1': '新功能介绍',
+  'notifications.servicesIncludes2': '定期维护计划',
+  'notifications.servicesIncludes3': '重要运营公告',
+  'notifications.noticesDetailSwitchLabel': '接收公告通知',
+  'notifications.noticesDetailDesc': '已订阅的院系·图书馆·宿舍·一般公告',
+  'notifications.masterOffHint': '通知总开关已关闭。要接收通知，请先打开总开关。',
+  'notifications.noticesCategoryOffHint': '公告分类已关闭，将不会收到任何公告通知。',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

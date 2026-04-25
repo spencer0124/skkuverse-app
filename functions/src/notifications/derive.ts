@@ -25,6 +25,11 @@ export function deriveSubscribedTopics(
 ): string[] {
   if (!enabled) return [];
 
+  // SSOT lock: essential 카테고리는 항상 ON. 클라가 false 를 보내도 (Rules 가
+  // 차단하지만 defense-in-depth 차원에서) derive 는 essential 을 true 로 간주해야 함.
+  // 미래에 'essential:emergency' 등 토픽 추가 시: `if (true /* essentialEffective */)`
+  // 형태로 분기 추가. 현재 essential 토픽 0개라 functional impact 없으므로 변수 생략.
+
   const topics = new Set<string>();
 
   // undefined → ON, false → OFF, true → ON.

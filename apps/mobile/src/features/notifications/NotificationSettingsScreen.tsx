@@ -1,27 +1,18 @@
 /**
- * Notification settings — v5 SSOT (Firestore-driven, server-derived).
+ * Notification settings — main entry (v5 SSOT, Firestore-driven).
  *
- * Three category toggles + master toggle. Picker sub-row exposes the
- * user's subscribed departments and a deep entry into NoticePickerSheet
- * for editing. All UI state is read from `useNotificationStore.preferences`
- * which is itself fed by an onSnapshot listener — so changes from another
- * device propagate here automatically.
+ * Master toggle + 3 카테고리 BadgeNavRow (drill-in). 각 카테고리 detail 페이지에서
+ * 세부 토글을 수행. 필수 카테고리는 항상 ON (UI lock + CF derive override + Rules block).
  *
- * Writes use the v5 thin wrappers: setMasterEnabled / setCategoryEnabled /
- * setPickerSelectionRemote. The CF onPreferencesWrite trigger derives
- * `subscribedTopics` server-side; clients never write derived fields
- * (Rules block it from Phase F onward).
- *
- * Two entry points to this screen (Toss pattern):
- *   1. Settings tab → 알림 (global)
- *   2. NoticesTabScreen → bell icon (deeplink to here, no separate sheet)
+ * 두 entry points:
+ *   1. Settings 탭 → 알림
+ *   2. NoticesTabScreen → bell icon (deeplink, deeper detail은 자체적으로 router.push)
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Linking,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -29,35 +20,27 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { Button, Dialog, ListRow, Switch, Txt } from '@skkuverse/sds';
+import {
+  BadgeNavRow,
+  Button,
+  Dialog,
+  ListRow,
+  Switch,
+  Txt,
+} from '@skkuverse/sds';
+// Switch is still used by master toggle below; categories are drill-in only.
 import {
   SdsColors,
-  SdsSpacing,
-  resolvePickerSelection,
   useAuthStore,
-  useNoticeTabs,
   useNotificationStore,
   useSettingsStore,
   useT,
-  type NoticeTab,
-  type TranslationKey,
 } from '@skkuverse/shared';
-import {
-  setCategoryEnabled,
-  setMasterEnabled,
-  setNoticeTabEnabled,
-  setPickerSelectionRemote,
-} from '@/services/firestore-notifications';
-import {
-  checkPermission,
-  requestPermission,
-} from '@/services/messaging';
+import { setMasterEnabled } from '@/services/firestore-notifications';
+import { checkPermission, requestPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
-import { NoticePickerSheet } from '@/features/notices/NoticePickerSheet';
-
-const DEPT_TAB_KEY = 'dept';
+import { AnonymousGate } from './components/AnonymousGate';
+import { ScreenHeader } from './components/ScreenHeader';
 
 export default function NotificationSettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -69,15 +52,6 @@ export default function NotificationSettingsScreen() {
   const preferences = useNotificationStore((s) => s.preferences);
   const permissionStatus = useNotificationStore((s) => s.permissionStatus);
   const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
-
-  const authReady = !!uid && !isAnonymous;
-
-  const {
-    data: tabsConfig,
-    isLoading: tabsLoading,
-    isError: tabsError,
-    refetch: refetchTabs,
-  } = useNoticeTabs();
 
   useFocusEffect(
     useCallback(() => {
@@ -92,12 +66,11 @@ export default function NotificationSettingsScreen() {
   );
 
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-  const sheetRef = useRef<BottomSheetModal>(null);
 
   const handleToggleMaster = useCallback(
-    async (nextValue: boolean) => {
+    async (next: boolean) => {
       if (!uid) return;
-      if (nextValue) {
+      if (next) {
         const status = await requestPermission();
         setPermissionStatus(status);
         if (status !== 'authorized' && status !== 'provisional') {
@@ -106,7 +79,7 @@ export default function NotificationSettingsScreen() {
         }
       }
       try {
-        await setMasterEnabled(uid, nextValue);
+        await setMasterEnabled(uid, next);
       } catch (err) {
         logHandledError('notifications/set-master', err);
       }
@@ -114,100 +87,16 @@ export default function NotificationSettingsScreen() {
     [uid, setPermissionStatus],
   );
 
-  const handleToggleCategory = useCallback(
-    async (key: 'essential' | 'services' | 'notices', nextValue: boolean) => {
-      if (!uid) return;
-      try {
-        await setCategoryEnabled(uid, key, nextValue);
-      } catch (err) {
-        logHandledError('notifications/set-category', err);
-      }
-    },
-    [uid],
-  );
+  const masterEnabled = preferences.enabled;
 
-  const handleToggleNoticeTab = useCallback(
-    async (tabKey: string, nextValue: boolean) => {
-      if (!uid) return;
-      try {
-        await setNoticeTabEnabled(uid, tabKey, nextValue);
-      } catch (err) {
-        logHandledError('notifications/set-notice-tab', err);
-      }
-    },
-    [uid],
-  );
-
-  // Per-tab on/off — undefined defaults to ON to match derive() contract.
-  const isNoticeTabOn = useCallback(
-    (key: string): boolean =>
-      preferences.noticeTabEnabled?.[key] !== false,
-    [preferences.noticeTabEnabled],
-  );
-
-  // ── Dept picker sheet ─────────────────────────────────────────────
-  const deptTab = useMemo<NoticeTab | undefined>(
-    () => tabsConfig?.tabs.find((tab) => tab.key === DEPT_TAB_KEY),
-    [tabsConfig],
-  );
-
-  const subscribedDeptIds = useMemo(
-    () =>
-      deptTab
-        ? resolvePickerSelection(
-            deptTab,
-            preferences.pickerSelections?.[DEPT_TAB_KEY],
-          )
-        : [],
-    [deptTab, preferences.pickerSelections],
-  );
-
-  const subscribedDeptNames = useMemo(() => {
-    if (!deptTab?.picker) return [];
-    const map = new Map(
-      deptTab.picker.departments.map((d) => [d.id, d.name]),
-    );
-    return subscribedDeptIds.map((id) => map.get(id) ?? id);
-  }, [deptTab, subscribedDeptIds]);
-
-  const openDeptPicker = useCallback(() => {
-    sheetRef.current?.present();
-  }, []);
-
-  const handlePickerConfirm = useCallback(
-    async (newIds: string[]) => {
-      if (!uid) return;
-      try {
-        await setPickerSelectionRemote(uid, DEPT_TAB_KEY, newIds);
-      } catch (err) {
-        logHandledError('notifications/set-picker', err);
-      }
-    },
-    [uid],
-  );
-
-  const masterOff = !preferences.enabled;
-  const categoryDisabled = masterOff;
-  const noticesEnabled = preferences.categoryEnabled?.notices === true;
-
-  if (!authReady) {
-    return (
-      <AnonymousGate
-        onLoginPress={() => router.replace('/login')}
-        onClose={() => router.back()}
-        t={t}
-      />
-    );
-  }
+  const authReady = !!uid && !isAnonymous;
+  if (!authReady) return <AnonymousGate />;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader
-        title={t('notifications.settings')}
-        onBack={() => router.back()}
-      />
+      <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scroll}>
         {appLanguage === 'zh' && (
           <View style={styles.hintBanner}>
             <Txt typography="t7" color={SdsColors.grey700}>
@@ -216,7 +105,6 @@ export default function NotificationSettingsScreen() {
           </View>
         )}
 
-        {/* Master toggle */}
         <ListRow
           contents={
             <ListRow.Texts
@@ -226,120 +114,38 @@ export default function NotificationSettingsScreen() {
             />
           }
           right={
-            <Switch
-              checked={preferences.enabled}
-              onCheckedChange={handleToggleMaster}
-            />
+            <Switch checked={masterEnabled} onCheckedChange={handleToggleMaster} />
           }
         />
 
-        {/* Three categories */}
-        <CategoryRow
-          label={t('notifications.essential')}
-          checked={preferences.categoryEnabled?.essential ?? false}
-          disabled={categoryDisabled}
-          onToggle={(v) => handleToggleCategory('essential', v)}
-        />
-        <CategoryRow
-          label={t('notifications.services')}
-          checked={preferences.categoryEnabled?.services ?? false}
-          disabled={categoryDisabled}
-          onToggle={(v) => handleToggleCategory('services', v)}
-        />
-        <CategoryRow
-          label={t('notifications.notices')}
-          checked={noticesEnabled}
-          disabled={categoryDisabled}
-          onToggle={(v) => handleToggleCategory('notices', v)}
-        />
-
-        {/* Notices sub-section: per-tab toggles in server order, plus the
-            dept picker sub-row inline beneath the dept tab when ON. */}
-        {noticesEnabled && tabsConfig?.tabs.length ? (
-          <View style={[styles.subSection, categoryDisabled && styles.disabledOpacity]}>
-            {tabsConfig.tabs.map((tab) => {
-              const tabOn = isNoticeTabOn(tab.key);
-              const showDeptPicker =
-                tab.key === DEPT_TAB_KEY && tabOn && deptTab?.picker;
-              return (
-                <View key={tab.key}>
-                  <ListRow
-                    contents={<ListRow.Texts type="1RowTypeA" top={tab.label} />}
-                    right={
-                      <Switch
-                        checked={tabOn}
-                        onCheckedChange={(v) => handleToggleNoticeTab(tab.key, v)}
-                        disabled={categoryDisabled}
-                      />
-                    }
-                  />
-                  {showDeptPicker && (
-                    <View style={styles.deptPickerWrap}>
-                      <Txt
-                        typography="t7"
-                        color={SdsColors.grey600}
-                        style={styles.subSectionLabel}
-                      >
-                        {t('notifications.subscribedDepts')}
-                      </Txt>
-                      {subscribedDeptNames.map((name, idx) => (
-                        <View key={`${name}-${idx}`} style={styles.subRow}>
-                          <Txt typography="t6" color={SdsColors.grey900}>
-                            • {name}
-                          </Txt>
-                        </View>
-                      ))}
-                      <Pressable
-                        onPress={openDeptPicker}
-                        disabled={categoryDisabled}
-                        style={({ pressed }) => [
-                          styles.editRow,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Txt typography="t6" color={SdsColors.grey900}>
-                          {t('notifications.editDept')}
-                        </Txt>
-                        <ChevronRight size={20} color={SdsColors.grey600} />
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-
-        {tabsError && !tabsLoading && (
-          <View style={styles.retryBlock}>
-            <Txt typography="t6" color={SdsColors.grey600}>
-              {t('notifications.loadError')}
-            </Txt>
-            <Button
-              type="dark"
-              style="weak"
-              size="tiny"
-              onPress={() => refetchTabs()}
-            >
-              {t('notifications.retry')}
-            </Button>
-          </View>
-        )}
+        <View style={styles.categories}>
+          <BadgeNavRow
+            badge="🔒"
+            tossface
+            title={t('notifications.essential')}
+            subtitle={t('notifications.essentialSubtitle')}
+            onPress={() => router.push('/notifications/essential')}
+          />
+          <BadgeNavRow
+            badge="⚙️"
+            tossface
+            title={t('notifications.services')}
+            subtitle={t('notifications.servicesSubtitle')}
+            onPress={() => router.push('/notifications/services')}
+            disabled={!masterEnabled}
+          />
+          <BadgeNavRow
+            badge="📢"
+            tossface
+            title={t('notifications.notices')}
+            subtitle={t('notifications.noticesSubtitle')}
+            onPress={() => router.push('/notifications/notices')}
+            disabled={!masterEnabled}
+          />
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
-      {/* Picker sheet — bound to dept tab for the Settings entry */}
-      {deptTab?.picker && (
-        <NoticePickerSheet
-          ref={sheetRef}
-          items={deptTab.picker.departments}
-          selectedIds={subscribedDeptIds}
-          maxSelection={deptTab.picker.maxSelection}
-          onConfirm={handlePickerConfirm}
-          title={deptTab.label}
-        />
-      )}
 
       <Dialog.Confirm
         open={showPermissionDialog}
@@ -378,88 +184,6 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────────────
-
-function CategoryRow({
-  label,
-  checked,
-  disabled,
-  onToggle,
-}: {
-  label: string;
-  checked: boolean;
-  disabled: boolean;
-  onToggle: (next: boolean) => void;
-}) {
-  return (
-    <View style={[styles.section, disabled && styles.disabledOpacity]}>
-      <ListRow
-        contents={<ListRow.Texts type="1RowTypeA" top={label} />}
-        right={
-          <Switch
-            checked={checked}
-            onCheckedChange={onToggle}
-            disabled={disabled}
-          />
-        }
-      />
-    </View>
-  );
-}
-
-function ScreenHeader({
-  title,
-  onBack,
-}: {
-  title: string;
-  onBack: () => void;
-}) {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        hitSlop={12}
-        onPress={onBack}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <ChevronLeft size={24} color={SdsColors.grey900} />
-      </Pressable>
-      <View style={styles.headerTitleWrap}>
-        <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-          {title}
-        </Txt>
-      </View>
-      <View style={styles.headerSpacer} />
-    </View>
-  );
-}
-
-function AnonymousGate({
-  onLoginPress,
-  onClose,
-  t,
-}: {
-  onLoginPress: () => void;
-  onClose: () => void;
-  t: (k: TranslationKey) => string;
-}) {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.settings')} onBack={onClose} />
-      <View style={styles.gateBody}>
-        <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-          {t('notifications.loginRequired')}
-        </Txt>
-        <View style={{ height: SdsSpacing.lg }} />
-        <Button type="primary" size="medium" display="block" onPress={onLoginPress}>
-          {t('notifications.loginCta')}
-        </Button>
-      </View>
-    </View>
-  );
-}
-
 async function openOsSettings(): Promise<void> {
   try {
     if (Platform.OS === 'ios') {
@@ -477,21 +201,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  headerTitleWrap: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerSpacer: {
-    width: 24,
-  },
-  scrollContent: {
+  scroll: {
     paddingBottom: 32,
   },
   hintBanner: {
@@ -502,49 +212,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: SdsColors.grey50,
   },
-  section: {
-    marginTop: 8,
-  },
-  disabledOpacity: {
-    opacity: 0.4,
-  },
-  subSection: {
-    marginTop: 4,
-    paddingLeft: SdsSpacing.lg,
-  },
-  deptPickerWrap: {
-    paddingLeft: SdsSpacing.lg,
-    paddingVertical: SdsSpacing.sm,
-    gap: SdsSpacing.xs,
-  },
-  subSectionLabel: {
-    paddingTop: SdsSpacing.xs,
-    paddingBottom: SdsSpacing.xs,
-  },
-  subRow: {
-    paddingVertical: 4,
-  },
-  editRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: SdsSpacing.sm,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-  retryBlock: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    gap: 12,
+  categories: {
+    marginTop: 0,
   },
   bottomSpacer: {
     height: 80,
-  },
-  gateBody: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
   },
 });

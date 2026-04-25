@@ -92,6 +92,18 @@ export default function RootLayout() {
                   name="notifications/settings"
                   options={{ headerShown: false }}
                 />
+                <Stack.Screen
+                  name="notifications/essential"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="notifications/services"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="notifications/notices"
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="onboarding"
