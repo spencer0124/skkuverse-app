@@ -159,7 +159,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SdsSpacing.lg,
-    paddingVertical: SdsSpacing.lg,
+    paddingTop: SdsSpacing.xxs,
+    paddingBottom: SdsSpacing.sm,
     gap: SdsSpacing.md,
   },
   profileCardPressed: {
