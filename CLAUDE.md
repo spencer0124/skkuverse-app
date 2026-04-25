@@ -93,6 +93,8 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 **Notice row:** Toss-style 왼쪽 정렬 메타 (`3일 전 · 학과명` — multi-dept 탭에서만 학과명 표시). 첨부파일 있는 공지는 제목 옆 paperclip 아이콘. 마감일 있는 공지는 deadline badge 표시 (D-day 기반 색상 시스템).
 
+**Section grouping:** `groupNoticesByDate()` (`apps/mobile/src/features/notices/utils/groupNotices.ts`)가 공지를 5개 버킷으로 묶어 `SectionList` 헤더로 표시 — `recent7`(최근 7일) → `recent30`(최근 30일) → `month-{n}`(올해 월별, desc) → `year-{n}`(과거 연도, desc) → `unknown`(기타). `unknown`은 `item.date`가 빈 문자열·ISO timestamp·malformed 등 `YYYY-MM-DD` 파싱 실패 시 fallback (parser `asString(raw.date)`가 missing/null을 `''`로 강등하는 데 대한 방어). 라벨은 ko `기타` / en `Other` / zh `其他`. 정렬 priority 99998로 모든 year 버킷보다 뒤·default(`99999`)보다 앞에 위치.
+
 **Login gate:** 공지사항 등 인증 필요 기능은 `NoticeLoginGate`로 Google 로그인 유도. `@g.skku.edu` 도메인 필수.
 
 **첨부파일:** `files.skkuverse.com` 프록시 경유. preview/download 버튼 제공.

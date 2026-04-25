@@ -1,3 +1,15 @@
+/**
+ * Notice list section bucketing for `SectionList` headers.
+ *
+ * Bucket precedence (top → bottom):
+ *   recent7 → recent30 → month-{0..11} (this year) → year-{Y} (past, desc) → unknown
+ *
+ * `unknown` is the fallback for items whose `date` field cannot be parsed as
+ * `YYYY-MM-DD` (empty string, ISO timestamp, malformed). The notice list
+ * parser collapses missing/null dates to `''` (`parser.ts: asString(raw.date)`),
+ * so this layer must tolerate them rather than dropping items. Renders as
+ * 기타 / Other / 其他 and sorts below all year buckets.
+ */
 import type { NoticeListItem, AppLanguage } from '@skkuverse/shared';
 import { tpl } from '@skkuverse/shared';
 
@@ -21,6 +33,7 @@ function startOfLocalDay(d: Date): number {
 
 function sectionKeyFor(itemDate: string, todayStart: number, thisYear: number): string {
   const parts = itemDate.split('-').map(Number);
+  // Empty string, ISO timestamp, malformed format → "기타" bucket.
   if (parts.length < 3 || parts.some(Number.isNaN)) return 'unknown';
   const [y, m, d] = parts;
   const itemStart = new Date(y, m - 1, d).getTime();
