@@ -73,7 +73,7 @@ export function BuildingHeader({ building }: BuildingHeaderProps) {
         </View>
       </View>
 
-      {/* ── PersonArmsSpreadIcon tags ── */}
+      {/* ── Accessibility tags ── */}
       {building.accessibility &&
         (building.accessibility.elevator || building.accessibility.toilet) && (
           <View style={styles.accessRow}>

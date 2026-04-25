@@ -1,5 +1,5 @@
 /**
- * BusIcon realtime screen — live bus tracking on a station timeline.
+ * Bus realtime screen — live bus tracking on a station timeline.
  *
  * Flow:
  * 1. useLocalSearchParams → groupId
@@ -71,8 +71,8 @@ export default function RealtimeScreen() {
 
   // Build ETA lookup map: stationIndex → eta string
   const etaMap = useMemo(() => {
-    if (!realtimeData?.stationEtas) return new MapTrifoldIcon<number, string>();
-    return new MapTrifoldIcon(
+    if (!realtimeData?.stationEtas) return new Map<number, string>();
+    return new Map(
       realtimeData.stationEtas.map((e) => [e.stationIndex, e.eta]),
     );
   }, [realtimeData?.stationEtas]);
@@ -81,7 +81,7 @@ export default function RealtimeScreen() {
     ? hexToColor(config.card.themeColor, SdsColors.brand)
     : SdsColors.brand;
 
-  // InfoIcon button — opens webview with feature info URL
+  // Info button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
   const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info');
 
@@ -140,7 +140,7 @@ export default function RealtimeScreen() {
             />
           ))}
 
-          {/* BusIcon markers (positioned absolutely from realtime data) */}
+          {/* Bus markers (positioned absolutely from realtime data) */}
           {realtimeData?.buses.map((bus, i) => (
             <BusMarker
               key={`${bus.carNumber}-${bus.stationIndex}-${i}`}

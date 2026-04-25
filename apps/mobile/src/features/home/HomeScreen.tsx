@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +6,10 @@ import {
   Pressable,
   Image,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BellRingingIcon, CaretRightIcon, UserIcon } from 'phosphor-react-native';
-import { Txt, Button, Dialog } from '@skkuverse/sds';
+import { CaretRightIcon, UserIcon } from 'phosphor-react-native';
+import { Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
-import { signOutFromGoogle } from '@/services/google-auth';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
@@ -45,7 +42,6 @@ const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
 ];
 
 export function HomeScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
 
@@ -55,17 +51,10 @@ export function HomeScreen() {
   const email = useAuthStore((s) => s.email);
   const photoURL = useAuthStore((s) => s.photoURL);
 
-  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
-
   const showProfile = !isAnonymous || isSigningOut;
 
-  const handleSignOut = async () => {
-    setShowSignOutDialog(false);
-    await signOutFromGoogle();
-  };
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -147,69 +136,8 @@ export function HomeScreen() {
           </View>
         </Pressable>
 
-        {/* ── Notification settings entry (Entry Point A) ── */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.settingsRow,
-            pressed && styles.settingsRowPressed,
-          ]}
-          onPress={() => router.push('/notifications/settings' as never)}
-        >
-          <View style={styles.settingsIconWrap}>
-            <BellRingingIcon size={20} color={SdsColors.grey700} />
-          </View>
-          <View style={styles.settingsTextWrap}>
-            <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
-              {t('notifications.settings')}
-            </Txt>
-          </View>
-          <CaretRightIcon size={18} color={SdsColors.grey400} />
-        </Pressable>
-
-        {/* ── Sign-out button (for signed-in users, moved from former '전체' tab) ── */}
-        {showProfile && (
-          <View style={styles.signOutSection}>
-            <Button
-              type="danger"
-              style="weak"
-              size="medium"
-              display="block"
-              onPress={() => setShowSignOutDialog(true)}
-            >
-              {t('auth.signOut')}
-            </Button>
-          </View>
-        )}
-
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
-      <Dialog.Confirm
-        open={showSignOutDialog}
-        description={t('auth.signOutConfirm')}
-        onClose={() => setShowSignOutDialog(false)}
-        leftButton={
-          <Button
-            type="dark"
-            style="weak"
-            size="medium"
-            display="block"
-            onPress={() => setShowSignOutDialog(false)}
-          >
-            {t('common.close')}
-          </Button>
-        }
-        rightButton={
-          <Button
-            type="danger"
-            size="medium"
-            display="block"
-            onPress={handleSignOut}
-          >
-            {t('auth.signOut')}
-          </Button>
-        }
-      />
     </View>
   );
 }
@@ -320,35 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: SdsColors.brand,
-  },
-
-  /* ── GearIcon row (notification settings entry) ── */
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SdsSpacing.lg,
-    paddingVertical: SdsSpacing.md,
-    gap: SdsSpacing.md,
-  },
-  settingsRowPressed: {
-    backgroundColor: SdsColors.grey50,
-  },
-  settingsIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: SdsColors.grey100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsTextWrap: {
-    flex: 1,
-  },
-
-  /* ── Sign-out ── */
-  signOutSection: {
-    paddingHorizontal: SdsSpacing.lg,
-    paddingTop: SdsSpacing.lg,
   },
 
   bottomSpacer: {

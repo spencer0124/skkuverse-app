@@ -1,6 +1,4 @@
-import { useCallback } from 'react';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { BellIcon, BellSlashIcon } from 'phosphor-react-native';
 import {
   SdsColors,
@@ -16,7 +14,6 @@ import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
 export default function NoticesTab() {
   useTabFocusTracking('notices');
-  const navigation = useNavigation();
   const router = useRouter();
   const { t } = useT();
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
@@ -25,12 +22,13 @@ export default function NoticesTab() {
     (s) => s.preferences.categoryEnabled?.notices ?? false,
   );
 
-  // Dynamic header — title + BellIcon/BellSlashIcon (toggles category state).
-  useFocusEffect(
-    useCallback(() => {
-      navigation.getParent()?.setOptions({
+  // Header options set inline so the dynamic Bell/BellOff icon (driven by
+  // noticesCategoryEnabled from Firestore-synced store) updates without a
+  // tab focus event — the inline element re-renders on every store change.
+  const screenOptions = (
+    <Stack.Screen
+      options={{
         title: t('nav.notices'),
-        headerShown: true,
         headerRight: () => (
           <HeaderIconButton
             onPress={() => router.push('/notifications/settings' as never)}
@@ -44,17 +42,25 @@ export default function NoticesTab() {
             )}
           </HeaderIconButton>
         ),
-      });
-    }, [navigation, router, t, noticesCategoryEnabled]),
+      }}
+    />
   );
 
   if (isAnonymous || !onboardingCompleted) {
     return (
-      <OnboardingLanding
-        onStartPress={() => router.push('/onboarding')}
-      />
+      <>
+        {screenOptions}
+        <OnboardingLanding
+          onStartPress={() => router.push('/onboarding')}
+        />
+      </>
     );
   }
 
-  return <NoticesTabScreen />;
+  return (
+    <>
+      {screenOptions}
+      <NoticesTabScreen />
+    </>
+  );
 }

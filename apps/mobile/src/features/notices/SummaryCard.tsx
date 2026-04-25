@@ -66,7 +66,7 @@ export function SummaryCard({ summary }: Props) {
             <SparkleIcon
               size={14}
               color={SdsColors.grey600}
-              fill={SdsColors.grey600}
+              weight="fill"
               style={styles.aiHeaderIcon}
             />
             <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>

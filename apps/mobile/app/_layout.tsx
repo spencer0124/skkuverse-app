@@ -9,8 +9,10 @@ import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
 import { SDSProvider } from '@skkuverse/sds';
+import { useT } from '@skkuverse/shared';
 import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
+import { defaultHeaderOptions } from '@/lib/header-options';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -56,6 +58,8 @@ export default function RootLayout() {
   // ── Notification tap & foreground message handling ──
   useNotificationHandler();
 
+  const { t } = useT();
+
   // ── Centralized screen view logging ──
   const pathname = usePathname();
   const params = useGlobalSearchParams<Record<string, string>>();
@@ -75,9 +79,17 @@ export default function RootLayout() {
           <QueryProvider>
             <InitGate>
               <BottomSheetModalProvider>
-              <Stack>
+              <Stack screenOptions={defaultHeaderOptions}>
+                {/* (tabs) — outer Stack header hidden; each tab has its own
+                    nested Stack inside (e.g. (home)/_layout.tsx) that owns the
+                    header. This avoids headerShown toggling on tab switch
+                    (which previously caused content to slide up/down). */}
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="bus" options={{ headerShown: false }} />
+                {/* bus/notices flattened — leaf routes register directly with
+                    root Stack so push-from-tab gives an automatic back button.
+                    Title/headerRight set inline in each screen file. */}
+
+                {/* Special: search input occupies the header slot */}
                 <Stack.Screen
                   name="search"
                   options={{
@@ -85,26 +97,40 @@ export default function RootLayout() {
                     animation: 'none',
                   }}
                 />
-                <Stack.Screen name="map/hssc" options={{ headerShown: false }} />
-                <Stack.Screen name="map/hssc-credit" options={{ headerShown: false }} />
-                <Stack.Screen name="notices" options={{ headerShown: false }} />
+
+                {/* Terminal screens — native header on, static titles via i18n */}
+                <Stack.Screen
+                  name="settings"
+                  options={{ title: t('settings.title') }}
+                />
                 <Stack.Screen
                   name="notifications/settings"
-                  options={{ headerShown: false }}
+                  options={{ title: t('notifications.settings') }}
                 />
                 <Stack.Screen
                   name="notifications/essential"
-                  options={{ headerShown: false }}
+                  options={{ title: t('notifications.essential') }}
                 />
                 <Stack.Screen
                   name="notifications/services"
-                  options={{ headerShown: false }}
+                  options={{ title: t('notifications.services') }}
                 />
                 <Stack.Screen
                   name="notifications/notices"
-                  options={{ headerShown: false }}
+                  options={{ title: t('notifications.notices') }}
                 />
-                <Stack.Screen name="webview" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="map/hssc"
+                  options={{ title: '인사캠 건물지도' }}
+                />
+                <Stack.Screen
+                  name="map/hssc-credit"
+                  options={{ title: '인사캠 건물지도' }}
+                />
+                {/* Dynamic title — set inline in webview screen via <Stack.Screen options /> */}
+                <Stack.Screen name="webview" />
+
+                {/* Modals/full-screen — keep headerless */}
                 <Stack.Screen
                   name="onboarding"
                   options={{

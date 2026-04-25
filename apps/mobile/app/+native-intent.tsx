@@ -1,11 +1,19 @@
-const ALLOWED_PATHS = ['/campus', '/transit', '/map/hssc', '/search'];
+const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
 
 const TAB_PATHS: Record<string, string> = {
+  '/home': '/(tabs)/home',
   '/campus': '/(tabs)/campus',
   '/transit': '/(tabs)/transit',
 };
 
-export function redirectSystemPath({ path }: { path: string; initial: boolean }) {
+export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
+  // Cold-start path delivery: don't redirect. expo-router's default routing
+  // via unstable_settings.initialRouteName picks the right tab from MMKV-
+  // persisted lastTab (home/campus/transit/notices). Without this guard,
+  // every cold launch would hit the `/` whitelist below and force-redirect
+  // to a fixed tab, ignoring the user's last-visited tab.
+  if (initial) return path;
+
   try {
     let pathname = path;
 
@@ -46,12 +54,12 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
       pathname = pathname.substring(2); // "/p/search" → "/search"
     }
 
-    // 루트("/")는 허용 — 기존 로직대로 홈으로 감
-    if (pathname === '/') return '/(tabs)/campus';
+    // 루트("/")는 home 탭으로
+    if (pathname === '/') return '/(tabs)/home';
 
     // 화이트리스트 체크
     if (!ALLOWED_PATHS.some((allowed) => pathname === allowed)) {
-      return '/(tabs)/campus';
+      return '/(tabs)/home';
     }
 
     // 탭 경로는 명시적 그룹 경로로 반환
@@ -60,6 +68,6 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     // 비탭 경로 (search, map/hssc) — unstable_settings가 (tabs)를 스택 아래에 삽입
     return pathname;
   } catch {
-    return '/(tabs)/campus';
+    return '/(tabs)/home';
   }
 }

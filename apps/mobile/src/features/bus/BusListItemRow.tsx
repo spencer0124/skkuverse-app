@@ -1,5 +1,5 @@
 /**
- * BusIcon list row — renders a single transit list item.
+ * Bus list row — renders a single transit list item.
  *
  * Ports `CustomRow1` from Flutter's busrow.dart. Layout:
  * - Pressable row: paddingH 20, paddingV 14

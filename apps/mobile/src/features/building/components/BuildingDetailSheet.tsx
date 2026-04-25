@@ -146,7 +146,7 @@ export const BuildingDetailSheet = forwardRef<
     [],
   );
 
-  // CheckIcon if this building exists on the HSSC floor map
+  // Check if this building exists on the HSSC floor map
   const hsscMapName = useMemo(() => {
     if (!data) return null;
     const nameKo = getLocalizedText(data.building.name, 'ko');

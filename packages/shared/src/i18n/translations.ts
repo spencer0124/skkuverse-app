@@ -280,6 +280,7 @@ const ko = {
   'notices.sectionRecent30': '최근 30일',
   'notices.sectionMonth': '{0}월',
   'notices.sectionYear': '{0}년',
+  'notices.sectionUnknown': '기타',
   'notices.relativeYesterday': '어제',
   'notices.relativeDaysAgo': '{0}일 전',
   'notices.relativeWeeksAgo': '{0}주 전',
@@ -325,6 +326,9 @@ const ko = {
   'onboarding.oauthErrorTitle': '성균관대 계정이 아니에요',
   'onboarding.oauthErrorDescription': '성대생 전용이라\n@g.skku.edu 계정이 필요해요',
   'onboarding.oauthErrorRetry': '다시 해보기',
+
+  // ── Settings ──
+  'settings.title': '설정',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '알림 설정',
@@ -578,6 +582,7 @@ const en: TranslationMap = {
   'notices.sectionRecent30': 'Last 30 days',
   'notices.sectionMonth': '{0}',
   'notices.sectionYear': '{0}',
+  'notices.sectionUnknown': 'Other',
   'notices.relativeYesterday': 'Yesterday',
   'notices.relativeDaysAgo': '{0} days ago',
   'notices.relativeWeeksAgo': '{0} weeks ago',
@@ -623,6 +628,9 @@ const en: TranslationMap = {
   'onboarding.oauthErrorTitle': 'Not an SKKU account',
   'onboarding.oauthErrorDescription': 'SKKU students only\nAn @g.skku.edu account is required',
   'onboarding.oauthErrorRetry': 'Try again',
+
+  // ── Settings ──
+  'settings.title': 'Settings',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': 'Notifications',
@@ -877,6 +885,7 @@ const zh: TranslationMap = {
   'notices.sectionRecent30': '近30天',
   'notices.sectionMonth': '{0}月',
   'notices.sectionYear': '{0}年',
+  'notices.sectionUnknown': '其他',
   'notices.relativeYesterday': '昨天',
   'notices.relativeDaysAgo': '{0}天前',
   'notices.relativeWeeksAgo': '{0}周前',
@@ -922,6 +931,9 @@ const zh: TranslationMap = {
   'onboarding.oauthErrorTitle': '不是成均馆大学账号',
   'onboarding.oauthErrorDescription': '仅限成大学生\n需要 @g.skku.edu 账号',
   'onboarding.oauthErrorRetry': '重试',
+
+  // ── Settings ──
+  'settings.title': '设置',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '通知设置',

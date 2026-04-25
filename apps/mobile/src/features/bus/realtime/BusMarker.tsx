@@ -1,5 +1,5 @@
 /**
- * BusIcon marker — absolutely positioned on the station list.
+ * Bus marker — absolutely positioned on the station list.
  *
  * Position calc (from businfo_component.dart):
  *   top = stationIndex >= lastStationIndex

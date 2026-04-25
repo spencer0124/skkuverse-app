@@ -38,15 +38,17 @@ const VALID_TABS: readonly TabRoute[] = ['home', 'campus', 'transit', 'notices']
 const ICON_ACTIVE = "#191F28";
 const ICON_INACTIVE = "#B0B8C1";
 
-/** Map persisted TabRoute → expo-router screen name (index.tsx is 'index'). */
+/** Map persisted TabRoute → expo-router screen name. All four tabs are
+ *  directories with their own nested Stack; URL = '/home', '/campus', etc. */
 function tabRouteToScreen(tab: TabRoute): string {
-  return tab === 'home' ? 'index' : tab;
+  return tab;
 }
 
 /** Map expo-router screen name → persisted TabRoute. */
 function screenToTabRoute(name: string): TabRoute | null {
-  if (name === 'index') return 'home';
-  if (name === 'campus' || name === 'transit' || name === 'notices') return name;
+  if (name === 'home' || name === 'campus' || name === 'transit' || name === 'notices') {
+    return name;
+  }
   return null;
 }
 
@@ -78,7 +80,7 @@ export default function TabLayout() {
           selected: { color: ICON_ACTIVE },
         }}
       >
-        <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger name="home">
           <Icon
             src={{
               default: require('../../assets/tab-icons/home-outline.png'),
@@ -151,7 +153,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: t("nav.home"),
           tabBarIcon: ({ focused, color }) => (

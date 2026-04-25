@@ -1,8 +1,9 @@
 /**
  * Campus tab — Naver Map + snapping bottom sheet with SDUI content.
  *
- * Phase 6: Replaced fullscreen SDUI ScrollView with map composition.
- * The CampusScreen component handles all map/sheet/search integration.
+ * Header is statically hidden by this tab's nested Stack layout. The
+ * CampusScreen handles all top-area UI (search bar, HSSC/NSC toggle,
+ * filter button) as floating overlays positioned via useSafeAreaInsets.
  *
  * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
@@ -14,6 +15,7 @@ import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
 export default function CampusTab() {
   useTabFocusTracking('campus');
+
   return (
     <>
       <CampusScreen />

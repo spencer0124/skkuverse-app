@@ -1,6 +1,4 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { ListRow, Switch, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
@@ -11,11 +9,8 @@ import {
 } from '@skkuverse/shared';
 import { AnonymousGate } from './components/AnonymousGate';
 import { HintBanner } from './components/HintBanner';
-import { ScreenHeader } from './components/ScreenHeader';
 
 export default function EssentialSettingsScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
@@ -25,8 +20,7 @@ export default function EssentialSettingsScreen() {
   if (!authReady) return <AnonymousGate />;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.essential')} onBack={() => router.back()} />
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {!masterEnabled && <HintBanner message={t('notifications.masterOffHint')} />}
 

@@ -17,7 +17,6 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import {
@@ -40,10 +39,8 @@ import { setMasterEnabled } from '@/services/firestore-notifications';
 import { checkPermission, requestPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
 import { AnonymousGate } from './components/AnonymousGate';
-import { ScreenHeader } from './components/ScreenHeader';
 
 export default function NotificationSettingsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
@@ -93,9 +90,7 @@ export default function NotificationSettingsScreen() {
   if (!authReady) return <AnonymousGate />;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
-
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {appLanguage === 'zh' && (
           <View style={styles.hintBanner}>

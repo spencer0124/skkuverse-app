@@ -1,18 +1,14 @@
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
-import { ScreenHeader } from './ScreenHeader';
 
 export function AnonymousGate() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
+    <View style={styles.container}>
       <View style={styles.body}>
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
           {t('notifications.loginRequired')}

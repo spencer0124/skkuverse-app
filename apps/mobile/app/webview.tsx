@@ -7,12 +7,10 @@
 
 import { useRef, useCallback } from 'react';
 import { View, StyleSheet, Linking } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
 import { SdsColors } from '@skkuverse/shared';
-import { Navbar } from '@skkuverse/sds';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { parseWebMessage } from '@skkuverse/bridge';
@@ -23,7 +21,6 @@ export default function WebViewScreen() {
     color: string;
     url: string;
   }>();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const webViewRef = useRef<WebView>(null);
 
@@ -48,11 +45,8 @@ export default function WebViewScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Navbar
-        left={<Navbar.BackButton onPress={() => router.back()} />}
-        title={title}
-      />
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: title ?? '' }} />
 
       {/* WebView */}
       <WebView

@@ -161,7 +161,7 @@ export function SearchScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* MagnifyingGlassIcon field */}
+      {/* Search field */}
       <View style={styles.searchFieldWrapper}>
         <View style={styles.searchField}>
           <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
