@@ -17,7 +17,8 @@
 
 | 커스텀 스킴 | 유니버셜 링크 | 화면 |
 |---|---|---|
-| `skkuverse://` | — | 홈 (campus 탭) |
+| `skkuverse://` | `https://skkuverse.com/p/` | 홈 탭 |
+| `skkuverse://home` | `https://skkuverse.com/p/home` | 홈 탭 |
 | `skkuverse://campus` | `https://skkuverse.com/p/campus` | 캠퍼스 탭 |
 | `skkuverse://transit` | `https://skkuverse.com/p/transit` | 교통 탭 |
 | `skkuverse://map/hssc` | `https://skkuverse.com/p/map/hssc` | 인사캠 지도 |
@@ -25,7 +26,7 @@
 
 유니버셜 링크는 `/p/` prefix를 사용하여 홈페이지 자체 경로와 분리한다. 앱에서는 `/p/`를 자동으로 제거한 뒤 화이트리스트를 검사한다.
 
-위 목록 외의 경로는 모두 홈(`/(tabs)/campus`)으로 리다이렉트된다.
+위 목록 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다.
 
 ## 차단되는 경로 (예시)
 
@@ -40,9 +41,9 @@
 
 `redirectSystemPath`는 Expo Router가 외부 딥링크를 처리할 때만 호출된다:
 
-- **Cold start** (앱이 꺼져있을 때 딥링크로 실행): 호출됨
-- **Warm start** (앱이 백그라운드에 있을 때 딥링크 수신): 호출됨
-- **앱 내부 네비게이션** (`router.push()` 등): 호출되지 않음
+- **Cold start** (앱이 꺼져있을 때 딥링크로 실행): `initial: true`로 호출됨 — **redirect 안 함, path 그대로 통과** (불필요한 OS-intent 가로채기 차단). 실제 라우트 매칭은 `app/index.tsx` Redirect 등 라우터-internal layer가 담당.
+- **Warm start** (앱이 백그라운드에 있을 때 딥링크 수신): `initial: false` — 화이트리스트 redirect 적용.
+- **앱 내부 네비게이션** (`router.push()` 등): 호출되지 않음. 단, 내부에서 `/`로 푸시될 경우 `app/index.tsx`의 `<Redirect href="/(tabs)/home" />`가 잡아서 home 탭으로 보냄.
 
 따라서 SDUI action handler, 버스 화면 내부 이동 등 앱 내부 네비게이션은 영향받지 않는다.
 
@@ -60,7 +61,17 @@
 `app/+native-intent.tsx`의 `ALLOWED_PATHS` 배열을 수정한다:
 
 ```tsx
-const ALLOWED_PATHS = ['/campus', '/transit', '/map/hssc', '/search'];
+const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
+```
+
+탭 경로는 `TAB_PATHS` 매핑에도 추가해서 그룹 경로 (`/(tabs)/<name>`)로 명시적으로 보낸다:
+
+```tsx
+const TAB_PATHS: Record<string, string> = {
+  '/home': '/(tabs)/home',
+  '/campus': '/(tabs)/campus',
+  '/transit': '/(tabs)/transit',
+};
 ```
 
 ## 테스트

@@ -59,6 +59,8 @@ Node version is pinned to **20** (see `.nvmrc`).
 ErrorBoundary → GestureHandlerRootView → SDSProvider → QueryProvider → InitGate → Stack
 ```
 
+**Tab structure (per-tab nested Stack):** `app/(tabs)/` 그룹 안에 4개 탭 디렉토리(`home/`, `campus/`, `transit/`, `notices/`)가 각자 `_layout.tsx`(`<Stack screenOptions={defaultHeaderOptions}/>`) + `index.tsx`(실제 화면)로 구성. 각 탭이 독립 Stack을 가지므로 탭 전환 시 부모 Stack의 `headerShown`이 토글되지 않음 — 콘텐츠가 위아래로 슬라이드하는 layout shift 방지. 헤더는 `react-native-screens` native-stack(iOS UINavigationController, Android Toolbar) 직접 사용 — 공통 옵션은 `apps/mobile/src/lib/header-options.ts`(`headerTitleAlign:'center'`, `headerBackButtonDisplayMode:'minimal'`, etc.), 헤더 우측 아이콘은 `apps/mobile/src/lib/HeaderIconButton.tsx`(44×44 고정으로 react-native-screens iOS customView stretch 회피). 동적 옵션(notices의 Bell/BellOff 등)은 화면 안에서 inline `<Stack.Screen options={...}/>`. Home 탭 URL은 `/home`이며 root `/`는 `app/index.tsx`의 `<Redirect href="/(tabs)/home" />`가 흡수. Initial tab 복원은 `packages/shared/src/utils/resolveInitialTabRoute.ts` + `useSettingsStore.lastTab`.
+
 **Feature modules** (`src/features/`): `home`, `bus`, `map`, `building`, `search`, `notices` — each self-contained with components, hooks, and utils.
 
 **Server-Driven UI (SDUI):** The home screen fetches section configs from the backend and renders them via widget components in `src/sdui/widgets/`.
@@ -104,9 +106,10 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com/p/...`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
 
 - **유니버셜 링크 prefix:** `/p/` (예: `skkuverse.com/p/search`) — 앱에서 자동 스트립
-- **허용:** `/`, `/campus`, `/transit`, `/map/hssc`, `/search`
-- **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈으로 리다이렉트
-- **앱 내부 네비게이션(`router.push`)은 영향 없음**
+- **허용:** `/`, `/home`, `/campus`, `/transit`, `/map/hssc`, `/search`
+- **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈(`/(tabs)/home`)으로 리다이렉트
+- **Cold start 가드:** `redirectSystemPath`는 `initial: true`일 때 path 그대로 통과 (라우트 매칭은 `app/index.tsx` Redirect 등 router-internal layer가 담당)
+- **앱 내부 네비게이션(`router.push`)은 영향 없음** — 단 `/`로 푸시되는 경우는 `app/index.tsx`가 catch
 - 자세한 내용은 `docs/deep-link.md` 참조
 
 ## Key Technical Details
