@@ -94,7 +94,10 @@ export default function NotificationSettingsScreen() {
 
   const [localPrefs, setLocalPrefs] = useState<PreferencesDocument>({
     enabled: false,
+    categoryEnabled: { essential: false, services: false, notices: false },
+    pickerSelections: {},
     subscribedTopics: [...MANDATORY_TOPICS],
+    derivedAt: null,
   });
 
   useEffect(() => {
@@ -206,7 +209,7 @@ export default function NotificationSettingsScreen() {
         targets.forEach((topic) => nextSet.delete(topic));
       }
       setLocalPrefs({
-        enabled: localPrefs.enabled,
+        ...localPrefs,
         subscribedTopics: [...nextSet],
       });
 

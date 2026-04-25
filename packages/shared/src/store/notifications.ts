@@ -50,7 +50,13 @@ export const useNotificationStore = create<NotificationStore>()(
       deviceId: null,
       isTokenRegistered: false,
       permissionStatus: 'notDetermined',
-      preferences: { enabled: false, subscribedTopics: [] },
+      preferences: {
+        enabled: false,
+        categoryEnabled: { essential: false, services: false, notices: false },
+        pickerSelections: {},
+        subscribedTopics: [],
+        derivedAt: null,
+      },
       unreadCount: 0,
 
       setFcmToken: (fcmToken) => set({ fcmToken }),

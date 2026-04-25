@@ -95,7 +95,7 @@ export async function updatePreferences(
     ...new Set([...prefs.subscribedTopics, ...MANDATORY_TOPICS]),
   ];
   const payload: PreferencesDocument = {
-    enabled: prefs.enabled,
+    ...prefs,
     subscribedTopics: mergedTopics,
   };
   await firestore()
@@ -268,13 +268,15 @@ export async function initializeFirestoreNotifications(
   if (userDoc?.locale !== osLocale) {
     bootstrap.push(updateUserLocale(uid, osLocale));
   }
+  const defaultPrefs: PreferencesDocument = {
+    enabled: false,
+    categoryEnabled: { essential: false, services: false, notices: false },
+    pickerSelections: {},
+    subscribedTopics: [...MANDATORY_TOPICS],
+    derivedAt: null,
+  };
   if (!prefsDoc) {
-    bootstrap.push(
-      updatePreferences(uid, {
-        enabled: false,
-        subscribedTopics: [...MANDATORY_TOPICS],
-      }),
-    );
+    bootstrap.push(updatePreferences(uid, defaultPrefs));
   }
   if (bootstrap.length > 0) {
     await Promise.all(bootstrap);
@@ -282,10 +284,7 @@ export async function initializeFirestoreNotifications(
 
   // 3. Device registration with replicated fields — locale mirrors the OS,
   //    not a stale cached userDoc value (that was the ko-sticky bug).
-  const finalPrefs: PreferencesDocument = prefsDoc ?? {
-    enabled: false,
-    subscribedTopics: [...MANDATORY_TOPICS],
-  };
+  const finalPrefs: PreferencesDocument = prefsDoc ?? defaultPrefs;
 
   await registerDevice(deviceId, {
     uid,

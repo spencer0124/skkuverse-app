@@ -16,9 +16,25 @@ export interface UserDocument {
   locale: 'ko' | 'en';
 }
 
+/**
+ * Mirror of packages/shared/src/types/notifications.ts PreferencesDocument.
+ * See that file for the canonical doc + invariant.
+ */
+export interface CategoryEnabled {
+  essential: boolean;
+  services: boolean;
+  notices: boolean;
+}
+
 export interface PreferencesDocument {
+  // Intent (client writable)
   enabled: boolean;
+  categoryEnabled: CategoryEnabled;
+  pickerSelections: Record<string, string[]>;
+
+  // Derived (CF only — Rules block client write)
   subscribedTopics: string[];
+  derivedAt: FirebaseFirestore.Timestamp | null;
 }
 
 export interface DeviceDocument {
