@@ -10,8 +10,10 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { CampusScreen } from '@/features/map/CampusScreen';
+import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
 export default function CampusTab() {
+  useTabFocusTracking('campus');
   return (
     <>
       <CampusScreen />

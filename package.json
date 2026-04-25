@@ -21,6 +21,9 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
-    "firebase": "^12.12.1"
+    "@phosphor-icons/core": "^2.1.1",
+    "@resvg/resvg-js": "^2.6.2",
+    "firebase": "^12.12.1",
+    "lucide-static": "^1.11.0"
   }
 }

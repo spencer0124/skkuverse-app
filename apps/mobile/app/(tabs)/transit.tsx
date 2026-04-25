@@ -15,8 +15,10 @@ import { useTransitList, useMainNotice, SdsColors } from '@skkuverse/shared';
 import { BusListItemRow } from '@/features/bus/BusListItemRow';
 import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
+import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
 export default function TransitScreen() {
+  useTabFocusTracking('transit');
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, isLoading } = useTransitList();
