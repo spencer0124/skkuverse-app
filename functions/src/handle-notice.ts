@@ -85,7 +85,7 @@ export async function handleNoticeNotification(
     type: body.type,
     noticeId: body.noticeId,
   };
-  if (body.deptId) data.deptId = body.deptId;
+  if (body.sourceId) data.sourceId = body.sourceId;
   if (body.articleNo) data.articleNo = body.articleNo;
   if (body.category) data.category = body.category;
 

@@ -5,14 +5,14 @@ import {
   SdsSpacing,
   useT,
   type Campus,
-  type TabDepartment,
+  type TabSource,
 } from '@skkuverse/shared';
 
 interface Props {
   campus: Campus;
   primaryDeptId: string;
   interestDeptIds: string[];
-  departments: TabDepartment[];
+  sources: TabSource[];
   loginError: string | null;
 }
 
@@ -20,7 +20,7 @@ export function LoginStep({
   campus,
   primaryDeptId,
   interestDeptIds,
-  departments,
+  sources,
   loginError,
 }: Props) {
   const { t } = useT();
@@ -29,9 +29,9 @@ export function LoginStep({
     ? t('onboarding.hsscName')
     : t('onboarding.nscName');
 
-  const primaryName = departments.find((d) => d.id === primaryDeptId)?.name ?? '';
+  const primaryName = sources.find((s) => s.id === primaryDeptId)?.name ?? '';
   const interestNames = interestDeptIds
-    .map((id) => departments.find((d) => d.id === id)?.name)
+    .map((id) => sources.find((s) => s.id === id)?.name)
     .filter(Boolean)
     .join(', ') || t('onboarding.summaryNone');
 

@@ -5,20 +5,20 @@ import {
   SdsColors,
   useT,
   type Campus,
-  type TabDepartment,
+  type TabSource,
 } from '@skkuverse/shared';
 import { DeptRow } from './DeptRow';
 
 interface Props {
   campus: Campus;
-  departments: TabDepartment[];
+  sources: TabSource[];
   selectedId: string | null;
   onSelect: (deptId: string) => void;
 }
 
 export function PrimaryDeptStep({
   campus,
-  departments: sourceDepartments,
+  sources: sourceDepartments,
   selectedId,
   onSelect,
 }: Props) {

@@ -3,14 +3,14 @@ export {
   parseNoticePage,
   parseNoticeDetail,
 } from './parser';
-export { resolvePickerSelection } from './picker';
+export { resolvePickerSelection, computeOnboardingPickerSeed } from './picker';
 export type {
-  TabDepartment,
+  TabSource,
   PickerTabConfig,
   FixedTabConfig,
   NoticeTab,
   NoticeTabsConfig,
-  Department,
+  NoticeSource,
   NoticeSummaryType,
   NoticeStartAt,
   NoticeEndAt,

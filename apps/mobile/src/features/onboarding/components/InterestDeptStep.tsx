@@ -5,7 +5,7 @@ import {
   SdsColors,
   useT,
   type Campus,
-  type TabDepartment,
+  type TabSource,
 } from '@skkuverse/shared';
 import { MAX_INTEREST_DEPTS } from '../types';
 import { DeptRow } from './DeptRow';
@@ -13,7 +13,7 @@ import { DeptRow } from './DeptRow';
 interface Props {
   campus: Campus;
   primaryDeptId: string;
-  departments: TabDepartment[];
+  sources: TabSource[];
   selectedIds: string[];
   onToggle: (deptId: string) => void;
 }
@@ -21,7 +21,7 @@ interface Props {
 export function InterestDeptStep({
   campus,
   primaryDeptId,
-  departments: sourceDepartments,
+  sources: sourceDepartments,
   selectedIds,
   onToggle,
 }: Props) {

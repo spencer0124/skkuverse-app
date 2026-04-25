@@ -1,8 +1,8 @@
 /**
- * Paginated notice list query for a single department.
+ * Paginated notice list query for a single source.
  *
  * Uses cursor-based infinite query. Server contract:
- *   GET /notices/dept/:deptId?limit=20&type=…&cursor=…
+ *   GET /notices/source/:sourceId?limit=20&type=…&cursor=…
  *   → { notices: [...], nextCursor: string | null, hasMore: boolean }
  */
 
@@ -12,18 +12,18 @@ import { ApiEndpoints } from '../api/endpoints';
 import { parseNoticePage } from '../notices/parser';
 import type { NoticePage, NoticeSummaryType } from '../notices/types';
 
-export const NOTICE_LIST_KEY = ['notices', 'dept'] as const;
+export const NOTICE_LIST_KEY = ['notices', 'source'] as const;
 
 const PAGE_LIMIT = 20;
 
 export interface UseNoticeListArgs {
-  deptId: string;
+  sourceId: string;
   type?: NoticeSummaryType;
   enabled?: boolean;
 }
 
 export function useNoticeList({
-  deptId,
+  sourceId,
   type,
   enabled = true,
 }: UseNoticeListArgs) {
@@ -34,14 +34,14 @@ export function useNoticeList({
     readonly unknown[],
     string | null
   >({
-    queryKey: [...NOTICE_LIST_KEY, deptId, { type: type ?? 'all' }],
+    queryKey: [...NOTICE_LIST_KEY, sourceId, { type: type ?? 'all' }],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = { limit: PAGE_LIMIT };
       if (type) params.type = type;
       if (pageParam) params.cursor = pageParam;
       const result = await safeGet(
-        ApiEndpoints.noticesByDept(deptId),
+        ApiEndpoints.noticesBySource(sourceId),
         parseNoticePage,
         { params },
       );
@@ -49,7 +49,7 @@ export function useNoticeList({
       throw result.failure;
     },
     getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined),
-    enabled: enabled && deptId.length > 0,
+    enabled: enabled && sourceId.length > 0,
     staleTime: 2 * 60_000,
   });
 }
