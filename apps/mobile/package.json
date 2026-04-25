@@ -61,7 +61,7 @@
     "react-native-nitro-modules": "^0.35.2",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
+    "react-native-screens": "4.19.0",
     "react-native-svg": "^15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-webview": "^13.16.1",
@@ -73,6 +73,11 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": ["react-native-screens"]
+    }
   },
   "private": true
 }

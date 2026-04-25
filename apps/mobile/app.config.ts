@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.1",
+  runtimeVersion: "3.5.2",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,

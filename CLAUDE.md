@@ -25,7 +25,7 @@ cd apps/mobile
 yarn start            # Expo dev server
 yarn ios              # Type-check then run iOS
 yarn android          # Type-check then run Android
-yarn typecheck        # tsc --noEmit
+npx tsc --noEmit      # Type-check only (apps/mobile에는 별도 typecheck 스크립트 없음)
 yarn lint             # expo lint (ESLint)
 npx expo prebuild --clean  # 네이티브 변경 후 clean prebuild
 
