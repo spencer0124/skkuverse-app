@@ -30,6 +30,7 @@ import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } f
 import { getOrCreateDeviceId } from '@/services/device-id';
 import {
   initializeFirestoreNotifications,
+  onPreferencesChanged,
   updateUserLocale,
 } from '@/services/firestore-notifications';
 import { withRetry } from '@/utils/with-retry';
@@ -97,6 +98,12 @@ export function useAppInit() {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let unsubToken: (() => void) | undefined;
+    // Firestore preferences/main onSnapshot listener — re-subscribed on every
+    // uid transition (anon → Google, Google → anon). The store's preferences
+    // field is no longer persisted (see store/notifications.ts partialize),
+    // so this listener is the sole source of truth on the client.
+    let unsubPrefs: (() => void) | undefined;
+    let prefsListenerUid: string | null = null;
 
     async function init() {
       try {
@@ -200,9 +207,31 @@ export function useAppInit() {
             }
 
             authStore.setState({ lastKnownUid: user.uid });
+
+            // Re-attach preferences listener if the uid changed (or first
+            // attach). onSnapshot subscriptions are uid-scoped — the prior
+            // listener pumped the prior user's prefs into our store, so we
+            // tear it down before opening a new one. Anonymous users hit
+            // this path too: doc usually doesn't exist for them, so the
+            // callback fires with null and the store keeps its defaults.
+            if (prefsListenerUid !== user.uid) {
+              unsubPrefs?.();
+              prefsListenerUid = user.uid;
+              unsubPrefs = onPreferencesChanged(user.uid, (prefs) => {
+                if (prefs) {
+                  useNotificationStore.getState().setPreferences(prefs);
+                }
+              });
+            }
           } else {
             if (__DEV__) console.log('[auth] onAuthStateChanged: signed out');
             authStore.getState().setUnauthenticated();
+            // Tear down the prefs listener — the prior uid is no longer
+            // ours to read. The next signed-in onAuthStateChanged will
+            // re-attach for the new uid.
+            unsubPrefs?.();
+            unsubPrefs = undefined;
+            prefsListenerUid = null;
             // ⚠️ lastKnownUid is intentionally preserved through this branch.
             // The next onAuthStateChanged(user) fires with the new anon uid
             // after signInAnonymously, and we need prevUid != newUid to
@@ -356,6 +385,7 @@ export function useAppInit() {
     return () => {
       unsubscribe?.();
       unsubToken?.();
+      unsubPrefs?.();
       unsubLocale();
       appStateSubscription.remove();
     };

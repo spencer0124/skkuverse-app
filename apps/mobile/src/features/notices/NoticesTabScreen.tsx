@@ -90,8 +90,10 @@ export function NoticesTabScreen() {
   const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
 
   // Picker selections + categoryEnabled both come from Firestore-synced store.
+  // The `?? {}` fallback keeps the screen render-safe in the brief window
+  // between mount and the first onSnapshot pump from useAppInit.
   const pickerSelections = useNotificationStore(
-    (s) => s.preferences.pickerSelections,
+    (s) => s.preferences.pickerSelections ?? {},
   );
   const noticesCategoryEnabled = useNotificationStore(
     (s) => s.preferences.categoryEnabled?.notices ?? false,

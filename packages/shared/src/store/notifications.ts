@@ -4,16 +4,24 @@ import { mmkvStateStorage } from './mmkv-storage';
 import type { PreferencesDocument } from '../types/notifications';
 
 /**
- * Persisted notification state — MMKV-backed like useSettingsStore.
+ * Notification state — MMKV-persisted *partially*.
  *
- * Why MMKV here (not just in-memory): `unreadCount` must survive app restart
- * so the app-icon / tab badge rendered by useNotificationHandler (Phase 3)
- * keeps its value across cold starts. fcmToken + deviceId are cached to
- * avoid re-reading MMKV via getOrCreateDeviceId() on hot paths.
+ * Persisted (local-only state):
+ *   - unreadCount : survives app restart so the badge stays correct
+ *   - fcmToken / deviceId / isTokenRegistered : cache hot-path lookups
+ *   - permissionStatus : OS state cached for sync UI without re-querying
  *
- * Option D: no Firestore `notifications` collection, so unreadCount is a
- * purely local counter that Phase 3 increments on receive and resets when
- * the user enters the 공지 탭 (useFocusEffect).
+ * NOT persisted (Firestore is SSOT, hydrated at launch):
+ *   - preferences : populated by useAppInit's onPreferencesChanged listener.
+ *     Persisting would let a stale local copy fight an authoritative server
+ *     copy after another device updated it — exactly the multi-device drift
+ *     this whole v5 redesign was meant to fix.
+ *
+ * v1 → v2 migration: preferences shape changed from { enabled, subscribedTopics }
+ * to the v5 superset { enabled, categoryEnabled, pickerSelections,
+ * subscribedTopics, derivedAt }. partialize now strips preferences from
+ * persisted state, so existing persisted v1 data is implicitly compatible
+ * (no preferences field to misread); the version bump is defensive.
  */
 
 export type PushPermissionStatus =
@@ -69,8 +77,15 @@ export const useNotificationStore = create<NotificationStore>()(
     }),
     {
       name: 'notifications',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => mmkvStateStorage),
+      partialize: (state) => ({
+        fcmToken: state.fcmToken,
+        deviceId: state.deviceId,
+        isTokenRegistered: state.isTokenRegistered,
+        permissionStatus: state.permissionStatus,
+        unreadCount: state.unreadCount,
+      }),
     },
   ),
 );

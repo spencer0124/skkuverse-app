@@ -136,7 +136,7 @@ export default function NotificationSettingsScreen() {
       deptTab
         ? resolvePickerSelection(
             deptTab,
-            preferences.pickerSelections[DEPT_TAB_KEY],
+            preferences.pickerSelections?.[DEPT_TAB_KEY],
           )
         : [],
     [deptTab, preferences.pickerSelections],
