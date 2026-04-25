@@ -4,11 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
 import { SDSProvider } from '@skkuverse/sds';
 import { logScreenView } from '@/services/analytics';
+import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -23,6 +25,7 @@ const SCREEN_NAMES: Record<string, string> = {
   '/bus/schedule': 'bus_schedule_screen',
   '/map/hssc': 'map_hssc_screen',
   '/map/hssc-credit': 'map_hssc_credit_screen',
+  '/login': 'login_screen',
 };
 
 function resolveScreenName(
@@ -50,6 +53,9 @@ function resolveScreenName(
  * Flutter source: lib/main.dart (runApp wrapping)
  */
 export default function RootLayout() {
+  // ── Notification tap & foreground message handling ──
+  useNotificationHandler();
+
   // ── Centralized screen view logging ──
   const pathname = usePathname();
   const params = useGlobalSearchParams<Record<string, string>>();
@@ -68,6 +74,7 @@ export default function RootLayout() {
         <SDSProvider>
           <QueryProvider>
             <InitGate>
+              <BottomSheetModalProvider>
               <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="bus" options={{ headerShown: false }} />
@@ -80,7 +87,39 @@ export default function RootLayout() {
                 />
                 <Stack.Screen name="map/hssc" options={{ headerShown: false }} />
                 <Stack.Screen name="map/hssc-credit" options={{ headerShown: false }} />
+                <Stack.Screen name="notices" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="notifications/settings"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="notifications/essential"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="notifications/services"
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="notifications/notices"
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen name="webview" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="onboarding"
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="login"
+                  options={{
+                    headerShown: false,
+                    presentation: 'modal',
+                  }}
+                />
                 <Stack.Screen
                   name="sds-preview"
                   options={{
@@ -88,8 +127,16 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                {/* TODO: Remove — temporary FCM debug screen */}
+                <Stack.Screen
+                  name="debug-fcm"
+                  options={{
+                    presentation: 'modal',
+                  }}
+                />
               </Stack>
               <StatusBar style="dark" />
+              </BottomSheetModalProvider>
             </InitGate>
           </QueryProvider>
         </SDSProvider>

@@ -1,132 +1,117 @@
-import { useCallback } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Pressable,
-  Dimensions,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { BellRingingIcon, CaretRightIcon, UserIcon } from 'phosphor-react-native';
+import { Txt, Button, Dialog } from '@skkuverse/sds';
+import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
+import { signOutFromGoogle } from '@/services/google-auth';
 import {
-  Search,
-  Bell,
-  Settings,
-  User,
-  Map,
-  Navigation,
-  Building2,
-  BookOpen,
-  Coffee,
-  Bus,
-  Compass,
-  Star,
-  Bookmark,
-  MessageCircle,
-  Calendar,
-  HelpCircle,
-  ChevronRight,
-} from 'lucide-react-native';
-import { SdsColors } from '@skkuverse/shared';
+  TossfaceButtonGrid,
+  type TossfaceGridItem,
+} from '@/components/TossfaceButtonGrid';
+import { handleSduiAction } from '@/sdui/action-handler';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const GRID_MARGIN = 16;
-const GRID_GAP = 8;
-const GRID_COLS = 4;
-const GRID_ITEM_SIZE =
-  (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
-/* ── Mock quick-action data ── */
-const QUICK_ACTIONS = [
-  { icon: BookOpen, label: '킹고포탈' },
-  { icon: Calendar, label: '학사일정' },
-  { icon: Star, label: '즐겨찾기' },
-  { icon: Bookmark, label: '분실물' },
-  { icon: MessageCircle, label: '커뮤니티' },
-  { icon: HelpCircle, label: '문의하기' },
-];
-
-/* ── Mock grid menu data ── */
-const GRID_ITEMS = [
-  { icon: Bus, label: '셔틀버스', badge: null, route: '/(tabs)/transit' },
-  { icon: Map, label: '캠퍼스맵', badge: null, route: '/(tabs)/campus' },
-  { icon: Building2, label: '건물검색', badge: 'N', route: '/search' },
-  { icon: Navigation, label: '길찾기', badge: null, route: null },
-  { icon: Coffee, label: '편의시설', badge: null, route: null },
-  { icon: Bookmark, label: '즐겨찾기', badge: null, route: null },
-  { icon: Calendar, label: '학사일정', badge: null, route: null },
-  { icon: Compass, label: '주변탐색', badge: null, route: null },
+const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
+  {
+    id: 'lost_found',
+    title: '분실물',
+    emoji: '\u{1F9F3}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'webview',
+        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+        webviewTitle: '분실물',
+        webviewColor: '003626',
+      }),
+  },
+  {
+    id: 'inquiry',
+    title: '문의하기',
+    emoji: '\u{1F4AC}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'external',
+        actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
+      }),
+  },
 ];
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useT();
 
-  const handleGridPress = useCallback(
-    (route: string | null) => {
-      if (route) router.push(route as never);
-    },
-    [router],
-  );
+  const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const isSigningOut = useAuthStore((s) => s.isSigningOut);
+  const displayName = useAuthStore((s) => s.displayName);
+  const email = useAuthStore((s) => s.email);
+  const photoURL = useAuthStore((s) => s.photoURL);
+
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+
+  const showProfile = !isAnonymous || isSigningOut;
+
+  const handleSignOut = async () => {
+    setShowSignOutDialog(false);
+    await signOutFromGoogle();
+  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* ── Search Bar (commented out) ──
-      <Pressable
-        style={styles.searchBar}
-        onPress={() => router.push('/search')}
-      >
-        <Search size={20} color={SdsColors.grey500} />
-        <Text style={styles.searchText}>건물, 강의실 검색</Text>
-      </Pressable>
-      */}
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile Section (commented out) ──
-        <View style={styles.profileSection}>
-          <View style={styles.profileLeft}>
-            <View style={styles.avatar}>
-              <User size={28} color={SdsColors.grey400} />
-            </View>
-            <View>
-              <Text style={styles.profileName}>성균이</Text>
-              <Text style={styles.profileSub}>성균관대학교</Text>
+        {/* ── Profile / Login (moved from former '전체' tab) ── */}
+        {showProfile ? (
+          <View style={styles.profileCard}>
+            {photoURL ? (
+              <Image source={{ uri: photoURL }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <UserIcon size={28} color={SdsColors.grey500} />
+              </View>
+            )}
+            <View style={styles.profileText}>
+              <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
+                {displayName ?? ''}
+              </Txt>
+              <Txt typography="t7" color={SdsColors.grey500}>
+                {email ?? ''}
+              </Txt>
             </View>
           </View>
-          <View style={styles.profileRight}>
-            <Pressable style={styles.iconBtn}>
-              <Bell size={22} color={SdsColors.grey700} />
-            </Pressable>
-            <Pressable style={styles.iconBtn}>
-              <Settings size={22} color={SdsColors.grey700} />
-            </Pressable>
-          </View>
-        </View>
-        */}
-
-        {/* ── Quick Actions (commented out) ──
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickActionsContent}
-          style={styles.quickActions}
-        >
-          {QUICK_ACTIONS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Pressable key={item.label} style={styles.quickActionItem}>
-                <Icon size={22} color={SdsColors.grey700} />
-                <Text style={styles.quickActionLabel}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        */}
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.profileCard,
+              pressed && styles.profileCardPressed,
+            ]}
+            onPress={() => router.push('/login')}
+          >
+            <View style={styles.avatarFallback}>
+              <UserIcon size={28} color={SdsColors.grey500} />
+            </View>
+            <View style={styles.profileText}>
+              <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
+                {t('auth.loginCardTitle')}
+              </Txt>
+              <Txt typography="t7" color={SdsColors.grey500}>
+                {t('auth.loginPrompt')}
+              </Txt>
+            </View>
+            <CaretRightIcon size={20} color={SdsColors.grey400} />
+          </Pressable>
+        )}
 
         {/* ── Banner Card ── */}
         <View style={styles.bannerCard}>
@@ -143,28 +128,9 @@ export function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Grid Menu ── */}
-        <View style={styles.gridContainer}>
-          {GRID_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Pressable
-                key={item.label}
-                style={styles.gridItem}
-                onPress={() => handleGridPress(item.route)}
-              >
-                <View style={styles.gridIconWrap}>
-                  <Icon size={26} color={SdsColors.grey800} />
-                  {item.badge && (
-                    <View style={styles.gridBadge}>
-                      <Text style={styles.gridBadgeText}>{item.badge}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.gridLabel}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
+        {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
+        <View style={styles.gridWrap}>
+          <TossfaceButtonGrid items={HOME_GRID_ITEMS} />
         </View>
 
         {/* ── Bottom Banner ── */}
@@ -176,13 +142,74 @@ export function HomeScreen() {
             </Text>
             <View style={styles.bottomBannerBtn}>
               <Text style={styles.bottomBannerBtnText}>지도 열기</Text>
-              <ChevronRight size={14} color={SdsColors.brand} />
+              <CaretRightIcon size={14} color={SdsColors.brand} />
             </View>
           </View>
         </Pressable>
 
+        {/* ── Notification settings entry (Entry Point A) ── */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.settingsRow,
+            pressed && styles.settingsRowPressed,
+          ]}
+          onPress={() => router.push('/notifications/settings' as never)}
+        >
+          <View style={styles.settingsIconWrap}>
+            <BellRingingIcon size={20} color={SdsColors.grey700} />
+          </View>
+          <View style={styles.settingsTextWrap}>
+            <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+              {t('notifications.settings')}
+            </Txt>
+          </View>
+          <CaretRightIcon size={18} color={SdsColors.grey400} />
+        </Pressable>
+
+        {/* ── Sign-out button (for signed-in users, moved from former '전체' tab) ── */}
+        {showProfile && (
+          <View style={styles.signOutSection}>
+            <Button
+              type="danger"
+              style="weak"
+              size="medium"
+              display="block"
+              onPress={() => setShowSignOutDialog(true)}
+            >
+              {t('auth.signOut')}
+            </Button>
+          </View>
+        )}
+
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <Dialog.Confirm
+        open={showSignOutDialog}
+        description={t('auth.signOutConfirm')}
+        onClose={() => setShowSignOutDialog(false)}
+        leftButton={
+          <Button
+            type="dark"
+            style="weak"
+            size="medium"
+            display="block"
+            onPress={() => setShowSignOutDialog(false)}
+          >
+            {t('common.close')}
+          </Button>
+        }
+        rightButton={
+          <Button
+            type="danger"
+            size="medium"
+            display="block"
+            onPress={handleSignOut}
+          >
+            {t('auth.signOut')}
+          </Button>
+        }
+      />
     </View>
   );
 }
@@ -199,38 +226,23 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  /* ── Search Bar ── */
-  searchBar: {
+  /* ── Profile / Login card (same layout for both states) ── */
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: SdsColors.grey100,
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: SdsSpacing.lg,
+    paddingVertical: SdsSpacing.lg,
+    gap: SdsSpacing.md,
   },
-  searchText: {
-    fontSize: 15,
-    color: SdsColors.grey400,
-  },
-
-  /* ── Profile ── */
-  profileSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  profileLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  profileCardPressed: {
+    backgroundColor: SdsColors.grey50,
   },
   avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  avatarFallback: {
     width: 52,
     height: 52,
     borderRadius: 26,
@@ -238,45 +250,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: SdsColors.grey900,
-  },
-  profileSub: {
-    fontSize: 13,
-    color: SdsColors.grey500,
-    marginTop: 2,
-  },
-  profileRight: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  /* ── Quick Actions ── */
-  quickActions: {
-    marginBottom: 16,
-  },
-  quickActionsContent: {
-    paddingHorizontal: 16,
-    gap: 24,
-  },
-  quickActionItem: {
-    alignItems: 'center',
-    gap: 6,
-    width: 56,
-  },
-  quickActionLabel: {
-    fontSize: 11,
-    color: SdsColors.grey700,
-    fontWeight: '500',
+  profileText: {
+    flex: 1,
+    gap: 2,
   },
 
   /* ── Banner ── */
@@ -307,48 +283,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  /* ── Grid ── */
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: 16,
+  /* ── Grid wrap ── */
+  gridWrap: {
     marginBottom: 20,
-    gap: 8,
-  },
-  gridItem: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
-    borderRadius: 16,
-    backgroundColor: SdsColors.grey50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: SdsColors.grey200,
-  },
-  gridIconWrap: {
-    position: 'relative',
-  },
-  gridBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -10,
-    backgroundColor: '#F04452',
-    borderRadius: 8,
-    width: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gridBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  gridLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: SdsColors.grey800,
   },
 
   /* ── Bottom Banner ── */
@@ -383,6 +320,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: SdsColors.brand,
+  },
+
+  /* ── GearIcon row (notification settings entry) ── */
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SdsSpacing.lg,
+    paddingVertical: SdsSpacing.md,
+    gap: SdsSpacing.md,
+  },
+  settingsRowPressed: {
+    backgroundColor: SdsColors.grey50,
+  },
+  settingsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: SdsColors.grey100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsTextWrap: {
+    flex: 1,
+  },
+
+  /* ── Sign-out ── */
+  signOutSection: {
+    paddingHorizontal: SdsSpacing.lg,
+    paddingTop: SdsSpacing.lg,
   },
 
   bottomSpacer: {

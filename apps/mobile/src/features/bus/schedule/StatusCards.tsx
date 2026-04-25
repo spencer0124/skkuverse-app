@@ -10,7 +10,7 @@
  */
 
 import { View, Text, StyleSheet } from 'react-native';
-import { CirclePause, Info, CircleAlert } from 'lucide-react-native';
+import { PauseCircleIcon, InfoIcon, WarningCircleIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt, Button } from '@skkuverse/sds';
 import type { ReactNode } from 'react';
@@ -46,7 +46,7 @@ export function SuspendedCard({ resumeDate, message }: SuspendedCardProps) {
   const { t, tpl } = useT();
   return (
     <StatusCard
-      icon={<CirclePause size={40} color={SdsColors.orange500} />}
+      icon={<PauseCircleIcon size={40} color={SdsColors.orange500} />}
       title={t('schedule.suspended')}
       subtitle={
         message ??
@@ -60,7 +60,7 @@ export function NoDataCard() {
   const { t } = useT();
   return (
     <StatusCard
-      icon={<Info size={40} color={SdsColors.grey400} />}
+      icon={<InfoIcon size={40} color={SdsColors.grey400} />}
       title={t('schedule.noScheduleData')}
     />
   );
@@ -95,7 +95,7 @@ export function ErrorCard({ onRetry }: ErrorCardProps) {
   const { t } = useT();
   return (
     <View style={styles.container}>
-      <CircleAlert size={40} color={SdsColors.grey400} />
+      <WarningCircleIcon size={40} color={SdsColors.grey400} />
       <Txt typography="t5" fontWeight="semiBold" textAlign="center">
         {t('schedule.dataLoadFailed')}
       </Txt>

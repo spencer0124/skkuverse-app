@@ -6,6 +6,7 @@ export * from './switch';
 export * from './checkbox';
 export * from './list-row';
 export * from './accordion-list';
+export * from './badge-nav-row';
 export * from './text-button';
 export * from './icon-button';
 export * from './list-header';

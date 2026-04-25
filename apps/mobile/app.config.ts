@@ -5,13 +5,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "스꾸버스",
   slug: "skkubus",
   owner: "seungyongcho",
-  version: "3.5.0",
+  version: "3.5.1",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.0",
+  runtimeVersion: "3.5.1",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -29,6 +29,27 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
     env: process.env.EXPO_PUBLIC_ENV,
+    // Debug-only. Surfaced so app-check.ts can pass it into
+    // provider.configure({ debugToken }) — RN Firebase then setenv()'s
+    // FIRAAppCheckDebugToken, which is the only App Check debug-token
+    // injection path that reliably works on iOS Simulator (UserDefaults
+    // fallback is silently ignored for unclear reasons — likely GULUserDefaults
+    // caching interaction).
+    //
+    // Guard: stripped from beta / production bundles so the debug token
+    // does NOT end up shipped to TestFlight or App Store builds of a
+    // public repo. In those builds __DEV__ is false and the provider is
+    // App Attest / Play Integrity anyway, so the debug token would be
+    // dead weight even if present — but defense in depth.
+    ...(process.env.EAS_BUILD_PROFILE === "beta" ||
+    process.env.EAS_BUILD_PROFILE === "production"
+      ? {}
+      : {
+          firebaseAppCheckDebugTokenIos:
+            process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
+          firebaseAppCheckDebugTokenAndroid:
+            process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
+        }),
     eas: {
       projectId: "43e326a2-2f25-4317-a341-a107a52c5405",
     },
@@ -39,8 +60,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     buildNumber: "69",
     googleServicesFile: "./GoogleService-Info.plist",
     associatedDomains: ["applinks:skkuverse.com"],
+    entitlements: {
+      "aps-environment":
+        process.env.APP_ENV === "development" ? "development" : "production",
+    },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      UIBackgroundModes: ["remote-notification"],
     },
   },
   android: {
@@ -48,8 +74,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     googleServicesFile: "./google-services.json",
     adaptiveIcon: {
       foregroundImage: "./assets/images/android-icon-foreground.png",
-      backgroundImage: "./assets/images/android-icon-background.png",
-      backgroundColor: "#ffffff",
+      backgroundColor: "#1f3d2e",
+      monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     intentFilters: [
       {
@@ -64,6 +90,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
     "@react-native-firebase/crashlytics",
+    "@react-native-firebase/app-check",
+    "@react-native-firebase/messaging",
+    "@react-native-google-signin/google-signin",
     "expo-router",
     "expo-secure-store",
     [
@@ -84,6 +113,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     "./plugins/withFirebaseModularHeaders",
+    "./plugins/withPushNotificationsCapability",
     "./plugins/withLocalizedAppName",
     [
       "expo-splash-screen",

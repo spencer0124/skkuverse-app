@@ -1,0 +1,199 @@
+import { View, StyleSheet } from 'react-native';
+import { SdsColors, useSettingsStore } from '@skkuverse/shared';
+import { ListRow, Txt } from '@skkuverse/sds';
+import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
+import { PaperclipIcon } from 'phosphor-react-native';
+import { formatDeadlineBadge, type DeadlineInfo } from './utils/formatDeadlineBadge';
+import { formatRelativeDate } from './utils/formatRelativeDate';
+
+interface Props {
+  item: NoticeListItem;
+  onPress: (item: NoticeListItem) => void;
+  /** Show department label (only for multi-dept tabs like 학과/도서관). */
+  showDepartment?: boolean;
+}
+
+const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
+  urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
+  normal: { color: '#03B26C', background: '#F0FAF6' },
+  closed: { color: '#8B95A1', background: '#F2F4F6' },
+  eventToday: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
+  inProgress: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
+  upcoming: { color: '#03B26C', background: '#F0FAF6' },
+};
+const DEFAULT_PILL = { color: '#03B26C', background: '#F0FAF6' };
+
+function isFixedBadge(d: DeadlineInfo): boolean {
+  return d.pill.variant === 'closed';
+}
+
+function renderPill(info: DeadlineInfo) {
+  const colors = PILL_COLORS[info.pill.variant] ?? DEFAULT_PILL;
+  const label = info.context
+    ? `${info.pill.text} · ${info.context}`
+    : info.pill.text;
+  return (
+    <View style={[styles.pill, { backgroundColor: colors.background }]}>
+      <Txt
+        typography="t7"
+        fontWeight="bold"
+        color={colors.color}
+        numberOfLines={1}
+        style={styles.pillText}
+      >
+        {label}
+      </Txt>
+    </View>
+  );
+}
+
+export function NoticeRow({ item, onPress, showDepartment }: Props) {
+  const oneLiner = item.summary?.oneLiner?.trim() ?? '';
+  const deadline = formatDeadlineBadge(item.summary ?? null);
+  const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
+  const belowBadge  = deadline && !isFixedBadge(deadline) ? deadline : null;
+  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
+  const relativeDate = formatRelativeDate(item.date, lang);
+  const deptLabel = showDepartment ? item.department : undefined;
+
+  return (
+    <ListRow
+      onPress={() => onPress(item)}
+      style={styles.row}
+      containerStyle={styles.container}
+      contents={
+        <View style={styles.contents}>
+          {(relativeDate || deptLabel) ? (
+            <View style={styles.metaRow}>
+              {relativeDate ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  style={styles.metaText}
+                >
+                  {relativeDate}
+                </Txt>
+              ) : null}
+              {relativeDate && deptLabel ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey300}
+                  style={styles.metaText}
+                >
+                  {' · '}
+                </Txt>
+              ) : null}
+              {deptLabel ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  numberOfLines={1}
+                  style={[styles.metaText, styles.deptText]}
+                >
+                  {deptLabel}
+                </Txt>
+              ) : null}
+              {item.hasAttachments ? (
+                <PaperclipIcon size={12} color={SdsColors.grey400} style={styles.clipIcon} />
+              ) : null}
+            </View>
+          ) : null}
+          <Txt
+            typography="t5"
+            fontWeight="semiBold"
+            color={SdsColors.grey900}
+            numberOfLines={2}
+            lineBreakStrategyIOS="hangul-word"
+            textBreakStrategy="highQuality"
+            style={[styles.title, fixedBadge && styles.titleWithBadge]}
+          >
+            {item.title}
+          </Txt>
+          {oneLiner.length > 0 ? (
+            <Txt
+              typography="t7"
+              color={SdsColors.grey500}
+              numberOfLines={1}
+              style={styles.subText}
+            >
+              {oneLiner}
+            </Txt>
+          ) : null}
+          {belowBadge ? (
+            <View style={styles.deadlineRow}>
+              {renderPill(belowBadge)}
+            </View>
+          ) : null}
+          {fixedBadge ? (
+            <View style={styles.fixedBadgeFixed}>{renderPill(fixedBadge)}</View>
+          ) : null}
+        </View>
+      }
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
+    paddingVertical: 16,
+  },
+  contents: {
+    gap: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
+  deptText: {
+    flexShrink: 1,
+  },
+  title: {
+    fontSize: 16,
+    lineHeight: 23,
+    letterSpacing: -0.3,
+  },
+  titleWithBadge: {
+    paddingRight: 56,
+  },
+  fixedBadgeFixed: {
+    position: 'absolute',
+    right: 0,
+    top: 22,
+  },
+  clipIcon: {
+    marginLeft: 4,
+  },
+  subText: {
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: -0.1,
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  pillText: {
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: -0.1,
+  },
+});
+

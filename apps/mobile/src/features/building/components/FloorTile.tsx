@@ -6,7 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { ChevronUp, ChevronDown } from 'lucide-react-native';
+import { CaretUpIcon, CaretDownIcon } from 'phosphor-react-native';
 import {
   SdsColors,
   SdsTypo,
@@ -43,9 +43,9 @@ export function FloorTile({ floor, highlightSpaceCd }: FloorTileProps) {
         <View style={styles.headerRight}>
           <Text style={styles.count}>{tpl('building.unitCount', floor.spaces.length)}</Text>
           {expanded ? (
-            <ChevronUp size={16} color={SdsColors.grey400} />
+            <CaretUpIcon size={16} color={SdsColors.grey400} />
           ) : (
-            <ChevronDown size={16} color={SdsColors.grey400} />
+            <CaretDownIcon size={16} color={SdsColors.grey400} />
           )}
         </View>
       </Pressable>

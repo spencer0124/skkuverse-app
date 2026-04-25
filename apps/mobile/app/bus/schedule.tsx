@@ -1,5 +1,5 @@
 /**
- * Bus schedule screen — timetable with segmented control and week navigation.
+ * BusIcon schedule screen — timetable with segmented control and week navigation.
  *
  * Flow:
  * 1. useBusConfig(groupId) → BusGroup (screenType 'schedule')
@@ -25,7 +25,6 @@ import {
 import { SegmentedControl } from '@skkuverse/sds';
 import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
 import { InfoBanner } from '@/features/bus/schedule/InfoBanner';
-import { WeekHeader } from '@/features/bus/schedule/WeekHeader';
 import { DayGrid } from '@/features/bus/schedule/DayGrid';
 import { SectionCard } from '@/features/bus/schedule/SectionCard';
 import { HeroCard } from '@/features/bus/schedule/HeroCard';
@@ -57,7 +56,7 @@ export default function ScheduleScreen() {
   const isSchedule = config?.screenType === 'schedule';
   const screenConfig = isSchedule ? config.screen : undefined;
 
-  // Info button — opens webview with feature info URL
+  // InfoIcon button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
   const infoUrl = serverInfoUrl ? devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info') : undefined;
   const handleInfoPress = useCallback(() => {
@@ -127,14 +126,6 @@ export default function ScheduleScreen() {
   const selectedDay = schedule?.days[selectedDayIndex];
   const todayDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
   const isToday = selectedDay?.date === todayDate;
-
-  // Week navigation
-  const handleWeekChange = useCallback((direction: -1 | 1) => {
-    const newIndex = currentWeekIndex + direction;
-    if (newIndex < 0 || newIndex >= weeks.length) return;
-    setCurrentWeekIndex(newIndex);
-    setSelectedDayInWeekIndex(0);
-  }, [currentWeekIndex, weeks.length]);
 
   const bannerNotice = selectedDay?.notices?.[0];
 

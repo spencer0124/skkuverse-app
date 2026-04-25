@@ -3,7 +3,7 @@
  *
  * Supports controlled (checked + onCheckedChange) and uncontrolled (defaultChecked).
  */
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -13,7 +13,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSpring,

@@ -8,7 +8,7 @@
  */
 
 import { Text, Pressable, Linking, StyleSheet } from 'react-native';
-import { Megaphone, ChevronRight } from 'lucide-react-native';
+import { MegaphoneIcon, CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors, SdsTypo, SdsRadius, type NoticePlacement } from '@skkuverse/shared';
 
 interface NoticeBannerProps {
@@ -33,12 +33,12 @@ export function NoticeBanner({ notice }: NoticeBannerProps) {
       onPress={hasLink ? handlePress : undefined}
       disabled={!hasLink}
     >
-      <Megaphone size={16} color={SdsColors.grey500} />
+      <MegaphoneIcon size={16} color={SdsColors.grey500} />
       <Text style={styles.text} numberOfLines={1}>
         {notice.text}
       </Text>
       {hasLink && (
-        <ChevronRight size={16} color={SdsColors.grey400} />
+        <CaretRightIcon size={16} color={SdsColors.grey400} />
       )}
     </Pressable>
   );

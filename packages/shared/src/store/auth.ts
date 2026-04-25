@@ -8,18 +8,36 @@ import { createStore, useStore } from 'zustand';
  *
  * Flutter source: lib/core/data/api_client.dart (ensureAuth)
  */
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  isAnonymous: boolean;
+}
+
 export interface AuthState {
   isInitialized: boolean;
   isAuthenticated: boolean;
+  isAnonymous: boolean;
+  isSigningOut: boolean;
   uid: string | null;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
   isLoading: boolean;
   error: string | null;
+  // Task #12: survives through sign-out → anon-re-sign-in. Detects uid
+  // transitions in useAppInit so devices/{id}.uid can be re-written.
+  // Do NOT reset in setUnauthenticated — that kills transition detection.
+  lastKnownUid: string | null;
 }
 
 interface AuthActions {
   setLoading: () => void;
-  setAuthenticated: (uid: string) => void;
+  setAuthenticated: (user: AuthUser) => void;
   setUnauthenticated: () => void;
+  setSigningOut: (v: boolean) => void;
   setError: (message: string) => void;
 }
 
@@ -28,29 +46,49 @@ export type AuthStore = AuthState & AuthActions;
 export const authStore = createStore<AuthStore>((set) => ({
   isInitialized: false,
   isAuthenticated: false,
+  isAnonymous: true,
+  isSigningOut: false,
   uid: null,
+  email: null,
+  displayName: null,
+  photoURL: null,
   isLoading: true,
   error: null,
+  lastKnownUid: null,
 
   setLoading: () => set({ isLoading: true, error: null }),
 
-  setAuthenticated: (uid) =>
+  setAuthenticated: (user) =>
     set({
       isInitialized: true,
       isAuthenticated: true,
-      uid,
+      isAnonymous: user.isAnonymous,
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
       isLoading: false,
       error: null,
     }),
 
+  // IMPORTANT: uses explicit field-set (partial merge), NOT set(initialState).
+  // This is intentional — lastKnownUid must survive through sign-out so
+  // useAppInit can detect the subsequent anon re-sign-in as a transition.
+  // If this is ever refactored to reset-all, Task #12's uid migration dies.
   setUnauthenticated: () =>
     set({
       isInitialized: true,
       isAuthenticated: false,
+      isAnonymous: true,
       uid: null,
+      email: null,
+      displayName: null,
+      photoURL: null,
       isLoading: false,
       error: null,
     }),
+
+  setSigningOut: (v) => set({ isSigningOut: v }),
 
   setError: (message) =>
     set({

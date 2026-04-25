@@ -2,7 +2,7 @@
  * SearchField — search input with icon and clear button.
  *
  * Usage:
- *   <SearchField placeholder="검색어를 입력하세요" value={text} onChangeText={setText} />
+ *   <MagnifyingGlassIconField placeholder="검색어를 입력하세요" value={text} onChangeText={setText} />
  */
 import React, { forwardRef, useCallback } from 'react';
 import {
@@ -14,10 +14,9 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { Search, XCircle } from 'lucide-react-native';
+import { MagnifyingGlassIcon, XCircleIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
-import { Txt } from '../txt';
 
 export interface SearchFieldProps extends Omit<TextInputProps, 'style'> {
   value?: string;
@@ -63,7 +62,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
   return (
     <View style={[styles.container, style]}>
       <View style={styles.iconLeft}>
-        <Search size={20} color={SdsColors.grey400} />
+        <MagnifyingGlassIcon size={20} color={SdsColors.grey400} />
       </View>
       <TextInput
         ref={ref}
@@ -78,7 +77,7 @@ export const SearchField = forwardRef<TextInput, SearchFieldProps>(function Sear
       />
       {showClear && (
         <Pressable onPress={handleClear} style={styles.clearButton} hitSlop={8}>
-          <XCircle size={20} color={SdsColors.grey300} fill={SdsColors.grey300} />
+          <XCircleIcon size={20} color={SdsColors.grey300} weight="fill" />
         </Pressable>
       )}
     </View>

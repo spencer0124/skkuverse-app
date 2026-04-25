@@ -1,5 +1,5 @@
 /**
- * Bus marker — absolutely positioned on the station list.
+ * BusIcon marker — absolutely positioned on the station list.
  *
  * Position calc (from businfo_component.dart):
  *   top = stationIndex >= lastStationIndex
@@ -18,7 +18,7 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { RealtimeBus } from '@skkuverse/shared';
-import { Bus } from 'lucide-react-native';
+import { BusIcon } from 'phosphor-react-native';
 import { LicensePlate } from './LicensePlate';
 import { PulseAnimation } from './PulseAnimation';
 import { STATION_ROW_HEIGHT, LEFT_PADDING } from './StationRow';
@@ -75,7 +75,7 @@ export function BusMarker({ bus, lastStationIndex, color, pollGeneration }: BusM
       <View style={styles.pulseContainer}>
         <PulseAnimation color={color} size={PULSE_SIZE} />
         <View style={[styles.innerDot, { backgroundColor: color }]}>
-          <Bus size={14} color="#FFFFFF" />
+          <BusIcon size={14} color="#FFFFFF" />
         </View>
       </View>
     </View>

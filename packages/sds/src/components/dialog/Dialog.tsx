@@ -15,7 +15,7 @@
  *   />
  */
 import React, { useCallback, useEffect, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -26,7 +26,7 @@ import Animated, {
 import { SdsColors } from '@skkuverse/shared';
 import { springConfig } from '../../foundation/easings';
 import { Txt } from '../txt';
-import { Button, type ButtonProps } from '../button';
+import { Button } from '../button';
 
 // ── AlertDialog ──
 

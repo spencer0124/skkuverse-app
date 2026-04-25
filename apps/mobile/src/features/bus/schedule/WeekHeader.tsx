@@ -5,7 +5,7 @@
  */
 
 import { View, Pressable, StyleSheet } from 'react-native';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { CaretLeftIcon, CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
@@ -30,7 +30,7 @@ export function WeekHeader({ label, canGoPrev, canGoNext, onPrev, onNext }: Week
           style={styles.button}
           hitSlop={4}
         >
-          <ChevronLeft
+          <CaretLeftIcon
             size={18}
             color={canGoPrev ? SdsColors.grey500 : SdsColors.grey300}
           />
@@ -41,7 +41,7 @@ export function WeekHeader({ label, canGoPrev, canGoNext, onPrev, onNext }: Week
           style={styles.button}
           hitSlop={4}
         >
-          <ChevronRight
+          <CaretRightIcon
             size={18}
             color={canGoNext ? SdsColors.grey500 : SdsColors.grey300}
           />

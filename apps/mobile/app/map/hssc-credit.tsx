@@ -36,7 +36,7 @@ export default function HSSCCreditScreen() {
       <View style={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            인사캠 건물지도 '빠를지도' 제공
+            인사캠 건물지도 &apos;빠를지도&apos; 제공
           </Text>
           <View style={styles.cardSpacer} />
           <Text style={styles.cardBody}>

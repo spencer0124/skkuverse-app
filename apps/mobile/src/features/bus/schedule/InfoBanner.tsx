@@ -1,11 +1,11 @@
 /**
- * Dismissable info banner — blue-tinted notification strip with X button.
+ * Dismissable info banner — blue-tinted notification strip with XIcon button.
  *
  * Design source: shuttle-v3.html (.banner)
  */
 
 import { View, StyleSheet } from 'react-native';
-import { Info } from 'lucide-react-native';
+import { InfoIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
@@ -16,7 +16,7 @@ interface InfoBannerProps {
 export function InfoBanner({ text }: InfoBannerProps) {
   return (
     <View style={styles.container}>
-      <Info size={16} color={SdsColors.blue600} />
+      <InfoIcon size={16} color={SdsColors.blue600} />
       <Txt typography="t7" fontWeight="medium" color={SdsColors.blue600} style={styles.text}>
         {text}
       </Txt>

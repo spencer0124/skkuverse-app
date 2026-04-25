@@ -20,12 +20,12 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  XCircle,
-  Search,
-  MapPin,
-  ChevronDown,
-  ChevronRight,
-} from 'lucide-react-native';
+  XCircleIcon,
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  CaretDownIcon,
+  CaretRightIcon,
+} from 'phosphor-react-native';
 import {
   useSearchBuildings,
   SdsColors,
@@ -40,7 +40,7 @@ import {
   floorBadge,
   useSettingsStore,
 } from '@skkuverse/shared';
-import { Badge, ListHeader, Navbar, SegmentedControl, Txt } from '@skkuverse/sds';
+import { Badge, ListHeader, SegmentedControl, Txt } from '@skkuverse/sds';
 import { useSearchResultStore } from './store';
 import {
   logSearchPerform,
@@ -161,10 +161,10 @@ export function SearchScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Search field */}
+      {/* MagnifyingGlassIcon field */}
       <View style={styles.searchFieldWrapper}>
         <View style={styles.searchField}>
-          <Search size={18} color={SdsColors.grey500} />
+          <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
           <TextInput
             style={styles.input}
             placeholder={t('search.placeholder')}
@@ -182,7 +182,7 @@ export function SearchScreen() {
               }}
               hitSlop={8}
             >
-              <XCircle size={18} color={SdsColors.grey400} />
+              <XCircleIcon size={18} color={SdsColors.grey400} />
             </Pressable>
           )}
         </View>
@@ -219,7 +219,7 @@ export function SearchScreen() {
       {/* Empty states */}
       {noQuery && (
         <View style={styles.emptyContainer}>
-          <MapPin size={40} color={SdsColors.grey300} strokeWidth={1.5} />
+          <MapPinIcon size={40} color={SdsColors.grey300} weight="thin" />
           <Txt typography="t6" fontWeight="regular" color={SdsColors.grey400} style={styles.emptyText}>
             {t('search.emptyPrompt')}
           </Txt>
@@ -228,7 +228,7 @@ export function SearchScreen() {
 
       {noResults && (
         <View style={styles.emptyContainer}>
-          <Search size={48} color={SdsColors.grey300} />
+          <MagnifyingGlassIcon size={48} color={SdsColors.grey300} />
           <Txt typography="t6" fontWeight="medium" color={SdsColors.grey400} style={styles.emptyText}>
             {tpl('search.noResult', debouncedQuery)}
           </Txt>
@@ -260,9 +260,9 @@ export function SearchScreen() {
                       {data.buildingCount}
                     </Txt>
                     {buildingExpanded ? (
-                      <ChevronDown size={16} color={SdsColors.grey400} />
+                      <CaretDownIcon size={16} color={SdsColors.grey400} />
                     ) : (
-                      <ChevronRight size={16} color={SdsColors.grey400} />
+                      <CaretRightIcon size={16} color={SdsColors.grey400} />
                     )}
                   </View>
                 }
@@ -315,9 +315,9 @@ export function SearchScreen() {
                       {data.spaceCount}
                     </Txt>
                     {spaceExpanded ? (
-                      <ChevronDown size={16} color={SdsColors.grey400} />
+                      <CaretDownIcon size={16} color={SdsColors.grey400} />
                     ) : (
-                      <ChevronRight size={16} color={SdsColors.grey400} />
+                      <CaretRightIcon size={16} color={SdsColors.grey400} />
                     )}
                   </View>
                 }

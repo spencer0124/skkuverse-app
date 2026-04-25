@@ -6,7 +6,7 @@
 
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
 
 export function SearchBar() {
@@ -18,7 +18,7 @@ export function SearchBar() {
       style={styles.container}
       onPress={() => router.push('/search')}
     >
-      <Search size={18} color={SdsColors.grey500} />
+      <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
       <Text style={styles.placeholder} numberOfLines={1} ellipsizeMode="tail">{t('search.placeholder')}</Text>
     </Pressable>
   );

@@ -22,7 +22,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { XCircle } from 'lucide-react-native';
+import { XCircleIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
 import { Txt } from '../txt';
@@ -123,11 +123,13 @@ const TextFieldInner = forwardRef<TextInput, TextFieldProps & { showClear?: bool
     const handleFocus = useCallback((e: any) => {
       setFocused(true);
       rest.onFocus?.(e);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rest.onFocus]);
 
     const handleBlur = useCallback((e: any) => {
       setFocused(false);
       rest.onBlur?.(e);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rest.onBlur]);
 
     // Label left position: 16 for box, 0 for line
@@ -193,7 +195,7 @@ const TextFieldInner = forwardRef<TextInput, TextFieldProps & { showClear?: bool
             )}
             {showClear && hasValue && (
               <Pressable onPress={onClear} hitSlop={8} style={styles.clearButton}>
-                <XCircle size={20} color={SdsColors.grey300} fill={SdsColors.grey300} />
+                <XCircleIcon size={20} color={SdsColors.grey300} weight="fill" />
               </Pressable>
             )}
             {right}

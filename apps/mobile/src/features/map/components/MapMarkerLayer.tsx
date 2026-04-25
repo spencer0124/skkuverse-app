@@ -17,32 +17,6 @@ import { useLayerMarkers, type MapLayerDef, useSettingsStore, SdsColors } from '
 
 const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
-/**
- * Pure View/Text pin marker for numberCircle style.
- * iOS custom view markers use a one-shot UIView→UIImage snapshot (renderInContext).
- * <Image> loads async via SDWebImage → always misses the snapshot.
- * View/Text render synchronously → always captured correctly.
- */
-const NumberCircleMarker = React.memo(function NumberCircleMarker({
-  displayNo,
-  markerSize,
-}: {
-  displayNo: string;
-  markerSize: number;
-}) {
-  return (
-    <View
-      collapsable={false}
-      style={[styles.numberMarker, { width: markerSize, height: markerSize }]}
-    >
-      <View style={styles.pinCircle}>
-        <Text style={styles.numberText}>{displayNo}</Text>
-      </View>
-      <View style={styles.pinPoint} />
-    </View>
-  );
-});
-
 const DOT_SIZE = 16;
 
 const NumberDotMarker = React.memo(function NumberDotMarker({
@@ -147,7 +121,6 @@ export function MapMarkerLayer({
   );
 }
 
-const PIN_COLOR = SdsColors.brand;
 const DOT_COLOR = SdsColors.brand;
 
 const styles = StyleSheet.create({
@@ -164,36 +137,5 @@ const styles = StyleSheet.create({
     fontFamily: 'WantedSans',
     color: 'white',
     fontWeight: '700',
-  },
-  numberMarker: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  pinCircle: {
-    width: 17,
-    height: 17,
-    borderRadius: 8.5,
-    backgroundColor: 'white',
-    borderWidth: 3,
-    borderColor: PIN_COLOR,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pinPoint: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderTopWidth: 6,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: PIN_COLOR,
-    marginTop: -4,
-  },
-  numberText: {
-    fontSize: 7,
-    fontFamily: 'WantedSans',
-    color: 'black',
-    fontWeight: '600',
   },
 });

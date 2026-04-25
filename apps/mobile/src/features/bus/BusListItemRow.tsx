@@ -1,5 +1,5 @@
 /**
- * Bus list row — renders a single transit list item.
+ * BusIcon list row — renders a single transit list item.
  *
  * Ports `CustomRow1` from Flutter's busrow.dart. Layout:
  * - Pressable row: paddingH 20, paddingV 14
@@ -10,7 +10,7 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors, SdsTypo, type BusListItem, hexToColor } from '@skkuverse/shared';
 import { BusIcon } from './BusIcon';
 
@@ -58,7 +58,7 @@ export function BusListItemRow({ item, onPress }: BusListItemRowProps) {
           )}
         </View>
 
-        <ChevronRight size={20} color={SdsColors.grey400} />
+        <CaretRightIcon size={20} color={SdsColors.grey400} />
       </Pressable>
       <View style={styles.divider} />
     </>

@@ -3,7 +3,7 @@
  */
 
 import { Pressable, StyleSheet } from 'react-native';
-import { SlidersHorizontal } from 'lucide-react-native';
+import { SlidersHorizontalIcon } from 'phosphor-react-native';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
 
 interface FilterButtonProps {
@@ -13,7 +13,7 @@ interface FilterButtonProps {
 export function FilterButton({ onPress }: FilterButtonProps) {
   return (
     <Pressable style={styles.button} onPress={onPress}>
-      <SlidersHorizontal size={20} color={SdsColors.grey700} />
+      <SlidersHorizontalIcon size={20} color={SdsColors.grey700} />
     </Pressable>
   );
 }

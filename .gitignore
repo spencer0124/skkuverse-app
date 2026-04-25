@@ -15,6 +15,7 @@ android/
 .env
 .env.local
 .env.*.local
+.envrc
 
 # Firebase credentials
 GoogleService-Info.plist
@@ -41,6 +42,13 @@ Thumbs.db
 
 # Turborepo (future)
 .turbo/
+
+# Firebase CLI / Emulator
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+firestore-export/
 
 # Claude Code — allow only workflow files
 .github/*

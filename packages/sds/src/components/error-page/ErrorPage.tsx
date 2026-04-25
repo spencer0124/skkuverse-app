@@ -7,7 +7,7 @@
  */
 import React, { type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { CircleAlert } from 'lucide-react-native';
+import { WarningCircleIcon } from 'phosphor-react-native';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
 import { Button } from '../button';
@@ -72,7 +72,7 @@ export function ErrorPage({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.content}>
-        <CircleAlert size={64} color={adaptive.grey400} />
+        <WarningCircleIcon size={64} color={adaptive.grey400} />
         <Txt
           typography="t3"
           fontWeight="bold"

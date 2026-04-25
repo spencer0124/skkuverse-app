@@ -7,7 +7,7 @@
  *   <Txt typography="t3" fontWeight="bold" color={colors.grey900}>Title</Txt>
  */
 import React, { forwardRef, type ComponentProps, type ReactNode } from 'react';
-import { Platform, StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
+import { StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
 import { useAdaptive } from '../../core';
 import { useTypographyTheme } from '../../core/TypographyProvider';
 import {

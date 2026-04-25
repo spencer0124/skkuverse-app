@@ -8,12 +8,12 @@
  */
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Star } from 'lucide-react-native';
+import { StarIcon as PhosphorStar } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '../txt';
 
 function StarIcon({ size, color }: { size: number; color: string }) {
-  return <Star size={size} color={color} fill={color} strokeWidth={0} />;
+  return <PhosphorStar size={size} color={color} weight="fill" />;
 }
 
 // ── Size maps ──
@@ -76,6 +76,21 @@ export default function Rating(props: RatingProps) {
 
   const inactiveColor = SdsColors.greyOpacity200;
 
+  // Hooks must be called unconditionally — before the readOnly early return.
+  const {
+    onValueChange,
+    disabled = false,
+    gap = 4,
+  } = readOnly ? { onValueChange: undefined, disabled: false, gap: 4 } : (props as EditableRatingProps);
+
+  const handlePress = useCallback(
+    (index: number) => {
+      if (disabled) return;
+      onValueChange?.(index + 1);
+    },
+    [disabled, onValueChange],
+  );
+
   if (readOnly) {
     const {
       size,
@@ -121,22 +136,8 @@ export default function Rating(props: RatingProps) {
   }
 
   // Editable
-  const {
-    size,
-    onValueChange,
-    disabled = false,
-    gap = 4,
-  } = props as EditableRatingProps;
-
+  const { size } = props as EditableRatingProps;
   const starSize = editableSizeMap[size];
-
-  const handlePress = useCallback(
-    (index: number) => {
-      if (disabled) return;
-      onValueChange?.(index + 1);
-    },
-    [disabled, onValueChange],
-  );
 
   return (
     <View style={[styles.row, { gap, opacity: disabled ? 0.4 : 1 }, style]}>

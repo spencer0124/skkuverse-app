@@ -7,7 +7,7 @@
  */
 
 import { View, StyleSheet } from 'react-native';
-import { TriangleAlert, Info } from 'lucide-react-native';
+import { WarningIcon, InfoIcon } from 'phosphor-react-native';
 import { SdsRadius, type ScheduleNotice } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
@@ -23,7 +23,7 @@ const STYLE_CONFIG: Record<string, { bg: string; color: string }> = {
 
 export function NoticeBar({ notice }: NoticeBarProps) {
   const config = STYLE_CONFIG[notice.style] ?? STYLE_CONFIG.info;
-  const IconComponent = notice.style === 'warning' ? TriangleAlert : Info;
+  const IconComponent = notice.style === 'warning' ? WarningIcon : InfoIcon;
 
   return (
     <View style={[styles.container, { backgroundColor: config.bg }]}>

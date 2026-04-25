@@ -11,7 +11,7 @@
  *     onClose={() => setShow(false)}
  *   />
  */
-import React, { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -21,7 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CircleCheck, CircleX, CircleAlert, Info } from 'lucide-react-native';
+import { CheckCircleIcon, XCircleIcon, WarningCircleIcon, InfoIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { springConfig } from '../../foundation/easings';
 import { Txt } from '../txt';
@@ -95,6 +95,7 @@ function ToastMain({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const containerStyle = useAnimatedStyle(() => ({
@@ -142,17 +143,17 @@ const iconColors: Record<IconType, string> = {
   info: SdsColors.blue500,
 };
 
-const iconComponents: Record<IconType, typeof CircleCheck> = {
-  check: CircleCheck,
-  error: CircleX,
-  warning: CircleAlert,
-  info: Info,
+const iconComponents: Record<IconType, typeof CheckCircleIcon> = {
+  check: CheckCircleIcon,
+  error: XCircleIcon,
+  warning: WarningCircleIcon,
+  info: InfoIcon,
 };
 
 function ToastIcon({ type, size = 20 }: ToastIconProps) {
   const color = iconColors[type];
   const IconComponent = iconComponents[type];
-  return <IconComponent size={size} color="#FFFFFF" fill={color} />;
+  return <IconComponent size={size} color="#FFFFFF" weight="fill" />;
 }
 
 // ── Toast.Button ──

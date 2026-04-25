@@ -6,7 +6,7 @@
  */
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Minus, Plus } from 'lucide-react-native';
+import { MinusIcon, PlusIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useAdaptive } from '../../core';
 import { useControlled } from '../../utils';
@@ -79,7 +79,7 @@ export default function NumericSpinner({
 
   return (
     <View style={[styles.container, { opacity: disable ? 0.4 : 1 }, style]}>
-      {/* Minus */}
+      {/* MinusIcon */}
       <Pressable
         onPress={handleDecrement}
         style={[
@@ -95,7 +95,7 @@ export default function NumericSpinner({
         accessibilityLabel="Decrease"
         accessibilityState={{ disabled: disable || isMinReached }}
       >
-        <Minus
+        <MinusIcon
           size={config.iconSize}
           color={isMinReached ? buttonDisabledColor : buttonActiveColor}
         />
@@ -113,7 +113,7 @@ export default function NumericSpinner({
         </Txt>
       </View>
 
-      {/* Plus */}
+      {/* PlusIcon */}
       <Pressable
         onPress={handleIncrement}
         style={[
@@ -129,7 +129,7 @@ export default function NumericSpinner({
         accessibilityLabel="Increase"
         accessibilityState={{ disabled: disable || isMaxReached }}
       >
-        <Plus
+        <PlusIcon
           size={config.iconSize}
           color={isMaxReached ? buttonDisabledColor : buttonActiveColor}
         />

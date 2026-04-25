@@ -22,13 +22,13 @@ export interface ImageLayoutEntry {
   height: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const image0 = require('../assets/hssc_image0.png');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const image1 = require('../assets/hssc_image1.png');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const image2 = require('../assets/hssc_image2.png');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const image3 = require('../assets/hssc_image3.png');
 
 export const IMAGE_LAYOUT: ImageLayoutEntry[] = [

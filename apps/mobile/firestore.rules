@@ -1,0 +1,106 @@
+rules_version = '2';
+
+// Skkuverse Firestore Security Rules — Phase 2 (option D, no notifications collection).
+//
+// Deploy from repo root:
+//   firebase deploy --only firestore:rules
+//
+// Admin SDK in Cloud Functions bypasses these rules, so server-only mutations
+// (future Cloud Function writes to devices/{id}.active, preference sync) work
+// regardless of the restrictions here.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // users/{uid} — locale + future user-level settings.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // users/{uid}/preferences/main — v5 SSOT (Phase F lockdown).
+      //
+      // INTENT (client writable):
+      //   enabled, categoryEnabled, noticeTabEnabled, pickerSelections
+      // DERIVED (CF only, blocked here):
+      //   subscribedTopics, derivedAt
+      //
+      // The Cloud Function `onPreferencesWrite` writes subscribedTopics +
+      // derivedAt with admin SDK (which bypasses these rules). Any client
+      // attempt — accidental, malicious, or stale — is rejected.
+      //
+      // Create constraint: subscribedTopics must be empty or absent. CF fills
+      // it within ~1-3s of the first intent write. Letting clients seed
+      // arbitrary topics would defeat the SSOT invariant before derive runs.
+      match /preferences/main {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        // ESSENTIAL LOCK — categoryEnabled.essential 은 항상 true 여야 함.
+        // UI lock + CF derive override + 이 Rules 의 3중 방어. legacy 사용자
+        // 없는 단계라 단순 형태 — 어떤 write 든 essential != true 면 거부.
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && (
+                        !('subscribedTopics' in request.resource.data) ||
+                        request.resource.data.subscribedTopics.size() == 0
+                      )
+                      && (
+                        !('categoryEnabled' in request.resource.data) ||
+                        request.resource.data.categoryEnabled.essential == true
+                      );
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && !request.resource.data.diff(resource.data)
+                            .affectedKeys()
+                            .hasAny(['subscribedTopics', 'derivedAt'])
+                      && (
+                        !('categoryEnabled' in request.resource.data) ||
+                        request.resource.data.categoryEnabled.essential == true
+                      );
+
+        allow delete: if false;
+      }
+    }
+
+    // devices/{deviceId} — top-level so the Cloud Function can query by
+    // (active, notificationsEnabled, subscribedTopics) without hopping per uid.
+    //
+    // Writes require the caller's auth.uid to match the document's uid field.
+    // Deletes are disabled — unregister is expressed as setting active: false.
+    match /devices/{deviceId} {
+      allow read: if request.auth != null
+                  && request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.uid;
+
+      // SECURITY TRADE — Task #12 (stale uid after anon→Google transition)
+      //
+      // Rule permits an authenticated user to claim a device doc IF:
+      //   (a) they already own it (normal re-registration), OR
+      //   (b) the doc is currently inactive (previous owner signed out).
+      //
+      // Rationale:
+      //   - deviceId is a UUID4 stored only in device's MMKV; not enumerable,
+      //     not transmitted outside Firestore writes.
+      //   - App Check (App Attest / Play Integrity) gates all writes to
+      //     attested builds only.
+      //   - Active docs CANNOT be hijacked (condition 3a fails, 3b fails).
+      //   - Inactive docs can be claimed by any authenticated user, but if
+      //     the original owner returns, they can re-claim via 3b again
+      //     (write is idempotent — new uid simply overwrites).
+      //
+      // Rejected attack: "malicious takeover of active doc" — blocked.
+      // Accepted trade: "first-come-first-serve on inactive docs" — acceptable
+      // because the physical device's legit user always wins on re-login
+      // (their doc is inactive at that moment, so they claim it).
+      //
+      // See docs/plans/fcm-push-notifications.md:590
+      allow update: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && (
+                      resource.data.uid == request.auth.uid
+                      || resource.data.active == false
+                    );
+      allow delete: if false;
+    }
+  }
+}

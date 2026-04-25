@@ -1,5 +1,5 @@
 import type { AxiosInstance } from 'axios';
-import axiosRetry from 'axios-retry';
+import axiosRetry, { isNetworkOrIdempotentRequestError } from 'axios-retry';
 
 /**
  * Retry interceptor — automatic retry for transient failures.
@@ -21,7 +21,7 @@ export function attachRetryInterceptor(client: AxiosInstance): void {
     },
     retryCondition: (error) => {
       // Network errors and timeouts
-      if (axiosRetry.isNetworkOrIdempotentRequestError(error)) {
+      if (isNetworkOrIdempotentRequestError(error)) {
         return true;
       }
       // Specific retryable status codes

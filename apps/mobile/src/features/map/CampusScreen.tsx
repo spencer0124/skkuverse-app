@@ -23,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetModal,
-  BottomSheetModalProvider,
 } from '@gorhom/bottom-sheet';
 import type { NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import {
@@ -31,10 +30,14 @@ import {
   useCampusSections,
   useMapLayerStore,
   SdsColors,
-  SdsShadows,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
+import { handleSduiAction } from '@/sdui/action-handler';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
+import {
+  TossfaceButtonGrid,
+  type TossfaceGridItem,
+} from '@/components/TossfaceButtonGrid';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
@@ -45,6 +48,31 @@ import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useSearchResultStore } from '@/features/search/store';
 import { logMarkerTap, logConnectionTap } from '@/services/analytics';
+
+const CAMPUS_GRID_ITEMS: readonly TossfaceGridItem[] = [
+  {
+    id: 'building_map',
+    title: '건물지도',
+    emoji: '\u{1F3E2}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'webview',
+        actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
+        webviewTitle: '건물지도',
+        webviewColor: '003626',
+      }),
+  },
+  {
+    id: 'building_code',
+    title: '건물코드',
+    emoji: '\u{1F522}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'route',
+        actionValue: '/search',
+      }),
+  },
+];
 
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
@@ -161,13 +189,7 @@ export function CampusScreen() {
     [],
   );
 
-  // ── Filter button ──
-  const handleFilterPress = useCallback(() => {
-    filterSheetRef.current?.present();
-  }, []);
-
   return (
-    <BottomSheetModalProvider>
       <View style={styles.root}>
         {/* Map (behind everything) */}
         {mapConfig && (
@@ -218,9 +240,18 @@ export function CampusScreen() {
             {!mapConfig || campusLoading ? (
               <CampusSkeleton />
             ) : (
-              campusData && (
-                <SduiSectionList sections={campusData.sections} />
-              )
+              <>
+                <View style={styles.hardcodedGridWrap}>
+                  <TossfaceButtonGrid items={CAMPUS_GRID_ITEMS} />
+                </View>
+                {campusData && (
+                  <SduiSectionList
+                    sections={campusData.sections.filter(
+                      (s) => s.type !== 'button_grid',
+                    )}
+                  />
+                )}
+              </>
             )}
           </BottomSheetScrollView>
         </BottomSheet>
@@ -239,7 +270,6 @@ export function CampusScreen() {
           </>
         )}
       </View>
-    </BottomSheetModalProvider>
   );
 }
 
@@ -259,5 +289,9 @@ const styles = StyleSheet.create({
   sheetContent: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  hardcodedGridWrap: {
+    paddingTop: 8,
+    paddingBottom: 16,
   },
 });

@@ -7,47 +7,40 @@
  * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
 
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { router } from 'expo-router';
 import { CampusScreen } from '@/features/map/CampusScreen';
-import { Pressable, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
 export default function CampusTab() {
-  const router = useRouter();
+  useTabFocusTracking('campus');
   return (
     <>
       <CampusScreen />
-      {/* {__DEV__ && (
-        <Pressable
-          style={styles.devFab}
-          onPress={() => router.push('/sds-preview')}
-        >
-          <Text style={styles.devFabText}>SDS</Text>
-        </Pressable>
-      )} */}
+      <Pressable
+        style={debugBtnStyle.btn}
+        onPress={() => router.push('/debug-fcm' as never)}
+      >
+        <Text style={debugBtnStyle.txt}>FCM</Text>
+      </Pressable>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  devFab: {
+/**
+ * Persistent FCM debug entry — intentionally NOT __DEV__-gated so it ships
+ * in TestFlight builds. Remove only when Phase 3 is stable.
+ */
+const debugBtnStyle = StyleSheet.create({
+  btn: {
     position: 'absolute',
-    bottom: 120,
+    top: 60,
     right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#6366f1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    backgroundColor: '#f85149',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 9999,
   },
-  devFabText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  txt: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

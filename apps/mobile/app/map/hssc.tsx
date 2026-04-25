@@ -1,14 +1,14 @@
 /**
- * HSSC Building Map — native SVG render.
+ * HSSC Building MapTrifoldIcon — native SVG render.
  *
  * Route: /map/hssc
  * Params: ?building=건물명 (optional, centers map on that building)
  */
 
-import { View, Pressable, Text, StyleSheet, Platform } from 'react-native';
+import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Info } from 'lucide-react-native';
+import { ArrowLeft, InfoIcon } from 'phosphor-react-native';
 import { SdsColors, SdsTypo } from '@skkuverse/shared';
 import { HsscMapScreen } from '@/features/map/hssc/HsscMapScreen';
 
@@ -34,7 +34,7 @@ export default function HSSCMapRoute() {
           style={styles.iconButton}
           hitSlop={8}
         >
-          <Info size={24} color={SdsColors.grey900} />
+          <InfoIcon size={24} color={SdsColors.grey900} />
         </Pressable>
       </View>
 

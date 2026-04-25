@@ -44,11 +44,29 @@ export type { TranslationKey } from './i18n';
 
 // ── Stores ──
 export { authStore, useAuthStore } from './store/auth';
-export type { AuthState, AuthStore } from './store/auth';
+export type { AuthState, AuthStore, AuthUser } from './store/auth';
 export { useSettingsStore } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/settings';
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
+
+// ── Notifications ──
+export type {
+  UserDocument,
+  DeviceDocument,
+  PreferencesDocument,
+} from './types/notifications';
+export {
+  TopicPrefix,
+  buildTopic,
+  parseTopic,
+} from './constants/topics';
+export type { TopicPrefixValue } from './constants/topics';
+export { useNotificationStore, notificationStore } from './store/notifications';
+export type {
+  NotificationStore,
+  PushPermissionStatus,
+} from './store/notifications';
 
 // ── SDUI types ──
 export type {
@@ -129,6 +147,7 @@ export { parseAppConfig } from './app/parser';
 
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
+export { resolveInitialTabRouteName } from './utils/resolveInitialTabRoute';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
@@ -157,6 +176,36 @@ export {
   parseBuildingSearchResult,
 } from './building';
 
+// ── Notice parsers + types ──
+export {
+  parseTabsConfig,
+  parseNoticePage,
+  parseNoticeDetail,
+  resolvePickerSelection,
+  computeOnboardingPickerSeed,
+} from './notices';
+export type {
+  TabSource,
+  PickerTabConfig,
+  FixedTabConfig,
+  NoticeTab,
+  NoticeTabsConfig,
+  NoticeSource,
+  NoticeSummaryType,
+  NoticeStartAt,
+  NoticeEndAt,
+  NoticeListItem,
+  NoticeListItemSummary,
+  NoticePage,
+  NoticeDetail,
+  NoticeDetailSummary,
+  NoticeSummaryDetails,
+  NoticePeriod,
+  NoticeLocation,
+  NoticeAttachment,
+  NoticeEditInfo,
+} from './notices';
+
 // ── Hooks ──
 export {
   useCampusSections,
@@ -184,4 +233,14 @@ export {
   useLayerPolyline,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
+  useNoticeTabs,
+  NOTICE_TABS_KEY,
+  useNoticeList,
+  NOTICE_LIST_KEY,
+  type UseNoticeListArgs,
+  useMultiSourceNoticeList,
+  NOTICE_MULTI_KEY,
+  type UseMultiSourceNoticeListArgs,
+  useNoticeDetail,
+  NOTICE_DETAIL_KEY,
 } from './hooks';

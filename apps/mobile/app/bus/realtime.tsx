@@ -1,5 +1,5 @@
 /**
- * Bus realtime screen — live bus tracking on a station timeline.
+ * BusIcon realtime screen — live bus tracking on a station timeline.
  *
  * Flow:
  * 1. useLocalSearchParams → groupId
@@ -13,14 +13,14 @@
 
 import { useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { InfoIcon } from 'phosphor-react-native';
 import {
   useBusConfig,
   useRealtimeData,
   hexToColor,
   SdsColors,
 } from '@skkuverse/shared';
-import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
 import { TopInfoBar } from '@/features/bus/realtime/TopInfoBar';
 import { StationRow } from '@/features/bus/realtime/StationRow';
 import { BusMarker } from '@/features/bus/realtime/BusMarker';
@@ -29,6 +29,7 @@ import { RealtimeSkeleton } from '@/features/bus/realtime/RealtimeSkeleton';
 import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
+import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { logBusRouteOpen } from '@/services/analytics';
 
 /** Extract info feature URL from config features array */
@@ -70,8 +71,8 @@ export default function RealtimeScreen() {
 
   // Build ETA lookup map: stationIndex → eta string
   const etaMap = useMemo(() => {
-    if (!realtimeData?.stationEtas) return new Map<number, string>();
-    return new Map(
+    if (!realtimeData?.stationEtas) return new MapTrifoldIcon<number, string>();
+    return new MapTrifoldIcon(
       realtimeData.stationEtas.map((e) => [e.stationIndex, e.eta]),
     );
   }, [realtimeData?.stationEtas]);
@@ -80,7 +81,7 @@ export default function RealtimeScreen() {
     ? hexToColor(config.card.themeColor, SdsColors.brand)
     : SdsColors.brand;
 
-  // Info button — opens webview with feature info URL
+  // InfoIcon button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
   const infoUrl = serverInfoUrl ? devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info') : undefined;
 
@@ -99,7 +100,7 @@ export default function RealtimeScreen() {
   if (configLoading || !config) {
     return (
       <View style={styles.container}>
-        <NavigationBar title="" />
+        <Stack.Screen options={{ title: '' }} />
         <RealtimeSkeleton />
       </View>
     );
@@ -107,7 +108,18 @@ export default function RealtimeScreen() {
 
   return (
     <View style={styles.container}>
-      <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
+      <Stack.Screen
+        options={{
+          title: config.label,
+          headerRight: infoUrl
+            ? () => (
+                <HeaderIconButton onPress={handleInfoPress}>
+                  <InfoIcon size={22} color={SdsColors.grey900} />
+                </HeaderIconButton>
+              )
+            : undefined,
+        }}
+      />
 
       <TopInfoBar
         currentTime={realtimeData?.meta?.currentTime ?? '00:00 AM'}
@@ -128,7 +140,7 @@ export default function RealtimeScreen() {
             />
           ))}
 
-          {/* Bus markers (positioned absolutely from realtime data) */}
+          {/* BusIcon markers (positioned absolutely from realtime data) */}
           {realtimeData?.buses.map((bus, i) => (
             <BusMarker
               key={`${bus.carNumber}-${bus.stationIndex}-${i}`}

@@ -1,4 +1,6 @@
-import axios, {
+import {
+  isCancel,
+  isAxiosError,
   type AxiosInstance,
   type AxiosRequestConfig,
   type AxiosError,
@@ -46,11 +48,11 @@ function parseServerError(error: AxiosError): AppFailure {
 }
 
 function mapAxiosError(error: unknown): AppFailure {
-  if (axios.isCancel(error)) {
+  if (isCancel(error)) {
     return Failure.cancelled();
   }
 
-  if (axios.isAxiosError(error)) {
+  if (isAxiosError(error)) {
     // No response → network/timeout error
     if (!error.response) {
       return Failure.network(`Network error: ${error.message}`);
