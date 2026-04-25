@@ -4,7 +4,7 @@ import type { NavigationState } from "@react-navigation/native";
 import {
   HouseIcon,
   BellIcon,
-  MapTrifoldIcon,
+  CompassIcon,
   NavigationArrowIcon,
 } from "phosphor-react-native";
 import { Platform, Text } from "react-native";
@@ -104,8 +104,8 @@ export default function TabLayout() {
         <NativeTabs.Trigger name="campus">
           <Icon
             src={{
-              default: require('../../assets/tab-icons/map-outline.png'),
-              selected: require('../../assets/tab-icons/map-filled.png'),
+              default: require('../../assets/tab-icons/compass-outline.png'),
+              selected: require('../../assets/tab-icons/compass-filled.png'),
             }}
           />
           <Label>{t("nav.campus")}</Label>
@@ -198,7 +198,7 @@ export default function TabLayout() {
         options={{
           title: t("nav.campus"),
           tabBarIcon: ({ focused, color }) => (
-            <MapTrifoldIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
+            <CompassIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text

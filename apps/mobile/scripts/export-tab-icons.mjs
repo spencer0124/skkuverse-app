@@ -24,11 +24,12 @@ const REPO_ROOT = resolve(__dirname, '../../..');
 const PHOSPHOR_ASSETS = resolve(REPO_ROOT, 'node_modules/@phosphor-icons/core/assets');
 const OUT_DIR = resolve(__dirname, '../assets/tab-icons');
 
-// Tab name (route) → Phosphor source name (filename minus extension)
+// File prefix → Phosphor source name (filename minus extension).
+// Prefix is icon-shape based (not route name) for naming consistency.
 const ICONS = [
   { tab: 'home', phosphor: 'house' },
   { tab: 'bell', phosphor: 'bell' },
-  { tab: 'map', phosphor: 'map-trifold' },
+  { tab: 'compass', phosphor: 'compass' },
   { tab: 'navigation', phosphor: 'navigation-arrow' },
 ];
 
