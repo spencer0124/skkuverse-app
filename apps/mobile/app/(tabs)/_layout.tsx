@@ -79,6 +79,7 @@ export default function TabLayout() {
           default: { color: ICON_INACTIVE },
           selected: { color: ICON_ACTIVE },
         }}
+        minimizeBehavior="onScrollDown"
       >
         <NativeTabs.Trigger name="home">
           <Icon

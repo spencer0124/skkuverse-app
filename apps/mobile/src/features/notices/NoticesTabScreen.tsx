@@ -132,8 +132,11 @@ export function NoticesTabScreen() {
 
   const hasValidTabs = tabs.length > 0;
 
+  // collapsable={false}: NativeTabs minimizeBehavior(iOS 26)가 SectionList를
+  // contentScrollView(for:)로 발견하려면 wrapper View들이 native 트리에 남아야
+  // 한다. RN view-flattening을 막아 docs 공식 ② path 충족.
   return (
-    <View style={styles.container}>
+    <View style={styles.container} collapsable={false}>
       {isLoading ? (
         <NoticeListSkeleton />
       ) : isError || !hasValidTabs ? (
@@ -148,7 +151,7 @@ export function NoticesTabScreen() {
             ))}
           </Tab>
 
-          <View style={styles.panels}>
+          <View style={styles.panels} collapsable={false}>
             {tabs.map((tab) => {
               if (!visitedTabs.has(tab.key)) return null;
               const isActive = activeTabKey === tab.key;
@@ -170,6 +173,7 @@ export function NoticesTabScreen() {
                   <View
                     key={tab.key}
                     style={[styles.panel, !isActive && styles.hidden]}
+                    collapsable={false}
                   >
                     <NoticeListPanel sourceId={tab.fixed.sourceId} />
                   </View>
@@ -228,7 +232,7 @@ function PickerPanel({
   );
 
   return (
-    <View style={[styles.panel, !isActive && styles.hidden]}>
+    <View style={[styles.panel, !isActive && styles.hidden]} collapsable={false}>
       <NoticeSelector label={selectorLabel} onPress={onOpenPicker} />
       <NoticeListPanel sourceIds={selectedIds} />
     </View>
