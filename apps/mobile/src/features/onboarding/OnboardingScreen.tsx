@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   useNoticeTabs,
+  useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
@@ -13,7 +15,11 @@ import {
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { GoogleIcon } from '@/components/GoogleIcon';
-import { seedOnboardingPreferences } from '@/services/firestore-notifications';
+import {
+  initializeFirestoreNotifications,
+  seedOnboardingPreferences,
+  unregisterDevice,
+} from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
@@ -142,6 +148,30 @@ export function OnboardingScreen() {
   const handleSignIn = useCallback(async () => {
     setLoginLoading(true);
     setLoginError(null);
+
+    // Mirror of signOutFromGoogle's pre-unregister: mark the current (anon)
+    // device's doc inactive BEFORE the auth state changes. After the
+    // anon→Google transition, useAppInit's onAuthStateChanged listener
+    // re-runs initializeFirestoreNotifications under the new uid; the
+    // Firestore rule for devices/{deviceId} update permits a non-owner
+    // claim only when `resource.data.active == false` (path b). Without
+    // this step the migration write is rejected silently
+    // (logHandledError('notifications/auth-transition')), the device doc
+    // stays under the anon uid forever, and syncPreferencesToDevices
+    // can't find it on subsequent toggles — the exact symptom that broke
+    // dogfooding the first time around.
+    const deviceId = useNotificationStore.getState().deviceId;
+    if (deviceId) {
+      try {
+        await unregisterDevice(deviceId);
+      } catch (err) {
+        // Non-fatal — proceed with sign-in. Worst case the migration
+        // still fails and the user re-encounters the issue (recoverable
+        // via app reinstall or signOut/signIn cycle).
+        logHandledError('onboarding/pre-unregister-anon-device', err);
+      }
+    }
+
     try {
       const result = await signInWithGoogle();
       const user = result.user;
@@ -152,6 +182,36 @@ export function OnboardingScreen() {
         photoURL: user.photoURL,
         isAnonymous: user.isAnonymous,
       });
+
+      // Synchronously re-register the device under the post-signin uid.
+      // - iOS (signInWithCredential, new uid): rule path b — pre-unregister
+      //   above made the doc inactive, so this write claims it under
+      //   the Google uid. Done synchronously so step 5 handleComplete
+      //   doesn't race against useAppInit's async withRetry migration.
+      // - Android (linkWithCredential preserves uid + onAuthStateChanged
+      //   doesn't fire): this is the *only* path that re-activates the
+      //   device after our pre-unregister. Without it the device stays
+      //   active:false until the next cold start.
+      const fcmToken = useNotificationStore.getState().fcmToken;
+      if (deviceId && fcmToken) {
+        const lang = useSettingsStore.getState().appLanguage;
+        try {
+          await initializeFirestoreNotifications({
+            uid: user.uid,
+            deviceId,
+            token: fcmToken,
+            platform: Platform.OS === 'ios' ? 'ios' : 'android',
+            appVersion: Constants.expoConfig?.version ?? '0.0.0',
+            osLocale: lang === 'ko' ? 'ko' : 'en',
+          });
+        } catch (err) {
+          // Non-fatal — useAppInit's onAuthStateChanged migration may
+          // still recover on iOS, and Android's next launch will. The
+          // user will still complete onboarding.
+          logHandledError('onboarding/post-signin-register', err);
+        }
+      }
+
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
       dispatch({ type: 'NEXT' });
     } catch (err) {

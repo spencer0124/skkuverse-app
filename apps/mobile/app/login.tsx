@@ -1,10 +1,23 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@skkuverse/sds';
-import { SdsColors, SdsSpacing, useT, authStore } from '@skkuverse/shared';
+import {
+  SdsColors,
+  SdsSpacing,
+  authStore,
+  useNotificationStore,
+  useSettingsStore,
+  useT,
+} from '@skkuverse/shared';
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
+import {
+  initializeFirestoreNotifications,
+  unregisterDevice,
+} from '@/services/firestore-notifications';
+import { logHandledError } from '@/services/crashlytics';
 import { GoogleIcon } from '@/components/GoogleIcon';
 
 export default function LoginScreen() {
@@ -16,6 +29,22 @@ export default function LoginScreen() {
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMessage(null);
+
+    // Pre-unregister current (anon) device — mirror of signOutFromGoogle's
+    // pattern. Without this the iOS anon→Google transition fails the
+    // device-update Rule (path a needs uid match, path b needs active=false),
+    // leaving the device stuck under the anon uid and breaking
+    // syncPreferencesToDevices fan-out. See OnboardingScreen.handleSignIn
+    // for the longer comment.
+    const deviceId = useNotificationStore.getState().deviceId;
+    if (deviceId) {
+      try {
+        await unregisterDevice(deviceId);
+      } catch (err) {
+        logHandledError('login/pre-unregister-anon-device', err);
+      }
+    }
+
     try {
       const result = await signInWithGoogle();
       // Android: linkWithCredential doesn't fire onAuthStateChanged
@@ -28,6 +57,27 @@ export default function LoginScreen() {
         photoURL: user.photoURL,
         isAnonymous: user.isAnonymous,
       });
+
+      // Re-register device under the post-signin uid synchronously so
+      // syncPreferencesToDevices fan-out finds the device on subsequent
+      // toggles (rather than racing against useAppInit's async migration).
+      const fcmToken = useNotificationStore.getState().fcmToken;
+      if (deviceId && fcmToken) {
+        const lang = useSettingsStore.getState().appLanguage;
+        try {
+          await initializeFirestoreNotifications({
+            uid: user.uid,
+            deviceId,
+            token: fcmToken,
+            platform: Platform.OS === 'ios' ? 'ios' : 'android',
+            appVersion: Constants.expoConfig?.version ?? '0.0.0',
+            osLocale: lang === 'ko' ? 'ko' : 'en',
+          });
+        } catch (err) {
+          logHandledError('login/post-signin-register', err);
+        }
+      }
+
       router.back();
     } catch (err) {
       if (err instanceof GoogleAuthError) {
