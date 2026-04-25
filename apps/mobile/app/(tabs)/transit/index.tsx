@@ -9,8 +9,8 @@
  */
 
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { useTransitList, useMainNotice, SdsColors, useT } from '@skkuverse/shared';
+import { useRouter } from 'expo-router';
+import { useTransitList, useMainNotice, SdsColors } from '@skkuverse/shared';
 import { BusListItemRow } from '@/features/bus/BusListItemRow';
 import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
@@ -19,13 +19,11 @@ import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 export default function TransitScreen() {
   useTabFocusTracking('transit');
   const router = useRouter();
-  const { t } = useT();
   const { data, isLoading } = useTransitList();
   const { data: notice } = useMainNotice();
 
   return (
     <>
-      <Stack.Screen options={{ title: t('nav.transit') }} />
       {isLoading ? (
         <View style={styles.container}>
           <TransitSkeleton />
