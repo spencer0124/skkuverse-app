@@ -16,11 +16,37 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
-      // users/{uid}/preferences/{doc} — subscribedTopics + enabled flag.
-      // The app reads/writes a fixed "main" doc; structure is future-proofed
-      // via the {doc} wildcard.
-      match /preferences/{doc} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      // users/{uid}/preferences/main — v5 SSOT (Phase F lockdown).
+      //
+      // INTENT (client writable):
+      //   enabled, categoryEnabled, noticeTabEnabled, pickerSelections
+      // DERIVED (CF only, blocked here):
+      //   subscribedTopics, derivedAt
+      //
+      // The Cloud Function `onPreferencesWrite` writes subscribedTopics +
+      // derivedAt with admin SDK (which bypasses these rules). Any client
+      // attempt — accidental, malicious, or stale — is rejected.
+      //
+      // Create constraint: subscribedTopics must be empty or absent. CF fills
+      // it within ~1-3s of the first intent write. Letting clients seed
+      // arbitrary topics would defeat the SSOT invariant before derive runs.
+      match /preferences/main {
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && (
+                        !('subscribedTopics' in request.resource.data) ||
+                        request.resource.data.subscribedTopics.size() == 0
+                      );
+
+        allow update: if request.auth != null
+                      && request.auth.uid == uid
+                      && !request.resource.data.diff(resource.data)
+                            .affectedKeys()
+                            .hasAny(['subscribedTopics', 'derivedAt']);
+
+        allow delete: if false;
       }
     }
 

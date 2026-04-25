@@ -59,20 +59,22 @@ const deviceRef = (ctx) =>
 
 let testEnv;
 
+// File-level lifecycle — shared by all describe blocks below so we don't
+// destroy the environment between them.
+before(async () => {
+  testEnv = await initializeTestEnvironment({
+    projectId: PROJECT_ID,
+    firestore: {
+      rules: readFileSync(rulesPath, 'utf8'),
+    },
+  });
+});
+
+after(async () => {
+  await testEnv.cleanup();
+});
+
 describe('devices/{deviceId} rules — Task #12', () => {
-  before(async () => {
-    testEnv = await initializeTestEnvironment({
-      projectId: PROJECT_ID,
-      firestore: {
-        rules: readFileSync(rulesPath, 'utf8'),
-      },
-    });
-  });
-
-  after(async () => {
-    await testEnv.cleanup();
-  });
-
   beforeEach(async () => {
     await testEnv.clearFirestore();
   });
@@ -264,5 +266,147 @@ describe('devices/{deviceId} rules — Task #12', () => {
     });
     const ctx = testEnv.authenticatedContext('any-uid');
     await assertFails(deviceRef(ctx).delete());
+  });
+});
+
+// ── users/{uid}/preferences/main rules — Phase F SSOT lockdown ───────────────
+
+const prefsRef = (ctx, uid) =>
+  ctx.firestore().doc(`users/${uid}/preferences/main`);
+
+const intentDoc = (overrides = {}) => ({
+  enabled: false,
+  categoryEnabled: { essential: false, services: false, notices: false },
+  noticeTabEnabled: {},
+  pickerSelections: {},
+  subscribedTopics: [],
+  derivedAt: null,
+  ...overrides,
+});
+
+describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+
+  // ── CREATE ──────────────────────────────────────────────────────
+
+  test('owner creates preferences with empty subscribedTopics → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(prefsRef(ctx, 'uid-1').set(intentDoc()));
+  });
+
+  test('owner creates preferences without subscribedTopics field → allow (intent-only seed)', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    const { subscribedTopics: _drop, ...intentOnly } = intentDoc();
+    void _drop;
+    await assertSucceeds(prefsRef(ctx, 'uid-1').set(intentOnly));
+  });
+
+  test('owner creates preferences with non-empty subscribedTopics → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').set(intentDoc({ subscribedTopics: ['category:academic'] })),
+    );
+  });
+
+  test('non-owner creates preferences under another uid → deny', async () => {
+    const ctx = testEnv.authenticatedContext('attacker');
+    await assertFails(prefsRef(ctx, 'victim').set(intentDoc()));
+  });
+
+  // ── UPDATE: intent fields ───────────────────────────────────────
+
+  test('owner updates categoryEnabled.notices → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'categoryEnabled.notices': true }),
+    );
+  });
+
+  test('owner updates noticeTabEnabled.academic → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'noticeTabEnabled.academic': false }),
+    );
+  });
+
+  test('owner updates pickerSelections.dept → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'pickerSelections.dept': ['cs', 'math'] }),
+    );
+  });
+
+  // ── UPDATE: derived fields → DENY (the SSOT invariant) ─────────
+
+  test('owner tries to update subscribedTopics directly → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({ subscribedTopics: ['evil:topic'] }),
+    );
+  });
+
+  test('owner tries to update derivedAt directly → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({ derivedAt: new Date() }),
+    );
+  });
+
+  test('owner tries to update intent + subscribedTopics in one call → deny (whole call rejected)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({
+        'categoryEnabled.notices': true,
+        subscribedTopics: ['piggyback:topic'],
+      }),
+    );
+  });
+
+  // ── READ ─────────────────────────────────────────────────────────
+
+  test('owner reads own preferences → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(prefsRef(ctx, 'uid-1').get());
+  });
+
+  test('non-owner reads preferences → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-2');
+    await assertFails(prefsRef(ctx, 'uid-1').get());
+  });
+
+  // ── DELETE ───────────────────────────────────────────────────────
+
+  test('owner attempts delete → deny (preferences doc is permanent)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(prefsRef(ctx, 'uid-1').delete());
   });
 });
