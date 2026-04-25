@@ -6,3 +6,4 @@ if (getApps().length === 0) {
 
 export { syncPreferencesToDevices } from './sync-preferences-to-devices';
 export { sendNotification } from './send-notification';
+export { onPreferencesWrite } from './triggers/onPreferencesWrite.ts';

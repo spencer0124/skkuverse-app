@@ -12,7 +12,7 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint --ext .ts src",
-    "test": "node --experimental-strip-types --test --test-reporter=spec test/derive.test.ts test/tabsContract.test.ts"
+    "test": "node --experimental-strip-types --test --test-reporter=spec test/derive.test.ts test/tabsContract.test.ts test/equality.test.ts"
   },
   "engines": {
     "node": "22"

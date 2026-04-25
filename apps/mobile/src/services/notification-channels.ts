@@ -16,9 +16,21 @@ export const NotificationChannelId = {
   CAREER: 'notice_career',
   GENERAL: 'notice_general',
   DEPARTMENT: 'notice_department',
+  ESSENTIAL: 'notice_essential',
+  SERVICES: 'notice_services',
 } as const;
 
 const CHANNELS = [
+  {
+    id: NotificationChannelId.ESSENTIAL,
+    name: '필수 알림',
+    importance: AndroidImportance.HIGH,
+  },
+  {
+    id: NotificationChannelId.SERVICES,
+    name: '다른 서비스',
+    importance: AndroidImportance.DEFAULT,
+  },
   {
     id: NotificationChannelId.ACADEMIC,
     name: '학사 공지',
@@ -83,6 +95,10 @@ export function mapCategoryToChannel(category?: string): string {
     case 'career':
     case 'recruitment':
       return NotificationChannelId.CAREER;
+    case 'essential':
+      return NotificationChannelId.ESSENTIAL;
+    case 'services':
+      return NotificationChannelId.SERVICES;
     default:
       return NotificationChannelId.GENERAL;
   }

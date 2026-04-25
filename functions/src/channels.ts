@@ -17,6 +17,10 @@ export function mapCategoryToChannel(category?: string): string {
     case 'career':
     case 'recruitment':
       return 'notice_career';
+    case 'essential':
+      return 'notice_essential';
+    case 'services':
+      return 'notice_services';
     default:
       return 'notice_general';
   }
