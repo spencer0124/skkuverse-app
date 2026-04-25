@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
+  resolvePickerSelection,
   useNoticeTabs,
   useNotificationStore,
   useSettingsStore,
@@ -251,21 +252,41 @@ export function OnboardingScreen() {
 
     const uid = authStore.getState().uid;
     if (uid) {
-      // Compute deduped seed + cap by server maxSelection
-      const combined: string[] = [];
+      // Build the full pickerSelections map for every picker tab.
+      // - dept: user's onboarding picks (primary + interests, capped by
+      //   server maxSelection).
+      // - other picker tabs (library, dorm, general): apply
+      //   resolvePickerSelection(tab, undefined) so the seed mirrors the
+      //   fallback chain (server defaults → first dept) the view uses.
+      //   Without this, library has server defaults but they never reach
+      //   Firestore, so derive emits 0 library topics even though the UI
+      //   shows "구독한 도서관: lib-hssc, lib-nsc". Same applies to dorm
+      //   / general via the first-dept fallback. Seeding them keeps the
+      //   "view = subscription" invariant.
+      const pickerSelections: Record<string, string[]> = {};
+
+      const deptCombined: string[] = [];
       const seen = new Set<string>();
       for (const id of [state.primaryDeptId, ...state.interestDeptIds]) {
         if (!seen.has(id)) {
           seen.add(id);
-          combined.push(id);
+          deptCombined.push(id);
         }
       }
       const deptTab = tabsConfig?.tabs.find((tab) => tab.key === 'dept');
-      const maxPicks = deptTab?.picker?.maxSelection ?? combined.length;
-      const seedDeptIds = combined.slice(0, maxPicks);
+      const deptMaxPicks = deptTab?.picker?.maxSelection ?? deptCombined.length;
+      pickerSelections.dept = deptCombined.slice(0, deptMaxPicks);
+
+      for (const tab of tabsConfig?.tabs ?? []) {
+        if (tab.tabMode !== 'picker' || tab.key === 'dept') continue;
+        const resolved = resolvePickerSelection(tab, undefined);
+        if (resolved.length > 0) {
+          pickerSelections[tab.key] = resolved;
+        }
+      }
 
       try {
-        await seedOnboardingPreferences(uid, seedDeptIds);
+        await seedOnboardingPreferences(uid, pickerSelections);
       } catch (err) {
         // Non-fatal: user can re-toggle in Settings if the write fails.
         logHandledError('onboarding/seed-prefs', err);
