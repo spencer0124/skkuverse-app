@@ -22,7 +22,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { XCircle } from 'lucide-react-native';
+import { XCircleIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useControlled } from '../../utils';
 import { Txt } from '../txt';
@@ -195,7 +195,7 @@ const TextFieldInner = forwardRef<TextInput, TextFieldProps & { showClear?: bool
             )}
             {showClear && hasValue && (
               <Pressable onPress={onClear} hitSlop={8} style={styles.clearButton}>
-                <XCircle size={20} color={SdsColors.grey300} fill={SdsColors.grey300} />
+                <XCircleIcon size={20} color={SdsColors.grey300} weight="fill" />
               </Pressable>
             )}
             {right}

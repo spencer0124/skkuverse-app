@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { CheckIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors } from '@skkuverse/shared';
 
@@ -42,7 +42,7 @@ export function DeptRow({ name, selected, disabled = false, variant, onPress }: 
           disabled && !selected && styles.indicatorDisabled,
         ]}
       >
-        {selected && <Check size={10} color="#FFFFFF" />}
+        {selected && <CheckIcon size={10} color="#FFFFFF" />}
       </View>
     </Pressable>
   );

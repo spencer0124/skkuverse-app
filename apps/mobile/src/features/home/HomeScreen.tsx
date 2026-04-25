@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BellRing, ChevronRight, User } from 'lucide-react-native';
+import { BellRingingIcon, CaretRightIcon, UserIcon } from 'phosphor-react-native';
 import { Txt, Button, Dialog } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
@@ -78,7 +78,7 @@ export function HomeScreen() {
               <Image source={{ uri: photoURL }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarFallback}>
-                <User size={28} color={SdsColors.grey500} />
+                <UserIcon size={28} color={SdsColors.grey500} />
               </View>
             )}
             <View style={styles.profileText}>
@@ -99,7 +99,7 @@ export function HomeScreen() {
             onPress={() => router.push('/login')}
           >
             <View style={styles.avatarFallback}>
-              <User size={28} color={SdsColors.grey500} />
+              <UserIcon size={28} color={SdsColors.grey500} />
             </View>
             <View style={styles.profileText}>
               <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
@@ -109,7 +109,7 @@ export function HomeScreen() {
                 {t('auth.loginPrompt')}
               </Txt>
             </View>
-            <ChevronRight size={20} color={SdsColors.grey400} />
+            <CaretRightIcon size={20} color={SdsColors.grey400} />
           </Pressable>
         )}
 
@@ -142,7 +142,7 @@ export function HomeScreen() {
             </Text>
             <View style={styles.bottomBannerBtn}>
               <Text style={styles.bottomBannerBtnText}>지도 열기</Text>
-              <ChevronRight size={14} color={SdsColors.brand} />
+              <CaretRightIcon size={14} color={SdsColors.brand} />
             </View>
           </View>
         </Pressable>
@@ -156,14 +156,14 @@ export function HomeScreen() {
           onPress={() => router.push('/notifications/settings' as never)}
         >
           <View style={styles.settingsIconWrap}>
-            <BellRing size={20} color={SdsColors.grey700} />
+            <BellRingingIcon size={20} color={SdsColors.grey700} />
           </View>
           <View style={styles.settingsTextWrap}>
             <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
               {t('notifications.settings')}
             </Txt>
           </View>
-          <ChevronRight size={18} color={SdsColors.grey400} />
+          <CaretRightIcon size={18} color={SdsColors.grey400} />
         </Pressable>
 
         {/* ── Sign-out button (for signed-in users, moved from former '전체' tab) ── */}
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     color: SdsColors.brand,
   },
 
-  /* ── Settings row (notification settings entry) ── */
+  /* ── GearIcon row (notification settings entry) ── */
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',

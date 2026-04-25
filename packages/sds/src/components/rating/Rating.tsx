@@ -8,12 +8,12 @@
  */
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { Star } from 'lucide-react-native';
+import { StarIcon as PhosphorStar } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '../txt';
 
 function StarIcon({ size, color }: { size: number; color: string }) {
-  return <Star size={size} color={color} fill={color} strokeWidth={0} />;
+  return <PhosphorStar size={size} color={color} weight="fill" />;
 }
 
 // ── Size maps ──

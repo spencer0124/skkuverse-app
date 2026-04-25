@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Sparkle } from 'lucide-react-native';
+import { SparkleIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { formatDisplayDate } from './utils/formatDisplayDate';
@@ -63,7 +63,7 @@ export function SummaryCard({ summary }: Props) {
       {summary.text ? (
         <View style={styles.summaryCard}>
           <View style={styles.aiHeader}>
-            <Sparkle
+            <SparkleIcon
               size={14}
               color={SdsColors.grey600}
               fill={SdsColors.grey600}

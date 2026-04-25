@@ -20,7 +20,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { ChevronRight } from 'lucide-react-native';
+import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '../txt';
 
@@ -139,7 +139,7 @@ export function BadgeNavRow({
               chevronUnderlayStyle,
             ]}
           />
-          <ChevronRight size={18} color={SdsColors.grey400} />
+          <CaretRightIcon size={18} color={SdsColors.grey400} />
         </Pressable>
       )}
       </View>

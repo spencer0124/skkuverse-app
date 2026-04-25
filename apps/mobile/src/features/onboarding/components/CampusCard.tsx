@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { CheckIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors } from '@skkuverse/shared';
 
@@ -33,7 +33,7 @@ export function CampusCard({ name, location, selected, onPress }: Props) {
       </View>
       {selected && (
         <View style={styles.checkCircle}>
-          <Check size={12} color="#FFFFFF" />
+          <CheckIcon size={12} color="#FFFFFF" />
         </View>
       )}
     </Pressable>

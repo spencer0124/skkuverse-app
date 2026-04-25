@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, X } from 'lucide-react-native';
+import { CaretLeftIcon, XIcon } from 'phosphor-react-native';
 import {
   Button,
   FixedBottomCTA,
@@ -52,7 +52,7 @@ export function OnboardingLayout({
         <View style={styles.topBar}>
           {step > 1 ? (
             <IconButton
-              icon={<ChevronLeft size={22} color={SdsColors.grey900} />}
+              icon={<CaretLeftIcon size={22} color={SdsColors.grey900} />}
               onPress={onBack}
               label="뒤로"
             />
@@ -67,7 +67,7 @@ export function OnboardingLayout({
             style={styles.progressBar}
           />
           <IconButton
-            icon={<X size={20} color={SdsColors.grey900} />}
+            icon={<XIcon size={20} color={SdsColors.grey900} />}
             onPress={onClose}
             label="닫기"
           />

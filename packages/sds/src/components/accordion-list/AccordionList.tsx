@@ -30,7 +30,7 @@ import Animated, {
   FadeOut,
 } from 'react-native-reanimated';
 import { SdsColors } from '@skkuverse/shared';
-import { ChevronRight, ChevronDown } from 'lucide-react-native';
+import { CaretRightIcon, CaretDownIcon } from 'phosphor-react-native';
 import { useAdaptive } from '../../core';
 import { Txt } from '../txt';
 
@@ -62,7 +62,7 @@ export interface AccordionListProps<T = unknown> {
   highlightKey?: string | null;
   /** Max visible items before "show more". @default 5 */
   maxVisible?: number;
-  /** Map of section index → whether all items are shown */
+  /** MapTrifoldIcon of section index → whether all items are shown */
   showAllMap?: Record<number, boolean>;
   /** Called when "show more" is tapped */
   onShowAll?: (sectionIndex: number) => void;
@@ -187,9 +187,9 @@ function AccordionTile<T>({
             <View style={styles.tileRight}>{renderRight}</View>
           )}
           {expanded ? (
-            <ChevronDown size={18} color={SdsColors.grey400} />
+            <CaretDownIcon size={18} color={SdsColors.grey400} />
           ) : (
-            <ChevronRight size={18} color={SdsColors.grey400} />
+            <CaretRightIcon size={18} color={SdsColors.grey400} />
           )}
         </View>
       </Pressable>

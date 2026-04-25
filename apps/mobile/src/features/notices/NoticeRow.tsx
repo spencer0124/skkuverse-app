@@ -2,7 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { SdsColors, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
-import { Paperclip } from 'lucide-react-native';
+import { PaperclipIcon } from 'phosphor-react-native';
 import { formatDeadlineBadge, type DeadlineInfo } from './utils/formatDeadlineBadge';
 import { formatRelativeDate } from './utils/formatRelativeDate';
 
@@ -94,7 +94,7 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
                 </Txt>
               ) : null}
               {item.hasAttachments ? (
-                <Paperclip size={12} color={SdsColors.grey400} style={styles.clipIcon} />
+                <PaperclipIcon size={12} color={SdsColors.grey400} style={styles.clipIcon} />
               ) : null}
             </View>
           ) : null}

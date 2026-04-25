@@ -4,7 +4,7 @@
  */
 
 import { Pressable, StyleSheet } from 'react-native';
-import { ChevronDown } from 'lucide-react-native';
+import { CaretDownIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 
@@ -27,7 +27,7 @@ export function NoticeSelector({ label, onPress }: Props) {
       >
         {label}
       </Txt>
-      <ChevronDown size={14} color={SdsColors.grey400} />
+      <CaretDownIcon size={14} color={SdsColors.grey400} />
     </Pressable>
   );
 }

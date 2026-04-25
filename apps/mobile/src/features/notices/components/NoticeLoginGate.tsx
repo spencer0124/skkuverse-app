@@ -1,6 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Lock } from 'lucide-react-native';
+import { LockIcon } from 'phosphor-react-native';
 import { Txt, Button } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 
@@ -14,7 +14,7 @@ export function NoticeLoginGate({ description, onLoginPress }: Props) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.content}>
-        <Lock size={40} color={SdsColors.grey400} />
+        <LockIcon size={40} color={SdsColors.grey400} />
         <Txt typography="t5" color={SdsColors.grey600} style={styles.description}>
           {description}
         </Txt>

@@ -13,7 +13,7 @@ import {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { Check } from 'lucide-react-native';
+import { CheckIcon } from 'phosphor-react-native';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 import type { TabDepartment } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
@@ -115,7 +115,7 @@ export const NoticePickerSheet = forwardRef<BottomSheetModal, Props>(
                     selected && styles.checkboxSelected,
                   ]}
                 >
-                  {selected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
+                  {selected && <CheckIcon size={14} color="#FFFFFF" weight="bold" />}
                 </View>
                 <Txt
                   typography="t5"

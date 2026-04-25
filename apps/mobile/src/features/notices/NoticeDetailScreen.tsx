@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { Bookmark, Download, Eye, ExternalLink, Paperclip, Share2 } from 'lucide-react-native';
+import { Stack } from 'expo-router';
+import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
@@ -9,7 +10,6 @@ import {
   useT,
 } from '@skkuverse/shared';
 import { BottomCTA, Button, Toast, Txt } from '@skkuverse/sds';
-import { NoticeNavBar } from './NavigationBar';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
@@ -17,13 +17,13 @@ import { NoticeMarkdownView } from './NoticeMarkdownView';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 
 interface Props {
-  deptId: string;
+  sourceId: string;
   articleNo: number;
 }
 
-export function NoticeDetailScreen({ deptId, articleNo }: Props) {
+export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const { t, tpl } = useT();
-  const { data, isLoading, isError, refetch } = useNoticeDetail(deptId, articleNo);
+  const { data, isLoading, isError, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
 
   const handleCopyText = useCallback((text: string) => {
@@ -47,7 +47,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <NoticeNavBar title="" />
+        <Stack.Screen options={{ title: '' }} />
         <NoticeListSkeleton />
       </View>
     );
@@ -56,7 +56,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
   if (isError || !data) {
     return (
       <View style={styles.container}>
-        <NoticeNavBar title="" />
+        <Stack.Screen options={{ title: '' }} />
         <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
       </View>
     );
@@ -64,7 +64,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
 
   return (
     <View style={styles.container}>
-      <NoticeNavBar title="" />
+      <Stack.Screen options={{ title: '' }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
@@ -108,7 +108,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
             {data.attachments.map((a) => (
               <View key={a.url} style={styles.attachmentItem}>
                 <View style={styles.attachmentNameRow}>
-                  <Paperclip size={14} color={SdsColors.grey600} />
+                  <PaperclipIcon size={14} color={SdsColors.grey600} />
                   <Txt typography="t6" color={SdsColors.grey800} numberOfLines={1} style={styles.attachmentName}>
                     {a.name}
                   </Txt>
@@ -124,7 +124,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
                     }}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
-                    <Eye size={14} color={canPreview(a.name) ? SdsColors.blue500 : SdsColors.grey400} />
+                    <EyeIcon size={14} color={canPreview(a.name) ? SdsColors.blue500 : SdsColors.grey400} />
                     <Txt typography="t7" color={canPreview(a.name) ? SdsColors.blue500 : SdsColors.grey400}>
                       {t('notices.preview')}
                     </Txt>
@@ -133,7 +133,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
                     onPress={() => openAttachment(a.url, 'download', a.name)}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
-                    <Download size={14} color={SdsColors.blue500} />
+                    <DownloadIcon size={14} color={SdsColors.blue500} />
                     <Txt typography="t7" color={SdsColors.blue500}>
                       {t('notices.download')}
                     </Txt>
@@ -148,7 +148,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
           onPress={openOriginal}
           style={({ pressed }) => [styles.openOriginal, pressed && styles.pressed]}
         >
-          <ExternalLink size={16} color={SdsColors.grey800} />
+          <ArrowSquareOutIcon size={16} color={SdsColors.grey800} />
           <Txt typography="t6" fontWeight="semibold" color={SdsColors.grey800}>
             {t('notices.openOriginal')}
           </Txt>
@@ -160,7 +160,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
             display="block"
             style="weak"
             size="large"
-            leftAccessory={<Bookmark size={18} color={SdsColors.blue500} />}
+            leftAccessory={<BookmarkIcon size={18} color={SdsColors.blue500} />}
             viewStyle={styles.ctaButton}
           >
             {t('notices.save')}
@@ -168,7 +168,7 @@ export function NoticeDetailScreen({ deptId, articleNo }: Props) {
           <Button
             display="block"
             size="large"
-            leftAccessory={<Share2 size={18} color={SdsColors.background} />}
+            leftAccessory={<ShareNetworkIcon size={18} color={SdsColors.background} />}
             viewStyle={styles.ctaButton}
           >
             {t('notices.share')}

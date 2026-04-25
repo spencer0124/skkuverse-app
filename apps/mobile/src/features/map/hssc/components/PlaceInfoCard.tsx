@@ -7,7 +7,7 @@
 
 import { Pressable, View, StyleSheet } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { CaretLeftIcon, CaretRightIcon, XIcon } from 'phosphor-react-native';
 import { SdsColors, SdsSpacing } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import type { LineEntry } from '../data/AvailableLines';
@@ -58,7 +58,7 @@ export function PlaceInfoCard({
             style={styles.closeButton}
             accessibilityLabel="닫기"
           >
-            <X size={18} color={SdsColors.grey400} />
+            <XIcon size={18} color={SdsColors.grey400} />
           </Pressable>
         </View>
 
@@ -102,7 +102,7 @@ export function PlaceInfoCard({
                   : '이전 층 없음'
               }
             >
-              <ChevronLeft
+              <CaretLeftIcon
                 size={16}
                 color={
                   info.previousplace ? `#${info.leftColor}` : SdsColors.grey300
@@ -146,7 +146,7 @@ export function PlaceInfoCard({
               >
                 {info.afterplace ?? ''}
               </Txt>
-              <ChevronRight
+              <CaretRightIcon
                 size={16}
                 color={
                   info.afterplace ? `#${info.rightColor}` : SdsColors.grey300

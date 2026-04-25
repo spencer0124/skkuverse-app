@@ -1,5 +1,5 @@
 /**
- * Bus schedule screen — timetable with segmented control and week navigation.
+ * BusIcon schedule screen — timetable with segmented control and week navigation.
  *
  * Flow:
  * 1. useBusConfig(groupId) → BusGroup (screenType 'schedule')
@@ -56,7 +56,7 @@ export default function ScheduleScreen() {
   const isSchedule = config?.screenType === 'schedule';
   const screenConfig = isSchedule ? config.screen : undefined;
 
-  // Info button — opens webview with feature info URL
+  // InfoIcon button — opens webview with feature info URL
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
   const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info');
   const handleInfoPress = useCallback(() => {

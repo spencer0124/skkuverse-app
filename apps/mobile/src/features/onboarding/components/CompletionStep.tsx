@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { CircleCheck } from 'lucide-react-native';
+import { CheckCircleIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
 
@@ -14,7 +14,7 @@ export function CompletionStep({ userName }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.iconCircle}>
-        <CircleCheck size={48} color={SdsColors.green500} />
+        <CheckCircleIcon size={48} color={SdsColors.green500} />
       </View>
       <Txt typography="t1" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
         {tpl('onboarding.completionTitle', displayName)}

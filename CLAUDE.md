@@ -125,7 +125,8 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 - **Local storage:** `react-native-mmkv` for general state, `expo-secure-store` for sensitive data
 - **Animations:** React Native Reanimated 4 + Gesture Handler 2
 - **Bottom sheets:** `@gorhom/bottom-sheet`
-- **Icons:** `lucide-react-native`
+- **Icons:** `phosphor-react-native` (모든 일반 UI 아이콘). 컴포넌트 명은 `*Icon` 접미사 사용 (예: `<HouseIcon weight="fill" />`). `weight` prop으로 outline(`regular`) / filled(`fill`) 분기. 탭바 4개 아이콘만 별도 — `apps/mobile/assets/tab-icons/*.png`로 사전 export(@phosphor-icons/core SVG → resvg via `apps/mobile/scripts/export-tab-icons.mjs`), iOS NativeTabs `<Icon src=...>`에 require()로 주입.
+- **이모지 (Tossface):** 채색 이모지 표현은 Tossface 폰트 기반. `src/components/TossfaceButtonGrid.tsx` (홈/캠퍼스 그리드 메뉴), `src/features/notifications/NoticesSettingsScreen.tsx` (9탭 카테고리 매핑), `src/sdui/widgets/Notice.tsx` (📢 megaphone), `src/features/bus/schedule/StatusCards.tsx` (🚌 bus). `\u{1F4AC}` 같은 codepoint 또는 직접 이모지 문자 사용. Phosphor outline 아이콘과 시각/의미가 다르므로 대체 불가 — 채색 표현이 필요한 곳만 Tossface, 그 외엔 Phosphor.
 - **TypeScript strict mode** enabled across the monorepo
 - **iOS bundle ID:** `com.example.skkumap` / **Android package:** `com.zoyoong.skkubus`
 - **개발 실행:** Expo Go 사용하지 않음. **CNG (Continuous Native Generation)** 방식으로 `yarn ios` (`expo run:ios`) / `yarn android` (`expo run:android`)로 네이티브 빌드 직접 실행. 커스텀 네이티브 모듈(Firebase, Naver Maps 등) 사용을 위해 항상 네이티브 빌드 필요.

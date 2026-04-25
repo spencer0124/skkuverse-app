@@ -18,7 +18,7 @@ import {
   useT,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
-import { Building2, ArrowUpDown, Accessibility } from 'lucide-react-native';
+import { BuildingsIcon, ArrowsDownUpIcon, PersonArmsSpreadIcon } from 'phosphor-react-native';
 
 interface BuildingHeaderProps {
   building: Building;
@@ -49,7 +49,7 @@ export function BuildingHeader({ building }: BuildingHeaderProps) {
           />
         ) : (
           <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-            <Building2 size={24} color={SdsColors.grey400} />
+            <BuildingsIcon size={24} color={SdsColors.grey400} />
           </View>
         )}
 
@@ -73,13 +73,13 @@ export function BuildingHeader({ building }: BuildingHeaderProps) {
         </View>
       </View>
 
-      {/* ── Accessibility tags ── */}
+      {/* ── PersonArmsSpreadIcon tags ── */}
       {building.accessibility &&
         (building.accessibility.elevator || building.accessibility.toilet) && (
           <View style={styles.accessRow}>
             {building.accessibility.elevator && (
               <View style={styles.accessBadge}>
-                <ArrowUpDown size={14} color={SdsColors.grey600} />
+                <ArrowsDownUpIcon size={14} color={SdsColors.grey600} />
                 <Txt typography="t7" fontWeight="regular" color={SdsColors.grey600}>
                   {t('building.elevator')}
                 </Txt>
@@ -87,7 +87,7 @@ export function BuildingHeader({ building }: BuildingHeaderProps) {
             )}
             {building.accessibility.toilet && (
               <View style={styles.accessBadge}>
-                <Accessibility size={14} color={SdsColors.grey600} />
+                <PersonArmsSpreadIcon size={14} color={SdsColors.grey600} />
                 <Txt typography="t7" fontWeight="regular" color={SdsColors.grey600}>
                   {t('building.accessibleRestroom')}
                 </Txt>

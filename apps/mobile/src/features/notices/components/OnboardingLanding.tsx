@@ -1,6 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sparkles } from 'lucide-react-native';
+import { SparkleIcon } from 'phosphor-react-native';
 import { Txt, Button } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 
@@ -14,7 +14,7 @@ export function OnboardingLanding({ onStartPress }: Props) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Sparkles size={32} color={SdsColors.green500} />
+          <SparkleIcon size={32} color={SdsColors.green500} />
         </View>
         <Txt typography="t3" color={SdsColors.grey900} style={styles.title}>
           {t('onboarding.landingTitle')}

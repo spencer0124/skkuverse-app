@@ -14,7 +14,7 @@ import {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
-import { Map } from 'lucide-react-native';
+import { MapTrifoldIcon } from 'phosphor-react-native';
 import {
   useBuildingDetail,
   SdsColors,
@@ -146,7 +146,7 @@ export const BuildingDetailSheet = forwardRef<
     [],
   );
 
-  // Check if this building exists on the HSSC floor map
+  // CheckIcon if this building exists on the HSSC floor map
   const hsscMapName = useMemo(() => {
     if (!data) return null;
     const nameKo = getLocalizedText(data.building.name, 'ko');
@@ -364,7 +364,7 @@ export const BuildingDetailSheet = forwardRef<
                   <ListRow
                     left={
                       <View style={styles.floorMapIcon}>
-                        <Map size={20} color={SdsColors.brand} />
+                        <MapTrifoldIcon size={20} color={SdsColors.brand} />
                       </View>
                     }
                     contents={
