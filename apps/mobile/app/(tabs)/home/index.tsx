@@ -14,7 +14,7 @@ export default function HomeTab() {
     <>
       <Stack.Screen
         options={{
-          title: t('nav.home'),
+          title: '',
           headerRight: () => (
             <HeaderIconButton
               onPress={() => router.push('/settings' as never)}
