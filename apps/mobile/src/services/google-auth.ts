@@ -5,7 +5,10 @@ import {
   linkWithCredential,
   signOut,
   signInAnonymously,
+  updateProfile,
+  reload,
 } from '@react-native-firebase/auth';
+import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import {
   GoogleSignin,
   isSuccessResponse,
@@ -41,6 +44,61 @@ export class GoogleAuthError extends Error {
   }
 }
 
+// ── Profile sync ─────────────────────────────────────────────────────
+//
+// linkWithCredential(anon, google) does not propagate Google's displayName /
+// photoURL onto the top-level Firebase user record — only `email` is synced
+// as a 1st-class identifier. Profile metadata stays in providerData[google.com]
+// and the user record's displayName/photoURL remain null. We patch this by
+// calling updateProfile + reload so the Auth record persists the Google
+// profile fields, making them available on every subsequent onAuthStateChanged
+// (incl. cold starts) without further work.
+
+async function applyProfileUpdate(
+  user: FirebaseAuthTypes.User,
+  next: { displayName: string | null | undefined; photoURL: string | null | undefined },
+): Promise<void> {
+  const update: { displayName?: string; photoURL?: string } = {};
+  if (!user.displayName && next.displayName) update.displayName = next.displayName;
+  if (!user.photoURL && next.photoURL) update.photoURL = next.photoURL;
+  if (Object.keys(update).length === 0) return;
+
+  try {
+    await updateProfile(user, update);
+    await reload(user);
+  } catch (err) {
+    // Self-heal failure must not block sign-in. Next session retries.
+    logHandledError('auth/sync-profile', err);
+  }
+}
+
+// Fresh sign-in path — uses GoogleSignin response directly (most authoritative).
+export async function syncProfileFromGoogleSignin(
+  user: FirebaseAuthTypes.User,
+  googleProfile: { name: string | null | undefined; photo: string | null | undefined },
+): Promise<void> {
+  if (user.isAnonymous) return;
+  await applyProfileUpdate(user, {
+    displayName: googleProfile.name,
+    photoURL: googleProfile.photo,
+  });
+}
+
+// Self-heal path for already-signed-in users — extracts from Firebase
+// providerData. Used in useAppInit.ts onAuthStateChanged listener.
+export async function syncProfileFromProviderData(
+  user: FirebaseAuthTypes.User,
+  providerId: string = 'google.com',
+): Promise<void> {
+  if (user.isAnonymous) return;
+  const provider = user.providerData.find((p) => p.providerId === providerId);
+  if (!provider) return;
+  await applyProfileUpdate(user, {
+    displayName: provider.displayName,
+    photoURL: provider.photoURL,
+  });
+}
+
 // ── Sign-in ──────────────────────────────────────────────────────────
 
 export async function signInWithGoogle() {
@@ -52,14 +110,14 @@ export async function signInWithGoogle() {
       throw new GoogleAuthError('CANCELLED');
     }
 
-    const { idToken, user } = response.data;
+    const { idToken, user: googleProfile } = response.data;
 
     if (!idToken) {
       throw new GoogleAuthError('UNKNOWN');
     }
 
     // Domain check BEFORE creating Firebase credential
-    if (!user.email.endsWith(ALLOWED_DOMAIN)) {
+    if (!googleProfile.email.endsWith(ALLOWED_DOMAIN)) {
       await GoogleSignin.revokeAccess();
       throw new GoogleAuthError('DOMAIN_NOT_ALLOWED');
     }
@@ -68,21 +126,31 @@ export async function signInWithGoogle() {
 
     // Link anonymous → Google (preserves UID)
     const currentUser = getAuth().currentUser;
+    let result: FirebaseAuthTypes.UserCredential;
+
     if (currentUser?.isAnonymous) {
       try {
-        return await linkWithCredential(currentUser, googleCredential);
+        result = await linkWithCredential(currentUser, googleCredential);
       } catch (linkErr: any) {
         console.warn('[google-auth] linkWithCredential failed:', linkErr.code, linkErr.message);
-        if (linkErr.code === 'auth/credential-already-in-use') {
-          return await signInWithCredential(getAuth(), googleCredential);
+        if (linkErr.code !== 'auth/credential-already-in-use') {
+          // Fallback: try signInWithCredential instead of failing
+          console.warn('[google-auth] Falling back to signInWithCredential');
         }
-        // Fallback: try signInWithCredential instead of failing
-        console.warn('[google-auth] Falling back to signInWithCredential');
-        return await signInWithCredential(getAuth(), googleCredential);
+        result = await signInWithCredential(getAuth(), googleCredential);
       }
+    } else {
+      result = await signInWithCredential(getAuth(), googleCredential);
     }
 
-    return await signInWithCredential(getAuth(), googleCredential);
+    // Single sync site — backfills Auth record's displayName/photoURL when
+    // they're missing (always missing on link path, sometimes on signIn path).
+    await syncProfileFromGoogleSignin(result.user, {
+      name: googleProfile.name,
+      photo: googleProfile.photo,
+    });
+
+    return result;
   } catch (err) {
     if (err instanceof GoogleAuthError) throw err;
     console.error('[google-auth] Unexpected error:', err);

@@ -16,7 +16,7 @@ import {
 import type { AppLanguage } from '@skkuverse/shared';
 import mobileAds from 'react-native-google-mobile-ads';
 import { setCrashlyticsUserId, logHandledError } from '@/services/crashlytics';
-import { configureGoogleSignIn } from '@/services/google-auth';
+import { configureGoogleSignIn, syncProfileFromProviderData } from '@/services/google-auth';
 import {
   disableAnalyticsInDev,
   setAnalyticsUserId,
@@ -132,7 +132,7 @@ export function useAppInit() {
         getApiClient();
 
         // 4. Sync Firebase auth state → Zustand store + set analytics/crashlytics userId
-        unsubscribe = onAuthStateChanged(getAuth(), (user) => {
+        unsubscribe = onAuthStateChanged(getAuth(), async (user) => {
           // Task #12: detect uid transitions (anon → Google, Google → new-anon
           // on sign-out, credential-already-in-use fallback). On transition,
           // re-run the Firestore bootstrap so devices/{id}.uid follows the
@@ -141,6 +141,15 @@ export function useAppInit() {
           const prevUid = authStore.getState().lastKnownUid;
 
           if (user) {
+            // Self-heal: backfill displayName/photoURL on Auth record when a
+            // pre-fix session is restored without them. linkWithCredential
+            // (anon→Google) leaves these fields null on the Auth record while
+            // populating providerData[google.com]. Once written here, every
+            // subsequent cold start sees the correct values immediately.
+            // Early-returns when fields are already set, so this is a one-shot
+            // upgrade that becomes a no-op on later launches.
+            await syncProfileFromProviderData(user);
+
             if (__DEV__) {
               console.log('[auth] onAuthStateChanged:', {
                 prevUid,
