@@ -113,6 +113,21 @@ export async function setCategoryEnabled(
   await prefsRef(uid).update({ [`categoryEnabled.${key}`]: on });
 }
 
+/**
+ * Per-notice-tab on/off. tabKey is one of the 9 server tab keys
+ * (academic / scholarship / career / recruitment / event / dept / library /
+ *  dorm / general). Only meaningful when categoryEnabled.notices is true —
+ * the CF derive returns [] regardless when the super-category is OFF.
+ */
+export async function setNoticeTabEnabled(
+  uid: string,
+  tabKey: string,
+  on: boolean,
+): Promise<void> {
+  await primeAppCheck();
+  await prefsRef(uid).update({ [`noticeTabEnabled.${tabKey}`]: on });
+}
+
 export async function setPickerSelectionRemote(
   uid: string,
   tabKey: string,
@@ -138,6 +153,9 @@ export async function seedOnboardingPreferences(
   const seed: PreferencesDocument = {
     enabled: true,
     categoryEnabled: { essential: true, services: false, notices: true },
+    // Empty record = all 9 notice tabs default-on per derive() contract.
+    // User can selectively turn off in Settings later.
+    noticeTabEnabled: {},
     pickerSelections: { dept: deptIds },
     subscribedTopics: [],
     derivedAt: null,
@@ -233,6 +251,7 @@ export async function initializeFirestoreNotifications(
   const defaultPrefs: PreferencesDocument = {
     enabled: false,
     categoryEnabled: { essential: false, services: false, notices: false },
+    noticeTabEnabled: {},
     pickerSelections: {},
     subscribedTopics: [],
     derivedAt: null,

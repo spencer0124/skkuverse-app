@@ -61,6 +61,7 @@ export const useNotificationStore = create<NotificationStore>()(
       preferences: {
         enabled: false,
         categoryEnabled: { essential: false, services: false, notices: false },
+        noticeTabEnabled: {},
         pickerSelections: {},
         subscribedTopics: [],
         derivedAt: null,

@@ -47,6 +47,7 @@ import {
 import {
   setCategoryEnabled,
   setMasterEnabled,
+  setNoticeTabEnabled,
   setPickerSelectionRemote,
 } from '@/services/firestore-notifications';
 import {
@@ -123,6 +124,25 @@ export default function NotificationSettingsScreen() {
       }
     },
     [uid],
+  );
+
+  const handleToggleNoticeTab = useCallback(
+    async (tabKey: string, nextValue: boolean) => {
+      if (!uid) return;
+      try {
+        await setNoticeTabEnabled(uid, tabKey, nextValue);
+      } catch (err) {
+        logHandledError('notifications/set-notice-tab', err);
+      }
+    },
+    [uid],
+  );
+
+  // Per-tab on/off — undefined defaults to ON to match derive() contract.
+  const isNoticeTabOn = useCallback(
+    (key: string): boolean =>
+      preferences.noticeTabEnabled?.[key] !== false,
+    [preferences.noticeTabEnabled],
   );
 
   // ── Dept picker sheet ─────────────────────────────────────────────
@@ -233,43 +253,62 @@ export default function NotificationSettingsScreen() {
           onToggle={(v) => handleToggleCategory('notices', v)}
         />
 
-        {/* Notices sub-section: subscribed depts + edit entry */}
-        {noticesEnabled && deptTab?.picker && (
-          <View
-            style={[
-              styles.subSection,
-              categoryDisabled && styles.disabledOpacity,
-            ]}
-          >
-            <Txt
-              typography="t7"
-              color={SdsColors.grey600}
-              style={styles.subSectionLabel}
-            >
-              {t('notifications.subscribedDepts')}
-            </Txt>
-            {subscribedDeptNames.map((name, idx) => (
-              <View key={`${name}-${idx}`} style={styles.subRow}>
-                <Txt typography="t6" color={SdsColors.grey900}>
-                  • {name}
-                </Txt>
-              </View>
-            ))}
-            <Pressable
-              onPress={openDeptPicker}
-              disabled={categoryDisabled}
-              style={({ pressed }) => [
-                styles.editRow,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Txt typography="t6" color={SdsColors.grey900}>
-                {t('notifications.editDept')}
-              </Txt>
-              <ChevronRight size={20} color={SdsColors.grey600} />
-            </Pressable>
+        {/* Notices sub-section: per-tab toggles in server order, plus the
+            dept picker sub-row inline beneath the dept tab when ON. */}
+        {noticesEnabled && tabsConfig?.tabs.length ? (
+          <View style={[styles.subSection, categoryDisabled && styles.disabledOpacity]}>
+            {tabsConfig.tabs.map((tab) => {
+              const tabOn = isNoticeTabOn(tab.key);
+              const showDeptPicker =
+                tab.key === DEPT_TAB_KEY && tabOn && deptTab?.picker;
+              return (
+                <View key={tab.key}>
+                  <ListRow
+                    contents={<ListRow.Texts type="1RowTypeA" top={tab.label} />}
+                    right={
+                      <Switch
+                        checked={tabOn}
+                        onCheckedChange={(v) => handleToggleNoticeTab(tab.key, v)}
+                        disabled={categoryDisabled}
+                      />
+                    }
+                  />
+                  {showDeptPicker && (
+                    <View style={styles.deptPickerWrap}>
+                      <Txt
+                        typography="t7"
+                        color={SdsColors.grey600}
+                        style={styles.subSectionLabel}
+                      >
+                        {t('notifications.subscribedDepts')}
+                      </Txt>
+                      {subscribedDeptNames.map((name, idx) => (
+                        <View key={`${name}-${idx}`} style={styles.subRow}>
+                          <Txt typography="t6" color={SdsColors.grey900}>
+                            • {name}
+                          </Txt>
+                        </View>
+                      ))}
+                      <Pressable
+                        onPress={openDeptPicker}
+                        disabled={categoryDisabled}
+                        style={({ pressed }) => [
+                          styles.editRow,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Txt typography="t6" color={SdsColors.grey900}>
+                          {t('notifications.editDept')}
+                        </Txt>
+                        <ChevronRight size={20} color={SdsColors.grey600} />
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
-        )}
+        ) : null}
 
         {tabsError && !tabsLoading && (
           <View style={styles.retryBlock}>
@@ -471,7 +510,9 @@ const styles = StyleSheet.create({
   },
   subSection: {
     marginTop: 4,
-    marginHorizontal: 16,
+    paddingLeft: SdsSpacing.lg,
+  },
+  deptPickerWrap: {
     paddingLeft: SdsSpacing.lg,
     paddingVertical: SdsSpacing.sm,
     gap: SdsSpacing.xs,

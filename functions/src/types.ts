@@ -30,6 +30,11 @@ export interface PreferencesDocument {
   // Intent (client writable)
   enabled: boolean;
   categoryEnabled: CategoryEnabled;
+  /**
+   * Per-notice-tab override. Undefined key → ON (default-on for forward
+   * compatibility). Only consulted when categoryEnabled.notices is true.
+   */
+  noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
 
   // Derived (CF only — Rules block client write)

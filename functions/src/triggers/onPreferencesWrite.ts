@@ -60,6 +60,10 @@ export const onPreferencesWrite = onDocumentWritten(
     const intentChanged =
       beforeData?.enabled !== afterData.enabled ||
       !shallowEqual(beforeData?.categoryEnabled, afterData.categoryEnabled) ||
+      !shallowEqual(
+        beforeData?.noticeTabEnabled,
+        afterData.noticeTabEnabled,
+      ) ||
       !pickerSelectionsEqual(
         beforeData?.pickerSelections,
         afterData.pickerSelections,
@@ -73,6 +77,7 @@ export const onPreferencesWrite = onDocumentWritten(
     const derived = deriveSubscribedTopics(
       afterData.enabled,
       afterData.categoryEnabled,
+      afterData.noticeTabEnabled ?? {},
       afterData.pickerSelections,
       { uid },
     );

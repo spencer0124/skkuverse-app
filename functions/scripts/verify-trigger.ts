@@ -76,6 +76,7 @@ async function main(): Promise<void> {
   await ref.set({
     enabled: true,
     categoryEnabled: { essential: false, services: false, notices: true },
+    noticeTabEnabled: {},
     pickerSelections: { dept: ['12345'] },
     subscribedTopics: [],
     derivedAt: null,

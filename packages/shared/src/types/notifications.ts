@@ -24,7 +24,13 @@ export interface UserDocument {
  *
  * INTENT (client writable, sync target across devices):
  *   - enabled            : master toggle. OFF → no notifications regardless of categories.
- *   - categoryEnabled    : per-category on/off (essential / services / notices).
+ *   - categoryEnabled    : top-level on/off for the three super-categories
+ *                          (essential / services / notices). `notices=false`
+ *                          short-circuits all 9 notice tabs.
+ *   - noticeTabEnabled   : per-notice-tab on/off, e.g. { academic: true,
+ *                          library: false }. Undefined keys default to ON
+ *                          so new server tabs auto-enable for existing users.
+ *                          Only meaningful when categoryEnabled.notices is true.
  *   - pickerSelections   : per picker tab key, the user-chosen ids that drive
  *                          the corresponding `prefix:id` topic subscriptions.
  *                          Currently active keys: dept, library, dorm, general.
@@ -36,7 +42,9 @@ export interface UserDocument {
  *   - derivedAt          : server timestamp of last derive run, for diagnostics.
  *
  * INVARIANT:
- *   subscribedTopics === deriveSubscribedTopics(enabled, categoryEnabled, pickerSelections)
+ *   subscribedTopics === deriveSubscribedTopics(
+ *     enabled, categoryEnabled, noticeTabEnabled, pickerSelections
+ *   )
  *
  * Mirror file: functions/src/types.ts (kept in sync manually).
  */
@@ -44,6 +52,7 @@ export interface PreferencesDocument {
   // Intent
   enabled: boolean;
   categoryEnabled: CategoryEnabled;
+  noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
 
   // Derived

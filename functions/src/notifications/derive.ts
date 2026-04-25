@@ -9,12 +9,17 @@ import type { CategoryEnabled } from '../types.ts';
  * Defense in depth: 마스터 OFF (enabled=false)면 즉시 빈 배열 반환.
  * device 레벨 notificationsEnabled 필터에 의존하지 않고도 누수 차단.
  *
+ * 공지 탭 단위 미세 제어: noticeTabEnabled[key] 가 false인 탭만 제외.
+ * undefined / true → 포함. 이 default-on 정책은 신규 server 탭이 자동으로
+ * 기존 유저에게 켜지도록 함 (opt-out).
+ *
  * essential / services 카테고리는 현재 정의된 토픽 0개 (미래 확장용 빈 버킷).
  * 추후 'essential:emergency' / 'services:shuttle' 등 추가 시 분기 늘림.
  */
 export function deriveSubscribedTopics(
   enabled: boolean,
   categoryEnabled: CategoryEnabled,
+  noticeTabEnabled: Record<string, boolean>,
   pickerSelections: Record<string, string[]>,
   context?: { uid?: string },
 ): string[] {
@@ -22,13 +27,19 @@ export function deriveSubscribedTopics(
 
   const topics = new Set<string>();
 
+  // undefined → ON, false → OFF, true → ON.
+  const tabOn = (key: string): boolean => noticeTabEnabled[key] !== false;
+
   if (categoryEnabled.notices) {
-    // Fixed 탭: 모두 fan-out
+    // Fixed 탭: noticeTabEnabled 게이트 통과 시만 fan-out
     for (const key of FIXED_TAB_KEYS) {
-      topics.add(`category:${key}`);
+      if (tabOn(key)) {
+        topics.add(`category:${key}`);
+      }
     }
 
-    // Picker 탭: 사용자가 고른 id마다 토픽 한 개 (key === prefix identity)
+    // Picker 탭: 사용자가 고른 id마다 토픽 한 개 (key === prefix identity).
+    // 탭 자체가 OFF이면 picker 선택값 있어도 emit 안 함.
     const known = new Set<string>(KNOWN_PICKER_KEYS);
     for (const [pickerKey, ids] of Object.entries(pickerSelections)) {
       if (!known.has(pickerKey)) {
@@ -41,6 +52,7 @@ export function deriveSubscribedTopics(
         });
         continue;
       }
+      if (!tabOn(pickerKey)) continue;
       for (const id of ids) {
         topics.add(`${pickerKey}:${id}`);
       }
