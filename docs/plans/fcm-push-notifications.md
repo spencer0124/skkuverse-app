@@ -1533,3 +1533,90 @@ App Groups UserDefaults sync, NSE 타겟, NSE provisioning profile, `mutable-con
 - 딥링크 파라미터 (`?tab=dept&openPicker=true`) + 수신 로직 — "공지 탭으로 가기" 링크가 3 step 탭 없이 picker 를 바로 열도록.
 - Cascade write 실패 시 toast + retry (런칭 후 hardening).
 - Mobile 용 test harness (vitest + RNTL) 도입 후 delta API / picker diff / sheet 유닛 테스트 소급 추가 — 이번 PR 에선 mobile 테스트 러너 미설치로 shared 패키지 테스트만 포함.
+
+---
+
+## Phase 5 v5 SSOT — Firestore 단일 진실, 서버 derive (2026-04-25)
+
+**배경.** Phase 1~4 완료 후 클라가 직접 `subscribedTopics`를 계산해서 Firestore에 쓰는 fan-out-on-client 패턴이었음. 결과적으로 (1) picker 선택값이 로컬 MMKV(`useSettingsStore.pickerSelections`)에만 살아 멀티 디바이스 sync 0, (2) `dept:*` / `library:*` 같은 derived 토픽을 클라가 다양한 코드 경로에서 추가/삭제 → drift 위험, (3) v3 에서 picker prefix 미커버(`dorm`/`general` 케이스) 같은 잠재 버그가 클라 derive 로직 안에 누적.
+
+**핵심 원칙 재정의.** "기록은 의도(intent), 전송은 파생(derived)". 클라는 의도만 Firestore에 쓰고, Cloud Function이 단일 위치에서 derive해서 derived 필드를 채움. Firestore Rules가 derived 필드의 client write를 인프라 차원에서 봉쇄.
+
+### 데이터 모델 (`users/{uid}/preferences/main`)
+
+```ts
+PreferencesDocument = {
+  // === Intent (client writable) ===
+  enabled: boolean,                              // 마스터 토글
+  categoryEnabled: {                             // 3 super-카테고리
+    essential: boolean,                          // 미래 확장용 (현재 토픽 0개)
+    services: boolean,                           // 미래 확장용 (현재 토픽 0개)
+    notices: boolean,                            // 9개 공지 탭의 super-master
+  },
+  noticeTabEnabled: Record<string, boolean>,     // per-notice-tab override (key: server tab key)
+  pickerSelections: Record<string, string[]>,    // per picker tab의 사용자 선택 id 배열
+
+  // === Derived (CF only — Rules block client write) ===
+  subscribedTopics: string[],                    // CF가 채움; handle-notice의 array-contains-any 쿼리 대상
+  derivedAt: Timestamp | null,                   // serverTimestamp; 진단/디버깅용
+}
+```
+
+**불변식**: `subscribedTopics === deriveSubscribedTopics(enabled, categoryEnabled, noticeTabEnabled, pickerSelections)`.
+
+### 카테고리 → 토픽 매핑
+
+- `categoryEnabled.notices === false` → 모든 notice 토픽 0
+- `categoryEnabled.notices === true`:
+  - 각 fixed tab key (`academic`/`scholarship`/`career`/`recruitment`/`event`)에 대해 `noticeTabEnabled[key] !== false`이면 `category:${key}` emit
+  - 각 picker tab key (`dept`/`library`/`dorm`/`general`)에 대해 `noticeTabEnabled[key] !== false`이면 `pickerSelections[key]`의 각 id로 `${key}:${id}` emit (key === topic prefix identity 컨벤션)
+- `categoryEnabled.essential` / `services` → 현재 정의된 토픽 0 (미래 `essential:emergency` 같은 확장 시점에 분기 추가)
+
+`noticeTabEnabled[key]`의 default-on 정책 (undefined → ON): 백엔드가 새 탭 추가하면 기존 유저에게 자동 활성화 (opt-out 모델).
+
+### 컴포넌트
+
+| 파일 | 역할 |
+|---|---|
+| `functions/src/notifications/tabsContract.ts` | 백엔드 categories.json의 부분 mirror — `FIXED_TAB_KEYS` (5) + `KNOWN_PICKER_KEYS` (4). 백엔드 새 탭 추가 시 같은 release에서 갱신 필수. 컨벤션: picker key === topic prefix. |
+| `functions/src/notifications/derive.ts` | `deriveSubscribedTopics` 순수 함수. enabled OFF → 빈 배열 (defense in depth). Unknown picker key → `logger.warn` (drift 조기 감지). |
+| `functions/src/triggers/onPreferencesWrite.ts` | `users/{uid}/preferences/main` onDocumentWritten 트리거. Guard 1: intent 변경 없으면 skip (self-loop 방지). Guard 2: derive 결과가 현재값과 동일하면 skip (idempotency). retry: false. |
+| `functions/src/utils/equality.ts` | `setEquals` / `shallowEqual` / `pickerSelectionsEqual` — 트리거 가드용 순수 helper. |
+| `functions/scripts/verify-trigger.ts` | `firebase emulators:exec` 기반 통합 검증기. 4 시나리오 (initial seed → derive, self-loop guard, intent change, idempotency). 실행: `npm run verify:trigger`. CF 트리거/Rules/derive 변경 시 회귀. |
+| `apps/mobile/src/services/firestore-notifications.ts` | 클라 write API 4개 — `setMasterEnabled`, `setCategoryEnabled`, `setNoticeTabEnabled`, `setPickerSelectionRemote`. 모두 단일 dot-path `updateDoc`. **트랜잭션 사용 안 함** — Firestore offline 큐잉이 트랜잭션을 즉시 reject (캠퍼스 wifi dead spot 보호). 추가로 `seedOnboardingPreferences`, `unregisterDevice`, `initializeFirestoreNotifications`. |
+| `apps/mobile/src/features/notifications/NotificationSettingsScreen.tsx` | 마스터 + 3 카테고리 토글 + 9 sub-tab 토글 + 학과 picker sub-row + 편집 진입. `useNotificationStore.preferences` 구독 (Firestore listener fed). |
+| `apps/mobile/src/features/notices/NoticesTabScreen.tsx` | 우상단 벨 아이콘 (notices OFF 시 빗금) → `/notifications/settings` deeplink. 별도 컨텍스트 시트 없음 (Toss 패턴: 컨텍스트 진입 = subset/deeplink). |
+| `apps/mobile/src/hooks/useAppInit.ts` | `onAuthStateChanged` 안에서 uid 변화마다 `onPreferencesChanged` 리스너 재구독해서 store에 pump. **이게 SSOT 약속의 wire** — 없으면 store는 default에서 안 변함. |
+
+### Firestore Rules (Phase F 봉쇄)
+
+```
+match /users/{uid}/preferences/main {
+  allow read: if auth.uid == uid;
+  allow create: if auth.uid == uid && (subscribedTopics absent or empty);
+  allow update: if auth.uid == uid && !affectedKeys().hasAny(['subscribedTopics', 'derivedAt']);
+  allow delete: if false;
+}
+```
+
+테스트: `apps/mobile/firestore.rules.test.mjs` 26 케이스 (devices 13 + preferences 13). 실행: `yarn test:rules`.
+
+### Anon → Google 디바이스 claim (2026-04-25 보강)
+
+Task #12가 Google→anon 방향만 커버했고 anon→Google (onboarding 첫 로그인 + login.tsx 재로그인) 방향은 빈 그림자였음. 증상: preferences/main은 Google uid로 정상 생성되는데 device 문서가 anon uid + active:true로 갇혀 `syncPreferencesToDevices`가 google_uid 쿼리로 0 매치 → fan-out 전부 손실. Cloud Logging의 `notifications/auth-transition` 핸들드 에러로만 보이는 silent failure.
+
+**해결**: `OnboardingScreen.handleSignIn` + `app/login.tsx` 양쪽에 mirror 패턴 — sign-in 전 `unregisterDevice(deviceId)` (rule path a로 self-unregister 허용 → active:false) + sign-in 후 `await initializeFirestoreNotifications({uid: user.uid, ...})` (rule path b로 새 uid가 inactive doc claim).
+
+### 검증 인프라
+
+- `cd functions && npm test` — derive + tabsContract + equality 31 케이스
+- `cd functions && npm run verify:trigger` — 에뮬레이터 4 시나리오
+- `yarn test:rules` — 26 케이스
+- `cd apps/mobile && yarn lint && npx tsc --noEmit` — 타입/린트
+- 매 phase 끝, deploy 직전, dogfooding 시작 전 모두 회귀 가능
+
+### 디버깅 단서 (이번 작업에서 발견된 함정)
+
+1. **Zustand persist + schema migration**: `preferences`를 MMKV에 persist하면 v4 shape이 v5 hydration을 덮어씀 → undefined throw → ErrorBoundary "something went wrong". `partialize`로 `preferences` 제외, Firestore listener가 단일 source. 일반 원칙: **server-truth state는 client persist 금지**.
+2. **CF 함수 부분 deploy의 함정**: `firebase deploy --only functions:onPreferencesWrite`는 그 함수만 갱신. `channels.ts`의 `mapCategoryToChannel` 변경은 import한 `sendNotification`이 redeploy되어야 적용. 한 PR이 여러 함수 영향 시 명시적 deploy 목록 필요.
+3. **Trigger Guard 1 확장 누락**: 새 intent 필드(`noticeTabEnabled`) 추가 시 Guard 1의 비교에도 추가 안 하면 토글 변경이 "intent unchanged"로 잘못 판정 → derive 안 돌고 토픽 안 바뀜. 스키마 추가 = 가드도 같이 확장이 패턴.

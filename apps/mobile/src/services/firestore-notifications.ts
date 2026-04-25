@@ -141,18 +141,13 @@ export async function setPickerSelectionRemote(
  * Onboarding completion seed (Phase E).
  *
  * Replaces the doc with explicit intent defaults: master ON, essential +
- * notices ON, services OFF, picker tabs pre-populated by the caller.
+ * notices ON, services OFF, dept picker seeded from onboarding choices.
  * `subscribedTopics: []` — the CF onPreferencesWrite trigger fills it in
  * within 1~3s after this write lands.
- *
- * The `pickerSelections` arg is the fully-resolved map (caller applies
- * server defaults / first-dept fallback for non-dept picker tabs). This
- * keeps the "view = subscription" invariant — what NoticesTabScreen and
- * Settings render as "구독한 X" matches what the CF actually fans out to.
  */
 export async function seedOnboardingPreferences(
   uid: string,
-  pickerSelections: Record<string, string[]>,
+  deptIds: string[],
 ): Promise<void> {
   await primeAppCheck();
   const seed: PreferencesDocument = {
@@ -161,7 +156,7 @@ export async function seedOnboardingPreferences(
     // Empty record = all 9 notice tabs default-on per derive() contract.
     // User can selectively turn off in Settings later.
     noticeTabEnabled: {},
-    pickerSelections,
+    pickerSelections: { dept: deptIds },
     subscribedTopics: [],
     derivedAt: null,
   };
