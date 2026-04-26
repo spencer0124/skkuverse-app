@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, type PressableProps, StyleSheet } from 'react-native';
+import { Pressable, type PressableProps, StyleSheet, View } from 'react-native';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 /**
  * Standard tap target for native Stack `headerRight` icons.
@@ -13,12 +16,33 @@ import { Pressable, type PressableProps, StyleSheet } from 'react-native';
  *   investigation by @intergalacticspacehighway). 36×36 lets the system capsule
  *   wrap the child cleanly. hitSlop 10 keeps the effective tap area at 56×56,
  *   well above HIG's 44×44 minimum.
+ *
+ * `glass` prop: opt-in for callers that render OUTSIDE a native Stack header
+ *   (e.g. fully custom React headers like NoticesHeader). On iOS 26+ wraps the
+ *   pressable in `expo-glass-effect`'s `GlassView` to produce the same per-button
+ *   Liquid Glass capsule as `unstable_headerRightItems` with `sharesBackground:
+ *   false`. Native-bar callers (home/bus/map) leave it false to avoid
+ *   double-glass — the system bar already provides the intrinsic capsule.
  */
 interface Props extends Omit<PressableProps, 'children' | 'style'> {
   children: ReactNode;
+  glass?: boolean;
 }
 
-export function HeaderIconButton({ children, ...rest }: Props) {
+export function HeaderIconButton({ children, glass = false, ...rest }: Props) {
+  if (glass && GLASS_AVAILABLE) {
+    return (
+      <View style={[styles.glassOuter, styles.glassShadow]}>
+        <View style={styles.glassFillBase}>
+          <GlassView style={styles.glassSurface} glassEffectStyle="regular" isInteractive>
+            <Pressable hitSlop={10} {...rest} style={styles.glassPressable}>
+              {children}
+            </Pressable>
+          </GlassView>
+        </View>
+      </View>
+    );
+  }
   return (
     <Pressable hitSlop={10} {...rest} style={styles.root}>
       {children}
@@ -32,5 +56,44 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  glassOuter: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  // Visible capsule body — iOS native bar button (`unstable_headerRightItems`)
+  // sits inside a system-blurred bar (`headerBlurEffect`), which gives the
+  // capsule something to refract; the system also paints a `secondarySystemFill`
+  // tone so the capsule reads as a distinct pill on plain backgrounds. Notices
+  // header bg is solid white, so we replicate that fill ourselves underneath
+  // the GlassView. Without this base, the glass material is nearly invisible
+  // because there's no varied content beneath it to refract.
+  glassFillBase: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(120, 120, 128, 0.16)',
+  },
+  glassSurface: {
+    flex: 1,
+  },
+  glassPressable: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Float shadow tuned between SdsShadows.card (too subtle) and elevated
+  // (too strong against the capsule's specular highlight). Mirrors the
+  // RefreshFab / AccountSettingsScreen Liquid Glass shadow recipe.
+  glassShadow: {
+    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
 });

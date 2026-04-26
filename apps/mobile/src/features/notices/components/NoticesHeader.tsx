@@ -3,7 +3,7 @@
  *
  *   ┌──────────────────────────────────────────────────┐
  *   │  (safe area top inset)                           │
- *   │  공지사항            🔍 🔖 🔔                  │  ← Row 1: 44pt
+ *   │                              🔖  🔔             │  ← Row 1: 44pt (no title, mirrors home)
  *   ├──────────────────────────────────────────────────┤
  *   │  [학과] [학사] [장학] [취업] ...      ⇄         │  ← Row 2: Tab fluid
  *   └──────────────────────────────────────────────────┘
@@ -14,29 +14,27 @@
  * to the Stack header removes it from the screen body view tree → UIKit
  * finds only the SectionList → minimize triggers correctly.
  *
- * Trade-off: the previous index.tsx used `unstable_headerLeftItems` /
- * `unstable_headerRightItems` to get iOS 26 Liquid Glass per-button capsules
- * (RNSBarButtonItem.mm `sharesBackground: false`). A React-rendered header
- * cannot reproduce that native capsule — we get plain Pressable touch areas
- * instead. Acceptable trade-off for unblocking minimize-on-scroll.
+ * Per-button Liquid Glass: the right-side action icons each get an iOS 26
+ * Liquid Glass capsule via `expo-glass-effect`'s `GlassView` (UIVisualEffectView
+ * + UIGlassEffect — the same native material as `unstable_headerRightItems`
+ * with `sharesBackground: false`). Activated through the `glass` prop on
+ * `HeaderIconButton`. iOS<26 / Android: plain Pressable, no glass.
  *
  * State sharing: see `noticesUiStore` for why the Tab reads/writes
  * `activeTabKey` through Zustand instead of props/context.
  */
 
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BellIcon,
   BellSlashIcon,
   BookmarkSimpleIcon,
   CaretLeftIcon,
-  MagnifyingGlassIcon,
 } from 'phosphor-react-native';
 import {
   SdsColors,
-  SdsTypo,
   useNoticeTabs,
   useNotificationStore,
   useT,
@@ -64,7 +62,7 @@ export function NoticesHeader({ showBack = false }: Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Row 1: Toss-style left title + 3 right action icons */}
+      {/* Row 1: empty title (mirrors home tab) + right action icons */}
       <View style={styles.titleRow}>
         <View style={styles.left}>
           {showBack ? (
@@ -72,19 +70,10 @@ export function NoticesHeader({ showBack = false }: Props) {
               <CaretLeftIcon size={24} color={SdsColors.grey700} weight="bold" />
             </Pressable>
           ) : null}
-          <Text style={styles.title}>{t('nav.notices')}</Text>
         </View>
         <View style={styles.right}>
           <HeaderIconButton
-            onPress={() => {
-              // TODO: 검색 화면 라우트 연결
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="검색"
-          >
-            <MagnifyingGlassIcon size={22} color={SdsColors.grey700} />
-          </HeaderIconButton>
-          <HeaderIconButton
+            glass
             onPress={() => {
               // TODO: 보관함 화면 라우트 연결
             }}
@@ -94,6 +83,7 @@ export function NoticesHeader({ showBack = false }: Props) {
             <BookmarkSimpleIcon size={22} color={SdsColors.grey700} />
           </HeaderIconButton>
           <HeaderIconButton
+            glass
             onPress={() => router.push('/notifications/settings' as never)}
             accessibilityRole="button"
             accessibilityLabel={t('notifications.settings')}
@@ -145,7 +135,7 @@ const styles = StyleSheet.create({
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
   backBtn: {
     width: 36,
@@ -153,10 +143,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: -8,
-  },
-  title: {
-    ...SdsTypo.t3,
-    color: SdsColors.grey900,
   },
   tabPlaceholder: {
     height: 44,
