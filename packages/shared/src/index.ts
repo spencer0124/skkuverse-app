@@ -183,6 +183,7 @@ export {
   parseNoticeDetail,
   resolvePickerSelection,
   computeOnboardingPickerSeed,
+  highlightMatches,
 } from './notices';
 export type {
   TabSource,
@@ -204,6 +205,7 @@ export type {
   NoticeLocation,
   NoticeAttachment,
   NoticeEditInfo,
+  HighlightSegment,
 } from './notices';
 
 // ── Hooks ──

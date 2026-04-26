@@ -4,6 +4,8 @@ export {
   parseNoticeDetail,
 } from './parser';
 export { resolvePickerSelection, computeOnboardingPickerSeed } from './picker';
+export { highlightMatches } from './highlight';
+export type { HighlightSegment } from './highlight';
 export type {
   TabSource,
   PickerTabConfig,

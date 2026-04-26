@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { SdsColors, useSettingsStore } from '@skkuverse/shared';
+import { SdsColors, highlightMatches, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import { PaperclipIcon } from 'phosphor-react-native';
@@ -11,6 +11,26 @@ interface Props {
   onPress: (item: NoticeListItem) => void;
   /** Show department label (only for multi-dept tabs like 학과/도서관). */
   showDepartment?: boolean;
+  /** Search query — when set, the matched substrings inside the title
+   *  are wrapped in a styled inner Txt (case-insensitive match, original
+   *  casing preserved). Empty / undefined renders the title verbatim. */
+  highlightQuery?: string;
+}
+
+function renderTitleWithHighlight(title: string, query: string | undefined) {
+  if (!query) return title;
+  // Inner Txt children inherit the outer Txt's typography/lineHeight; we
+  // only override color + weight so the matched substrings stand out
+  // without breaking the row's measured height.
+  return highlightMatches(title, query).map((seg, i) =>
+    seg.matched ? (
+      <Txt key={i} fontWeight="bold" color={SdsColors.blue500}>
+        {seg.text}
+      </Txt>
+    ) : (
+      seg.text
+    ),
+  );
 }
 
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
@@ -47,7 +67,12 @@ function renderPill(info: DeadlineInfo) {
   );
 }
 
-export function NoticeRow({ item, onPress, showDepartment }: Props) {
+export function NoticeRow({
+  item,
+  onPress,
+  showDepartment,
+  highlightQuery,
+}: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
   const deadline = formatDeadlineBadge(item.summary ?? null);
   const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
@@ -107,7 +132,7 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
             textBreakStrategy="highQuality"
             style={[styles.title, fixedBadge && styles.titleWithBadge]}
           >
-            {item.title}
+            {renderTitleWithHighlight(item.title, highlightQuery)}
           </Txt>
           {oneLiner.length > 0 ? (
             <Txt

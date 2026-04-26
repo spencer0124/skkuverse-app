@@ -63,6 +63,7 @@
  */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   BookmarkSimpleIcon,
   FunnelSimpleIcon,
@@ -75,12 +76,11 @@ const ICON_SIZE = 22;
 
 export function NoticesAccessoryBar() {
   const { t } = useT();
+  const router = useRouter();
   return (
     <View style={styles.row}>
       <Pressable
-        onPress={() => {
-          // TODO: push to /notices/search
-        }}
+        onPress={() => router.push('/notices/search')}
         style={({ pressed }) => [
           styles.searchPill,
           pressed && styles.searchPillPressed,

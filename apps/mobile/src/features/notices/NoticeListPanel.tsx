@@ -48,21 +48,29 @@ type Props = (
   | { sourceId?: never; sourceIds: string[] }
 ) & {
   listHeader?: ReactElement;
+  /** Optional search query — forwarded to the data hook (server applies
+   *  case-insensitive regex on title + summaryOneLiner) and to NoticeRow
+   *  as `highlightQuery` so each row visually marks the matched
+   *  substring. Empty / undefined preserves existing behavior. */
+  q?: string;
 };
 
 export function NoticeListPanel(props: Props) {
   const multi = 'sourceIds' in props && props.sourceIds != null;
   const listHeader = props.listHeader;
+  const q = props.q;
   const router = useRouter();
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
 
   const singleResult = useNoticeList({
     sourceId: multi ? '' : props.sourceId!,
+    q,
     enabled: !multi,
   });
   const multiResult = useMultiSourceNoticeList({
     sourceIds: multi ? props.sourceIds! : [],
+    q,
     enabled: multi,
   });
 
@@ -114,7 +122,12 @@ export function NoticeListPanel(props: Props) {
       sections={sections}
       keyExtractor={(n) => n.id}
       renderItem={({ item }) => (
-        <NoticeRow item={item} onPress={handleSelect} showDepartment={multi} />
+        <NoticeRow
+          item={item}
+          onPress={handleSelect}
+          showDepartment={multi}
+          highlightQuery={q}
+        />
       )}
       renderSectionHeader={({ section }) => (
         <View style={styles.sectionHeader}>
@@ -145,6 +158,8 @@ export function NoticeListPanel(props: Props) {
           <NoticeListSkeleton />
         ) : isError ? (
           <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+        ) : q && q.length > 0 ? (
+          <NoticeEmptyState message={t('notices.search.empty.subtitle')} />
         ) : (
           <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
         )

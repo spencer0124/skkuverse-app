@@ -294,6 +294,8 @@ const ko = {
   'notices.accessory.bookmark': '북마크',
   'notices.accessory.filter': '필터',
   'notices.accessory.sort': '정렬',
+  'notices.search.empty.title': '검색 결과 없음',
+  'notices.search.empty.subtitle': '선택한 소스에서 일치하는 공지가 없습니다',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'AI 공지를 확인해보세요',
@@ -602,6 +604,8 @@ const en: TranslationMap = {
   'notices.accessory.bookmark': 'Bookmarks',
   'notices.accessory.filter': 'Filter',
   'notices.accessory.sort': 'Sort',
+  'notices.search.empty.title': 'No results',
+  'notices.search.empty.subtitle': 'No matching notices in the selected sources',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'Check AI-powered notices',
@@ -911,6 +915,8 @@ const zh: TranslationMap = {
   'notices.accessory.bookmark': '书签',
   'notices.accessory.filter': '筛选',
   'notices.accessory.sort': '排序',
+  'notices.search.empty.title': '无搜索结果',
+  'notices.search.empty.subtitle': '所选来源中没有匹配的公告',
 
   // ── Onboarding ──
   'onboarding.landingTitle': '查看AI公告',
