@@ -120,6 +120,10 @@ export default function RootLayout() {
                   options={{ title: t('notifications.notices') }}
                 />
                 <Stack.Screen
+                  name="notices/saved"
+                  options={{ title: t('notices.saved') }}
+                />
+                <Stack.Screen
                   name="map/hssc"
                   options={{ title: '인사캠 건물지도' }}
                 />

@@ -6,6 +6,7 @@ export {
 export { resolvePickerSelection, computeOnboardingPickerSeed } from './picker';
 export { highlightMatches } from './highlight';
 export type { HighlightSegment } from './highlight';
+export { classifyBookmarkToggleError } from './bookmarkErrors';
 export type {
   TabSource,
   PickerTabConfig,

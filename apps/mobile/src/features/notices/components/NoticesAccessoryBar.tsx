@@ -14,7 +14,7 @@
  *      notices tab is focused at root (not pushed detail). Same UI shows
  *      whether the tab bar is expanded or scroll-minimized.
  *
- * Visual design — search pill + 2 secondary icons (Toss-style hierarchy):
+ * Visual design — 3 equal peers (icon + label), dividers between:
  *   We do NOT wrap children in our own GlassView. iOS 26's UITabAccessory
  *   automatically applies a Liquid Glass material to the entire accessory
  *   area, and that material is forced full-width regardless of contentView
@@ -23,27 +23,22 @@
  *
  *   Layout (left-to-right, 2 vertical dividers between peers):
  *     ┌──────────────────────────────────────────────────┐
- *     │  🔍 공지 검색          │  🔖  │  ≡             │
+ *     │   🔍 검색      │   🔖 보관함      │   ≡ 필터    │
  *     └──────────────────────────────────────────────────┘
- *     - Left (flex:1): search pill — magnifier + placeholder text
- *       (Pressable, NOT TextInput — pushes to dedicated /notices/search
- *        route since rn-screens 4.19 doesn't wire keyboard avoidance for
- *        UITabAccessory; verified on feat/notices-search-prototype 2026-04-26)
- *     - Hairline divider (vertical, grey300, height 20)
- *     - Bookmark icon (push to /notices/bookmarks)
- *     - Hairline divider
- *     - Filter icon (present sheet — sort/filter combined per Toss
- *       "filter as sheet" rule: sheet allows immediate list reflection
- *       without page navigation)
- *
- *   Hierarchy comes from search's flex:1 + placeholder text creating
- *   visual mass asymmetry vs the two right-side icon-only buttons.
- *   Dividers between all peers reinforce "main + supporting actions"
- *   reading rather than "4 equal icons". Filter uses `FunnelSimpleIcon`
- *   (3 horizontal lines decreasing — also SF Symbol
- *   `line.3.horizontal.decrease.circle` shape) instead of cone-shaped
- *   `FunnelIcon` because the visual weight better balances the row's
- *   right edge against the placeholder text on the left.
+ *     - All 5 children (3 actions + 2 dividers) sit in `space-evenly`, so
+ *       the 6 boundary gaps (edge↔A1↔D1↔A2↔D2↔A3↔edge) are exactly equal.
+ *       Each action sizes to its natural [icon + label] width; this keeps
+ *       divider-to-content distance uniform even when label widths differ
+ *       ("검색" 2ch vs "보관함" 3ch).
+ *     - Hairline dividers (vertical, grey300, height 20) separate peers,
+ *       reinforcing "3 toolbar actions" reading like iOS Mail/Photos
+ *       toolbars rather than "search-first" pattern.
+ *     - Search still pushes to /notices/search (NOT inline TextInput) —
+ *       rn-screens 4.19 doesn't wire keyboard avoidance for UITabAccessory
+ *       (verified on feat/notices-search-prototype 2026-04-26).
+ *     - Filter uses `FunnelSimpleIcon` (3 horizontal lines decreasing —
+ *       SF Symbol `line.3.horizontal.decrease.circle` shape) instead of
+ *       cone-shaped `FunnelIcon` for cleaner visual balance with text.
  *
  * State hoisting: any user-mutable state lives in noticesUiStore. On RN >= 0.82
  * (Expo SDK 55+), rn-screens mounts BOTH 'regular' and 'inline' instances
@@ -71,8 +66,7 @@ import {
 } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 
-const ICON_BUTTON = 36;
-const ICON_SIZE = 22;
+const ICON_SIZE = 20;
 
 export function NoticesAccessoryBar() {
   const { t } = useT();
@@ -81,34 +75,24 @@ export function NoticesAccessoryBar() {
     <View style={styles.row}>
       <Pressable
         onPress={() => router.push('/notices/search')}
-        style={({ pressed }) => [
-          styles.searchPill,
-          pressed && styles.searchPillPressed,
-        ]}
+        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.search')}
       >
-        <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
-        <Text style={styles.searchText}>
-          {t('notices.accessory.searchPlaceholder')}
-        </Text>
+        <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <Text style={styles.label}>{t('notices.accessory.search')}</Text>
       </Pressable>
 
       <View style={styles.divider} />
 
       <Pressable
-        onPress={() => {
-          // TODO: push to /notices/bookmarks
-        }}
-        hitSlop={6}
-        style={({ pressed }) => [
-          styles.iconBtn,
-          pressed && styles.iconBtnPressed,
-        ]}
+        onPress={() => router.push('/notices/saved')}
+        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.bookmark')}
       >
         <BookmarkSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <Text style={styles.label}>{t('notices.accessory.bookmark')}</Text>
       </Pressable>
 
       <View style={styles.divider} />
@@ -117,62 +101,50 @@ export function NoticesAccessoryBar() {
         onPress={() => {
           // TODO: present filter sheet (sort + filter combined)
         }}
-        hitSlop={6}
-        style={({ pressed }) => [
-          styles.iconBtn,
-          pressed && styles.iconBtnPressed,
-        ]}
+        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.filter')}
       >
         <FunnelSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <Text style={styles.label}>{t('notices.accessory.filter')}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // `space-evenly` distributes free space across all 6 boundaries equally
+  // (edge↔A1, A1↔D1, D1↔A2, A2↔D2, D2↔A3, A3↔edge). With each action sized
+  // to its natural content width, divider-to-content distance is uniform
+  // even when label widths differ ("검색" 2ch vs "보관함" 3ch). flex:1 +
+  // justifyContent:center on actions would equalize slot widths but leave
+  // wider middle content visibly closer to its dividers — the asymmetry we
+  // want to remove.
   row: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    gap: 8,
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 8,
   },
-  // Left zone — search pill affordance. flex:1 reserves ~70%+ of the bar
-  // width regardless of right-cluster icon count, establishing search as
-  // the primary action. Glass material below provides the visual container
-  // so no own background needed.
-  searchPill: {
-    flex: 1,
+  action: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: ICON_BUTTON,
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 4,
   },
-  searchText: {
+  actionPressed: {
+    opacity: 0.5,
+  },
+  label: {
     fontSize: 15,
-    color: SdsColors.grey500,
+    color: SdsColors.grey800,
+    fontWeight: '500',
   },
-  searchPillPressed: {
-    opacity: 0.6,
-  },
-  // Vertical hairline separator between primary search action and the
-  // secondary action cluster — signals weight asymmetry the way iOS
-  // toolbars / context menus do.
   divider: {
     width: StyleSheet.hairlineWidth,
     height: 20,
     backgroundColor: SdsColors.grey300,
-  },
-  iconBtn: {
-    width: ICON_BUTTON,
-    height: ICON_BUTTON,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: ICON_BUTTON / 2,
-  },
-  iconBtnPressed: {
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
   },
 });

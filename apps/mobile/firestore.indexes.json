@@ -8,6 +8,14 @@
         { "fieldPath": "notificationsEnabled", "order": "ASCENDING" },
         { "fieldPath": "subscribedTopics", "arrayConfig": "CONTAINS" }
       ]
+    },
+    {
+      "collectionGroup": "bookmarks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "savedAt", "order": "DESCENDING" },
+        { "fieldPath": "articleNo", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

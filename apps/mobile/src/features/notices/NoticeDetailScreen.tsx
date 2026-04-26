@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Platform, Share, View, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
@@ -11,6 +11,7 @@ import {
 } from '@skkuverse/shared';
 import { Toast, Txt } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
+import { useBookmark } from './hooks/useBookmark';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
@@ -30,11 +31,13 @@ interface Props {
 
 export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const { t, tpl } = useT();
+  const router = useRouter();
   const { data, isLoading, isError, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
-  // Local-only visual toggle for the bookmark icon. No persistence yet —
-  // wired to a real bookmark store in a follow-up. Resets on screen unmount.
-  const [saved, setSaved] = useState(false);
+  // Real bookmark state — synced via Firestore listener in useAppInit. The
+  // optimistic toggle policy lives inside `useBookmark` (revert only on
+  // permanent error). UX outcome handling stays here.
+  const { isSaved: saved, toggle: toggleBookmark } = useBookmark(sourceId, articleNo);
 
   const handleCopyText = useCallback((text: string) => {
     void Clipboard.setStringAsync(text);
@@ -55,8 +58,16 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   );
 
   const handleSavePress = useCallback(() => {
-    setSaved((prev) => !prev);
-  }, []);
+    if (!data) return;
+    void toggleBookmark(data).then((outcome) => {
+      if (outcome === 'auth-required') {
+        setToastText(t('notices.authRequired'));
+        router.push('/login');
+      } else if (outcome === 'failed') {
+        setToastText(t('notices.saveFailed'));
+      }
+    });
+  }, [data, toggleBookmark, t, router]);
 
   const handleSharePress = useCallback(() => {
     // RN's built-in `Share` opens the platform-native share sheet:
@@ -82,14 +93,14 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
           unstable_headerRightItems: () => [
             {
               type: 'button' as const,
-              label: t('notices.save'),
+              label: saved ? t('notices.unsave') : t('notices.save'),
               icon: {
                 type: 'image' as const,
                 source: saved ? ICON_BOOKMARK_FILL : ICON_BOOKMARK,
                 tinted: false,
               },
               sharesBackground: false,
-              accessibilityLabel: t('notices.save'),
+              accessibilityLabel: saved ? t('notices.unsave') : t('notices.save'),
               onPress: handleSavePress,
             },
             {
@@ -108,7 +119,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
             <View style={styles.headerRight}>
               <HeaderIconButton
                 onPress={handleSavePress}
-                accessibilityLabel={t('notices.save')}
+                accessibilityLabel={saved ? t('notices.unsave') : t('notices.save')}
               >
                 <BookmarkIcon
                   size={22}

@@ -9,6 +9,7 @@ import {
   authStore,
   useSettingsStore,
   useNotificationStore,
+  useBookmarkStore,
   SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
   t as translate,
@@ -33,6 +34,7 @@ import {
   onPreferencesChanged,
   updateUserLocale,
 } from '@/services/firestore-notifications';
+import { onBookmarksChanged } from '@/services/firestore-bookmarks';
 import { withRetry } from '@/utils/with-retry';
 
 // Verbose Firestore logging in dev builds so write-stream stalls become
@@ -104,6 +106,15 @@ export function useAppInit() {
     // so this listener is the sole source of truth on the client.
     let unsubPrefs: (() => void) | undefined;
     let prefsListenerUid: string | null = null;
+
+    // Firestore users/{uid}/bookmarks/* onSnapshot listener — same uid-scoped
+    // lifecycle as unsubPrefs above. The Zustand bookmark store is not MMKV-
+    // persisted; the listener is the sole hydration path on the client. On
+    // sign-out we both detach the listener AND clearEntries() — without the
+    // explicit clear, the next anon user on a shared device would see the
+    // prior Google user's bookmarks for ~1s until the new listener attaches.
+    let unsubBookmarks: (() => void) | undefined;
+    let bookmarksListenerUid: string | null = null;
 
     async function init() {
       try {
@@ -232,6 +243,18 @@ export function useAppInit() {
                 }
               });
             }
+
+            // Bookmarks listener — same uid-scoped lifecycle as unsubPrefs.
+            // Anon users hit this path too: their collection is empty and
+            // the snapshot fires with `{}`, which `setEntries` writes as
+            // an empty map (loaded=true).
+            if (bookmarksListenerUid !== user.uid) {
+              unsubBookmarks?.();
+              bookmarksListenerUid = user.uid;
+              unsubBookmarks = onBookmarksChanged(user.uid, (entries) => {
+                useBookmarkStore.getState().setEntries(entries);
+              });
+            }
           } else {
             if (__DEV__) console.log('[auth] onAuthStateChanged: signed out');
             authStore.getState().setUnauthenticated();
@@ -241,6 +264,14 @@ export function useAppInit() {
             unsubPrefs?.();
             unsubPrefs = undefined;
             prefsListenerUid = null;
+            // Bookmarks: detach listener + clearEntries. Without the
+            // explicit clear, the next anon user on a shared device would
+            // see the prior Google user's saved-list until the new listener
+            // attaches and overwrites — privacy regression.
+            unsubBookmarks?.();
+            unsubBookmarks = undefined;
+            bookmarksListenerUid = null;
+            useBookmarkStore.getState().clearEntries();
             // ⚠️ lastKnownUid is intentionally preserved through this branch.
             // The next onAuthStateChanged(user) fires with the new anon uid
             // after signInAnonymously, and we need prevUid != newUid to
@@ -395,6 +426,7 @@ export function useAppInit() {
       unsubscribe?.();
       unsubToken?.();
       unsubPrefs?.();
+      unsubBookmarks?.();
       unsubLocale();
       appStateSubscription.remove();
     };

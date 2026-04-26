@@ -151,6 +151,32 @@ export function logBusServiceSwitch(routeId: string, serviceId: string) {
   logEvent('bus_service_switch', { route_id: routeId, service_id: serviceId });
 }
 
+// ── Notice Bookmarks ───────────────────────────────────────────────
+
+/**
+ * Bookmark events. Phase 1 Chunk A defines the signatures; Chunk B wires the
+ * call sites (toggle in NoticeDetailScreen, list-mount in saved.tsx). Adding
+ * the events now is cheap and avoids backfill pain — without these, "how many
+ * users bookmark notices" can't be answered until they ship.
+ */
+export function logBookmarkSave(params: { sourceId: string; articleNo: number }) {
+  logEvent('bookmark_save', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+  });
+}
+
+export function logBookmarkUnsave(params: { sourceId: string; articleNo: number }) {
+  logEvent('bookmark_unsave', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+  });
+}
+
+export function logBookmarksListOpen() {
+  logEvent('bookmarks_list_open', {});
+}
+
 // ── Screen View (manual) ───────────────────────────────────────────
 
 export function logScreenView(screenName: string) {

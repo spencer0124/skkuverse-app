@@ -67,6 +67,12 @@ export type {
   NotificationStore,
   PushPermissionStatus,
 } from './store/notifications';
+export { useBookmarkStore, bookmarkStore } from './store/bookmarks';
+export type { BookmarkStore } from './store/bookmarks';
+
+// ── Bookmark types ──
+export type { BookmarkEntry, BookmarkSummaryType } from './types/bookmarks';
+export { bookmarkKey, parseBookmarkKey } from './types/bookmarks';
 
 // ── SDUI types ──
 export type {
@@ -184,6 +190,7 @@ export {
   resolvePickerSelection,
   computeOnboardingPickerSeed,
   highlightMatches,
+  classifyBookmarkToggleError,
 } from './notices';
 export type {
   TabSource,

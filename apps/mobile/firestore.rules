@@ -59,6 +59,35 @@ service cloud.firestore {
 
         allow delete: if false;
       }
+
+      // users/{uid}/bookmarks/{key} — saved notices, Phase 1 Chunk A.
+      //
+      // Subcollection model (NOT a single doc with a map of entries):
+      //   key = `${sourceId}:${articleNo}`
+      //
+      // Why subcollection: Firestore Rules cannot iterate map entries to assert
+      // key/value consistency. Per-doc keying lets us compare the path variable
+      // `{key}` directly to `request.resource.data.sourceId + ':' + string(articleNo)`,
+      // which catches inconsistent writes (a key claiming one notice while the
+      // body describes a different one).
+      //
+      // Why anchored regex `^[a-z0-9-]+$`: CEL `matches()` is partial-match by
+      // default. Without `^...$`, `"valid:bad"` would slip through because the
+      // substring `valid` matches `[a-z0-9-]+`. The "anchor canary" test in
+      // firestore.rules.test.mjs is the regression guard for this.
+      match /bookmarks/{key} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null
+                              && request.auth.uid == uid
+                              && key == request.resource.data.sourceId + ':' + string(request.resource.data.articleNo)
+                              && request.resource.data.sourceId is string
+                              && request.resource.data.sourceId.matches('^[a-z0-9-]+$')
+                              && request.resource.data.articleNo is int
+                              && request.resource.data.articleNo > 0
+                              && request.resource.data.title is string
+                              && request.resource.data.savedAt is timestamp;
+      }
     }
 
     // devices/{deviceId} — top-level so the Cloud Function can query by

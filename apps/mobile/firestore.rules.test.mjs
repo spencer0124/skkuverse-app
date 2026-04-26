@@ -444,3 +444,262 @@ describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () =>
     );
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────
+// users/{uid}/bookmarks/{key} rules — Phase 1 Chunk A
+//
+// Subcollection model:
+//   users/{uid}/bookmarks/{key}  where  key = `${sourceId}:${articleNo}`
+//
+// Rules enforce key/value consistency at the path-variable level (only
+// possible because each bookmark is its own doc, not a map entry under a
+// single doc — Firestore Rules cannot iterate map entries).
+//
+// The sourceId regex `^[a-z0-9-]+$` is ANCHORED. CEL `matches()` is
+// partial-match by default; without the anchors `"valid:bad"` would slip
+// through because the substring `valid` matches. The "anchor canary" test
+// below is the canary that proves the anchors are doing work.
+// ──────────────────────────────────────────────────────────────────────
+
+const bookmarkRef = (ctx, uid, key) =>
+  ctx
+    .firestore()
+    .collection('users')
+    .doc(uid)
+    .collection('bookmarks')
+    .doc(key);
+
+// BookmarkEntry template — every required field per Rules.
+const bookmarkEntry = (overrides = {}) => ({
+  sourceId: 'cse-undergrad',
+  articleNo: 5847,
+  savedAt: new Date(),
+  title: 'Some notice title',
+  department: '컴퓨터공학과',
+  date: '2026-04-25',
+  sourceUrl: 'https://cse.skku.edu/notice/5847',
+  summaryOneLiner: null,
+  summaryType: null,
+  hasContent: true,
+  hasAttachments: false,
+  ...overrides,
+});
+
+describe('users/{uid}/bookmarks/{key} rules — Phase 1', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+
+  // ── CREATE — happy path ──────────────────────────────────────────
+
+  test('owner creates bookmark with consistent key+entry → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').set(bookmarkEntry()),
+    );
+  });
+
+  test('owner creates bookmark with multi-source identity (skku-main:136023) → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      bookmarkRef(ctx, 'uid-1', 'skku-main:136023').set(
+        bookmarkEntry({ sourceId: 'skku-main', articleNo: 136023 }),
+      ),
+    );
+  });
+
+  // ── CREATE — key/value consistency ───────────────────────────────
+
+  test('owner creates with key disagreeing on sourceId → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'wrong-source:5847').set(
+        bookmarkEntry({ sourceId: 'cse-undergrad', articleNo: 5847 }),
+      ),
+    );
+  });
+
+  test('owner creates with key disagreeing on articleNo → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:9999').set(
+        bookmarkEntry({ sourceId: 'cse-undergrad', articleNo: 5847 }),
+      ),
+    );
+  });
+
+  // ── CREATE — sourceId regex enforcement ──────────────────────────
+
+  test('owner creates with uppercase sourceId → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'CSE:5847').set(
+        bookmarkEntry({ sourceId: 'CSE', articleNo: 5847 }),
+      ),
+    );
+  });
+
+  // ⭐ ANCHOR CANARY — without `^...$` anchors on the matches() regex,
+  //    "valid:bad" would PASS because the substring "valid" matches
+  //    [a-z0-9-]+. This test proves the anchor is doing work. If this
+  //    test passes when anchors are removed, the anchor regression
+  //    has slipped through.
+  test('owner creates with sourceId "valid:bad" (anchor canary) → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'valid:bad:5847').set(
+        bookmarkEntry({ sourceId: 'valid:bad', articleNo: 5847 }),
+      ),
+    );
+  });
+
+  test('owner creates with sourceId "abc/../etc" (path-traversal canary) → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    // Note: Firestore document IDs reject `/`, so we can't actually create
+    // such a key — but the *value* validation happens before any path
+    // resolution, so we exercise the regex by setting the field directly.
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'abc:5847').set(
+        bookmarkEntry({ sourceId: 'abc/../etc', articleNo: 5847 }),
+      ),
+    );
+  });
+
+  // ── CREATE — articleNo validation ────────────────────────────────
+
+  test('owner creates with negative articleNo → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:-5').set(
+        bookmarkEntry({ articleNo: -5 }),
+      ),
+    );
+  });
+
+  test('owner creates with zero articleNo → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:0').set(
+        bookmarkEntry({ articleNo: 0 }),
+      ),
+    );
+  });
+
+  test('owner creates with string articleNo → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').set(
+        bookmarkEntry({ articleNo: '5847' }),
+      ),
+    );
+  });
+
+  // ── CROSS-USER + UNAUTH ──────────────────────────────────────────
+
+  test('user A tries to create bookmark in user B path → deny', async () => {
+    const attackerCtx = testEnv.authenticatedContext('attacker-uid');
+    await assertFails(
+      bookmarkRef(attackerCtx, 'victim-uid', 'cse-undergrad:5847').set(bookmarkEntry()),
+    );
+  });
+
+  test('user A tries to read user B bookmark → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/victim-uid/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const attackerCtx = testEnv.authenticatedContext('attacker-uid');
+    await assertFails(
+      bookmarkRef(attackerCtx, 'victim-uid', 'cse-undergrad:5847').get(),
+    );
+  });
+
+  test('unauthenticated user tries to write → deny', async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').set(bookmarkEntry()),
+    );
+  });
+
+  test('unauthenticated user tries to read → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').get());
+  });
+
+  // ── READ + DELETE — owner OK ─────────────────────────────────────
+
+  test('owner reads own bookmark → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').get());
+  });
+
+  test('owner deletes own bookmark → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').delete());
+  });
+
+  test('user A tries to delete user B bookmark → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/victim-uid/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const attackerCtx = testEnv.authenticatedContext('attacker-uid');
+    await assertFails(
+      bookmarkRef(attackerCtx, 'victim-uid', 'cse-undergrad:5847').delete(),
+    );
+  });
+
+  // ── UPDATE — same constraints as CREATE ──────────────────────────
+
+  test('owner updates own bookmark with consistent key+entry → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').set(
+        bookmarkEntry({ title: 'Updated title' }),
+      ),
+    );
+  });
+
+  test('owner updates own bookmark trying to mutate sourceId mismatch → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').set(
+        bookmarkEntry({ sourceId: 'different-source' }),
+      ),
+    );
+  });
+});
