@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Share, View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
@@ -22,8 +23,6 @@ const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png'
 const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
 const ICON_SHARE = require('../../../assets/header-icons/share-network.png');
 
-const SHARE_URL = 'https://skkuverse.com';
-
 interface Props {
   sourceId: string;
   articleNo: number;
@@ -38,6 +37,19 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   // optimistic toggle policy lives inside `useBookmark` (revert only on
   // permanent error). UX outcome handling stays here.
   const { isSaved: saved, toggle: toggleBookmark } = useBookmark(sourceId, articleNo);
+
+  // Latest `data` is captured in a ref so header callbacks can stay stable
+  // across React Query background refetches (focusManager refetch on app
+  // resume, structural-sharing breakdown on JSON shape drift). Without this,
+  // each new `data` reference would invalidate `handleSavePress` /
+  // `handleSharePress` → `headerOptions` `useMemo` → react-native-screens
+  // re-applies native bar items, which is the very transition window in
+  // which iOS UIBarButtonItem briefly leaks its `title` text. Refs are
+  // intentionally read at call-time, not closed over at definition-time.
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const handleCopyText = useCallback((text: string) => {
     void Clipboard.setStringAsync(text);
@@ -58,8 +70,9 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   );
 
   const handleSavePress = useCallback(() => {
-    if (!data) return;
-    void toggleBookmark(data).then((outcome) => {
+    const current = dataRef.current;
+    if (!current) return;
+    void toggleBookmark(current).then((outcome) => {
       if (outcome === 'auth-required') {
         setToastText(t('notices.authRequired'));
         router.push('/login');
@@ -67,33 +80,58 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
         setToastText(t('notices.saveFailed'));
       }
     });
-  }, [data, toggleBookmark, t, router]);
+  }, [toggleBookmark, t, router]);
 
   const handleSharePress = useCallback(() => {
-    // RN's built-in `Share` opens the platform-native share sheet:
+    const current = dataRef.current;
+    if (!current) return;
+    // Universal link: app-installed devices open detail screen directly
+    // (AASA + +native-intent NOTICE_PATH_RE), app-missing devices fall
+    // through to the Cloudflare Pages Function at the same path which
+    // renders an unfurl-friendly notice page.
     //   iOS  → UIActivityViewController (AirDrop / Messages / Mail / Copy …)
-    //   Android → Intent.ACTION_SEND chooser (only `message` is rendered;
-    //             `url` is silently ignored, so we duplicate the URL into
-    //             `message` to keep parity)
-    void Share.share({ message: SHARE_URL, url: SHARE_URL });
+    //          uses `url` for rich activity entries
+    //   Android → Intent.ACTION_SEND chooser, only `message` is rendered;
+    //             URL duplicated into message to keep parity
+    const noticeUrl = `https://skkuverse.com/p/notices/${current.sourceId}/${current.articleNo}`;
+    void Share.share({
+      message: `${current.title}\n${noticeUrl}`,
+      url: noticeUrl,
+    });
   }, []);
 
   // Header right items — iOS uses native UIBarButtonItem so each gets its own
   // Liquid Glass capsule (`sharesBackground: false`); Android falls back to
   // JSX `headerRight` with `HeaderIconButton`. Same dispatch pattern as the
   // home tab's profile/settings icons (see app/(tabs)/home/index.tsx).
-  // The bookmark icon swaps between the regular outline (GREY_700) and the
-  // fill weight (BLUE_500) baked PNGs based on `saved`. The Stack.Screen
-  // options object is rebuilt on each render, so changing `saved` causes
-  // react-native-screens to refresh the bar items.
-  const headerOptions =
+  //
+  // Why `label: ''` on iOS items (different from home tab which sets text):
+  //   `label` (required by SharedHeaderItem type) maps to UIBarButtonItem.title.
+  //   With both `image` and a non-empty `title`, the iOS 26 Liquid Glass
+  //   capsule briefly shows the title text during the layout transition
+  //   that follows item creation/refresh before settling. The bookmark
+  //   item refreshes on every `saved` flip (toggle-time) AND on the
+  //   loading→success transition (mount-time) — both produced visible
+  //   Korean text flashes ("저장" / "저장 취소"). Empty title → image-only
+  //   layout, no text to flash. accessibilityLabel still provides VoiceOver
+  //   announcement. Home tab does not refresh after first mount so users
+  //   do not perceive the same flash there even with non-empty labels.
+  //
+  // Why `useMemo` + stable callbacks:
+  //   `<Stack.Screen options={...}>` re-applies when the options object
+  //   reference changes. Callbacks built from `useCallback([data, ...])`
+  //   would invalidate on every React Query background refetch, churning
+  //   the memo. The `dataRef` pattern above keeps `handleSavePress` /
+  //   `handleSharePress` stable across refetches so the memo recomputes
+  //   only on `saved` flip or language change.
+  const headerOptions = useMemo<NativeStackNavigationOptions>(() => (
     Platform.OS === 'ios'
       ? {
           title: '',
           unstable_headerRightItems: () => [
             {
               type: 'button' as const,
-              label: saved ? t('notices.unsave') : t('notices.save'),
+              label: '',
               icon: {
                 type: 'image' as const,
                 source: saved ? ICON_BOOKMARK_FILL : ICON_BOOKMARK,
@@ -105,7 +143,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
             },
             {
               type: 'button' as const,
-              label: t('notices.share'),
+              label: '',
               icon: { type: 'image' as const, source: ICON_SHARE, tinted: false },
               sharesBackground: false,
               accessibilityLabel: t('notices.share'),
@@ -135,30 +173,22 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
               </HeaderIconButton>
             </View>
           ),
-        };
+        }
+  ), [saved, t, handleSavePress, handleSharePress]);
 
-  if (isLoading) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={headerOptions} />
-        <NoticeListSkeleton />
-      </View>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={headerOptions} />
-        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-      </View>
-    );
-  }
-
+  // Single Stack.Screen at a stable position — branching it across 3
+  // returns (loading / error / success) risks register-then-unregister churn
+  // even though React reconciles same-type at same-position. Keeping it
+  // hoisted also makes the header guarantee independent of body state.
   return (
     <View style={styles.container}>
       <Stack.Screen options={headerOptions} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      {isLoading ? (
+        <NoticeListSkeleton />
+      ) : isError || !data ? (
+        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll}>
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
         </Txt>
@@ -246,7 +276,8 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
             {t('notices.openOriginal')}
           </Txt>
         </Pressable>
-      </ScrollView>
+        </ScrollView>
+      )}
       <Toast
         open={toastText !== null}
         text={toastText ?? ''}

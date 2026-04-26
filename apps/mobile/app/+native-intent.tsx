@@ -6,6 +6,13 @@ const TAB_PATHS: Record<string, string> = {
   '/transit': '/(tabs)/transit',
 };
 
+// Dynamic universal-link path: /notices/<sourceId>/<articleNo>.
+// sourceId matches the kebab-case slug regex enforced by Firestore Rules
+// + crawler config; articleNo is a positive integer extracted from the
+// source page URL by the crawler. Anchored with ^...$ so e.g.
+// `/notices/cse/5847/extra` doesn't match (would route to homepage instead).
+const NOTICE_PATH_RE = /^\/notices\/[a-z0-9-]+\/\d+$/;
+
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold-start path delivery: don't redirect. expo-router's default routing
   // via unstable_settings.initialRouteName picks the right tab from MMKV-
@@ -56,6 +63,14 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
 
     // 루트("/")는 home 탭으로
     if (pathname === '/') return '/(tabs)/home';
+
+    // Dynamic notice path — pass through to expo-router so it lands on
+    // app/notices/[sourceId]/[articleNo].tsx. Done BEFORE the static
+    // whitelist check because /notices/* is intentionally not in
+    // ALLOWED_PATHS (the dynamic shape can't be enumerated statically).
+    if (NOTICE_PATH_RE.test(pathname)) {
+      return pathname;
+    }
 
     // 화이트리스트 체크
     if (!ALLOWED_PATHS.some((allowed) => pathname === allowed)) {

@@ -23,10 +23,17 @@
 | `skkuverse://transit` | `https://skkuverse.com/p/transit` | 교통 탭 |
 | `skkuverse://map/hssc` | `https://skkuverse.com/p/map/hssc` | 인사캠 지도 |
 | `skkuverse://search` | `https://skkuverse.com/p/search` | 건물/공간 검색 |
+| `skkuverse://notices/<sourceId>/<articleNo>` | `https://skkuverse.com/p/notices/<sourceId>/<articleNo>` | 공지 상세 |
 
 유니버셜 링크는 `/p/` prefix를 사용하여 홈페이지 자체 경로와 분리한다. 앱에서는 `/p/`를 자동으로 제거한 뒤 화이트리스트를 검사한다.
 
 위 목록 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다.
+
+### 동적 경로: 공지 상세
+
+공지 상세는 `/notices/<sourceId>/<articleNo>` 형태로 sourceId/articleNo가 동적이라 정적 화이트리스트에 enumerable하지 않다. `+native-intent.tsx`의 `NOTICE_PATH_RE = /^\/notices\/[a-z0-9-]+\/\d+$/`가 화이트리스트 검사 *전에* 패턴 매칭으로 통과시킨다. 앵커(`^...$`)로 부분 매칭 우회를 차단한다 — 예: `/notices/cse/5847/extra`는 매치 안 되어 홈으로 리다이렉트.
+
+앱 미설치자가 유니버셜 링크를 탭하면 `skkuverse.com/p/notices/<sourceId>/<articleNo>`의 Cloudflare Pages Function이 공지 본문을 렌더한다 (OG meta + iOS smart banner + Android JS CTA fallback).
 
 ## 차단되는 경로 (예시)
 
