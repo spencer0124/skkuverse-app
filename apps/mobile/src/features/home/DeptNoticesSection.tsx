@@ -18,10 +18,14 @@
  * pop-in once data lands.
  */
 
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CaretRightIcon } from 'phosphor-react-native';
+import {
+  CaretDownIcon,
+  CaretRightIcon,
+  CaretUpIcon,
+} from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import {
   SdsColors,
@@ -42,6 +46,12 @@ export function DeptNoticesSection() {
   const storedIds = useNotificationStore(
     (s) => s.preferences.pickerSelections?.dept,
   );
+  const [collapsed, setCollapsed] = useState(false);
+
+  const toggleCollapsed = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCollapsed((c) => !c);
+  };
 
   const deptTab = useMemo(
     () => tabsConfig?.tabs.find((t) => t.key === DEPT_TAB_KEY),
@@ -81,32 +91,51 @@ export function DeptNoticesSection() {
 
   return (
     <View style={styles.section}>
-      <Pressable
-        onPress={() => router.navigate('/(tabs)/notices' as never)}
-        style={({ pressed }) => [
-          styles.header,
-          { opacity: pressed ? 0.6 : 1 },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`${headerLabel} 전체보기`}
-      >
-        <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-          {headerLabel}
-        </Txt>
-        <CaretRightIcon size={16} color={SdsColors.grey400} />
-      </Pressable>
-      <View style={styles.card}>
-        {notices.map((item, i) => (
-          <View key={`${item.sourceId}/${item.articleNo}`}>
-            {i > 0 ? <View style={styles.divider} /> : null}
-            <NoticeRow
-              item={item}
-              onPress={handleNoticePress}
-              showDepartment={!isSingleDept}
-            />
-          </View>
-        ))}
+      <View style={styles.headerRow}>
+        <Pressable
+          onPress={() => router.navigate('/(tabs)/notices' as never)}
+          style={({ pressed }) => [
+            styles.titleBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`${headerLabel} 전체보기`}
+        >
+          <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+            {headerLabel}
+          </Txt>
+          <CaretRightIcon size={16} color={SdsColors.grey400} />
+        </Pressable>
+        <Pressable
+          onPress={toggleCollapsed}
+          style={({ pressed }) => [
+            styles.collapseBtn,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={collapsed ? '펼치기' : '접기'}
+        >
+          {collapsed ? (
+            <CaretUpIcon size={18} color={SdsColors.grey500} />
+          ) : (
+            <CaretDownIcon size={18} color={SdsColors.grey500} />
+          )}
+        </Pressable>
       </View>
+      {!collapsed ? (
+        <View style={styles.card}>
+          {notices.map((item, i) => (
+            <View key={`${item.sourceId}/${item.articleNo}`}>
+              {i > 0 ? <View style={styles.divider} /> : null}
+              <NoticeRow
+                item={item}
+                onPress={handleNoticePress}
+                showDepartment={!isSingleDept}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -116,11 +145,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 20,
   },
-  header: {
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  titleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 10,
+  },
+  collapseBtn: {
+    padding: 4,
   },
   card: {
     backgroundColor: '#fff',

@@ -54,9 +54,6 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Dept latest notices (top 3) ── */}
-        <DeptNoticesSection />
-
         {/* ── Banner Card ── */}
         <View style={styles.bannerCard}>
           <View style={styles.bannerContent}>
@@ -76,6 +73,9 @@ export function HomeScreen() {
         <View style={styles.gridWrap}>
           <TossfaceButtonGrid items={HOME_GRID_ITEMS} />
         </View>
+
+        {/* ── Dept latest notices (top 3) ── */}
+        <DeptNoticesSection />
 
         {/* ── Bottom Banner ── */}
         <Pressable style={styles.bottomBanner}>
