@@ -14,29 +14,32 @@
  *      notices tab is focused at root (not pushed detail). Same UI shows
  *      whether the tab bar is expanded or scroll-minimized.
  *
- * Visual design — Path A (Apple pattern), full-width 3-zone layout:
+ * Visual design — 4-icon toolbar (peer actions, evenly distributed):
  *   We do NOT wrap children in our own GlassView. iOS 26's UITabAccessory
  *   automatically applies a Liquid Glass material to the entire accessory
  *   area, and that material is forced full-width regardless of contentView
  *   intrinsic size (verified empirically 2026-04-26 — UITabAccessory.h
  *   exposes only contentView/initWithContentView:; no width opt-out).
  *
- *   Layout (left-to-right):
+ *   Layout (space-around, no dividers — all icons are peer actions):
  *     ┌──────────────────────────────────────────────────┐
- *     │  🔍 공지 검색                    │   [▽ 정렬]    │
+ *     │   🔍       🔖        ▽         🔔                │
+ *     │ search   bookmark  filter   notifications        │
  *     └──────────────────────────────────────────────────┘
- *     - Left zone (flex:1): search Pressable (icon + placeholder text)
- *     - Hairline divider (vertical, grey300)
- *     - Right: sort icon button (FunnelSimple — 3 lines decreasing
- *       downward, equivalent to SF Symbol `line.3.horizontal.decrease`)
+ *
+ *   Each icon pushes to its dedicated route (search results / bookmarks /
+ *   filter sheet / notifications). Inline TextInput inside the accessory
+ *   was prototyped on feat/notices-search-prototype and abandoned —
+ *   rn-screens 4.19 doesn't wire keyboard avoidance for UITabAccessory,
+ *   and reanimated useAnimatedKeyboard translateY had no visible effect
+ *   (likely contentView clip + worklet tree isolation). Push-to-route
+ *   from icon tap sidesteps both issues.
  *
  * State hoisting: any user-mutable state lives in noticesUiStore. On RN >= 0.82
  * (Expo SDK 55+), rn-screens mounts BOTH 'regular' and 'inline' instances
  * simultaneously (BottomTabs.tsx:74-85); local useState would desync. Current
  * RN 0.81 path (DisplayLink, BottomTabs.tsx:86-92) mounts a single instance,
- * but external store is forward-compatible. (No accessory-owned state today
- * since all controls are stub onPress, but the store field stays for
- * Phase 2 wiring.)
+ * but external store is forward-compatible.
  *
  * Migration to Expo SDK 55+:
  *   1. Delete patches/expo-router+6.0.23.patch
@@ -49,11 +52,17 @@
  *   5. Delete src/types/expo-router-augmentations.d.ts
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { FunnelSimpleIcon, MagnifyingGlassIcon } from 'phosphor-react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import {
+  BellIcon,
+  BookmarkSimpleIcon,
+  FunnelSimpleIcon,
+  MagnifyingGlassIcon,
+} from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 
 const ICON_BUTTON = 36;
+const ICON_SIZE = 22;
 
 export function NoticesAccessoryBar() {
   const { t } = useT();
@@ -61,26 +70,7 @@ export function NoticesAccessoryBar() {
     <View style={styles.row}>
       <Pressable
         onPress={() => {
-          // TODO Phase 2: 검색 라우트/모달 진입
-        }}
-        style={({ pressed }) => [
-          styles.searchZone,
-          pressed && styles.searchZonePressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={t('notices.accessory.search')}
-      >
-        <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
-        <Text style={styles.searchText}>
-          {t('notices.accessory.searchPlaceholder')}
-        </Text>
-      </Pressable>
-
-      <View style={styles.divider} />
-
-      <Pressable
-        onPress={() => {
-          // TODO Phase 2: 정렬 옵션 시트 present
+          // TODO: push to /notices/search
         }}
         hitSlop={6}
         style={({ pressed }) => [
@@ -88,9 +78,54 @@ export function NoticesAccessoryBar() {
           pressed && styles.iconBtnPressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={t('notices.accessory.sort')}
+        accessibilityLabel={t('notices.accessory.search')}
       >
-        <FunnelSimpleIcon size={22} color={SdsColors.grey900} />
+        <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          // TODO: push to /notices/bookmarks
+        }}
+        hitSlop={6}
+        style={({ pressed }) => [
+          styles.iconBtn,
+          pressed && styles.iconBtnPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={t('notices.accessory.bookmark')}
+      >
+        <BookmarkSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          // TODO: push to /notices/filter (or present sheet)
+        }}
+        hitSlop={6}
+        style={({ pressed }) => [
+          styles.iconBtn,
+          pressed && styles.iconBtnPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={t('notices.accessory.filter')}
+      >
+        <FunnelSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => {
+          // TODO: push to /notices/notifications
+        }}
+        hitSlop={6}
+        style={({ pressed }) => [
+          styles.iconBtn,
+          pressed && styles.iconBtnPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={t('notices.accessory.notifications')}
+      >
+        <BellIcon size={ICON_SIZE} color={SdsColors.grey700} />
       </Pressable>
     </View>
   );
@@ -101,33 +136,8 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 16,
-    gap: 12,
-  },
-  // Left zone — search bar affordance. flex:1 takes remaining width;
-  // icon + placeholder text inline. Glass material below provides the
-  // visual container so no own background needed.
-  searchZone: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    height: ICON_BUTTON,
-  },
-  searchText: {
-    fontSize: 15,
-    color: SdsColors.grey500,
-  },
-  searchZonePressed: {
-    opacity: 0.6,
-  },
-  // Vertical hairline separator between search zone and action group —
-  // signals "these belong to a different functional cluster" the way
-  // iOS toolbars / context menus do.
-  divider: {
-    width: StyleSheet.hairlineWidth,
-    height: 20,
-    backgroundColor: SdsColors.grey300,
   },
   iconBtn: {
     width: ICON_BUTTON,

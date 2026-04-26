@@ -291,7 +291,9 @@ const ko = {
   'notices.done': '완료',
   'notices.accessory.search': '검색',
   'notices.accessory.searchPlaceholder': '공지 검색',
+  'notices.accessory.bookmark': '북마크',
   'notices.accessory.filter': '필터',
+  'notices.accessory.notifications': '알림',
   'notices.accessory.sort': '정렬',
 
   // ── Onboarding ──
@@ -598,7 +600,9 @@ const en: TranslationMap = {
   'notices.done': 'Done',
   'notices.accessory.search': 'Search',
   'notices.accessory.searchPlaceholder': 'Search notices',
+  'notices.accessory.bookmark': 'Bookmarks',
   'notices.accessory.filter': 'Filter',
+  'notices.accessory.notifications': 'Notifications',
   'notices.accessory.sort': 'Sort',
 
   // ── Onboarding ──
@@ -906,7 +910,9 @@ const zh: TranslationMap = {
   'notices.done': '完成',
   'notices.accessory.search': '搜索',
   'notices.accessory.searchPlaceholder': '搜索通知',
+  'notices.accessory.bookmark': '书签',
   'notices.accessory.filter': '筛选',
+  'notices.accessory.notifications': '通知',
   'notices.accessory.sort': '排序',
 
   // ── Onboarding ──
