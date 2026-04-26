@@ -21,23 +21,29 @@
  *   intrinsic size (verified empirically 2026-04-26 — UITabAccessory.h
  *   exposes only contentView/initWithContentView:; no width opt-out).
  *
- *   Layout (left-to-right):
+ *   Layout (left-to-right, 2 vertical dividers between peers):
  *     ┌──────────────────────────────────────────────────┐
- *     │  🔍 공지 검색                  │  🔖   │   ⛜    │
+ *     │  🔍 공지 검색          │  🔖  │  ≡             │
  *     └──────────────────────────────────────────────────┘
- *     - Left zone (flex:1): search pill — magnifier + placeholder text
+ *     - Left (flex:1): search pill — magnifier + placeholder text
  *       (Pressable, NOT TextInput — pushes to dedicated /notices/search
  *        route since rn-screens 4.19 doesn't wire keyboard avoidance for
  *        UITabAccessory; verified on feat/notices-search-prototype 2026-04-26)
- *     - Hairline divider (vertical, grey300)
- *     - Right cluster: bookmark icon (push to /notices/bookmarks) + filter
- *       icon (present sheet — sort/filter combined per Toss "filter as sheet"
- *       rule: sheet allows immediate list reflection without page navigation)
+ *     - Hairline divider (vertical, grey300, height 20)
+ *     - Bookmark icon (push to /notices/bookmarks)
+ *     - Hairline divider
+ *     - Filter icon (present sheet — sort/filter combined per Toss
+ *       "filter as sheet" rule: sheet allows immediate list reflection
+ *       without page navigation)
  *
- *   Filter icon is `FunnelIcon` (cone shape), NOT `FunnelSimpleIcon` (3
- *   horizontal lines). FunnelSimple reads as "sort" since it mirrors SF
- *   Symbol `line.3.horizontal.decrease`; the cone funnel is the cross-
- *   platform standard for "filter".
+ *   Hierarchy comes from search's flex:1 + placeholder text creating
+ *   visual mass asymmetry vs the two right-side icon-only buttons.
+ *   Dividers between all peers reinforce "main + supporting actions"
+ *   reading rather than "4 equal icons". Filter uses `FunnelSimpleIcon`
+ *   (3 horizontal lines decreasing — also SF Symbol
+ *   `line.3.horizontal.decrease.circle` shape) instead of cone-shaped
+ *   `FunnelIcon` because the visual weight better balances the row's
+ *   right edge against the placeholder text on the left.
  *
  * State hoisting: any user-mutable state lives in noticesUiStore. On RN >= 0.82
  * (Expo SDK 55+), rn-screens mounts BOTH 'regular' and 'inline' instances
@@ -59,7 +65,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   BookmarkSimpleIcon,
-  FunnelIcon,
+  FunnelSimpleIcon,
   MagnifyingGlassIcon,
 } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
@@ -105,6 +111,8 @@ export function NoticesAccessoryBar() {
         <BookmarkSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
       </Pressable>
 
+      <View style={styles.divider} />
+
       <Pressable
         onPress={() => {
           // TODO: present filter sheet (sort + filter combined)
@@ -117,7 +125,7 @@ export function NoticesAccessoryBar() {
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.filter')}
       >
-        <FunnelIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <FunnelSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
       </Pressable>
     </View>
   );
