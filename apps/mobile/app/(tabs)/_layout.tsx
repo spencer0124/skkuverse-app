@@ -3,7 +3,7 @@ import { NativeTabs, Icon, Label, Badge } from "expo-router/unstable-native-tabs
 import type { NavigationState } from "@react-navigation/native";
 import {
   HouseIcon,
-  BellIcon,
+  MegaphoneSimpleIcon,
   CompassIcon,
   PathIcon,
 } from "phosphor-react-native";
@@ -99,8 +99,8 @@ export default function TabLayout() {
         <NativeTabs.Trigger name="notices">
           <Icon
             src={{
-              default: require('../../assets/tab-icons/bell-outline.png'),
-              selected: require('../../assets/tab-icons/bell-filled.png'),
+              default: require('../../assets/tab-icons/megaphone-simple-outline.png'),
+              selected: require('../../assets/tab-icons/megaphone-simple-filled.png'),
             }}
           />
           <Label>{t("nav.notices")}</Label>
@@ -185,7 +185,7 @@ export default function TabLayout() {
           title: t("nav.notices"),
           tabBarBadge: noticesBadge,
           tabBarIcon: ({ focused, color }) => (
-            <BellIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
+            <MegaphoneSimpleIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text
