@@ -26,6 +26,7 @@ const OUT_DIR = resolve(__dirname, '../assets/header-icons');
 // Color values mirror SdsColors in packages/shared/src/tokens/colors.ts.
 const GREY_700 = '#4E5968';
 const GREY_500 = '#8B95A1';
+const BLUE_500 = '#3182F6';
 
 const ICONS = [
   // magnifying-glass / bookmark-simple / bell / bell-slash: icons rendered as
@@ -35,8 +36,12 @@ const ICONS = [
   // which only accepts ImageSource or SF Symbol. Phosphor's color baked at
   // export time so `tinted: false` preserves SDS color tokens (vs being
   // re-tinted by navbar tintColor).
+  // `weight` defaults to 'regular' — phosphor's `fill/` folder uses a `-fill`
+  // suffix on the SVG filename, so fill entries must spell that out in `phosphor`.
   { name: 'magnifying-glass', phosphor: 'magnifying-glass', color: GREY_700 },
   { name: 'bookmark-simple', phosphor: 'bookmark-simple', color: GREY_700 },
+  { name: 'bookmark-simple-fill', phosphor: 'bookmark-simple-fill', weight: 'fill', color: BLUE_500 },
+  { name: 'share-network', phosphor: 'share-network', color: GREY_700 },
   { name: 'bell', phosphor: 'bell', color: GREY_700 },
   { name: 'bell-slash', phosphor: 'bell-slash', color: GREY_500 },
   // caret-left: chevron used by `headerBackImageSource` to replace iOS system
@@ -56,8 +61,8 @@ const BASE_SIZE = 22;
 mkdirSync(OUT_DIR, { recursive: true });
 
 let count = 0;
-for (const { name, phosphor, color } of ICONS) {
-  const svgPath = resolve(PHOSPHOR_ASSETS, 'regular', `${phosphor}.svg`);
+for (const { name, phosphor, color, weight = 'regular' } of ICONS) {
+  const svgPath = resolve(PHOSPHOR_ASSETS, weight, `${phosphor}.svg`);
   const rawSvg = readFileSync(svgPath, 'utf-8');
   const tinted = rawSvg.replaceAll('currentColor', color);
 

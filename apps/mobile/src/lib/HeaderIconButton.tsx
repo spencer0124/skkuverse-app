@@ -57,10 +57,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Glass mode capsule is intentionally LARGER than the plain-mode 36×36
+  // (which is locked to iOS UIBarButton intrinsic). 44×44 + br 22 matches
+  // the measured visual size of home tab's native `unstable_headerRightItems`
+  // capsules (~47pt observed via Dynamic Island as ruler) within ±3pt — close
+  // enough that icon-to-capsule ratio (18/44 = 0.41) hits the iOS HIG sweet
+  // spot of 0.40-0.45 instead of looking cramped at 0.50.
   glassOuter: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   // Visible capsule body — iOS native bar button (`unstable_headerRightItems`)
   // sits inside a system-blurred bar (`headerBlurEffect`), which gives the
@@ -70,9 +76,9 @@ const styles = StyleSheet.create({
   // the GlassView. Without this base, the glass material is nearly invisible
   // because there's no varied content beneath it to refract.
   glassFillBase: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: 'hidden',
     backgroundColor: 'rgba(120, 120, 128, 0.16)',
   },

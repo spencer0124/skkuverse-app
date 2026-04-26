@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { Platform, Share, View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -9,12 +9,19 @@ import {
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
-import { BottomCTA, Button, Toast, Txt } from '@skkuverse/sds';
+import { Toast, Txt } from '@skkuverse/sds';
+import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
 import { formatDisplayDate } from './utils/formatDisplayDate';
+
+const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
+const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
+const ICON_SHARE = require('../../../assets/header-icons/share-network.png');
+
+const SHARE_URL = 'https://skkuverse.com';
 
 interface Props {
   sourceId: string;
@@ -25,6 +32,9 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const { t, tpl } = useT();
   const { data, isLoading, isError, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
+  // Local-only visual toggle for the bookmark icon. No persistence yet —
+  // wired to a real bookmark store in a follow-up. Resets on screen unmount.
+  const [saved, setSaved] = useState(false);
 
   const handleCopyText = useCallback((text: string) => {
     void Clipboard.setStringAsync(text);
@@ -44,10 +54,82 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
     [data?.sourceUrl],
   );
 
+  const handleSavePress = useCallback(() => {
+    setSaved((prev) => !prev);
+  }, []);
+
+  const handleSharePress = useCallback(() => {
+    // RN's built-in `Share` opens the platform-native share sheet:
+    //   iOS  → UIActivityViewController (AirDrop / Messages / Mail / Copy …)
+    //   Android → Intent.ACTION_SEND chooser (only `message` is rendered;
+    //             `url` is silently ignored, so we duplicate the URL into
+    //             `message` to keep parity)
+    void Share.share({ message: SHARE_URL, url: SHARE_URL });
+  }, []);
+
+  // Header right items — iOS uses native UIBarButtonItem so each gets its own
+  // Liquid Glass capsule (`sharesBackground: false`); Android falls back to
+  // JSX `headerRight` with `HeaderIconButton`. Same dispatch pattern as the
+  // home tab's profile/settings icons (see app/(tabs)/home/index.tsx).
+  // The bookmark icon swaps between the regular outline (GREY_700) and the
+  // fill weight (BLUE_500) baked PNGs based on `saved`. The Stack.Screen
+  // options object is rebuilt on each render, so changing `saved` causes
+  // react-native-screens to refresh the bar items.
+  const headerOptions =
+    Platform.OS === 'ios'
+      ? {
+          title: '',
+          unstable_headerRightItems: () => [
+            {
+              type: 'button' as const,
+              label: t('notices.save'),
+              icon: {
+                type: 'image' as const,
+                source: saved ? ICON_BOOKMARK_FILL : ICON_BOOKMARK,
+                tinted: false,
+              },
+              sharesBackground: false,
+              accessibilityLabel: t('notices.save'),
+              onPress: handleSavePress,
+            },
+            {
+              type: 'button' as const,
+              label: t('notices.share'),
+              icon: { type: 'image' as const, source: ICON_SHARE, tinted: false },
+              sharesBackground: false,
+              accessibilityLabel: t('notices.share'),
+              onPress: handleSharePress,
+            },
+          ],
+        }
+      : {
+          title: '',
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              <HeaderIconButton
+                onPress={handleSavePress}
+                accessibilityLabel={t('notices.save')}
+              >
+                <BookmarkIcon
+                  size={22}
+                  color={saved ? SdsColors.blue500 : SdsColors.grey700}
+                  weight={saved ? 'fill' : 'regular'}
+                />
+              </HeaderIconButton>
+              <HeaderIconButton
+                onPress={handleSharePress}
+                accessibilityLabel={t('notices.share')}
+              >
+                <ShareNetworkIcon size={22} color={SdsColors.grey700} />
+              </HeaderIconButton>
+            </View>
+          ),
+        };
+
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '' }} />
+        <Stack.Screen options={headerOptions} />
         <NoticeListSkeleton />
       </View>
     );
@@ -56,7 +138,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   if (isError || !data) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: '' }} />
+        <Stack.Screen options={headerOptions} />
         <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
       </View>
     );
@@ -64,7 +146,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: '' }} />
+      <Stack.Screen options={headerOptions} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
@@ -154,27 +236,6 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
           </Txt>
         </Pressable>
       </ScrollView>
-      <BottomCTA>
-        <View style={styles.ctaRow}>
-          <Button
-            display="block"
-            style="weak"
-            size="large"
-            leftAccessory={<BookmarkIcon size={18} color={SdsColors.blue500} />}
-            viewStyle={styles.ctaButton}
-          >
-            {t('notices.save')}
-          </Button>
-          <Button
-            display="block"
-            size="large"
-            leftAccessory={<ShareNetworkIcon size={18} color={SdsColors.background} />}
-            viewStyle={styles.ctaButton}
-          >
-            {t('notices.share')}
-          </Button>
-        </View>
-      </BottomCTA>
       <Toast
         open={toastText !== null}
         text={toastText ?? ''}
@@ -221,10 +282,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.background,
   },
+  headerRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 120,
+    paddingBottom: 32,
     gap: 8,
   },
   title: {
@@ -285,14 +350,6 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  ctaButton: {
-    flex: 1,
-    alignSelf: 'stretch',
   },
 });
 

@@ -25,20 +25,10 @@
  */
 
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  BellIcon,
-  BellSlashIcon,
-  BookmarkSimpleIcon,
-  CaretLeftIcon,
-} from 'phosphor-react-native';
-import {
-  SdsColors,
-  useNoticeTabs,
-  useNotificationStore,
-  useT,
-} from '@skkuverse/shared';
+import { CaretLeftIcon } from 'phosphor-react-native';
+import { SdsColors, useNoticeTabs, useT } from '@skkuverse/shared';
 import { Tab } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { useNoticesUiStore } from '../store/noticesUiStore';
@@ -56,9 +46,6 @@ export function NoticesHeader({ showBack = false }: Props) {
   const tabs = tabsConfig?.tabs ?? [];
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
   const setActiveTabKey = useNoticesUiStore((s) => s.setActiveTabKey);
-  const noticesEnabled = useNotificationStore(
-    (s) => s.preferences.categoryEnabled?.notices ?? false,
-  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -80,7 +67,10 @@ export function NoticesHeader({ showBack = false }: Props) {
             accessibilityRole="button"
             accessibilityLabel="보관함"
           >
-            <BookmarkSimpleIcon size={22} color={SdsColors.grey700} />
+            <Image
+              source={require('../../../../assets/header-icons/bookmark-simple.png')}
+              style={styles.icon}
+            />
           </HeaderIconButton>
           <HeaderIconButton
             glass
@@ -88,11 +78,10 @@ export function NoticesHeader({ showBack = false }: Props) {
             accessibilityRole="button"
             accessibilityLabel={t('notifications.settings')}
           >
-            {noticesEnabled ? (
-              <BellIcon size={22} color={SdsColors.grey700} />
-            ) : (
-              <BellSlashIcon size={22} color={SdsColors.grey500} />
-            )}
+            <Image
+              source={require('../../../../assets/header-icons/bell.png')}
+              style={styles.icon}
+            />
           </HeaderIconButton>
         </View>
       </View>
@@ -135,7 +124,7 @@ const styles = StyleSheet.create({
   right: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 14,
   },
   backBtn: {
     width: 36,
@@ -146,5 +135,12 @@ const styles = StyleSheet.create({
   },
   tabPlaceholder: {
     height: 44,
+  },
+  // PNG icons exported at 22pt baked color (see scripts/export-header-icons.mjs).
+  // Displayed at 18pt to give the 36×36 capsule ~9pt of visible padding around
+  // the glyph, matching home tab's perceived icon-to-capsule ratio.
+  icon: {
+    width: 18,
+    height: 18,
   },
 });
