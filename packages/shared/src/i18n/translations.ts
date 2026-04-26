@@ -292,6 +292,7 @@ const ko = {
   'notices.accessory.search': '검색',
   'notices.accessory.searchPlaceholder': '공지 검색',
   'notices.accessory.filter': '필터',
+  'notices.accessory.sort': '정렬',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'AI 공지를 확인해보세요',
@@ -598,6 +599,7 @@ const en: TranslationMap = {
   'notices.accessory.search': 'Search',
   'notices.accessory.searchPlaceholder': 'Search notices',
   'notices.accessory.filter': 'Filter',
+  'notices.accessory.sort': 'Sort',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'Check AI-powered notices',
@@ -905,6 +907,7 @@ const zh: TranslationMap = {
   'notices.accessory.search': '搜索',
   'notices.accessory.searchPlaceholder': '搜索通知',
   'notices.accessory.filter': '筛选',
+  'notices.accessory.sort': '排序',
 
   // ── Onboarding ──
   'onboarding.landingTitle': '查看AI公告',
