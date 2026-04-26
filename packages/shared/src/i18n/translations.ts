@@ -289,6 +289,9 @@ const ko = {
   'notices.selectDept': '학과 선택',
   'notices.selectDeptMax': '최대 {0}개까지 선택할 수 있어요',
   'notices.done': '완료',
+  'notices.accessory.search': '검색',
+  'notices.accessory.searchPlaceholder': '공지 검색',
+  'notices.accessory.filter': '필터',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'AI 공지를 확인해보세요',
@@ -592,6 +595,9 @@ const en: TranslationMap = {
   'notices.selectDept': 'Select departments',
   'notices.selectDeptMax': 'Up to {0} departments',
   'notices.done': 'Done',
+  'notices.accessory.search': 'Search',
+  'notices.accessory.searchPlaceholder': 'Search notices',
+  'notices.accessory.filter': 'Filter',
 
   // ── Onboarding ──
   'onboarding.landingTitle': 'Check AI-powered notices',
@@ -896,6 +902,9 @@ const zh: TranslationMap = {
   'notices.selectDept': '选择学科',
   'notices.selectDeptMax': '最多可选择{0}个',
   'notices.done': '完成',
+  'notices.accessory.search': '搜索',
+  'notices.accessory.searchPlaceholder': '搜索通知',
+  'notices.accessory.filter': '筛选',
 
   // ── Onboarding ──
   'onboarding.landingTitle': '查看AI公告',

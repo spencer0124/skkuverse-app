@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { Tabs, useSegments } from "expo-router";
 import { NativeTabs, Icon, Label, Badge } from "expo-router/unstable-native-tabs";
 import type { NavigationState } from "@react-navigation/native";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@skkuverse/shared";
 import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
+import { NoticesAccessoryBar } from "@/features/notices/components/NoticesAccessoryBar";
 
 // `unstable_settings.initialRouteName` is consumed at module evaluation time
 // by expo-router's getRoutesCore. We read MMKV-backed lastTab synchronously
@@ -52,6 +53,31 @@ function screenToTabRoute(name: string): TabRoute | null {
   return null;
 }
 
+/**
+ * iOS 26 NativeTabs bottom accessory gate. Renders <NoticesAccessoryBar/>
+ * only when (a) inline placement (= tab bar minimized by scroll) AND
+ * (b) the focused route is the notices tab root (not a pushed detail).
+ *
+ * useSegments() works here because this component mounts inside the
+ * NativeTabs subtree which lives under (tabs)/_layout.tsx in the expo-router
+ * tree — full router context available.
+ *
+ * Requires patches/expo-router+6.0.23.patch (forwards bottomAccessory) and
+ * patches/react-native-screens+4.19.0.patch (KVO removeObserver swallow).
+ * On Expo SDK 55+ migration, replace the callback prop on <NativeTabs>
+ * below with the <NativeTabs.BottomAccessory> wrapper component.
+ */
+function NoticesBottomAccessoryGate({ env }: { env: 'regular' | 'inline' }) {
+  const segments = useSegments();
+  if (env !== 'inline') return null;
+  const isNoticesRoot =
+    segments[0] === '(tabs)' &&
+    segments[1] === 'notices' &&
+    (segments.length === 2 || segments[2] === 'index');
+  if (!isNoticesRoot) return null;
+  return <NoticesAccessoryBar />;
+}
+
 export default function TabLayout() {
   const { t } = useT();
   const lastTab = useSettingsStore((s) => s.lastTab);
@@ -85,6 +111,12 @@ export default function TabLayout() {
         // <View> blocks the native discovery — see
         // `docs/ios-26-native-tabs-minimize.md`.
         minimizeBehavior="onScrollDown"
+        // bottomAccessory: requires patches/expo-router+6.0.23.patch (forwards
+        // prop to react-native-screens BottomTabs) and patches/
+        // react-native-screens+4.19.0.patch (RNSBottomAccessoryHelper KVO
+        // swallow). SDK 55+ migration → switch to <NativeTabs.BottomAccessory>
+        // wrapper + delete both patches. See NoticesAccessoryBar.tsx docstring.
+        bottomAccessory={(env) => <NoticesBottomAccessoryGate env={env} />}
       >
         <NativeTabs.Trigger name="home">
           <Icon
