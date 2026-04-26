@@ -14,26 +14,30 @@
  *      notices tab is focused at root (not pushed detail). Same UI shows
  *      whether the tab bar is expanded or scroll-minimized.
  *
- * Visual design — 4-icon toolbar (peer actions, evenly distributed):
+ * Visual design — search pill + 2 secondary icons (Toss-style hierarchy):
  *   We do NOT wrap children in our own GlassView. iOS 26's UITabAccessory
  *   automatically applies a Liquid Glass material to the entire accessory
  *   area, and that material is forced full-width regardless of contentView
  *   intrinsic size (verified empirically 2026-04-26 — UITabAccessory.h
  *   exposes only contentView/initWithContentView:; no width opt-out).
  *
- *   Layout (space-around, no dividers — all icons are peer actions):
+ *   Layout (left-to-right):
  *     ┌──────────────────────────────────────────────────┐
- *     │   🔍       🔖        ▽         🔔                │
- *     │ search   bookmark  filter   notifications        │
+ *     │  🔍 공지 검색                  │  🔖   │   ⛜    │
  *     └──────────────────────────────────────────────────┘
+ *     - Left zone (flex:1): search pill — magnifier + placeholder text
+ *       (Pressable, NOT TextInput — pushes to dedicated /notices/search
+ *        route since rn-screens 4.19 doesn't wire keyboard avoidance for
+ *        UITabAccessory; verified on feat/notices-search-prototype 2026-04-26)
+ *     - Hairline divider (vertical, grey300)
+ *     - Right cluster: bookmark icon (push to /notices/bookmarks) + filter
+ *       icon (present sheet — sort/filter combined per Toss "filter as sheet"
+ *       rule: sheet allows immediate list reflection without page navigation)
  *
- *   Each icon pushes to its dedicated route (search results / bookmarks /
- *   filter sheet / notifications). Inline TextInput inside the accessory
- *   was prototyped on feat/notices-search-prototype and abandoned —
- *   rn-screens 4.19 doesn't wire keyboard avoidance for UITabAccessory,
- *   and reanimated useAnimatedKeyboard translateY had no visible effect
- *   (likely contentView clip + worklet tree isolation). Push-to-route
- *   from icon tap sidesteps both issues.
+ *   Filter icon is `FunnelIcon` (cone shape), NOT `FunnelSimpleIcon` (3
+ *   horizontal lines). FunnelSimple reads as "sort" since it mirrors SF
+ *   Symbol `line.3.horizontal.decrease`; the cone funnel is the cross-
+ *   platform standard for "filter".
  *
  * State hoisting: any user-mutable state lives in noticesUiStore. On RN >= 0.82
  * (Expo SDK 55+), rn-screens mounts BOTH 'regular' and 'inline' instances
@@ -52,11 +56,10 @@
  *   5. Delete src/types/expo-router-augmentations.d.ts
  */
 
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  BellIcon,
   BookmarkSimpleIcon,
-  FunnelSimpleIcon,
+  FunnelIcon,
   MagnifyingGlassIcon,
 } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
@@ -72,16 +75,20 @@ export function NoticesAccessoryBar() {
         onPress={() => {
           // TODO: push to /notices/search
         }}
-        hitSlop={6}
         style={({ pressed }) => [
-          styles.iconBtn,
-          pressed && styles.iconBtnPressed,
+          styles.searchPill,
+          pressed && styles.searchPillPressed,
         ]}
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.search')}
       >
-        <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <MagnifyingGlassIcon size={18} color={SdsColors.grey500} />
+        <Text style={styles.searchText}>
+          {t('notices.accessory.searchPlaceholder')}
+        </Text>
       </Pressable>
+
+      <View style={styles.divider} />
 
       <Pressable
         onPress={() => {
@@ -100,7 +107,7 @@ export function NoticesAccessoryBar() {
 
       <Pressable
         onPress={() => {
-          // TODO: push to /notices/filter (or present sheet)
+          // TODO: present filter sheet (sort + filter combined)
         }}
         hitSlop={6}
         style={({ pressed }) => [
@@ -110,22 +117,7 @@ export function NoticesAccessoryBar() {
         accessibilityRole="button"
         accessibilityLabel={t('notices.accessory.filter')}
       >
-        <FunnelSimpleIcon size={ICON_SIZE} color={SdsColors.grey700} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => {
-          // TODO: push to /notices/notifications
-        }}
-        hitSlop={6}
-        style={({ pressed }) => [
-          styles.iconBtn,
-          pressed && styles.iconBtnPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={t('notices.accessory.notifications')}
-      >
-        <BellIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        <FunnelIcon size={ICON_SIZE} color={SdsColors.grey700} />
       </Pressable>
     </View>
   );
@@ -136,8 +128,34 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
     paddingHorizontal: 16,
+    gap: 8,
+  },
+  // Left zone — search pill affordance. flex:1 reserves ~70%+ of the bar
+  // width regardless of right-cluster icon count, establishing search as
+  // the primary action. Glass material below provides the visual container
+  // so no own background needed.
+  searchPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: ICON_BUTTON,
+  },
+  searchText: {
+    fontSize: 15,
+    color: SdsColors.grey500,
+  },
+  searchPillPressed: {
+    opacity: 0.6,
+  },
+  // Vertical hairline separator between primary search action and the
+  // secondary action cluster — signals weight asymmetry the way iOS
+  // toolbars / context menus do.
+  divider: {
+    width: StyleSheet.hairlineWidth,
+    height: 20,
+    backgroundColor: SdsColors.grey300,
   },
   iconBtn: {
     width: ICON_BUTTON,
