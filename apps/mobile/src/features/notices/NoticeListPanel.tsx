@@ -1,3 +1,19 @@
+/**
+ * Vertical notice list — single-source (`sourceId`) or multi-source
+ * (`sourceIds`). Always returns a `<SectionList>` as its root element so
+ * RNSScreen subviews[0] is a UIScrollView and iOS 26 NativeTabs
+ * `tabBarMinimizeBehavior` discovers it at native mount time. Loading /
+ * error / empty states are rendered via `ListEmptyComponent` with
+ * `contentContainerStyle.flexGrow: 1` to fill the visible area — never as
+ * a non-ScrollView root, which would break the discovery chain.
+ *
+ * `listHeaderHeight` prop reserves vertical space at the top of the list
+ * (via paddingTop) so a parent's absolute overlay (e.g. the picker
+ * selector in NoticesTabScreen) doesn't visually cover the first row.
+ *
+ * Chain root rule background: `docs/ios-26-native-tabs-minimize.md`.
+ */
+
 import { useCallback, useMemo } from 'react';
 import {
   View,
@@ -23,12 +39,16 @@ import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { groupNoticesByDate } from './utils/groupNotices';
 
-type Props =
+type Props = (
   | { sourceId: string; sourceIds?: never }
-  | { sourceId?: never; sourceIds: string[] };
+  | { sourceId?: never; sourceIds: string[] }
+) & {
+  listHeaderHeight?: number;
+};
 
 export function NoticeListPanel(props: Props) {
   const multi = 'sourceIds' in props && props.sourceIds != null;
+  const listHeaderHeight = props.listHeaderHeight;
   const router = useRouter();
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
@@ -75,10 +95,15 @@ export function NoticeListPanel(props: Props) {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  if (isLoading) return <NoticeListSkeleton />;
-  if (isError) return <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />;
-  if (items.length === 0) return <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />;
-
+  // SectionList must be the root element on every render so that the
+  // RNSScrollViewFinder strict subviews[0] chain (RN-screens 4.19,
+  // RNSScrollViewFinder.mm:5-20) reaches a UIScrollView at the screen's
+  // initial mount — required for iOS 26 NativeTabs minimizeBehavior. The
+  // native finder runs once via mountChildComponentView(index==0); JS-level
+  // conditional swaps below the screen root won't re-trigger it. Loading /
+  // error / empty states are therefore rendered through ListEmptyComponent
+  // and contentContainerStyle.flexGrow=1 to fill the visible area.
+  const isEmpty = sections.length === 0;
   return (
     <SectionList
       style={styles.list}
@@ -101,14 +126,27 @@ export function NoticeListPanel(props: Props) {
       }
       ItemSeparatorComponent={() => <View style={styles.divider} />}
       stickySectionHeadersEnabled={false}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[
+        styles.listContent,
+        listHeaderHeight ? { paddingTop: listHeaderHeight } : null,
+        isEmpty ? styles.emptyContent : null,
+      ]}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.4}
       refreshControl={
         <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
       }
+      ListEmptyComponent={
+        isLoading ? (
+          <NoticeListSkeleton />
+        ) : isError ? (
+          <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+        ) : (
+          <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
+        )
+      }
       ListFooterComponent={
-        isFetchingNextPage ? (
+        isEmpty ? null : isFetchingNextPage ? (
           <View style={styles.footer}>
             <ActivityIndicator color={SdsColors.grey500} />
           </View>
@@ -130,6 +168,9 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 40,
+  },
+  emptyContent: {
+    flexGrow: 1,
   },
   sectionHeader: {
     paddingTop: 28,

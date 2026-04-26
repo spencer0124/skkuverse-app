@@ -329,6 +329,7 @@ const ko = {
 
   // ── Settings ──
   'settings.title': '설정',
+  'settings.account': '계정 설정',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '알림 설정',
@@ -631,6 +632,7 @@ const en: TranslationMap = {
 
   // ── Settings ──
   'settings.title': 'Settings',
+  'settings.account': 'Account',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': 'Notifications',
@@ -934,6 +936,7 @@ const zh: TranslationMap = {
 
   // ── Settings ──
   'settings.title': '设置',
+  'settings.account': '账户',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '通知设置',

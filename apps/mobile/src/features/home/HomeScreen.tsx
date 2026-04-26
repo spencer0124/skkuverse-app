@@ -4,17 +4,16 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { CaretRightIcon, UserIcon } from 'phosphor-react-native';
-import { Txt } from '@skkuverse/sds';
-import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CaretRightIcon } from 'phosphor-react-native';
+import { SdsColors, useT } from '@skkuverse/shared';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { DeptNoticesSection } from './DeptNoticesSection';
 
 const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
   {
@@ -42,65 +41,21 @@ const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
 ];
 
 export function HomeScreen() {
-  const router = useRouter();
-  const { t } = useT();
-
-  const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const isSigningOut = useAuthStore((s) => s.isSigningOut);
-  const displayName = useAuthStore((s) => s.displayName);
-  const email = useAuthStore((s) => s.email);
-  const photoURL = useAuthStore((s) => s.photoURL);
-
-  const showProfile = !isAnonymous || isSigningOut;
+  useT();
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 56 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Profile / Login (moved from former '전체' tab) ── */}
-        {showProfile ? (
-          <View style={styles.profileCard}>
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <UserIcon size={28} color={SdsColors.grey500} />
-              </View>
-            )}
-            <View style={styles.profileText}>
-              <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
-                {displayName ?? ''}
-              </Txt>
-              <Txt typography="t7" color={SdsColors.grey500}>
-                {email ?? ''}
-              </Txt>
-            </View>
-          </View>
-        ) : (
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileCard,
-              pressed && styles.profileCardPressed,
-            ]}
-            onPress={() => router.push('/login')}
-          >
-            <View style={styles.avatarFallback}>
-              <UserIcon size={28} color={SdsColors.grey500} />
-            </View>
-            <View style={styles.profileText}>
-              <Txt typography="t5" fontWeight="semibold" color={SdsColors.grey900}>
-                {t('auth.loginCardTitle')}
-              </Txt>
-              <Txt typography="t7" color={SdsColors.grey500}>
-                {t('auth.loginPrompt')}
-              </Txt>
-            </View>
-            <CaretRightIcon size={20} color={SdsColors.grey400} />
-          </Pressable>
-        )}
+        {/* ── Dept latest notices (top 3) ── */}
+        <DeptNoticesSection />
 
         {/* ── Banner Card ── */}
         <View style={styles.bannerCard}>
@@ -145,7 +100,7 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: SdsColors.background,
+    backgroundColor: '#fbfbfb',
   },
   scroll: {
     flex: 1,
@@ -154,42 +109,12 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  /* ── Profile / Login card (same layout for both states) ── */
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SdsSpacing.lg,
-    paddingTop: SdsSpacing.xxs,
-    paddingBottom: SdsSpacing.sm,
-    gap: SdsSpacing.md,
-  },
-  profileCardPressed: {
-    backgroundColor: SdsColors.grey50,
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-  },
-  avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: SdsColors.grey100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileText: {
-    flex: 1,
-    gap: 2,
-  },
-
   /* ── Banner ── */
   bannerCard: {
     marginHorizontal: 16,
     marginBottom: 20,
     borderRadius: 16,
-    backgroundColor: SdsColors.brandLight,
+    backgroundColor: '#fff',
     padding: 20,
   },
   bannerContent: {
@@ -221,10 +146,8 @@ const styles = StyleSheet.create({
   bottomBanner: {
     marginHorizontal: 16,
     borderRadius: 16,
-    backgroundColor: SdsColors.grey50,
+    backgroundColor: '#fff',
     padding: 20,
-    borderWidth: 1,
-    borderColor: SdsColors.grey200,
   },
   bottomBannerTitle: {
     fontSize: 15,

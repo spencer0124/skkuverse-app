@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, ListRow, Switch, Txt } from '@skkuverse/sds';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Button, ListRow, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -101,9 +101,10 @@ export default function NoticesSettingsScreen() {
           }
           right={
             <Switch
-              checked={noticesEnabled}
-              onCheckedChange={handleToggleCategory}
+              value={noticesEnabled}
+              onValueChange={handleToggleCategory}
               disabled={togglesDisabled}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
             />
           }
         />
@@ -157,7 +158,12 @@ function TabToggleRow({ tab, checked, onChange, disabled }: TabToggleRowProps) {
           {tab.label}
         </Txt>
       </View>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+      <Switch
+        value={checked}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ true: SdsColors.brand, false: undefined }}
+      />
     </View>
   );
 }

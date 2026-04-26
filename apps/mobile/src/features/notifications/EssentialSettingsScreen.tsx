@@ -1,5 +1,5 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { ListRow, Switch, Txt } from '@skkuverse/sds';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ListRow, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   SdsSpacing,
@@ -32,7 +32,14 @@ export default function EssentialSettingsScreen() {
               bottom={t('notifications.essentialDetailDesc')}
             />
           }
-          right={<Switch checked={true} disabled={true} onCheckedChange={() => {}} />}
+          right={
+            <Switch
+              value={true}
+              disabled={true}
+              onValueChange={() => {}}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
+            />
+          }
         />
 
         <View style={styles.infoCard}>

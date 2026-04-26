@@ -15,6 +15,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,10 +25,8 @@ import {
   Button,
   Dialog,
   ListRow,
-  Switch,
   Txt,
 } from '@skkuverse/sds';
-// Switch is still used by master toggle below; categories are drill-in only.
 import {
   SdsColors,
   useAuthStore,
@@ -109,7 +108,11 @@ export default function NotificationSettingsScreen() {
             />
           }
           right={
-            <Switch checked={masterEnabled} onCheckedChange={handleToggleMaster} />
+            <Switch
+              value={masterEnabled}
+              onValueChange={handleToggleMaster}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
+            />
           }
         />
 

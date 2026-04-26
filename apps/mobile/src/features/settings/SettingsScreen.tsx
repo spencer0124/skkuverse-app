@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { BellRingingIcon, CaretRightIcon } from 'phosphor-react-native';
+import {
+  BellRingingIcon,
+  BugIcon,
+  CaretRightIcon,
+  UserCircleIcon,
+} from 'phosphor-react-native';
 import { Button, Dialog, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
@@ -33,6 +38,24 @@ export function SettingsScreen() {
             styles.settingsRow,
             pressed && styles.settingsRowPressed,
           ]}
+          onPress={() => router.push('/settings/account' as never)}
+        >
+          <View style={styles.settingsIconWrap}>
+            <UserCircleIcon size={20} color={SdsColors.grey700} />
+          </View>
+          <View style={styles.settingsTextWrap}>
+            <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+              {t('settings.account')}
+            </Txt>
+          </View>
+          <CaretRightIcon size={18} color={SdsColors.grey400} />
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.settingsRow,
+            pressed && styles.settingsRowPressed,
+          ]}
           onPress={() => router.push('/notifications/settings' as never)}
         >
           <View style={styles.settingsIconWrap}>
@@ -41,6 +64,24 @@ export function SettingsScreen() {
           <View style={styles.settingsTextWrap}>
             <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
               {t('notifications.settings')}
+            </Txt>
+          </View>
+          <CaretRightIcon size={18} color={SdsColors.grey400} />
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.settingsRow,
+            pressed && styles.settingsRowPressed,
+          ]}
+          onPress={() => router.push('/debug-fcm' as never)}
+        >
+          <View style={styles.settingsIconWrap}>
+            <BugIcon size={20} color={SdsColors.grey700} />
+          </View>
+          <View style={styles.settingsTextWrap}>
+            <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+              FCM 디버그
             </Txt>
           </View>
           <CaretRightIcon size={18} color={SdsColors.grey400} />

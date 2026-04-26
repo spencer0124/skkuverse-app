@@ -25,7 +25,7 @@ export function NoticeListScreen({ sourceId }: Props) {
   }, [tabsConfig, sourceId]);
 
   return (
-    <View style={styles.container} collapsable={false}>
+    <View style={styles.container}>
       <Stack.Screen options={{ title: sourceName ?? t('notices.title') }} />
       <NoticeListPanel sourceId={sourceId} />
     </View>

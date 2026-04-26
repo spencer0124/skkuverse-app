@@ -79,6 +79,11 @@ export default function TabLayout() {
           default: { color: ICON_INACTIVE },
           selected: { color: ICON_ACTIVE },
         }}
+        // iOS 26+ tab bar collapses on scroll-down. Chain-root rule:
+        // every tab screen must return a ScrollView/SectionList/FlatList
+        // as the screen root (or first Fragment child). Outer wrapping
+        // <View> blocks the native discovery — see
+        // `docs/ios-26-native-tabs-minimize.md`.
         minimizeBehavior="onScrollDown"
       >
         <NativeTabs.Trigger name="home">

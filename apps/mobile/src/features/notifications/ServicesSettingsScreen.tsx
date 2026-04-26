@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { ListHeader, ListRow, Switch } from '@skkuverse/sds';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ListHeader, ListRow } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -51,9 +51,10 @@ export default function ServicesSettingsScreen() {
           }
           right={
             <Switch
-              checked={checked}
-              onCheckedChange={handleToggle}
+              value={checked}
+              onValueChange={handleToggle}
               disabled={!masterEnabled}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
             />
           }
         />
