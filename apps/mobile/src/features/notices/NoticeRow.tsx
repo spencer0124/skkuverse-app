@@ -1,4 +1,4 @@
-import { View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import { SdsColors, highlightMatches, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
@@ -12,21 +12,26 @@ interface Props {
   /** Show department label (only for multi-dept tabs like 학과/도서관). */
   showDepartment?: boolean;
   /** Search query — when set, the matched substrings inside the title
-   *  are wrapped in a styled inner Txt (case-insensitive match, original
-   *  casing preserved). Empty / undefined renders the title verbatim. */
+   *  are wrapped in a styled inner <Text> (case-insensitive match,
+   *  original casing preserved). Empty / undefined renders the title
+   *  verbatim. */
   highlightQuery?: string;
 }
 
+// Plain RN <Text> (not SDS <Txt>) so the matched segment inherits the
+// outer parent's fontSize / lineHeight via RN's text-style inheritance.
+// SDS <Txt> applies its own typography defaults (default 't5') which
+// overrides the parent's explicit style.fontSize=16 — causing the
+// highlighted glyphs to render at a different size than the surrounding
+// title. Plain <Text> only carries the styles we explicitly set (color
+// + weight), so size matches the parent.
 function renderTitleWithHighlight(title: string, query: string | undefined) {
   if (!query) return title;
-  // Inner Txt children inherit the outer Txt's typography/lineHeight; we
-  // only override color + weight so the matched substrings stand out
-  // without breaking the row's measured height.
   return highlightMatches(title, query).map((seg, i) =>
     seg.matched ? (
-      <Txt key={i} fontWeight="bold" color={SdsColors.blue500}>
+      <Text key={i} style={styles.highlightedSegment}>
         {seg.text}
-      </Txt>
+      </Text>
     ) : (
       seg.text
     ),
@@ -219,6 +224,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
+  },
+  // Inline emphasis on matched search substrings. fontSize/lineHeight
+  // intentionally OMITTED so the segment inherits from the parent
+  // <Txt>'s explicit title style (16/23) — keeps glyph size identical
+  // across the row regardless of which substring is matched.
+  highlightedSegment: {
+    color: SdsColors.blue500,
+    fontWeight: 'bold' as const,
   },
 });
 
