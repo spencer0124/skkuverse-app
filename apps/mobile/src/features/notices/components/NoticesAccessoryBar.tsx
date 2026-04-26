@@ -10,7 +10,9 @@
  *      RNSBottomAccessoryHelper KVO removeObserver NSException at invalidate
  *      (line 197 vs 115 target mismatch)
  *   4. NoticesBottomAccessoryGate in (tabs)/_layout.tsx returns this
- *      component only for inline placement on the notices root route
+ *      component for both 'regular' and 'inline' placements when the
+ *      notices tab is focused at root (not pushed detail). Same UI shows
+ *      whether the tab bar is expanded or scroll-minimized.
  *
  * Visual design — Path A (Apple pattern):
  *   We do NOT wrap children in our own GlassView. iOS 26's UITabAccessory

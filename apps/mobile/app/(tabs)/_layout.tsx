@@ -55,26 +55,29 @@ function screenToTabRoute(name: string): TabRoute | null {
 
 /**
  * iOS 26 NativeTabs bottom accessory gate. Renders <NoticesAccessoryBar/>
- * only when (a) inline placement (= tab bar minimized by scroll) AND
- * (b) the focused route is the notices tab root (not a pushed detail).
+ * in BOTH 'regular' and 'inline' placements (so the search/filter UI is
+ * visible whether the tab bar is expanded or scroll-minimized) when at the
+ * notices tab root (not a pushed detail).
  *
- * useSegments() works here because this component mounts inside the
- * NativeTabs subtree which lives under (tabs)/_layout.tsx in the expo-router
- * tree — full router context available.
+ * The notices-tab guard is handled by the PARENT — TabLayout passes
+ * `bottomAccessory={undefined}` for non-notices tabs so this component
+ * never mounts there. iOS 26 UITabAccessory is fully unmounted on tab
+ * switch (rn-screens calls `setBottomAccessory:nil animated:YES` —
+ * RNSBottomTabsHostComponentView.mm:213). This gate only filters one
+ * remaining case: root-vs-detail-push.
  *
  * Requires patches/expo-router+6.0.23.patch (forwards bottomAccessory) and
  * patches/react-native-screens+4.19.0.patch (KVO removeObserver swallow).
  * On Expo SDK 55+ migration, replace the callback prop on <NativeTabs>
  * below with the <NativeTabs.BottomAccessory> wrapper component.
  */
-function NoticesBottomAccessoryGate({ env }: { env: 'regular' | 'inline' }) {
+function NoticesBottomAccessoryGate() {
   const segments = useSegments();
-  if (env !== 'inline') return null;
-  const isNoticesRoot =
-    segments[0] === '(tabs)' &&
-    segments[1] === 'notices' &&
-    (segments.length === 2 || segments[2] === 'index');
-  if (!isNoticesRoot) return null;
+  // Parent guarantees segments[1] === 'notices'. We only filter pushed
+  // detail screens — typed routes collapse `index.tsx` so root has
+  // segments.length === 2 (segments[2] undefined); a pushed [articleNo]
+  // adds a third segment.
+  if (segments.length > 2) return null;
   return <NoticesAccessoryBar />;
 }
 
@@ -83,6 +86,14 @@ export default function TabLayout() {
   const lastTab = useSettingsStore((s) => s.lastTab);
   const setLastTab = useSettingsStore((s) => s.setLastTab);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
+  // Drives conditional bottomAccessory mount. useSegments is reactive — pulls
+  // from useRouteInfo (expo-router/build/hooks.js) which updates on tab
+  // switch, causing NativeTabs to re-render with prop toggled. rn-screens
+  // animates setBottomAccessory:nil on unmount (animated:YES) so transition
+  // between tabs is smooth.
+  const segments = useSegments();
+  const isNoticesTab =
+    segments[0] === '(tabs)' && segments[1] === 'notices';
 
   const initialTab: TabRoute = VALID_TABS.includes(lastTab) ? lastTab : 'home';
   const initialRouteName = tabRouteToScreen(initialTab);
@@ -116,7 +127,17 @@ export default function TabLayout() {
         // react-native-screens+4.19.0.patch (RNSBottomAccessoryHelper KVO
         // swallow). SDK 55+ migration → switch to <NativeTabs.BottomAccessory>
         // wrapper + delete both patches. See NoticesAccessoryBar.tsx docstring.
-        bottomAccessory={(env) => <NoticesBottomAccessoryGate env={env} />}
+        //
+        // Conditional pass: when not on the notices tab, prop is undefined →
+        // BottomTabs.tsx skips rendering <BottomTabsAccessory> →
+        // RNSBottomTabsHostComponentView.mm:213 calls setBottomAccessory:nil
+        // animated:YES → empty Liquid Glass capsule disappears with slide
+        // animation. iOS forces glass on UITabAccessory whenever attached;
+        // toggling the React subtree is the only way to truly hide it
+        // (UITabAccessory.h has no opt-out — verified against iOS 26 SDK).
+        bottomAccessory={
+          isNoticesTab ? () => <NoticesBottomAccessoryGate /> : undefined
+        }
       >
         <NativeTabs.Trigger name="home">
           <Icon
