@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import {
@@ -42,7 +42,12 @@ const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
 
 export function HomeScreen() {
   useT();
-  const insets = useSafeAreaInsets();
+  // headerTransparent: true (home tab) disables the automatic top inset
+  // applied to UIScrollView; we add headerHeight back manually so content
+  // starts below the bar and only slides under it on scroll (where the
+  // scroll-edge blur kicks in). useHeaderHeight reflects the live header
+  // height so it tracks safe-area changes and large-title states.
+  const headerHeight = useHeaderHeight();
 
   return (
     <View style={styles.container}>
@@ -50,7 +55,7 @@ export function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 56 },
+          { paddingTop: headerHeight + 8 },
         ]}
         showsVerticalScrollIndicator={false}
       >

@@ -43,6 +43,12 @@ const ICONS = [
   // back image while letting UINavigationController keep auto show/hide and
   // edge-swipe gesture.
   { name: 'caret-left', phosphor: 'caret-left', color: GREY_700 },
+  // dots-three / user-circle: home tab top-nav (kebab + profile placeholder).
+  // Profile is intentionally always the static `user-circle` glyph regardless
+  // of auth state — keeps the native UIBarButtonItem static (no store-driven
+  // refresh required).
+  { name: 'dots-three', phosphor: 'dots-three', color: GREY_700 },
+  { name: 'user-circle', phosphor: 'user-circle', color: GREY_700 },
 ];
 
 const BASE_SIZE = 22;
