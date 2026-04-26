@@ -27,10 +27,11 @@
  * `tabBarMinimizeBehavior` is permanently disabled for this screen. So the
  * SectionList must be the screen root, or the first Fragment child.
  *
- * For picker tabs the selector is rendered as an absolute overlay (Fragment
- * second child — index 1 in subviews, not on the finder's chain). The
- * SectionList `contentContainerStyle.paddingTop` (= SELECTOR_HEIGHT) makes
- * room so the first row clears the overlay visually.
+ * For picker tabs the selector is rendered inside the SectionList via
+ * NoticeListPanel's `listHeader` prop (= ListHeaderComponent). This keeps
+ * the SectionList as the chain root while guaranteeing the selector
+ * mounts as the list's first row. The selector scrolls with the list (no
+ * sticky pinning) — acceptable trade-off for a robust visible mount.
  *
  * For initial transient states (no activeTab yet) we return Skeleton /
  * EmptyState directly. The finder returns nil during this brief window;
@@ -42,12 +43,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 import notifee from '@notifee/react-native';
 import {
-  SdsColors,
   resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
@@ -62,12 +61,6 @@ import { NoticeEmptyState } from './EmptyState';
 import { useNoticesUiStore } from './store/noticesUiStore';
 import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
-
-// NoticeSelector measured height (paddingVertical 14*2 + Txt t7 line-height
-// (~18) + 1px borderBottom). Used both for the selector overlay's natural
-// height and for the SectionList's contentContainerStyle.paddingTop so the
-// first row clears the overlay visually.
-const SELECTOR_HEIGHT = 48;
 
 export function NoticesTabScreen() {
   const { t } = useT();
@@ -180,22 +173,24 @@ export function NoticesTabScreen() {
     return null;
   }
 
-  // Picker tab: SectionList + absolute selector overlay + picker sheet.
-  // Fragment children become RNSScreen subviews in order; the finder only
-  // walks subviews[0] (NoticeListPanel = SectionList).
+  // Picker tab: NoticeListPanel hosts the selector inside its SectionList
+  // via `listHeader`, so the selector is guaranteed to mount as the list's
+  // first row. NoticeListPanel is the Fragment's first child → RNSScreen
+  // subviews[0] is the SectionList → finder reaches it. The picker sheet
+  // is a Fragment sibling (BottomSheetModal portals out of the view tree
+  // when presented, so it never affects the chain).
   if (activeTab.tabMode === 'picker' && activeTab.picker) {
     return (
       <>
         <NoticeListPanel
           sourceIds={pickerSelectedIds}
-          listHeaderHeight={SELECTOR_HEIGHT}
+          listHeader={
+            <NoticeSelector
+              label={pickerSelectorLabel}
+              onPress={() => openPicker(activeTab.key)}
+            />
+          }
         />
-        <View style={styles.selectorOverlay} pointerEvents="box-none">
-          <NoticeSelector
-            label={pickerSelectorLabel}
-            onPress={() => openPicker(activeTab.key)}
-          />
-        </View>
         {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
           <NoticePickerSheet
             ref={sheetRef}
@@ -222,13 +217,3 @@ export function NoticesTabScreen() {
 
   return null;
 }
-
-const styles = StyleSheet.create({
-  selectorOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: SdsColors.background,
-  },
-});

@@ -83,21 +83,33 @@ React가 root element 종류를 바꾸면 RNSScreen 입장에서 첫 자식 view
 
 ### 분기/overlay가 있는 화면
 
-picker/fixed 같은 분기 + selector overlay/picker sheet 같은 부수 요소가 있다면:
+picker/fixed 같은 분기 + selector overlay/picker sheet 같은 부수 요소가 있다면, **selector를 SectionList의 `ListHeaderComponent`로 흡수**하는 게 가장 안전:
 
 ```tsx
 return (
   <>
-    <SectionList ... listHeaderHeight={SELECTOR_HEIGHT} />  {/* index 0 — finder 발견 */}
-    <View style={absoluteOverlay} pointerEvents="box-none">
-      <Selector ... />                                       {/* index 1 — finder 무관 */}
-    </View>
-    {showSheet && <BottomSheetModal ... />}                  {/* index 2+ — finder 무관 */}
+    <SectionList                                             {/* index 0 — finder 발견 */}
+      ...
+      ListHeaderComponent={<Selector ... />}                 {/* list 첫 row로 mount, visible 보장 */}
+    />
+    {showSheet && <BottomSheetModal ... />}                  {/* index 1+ — finder 무관 (portal) */}
   </>
 );
 ```
 
-selector를 absolute overlay로 두고 SectionList의 `contentContainerStyle.paddingTop`으로 만큼 패딩을 줘서 첫 row가 selector 아래에서 시작하게 한다.
+selector가 list와 함께 스크롤되는 trade-off가 있지만 mount/visible이 항상 보장된다.
+
+대안으로 absolute overlay 패턴도 가능하지만 **권장하지 않음** — RNSScreen 좌표계와 navigation bar 영역 overlap, view ordering, safe-area inset 처리 등으로 시각적으로 silent invisible될 수 있다. 굳이 sticky 효과가 필요하면 SectionList의 stickyHeader 패턴을 써라:
+
+```tsx
+// ⚠️ absolute overlay — 시각적으로 안 보일 수 있음 (NoticesTabScreen에서 실제 발생 사례)
+<>
+  <SectionList ... listHeaderHeight={SELECTOR_HEIGHT} />
+  <View style={absoluteOverlay} pointerEvents="box-none">
+    <Selector />
+  </View>
+</>
+```
 
 ### Stack header와의 호환성
 
@@ -129,9 +141,13 @@ return <SectionList ... />;
 
 이 룰을 따른 fix:
 
-- **`NoticesTabScreen.tsx`**: outer container `<View>` 제거. picker 탭은 `<>NoticeListPanel + selectorOverlay + NoticePickerSheet</>` Fragment를 반환, fixed 탭은 `<NoticeListPanel/>` 직계 반환. activeTab 미결정 transient 동안만 `<NoticeListSkeleton/>` 또는 `<NoticeEmptyState/>` 직계 반환 (Pattern B).
-- **`NoticeListPanel.tsx`**: 항상 `<SectionList>`을 root로 반환. loading/error/empty는 `ListEmptyComponent` + `contentContainerStyle.flexGrow: 1` (Pattern A).
+- **`NoticesTabScreen.tsx`**: outer container `<View>` 제거. picker 탭은 `<>NoticeListPanel + NoticePickerSheet</>` Fragment를 반환하고, picker selector는 NoticeListPanel의 `listHeader` prop으로 SectionList 안에 흡수. fixed 탭은 `<NoticeListPanel/>` 직계 반환. activeTab 미결정 transient 동안만 `<NoticeListSkeleton/>` 또는 `<NoticeEmptyState/>` 직계 반환 (Pattern B).
+- **`NoticeListPanel.tsx`**: 항상 `<SectionList>`을 root로 반환. loading/error/empty는 `ListEmptyComponent` + `contentContainerStyle.flexGrow: 1` (Pattern A). `listHeader` prop으로 외부에서 ListHeaderComponent 주입 가능.
 - **`(tabs)/notices/index.tsx`**: `<><Stack.Screen options={...}/><NoticesTabScreen/></>` Fragment 안 첫 자식이 NoticesTabScreen → 그 안에서 위 룰 적용.
+
+### Selector를 absolute overlay로 두려다 실패한 사례 (2026-04-26)
+
+처음 fix 시도에서 picker selector를 absolute positioned overlay (`<View style={{position:'absolute', top:0, ...}}><Selector/></View>`)로 Fragment 두 번째 자식에 두는 패턴을 적용했다. chain rule은 충족됐지만 selector 자체가 시각적으로 안 보이는 증상이 발생 — 정확한 원인은 RNSScreen 좌표계 / nav bar overlap / iOS layout pass 순서 등 native 디테일이지만, 실용적 결론은 "absolute overlay는 silent invisible 위험이 있다". 결국 SectionList의 `ListHeaderComponent`로 selector를 흡수하는 패턴으로 변경 — visible 보장 + chain rule 동시 충족.
 
 ### Transit 탭 (`apps/mobile/app/(tabs)/transit/index.tsx`)
 

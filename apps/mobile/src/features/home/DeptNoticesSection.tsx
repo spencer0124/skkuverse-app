@@ -70,9 +70,9 @@ export function DeptNoticesSection() {
   const headerLabel = (() => {
     if (isSingleDept) {
       const name = sources.find((s) => s.id === selectedIds[0])?.name ?? '';
-      return name ? `${name} 새 공지` : '학과 새 공지';
+      return name ? `${name} 공지` : '학과 공지';
     }
-    return '내 학과 새 공지';
+    return '학과 공지';
   })();
 
   const handleNoticePress = (n: NoticeListItem) => {
@@ -81,25 +81,20 @@ export function DeptNoticesSection() {
 
   return (
     <View style={styles.section}>
-      <View style={styles.header}>
+      <Pressable
+        onPress={() => router.navigate('/(tabs)/notices' as never)}
+        style={({ pressed }) => [
+          styles.header,
+          { opacity: pressed ? 0.6 : 1 },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`${headerLabel} 전체보기`}
+      >
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
           {headerLabel}
         </Txt>
-        <Pressable
-          onPress={() => router.navigate('/(tabs)/notices' as never)}
-          style={({ pressed }) => [
-            styles.viewAllBtn,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="전체보기"
-        >
-          <Txt typography="t7" color={SdsColors.grey500}>
-            전체보기
-          </Txt>
-          <CaretRightIcon size={14} color={SdsColors.grey500} />
-        </Pressable>
-      </View>
+        <CaretRightIcon size={16} color={SdsColors.grey400} />
+      </Pressable>
       <View style={styles.card}>
         {notices.map((item, i) => (
           <View key={`${item.sourceId}/${item.articleNo}`}>
@@ -124,16 +119,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    gap: 4,
     marginBottom: 10,
-  },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: 4,
-    paddingLeft: 8,
   },
   card: {
     backgroundColor: '#fff',

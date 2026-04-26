@@ -7,13 +7,17 @@
  * `contentContainerStyle.flexGrow: 1` to fill the visible area — never as
  * a non-ScrollView root, which would break the discovery chain.
  *
- * `listHeaderHeight` prop reserves vertical space at the top of the list
- * (via paddingTop) so a parent's absolute overlay (e.g. the picker
- * selector in NoticesTabScreen) doesn't visually cover the first row.
+ * `listHeader` prop renders inside the SectionList as its
+ * `ListHeaderComponent` — used by NoticesTabScreen to embed the picker
+ * selector inside the list (rather than as an absolute overlay) so it is
+ * guaranteed to mount and remain visible. The header scrolls with the
+ * list rather than staying pinned; if a sticky variant is needed later,
+ * use SectionList's stickyHeader pattern explicitly.
  *
  * Chain root rule background: `docs/ios-26-native-tabs-minimize.md`.
  */
 
+import type { ReactElement } from 'react';
 import { useCallback, useMemo } from 'react';
 import {
   View,
@@ -43,12 +47,12 @@ type Props = (
   | { sourceId: string; sourceIds?: never }
   | { sourceId?: never; sourceIds: string[] }
 ) & {
-  listHeaderHeight?: number;
+  listHeader?: ReactElement;
 };
 
 export function NoticeListPanel(props: Props) {
   const multi = 'sourceIds' in props && props.sourceIds != null;
-  const listHeaderHeight = props.listHeaderHeight;
+  const listHeader = props.listHeader;
   const router = useRouter();
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
@@ -126,9 +130,9 @@ export function NoticeListPanel(props: Props) {
       }
       ItemSeparatorComponent={() => <View style={styles.divider} />}
       stickySectionHeadersEnabled={false}
+      ListHeaderComponent={listHeader}
       contentContainerStyle={[
         styles.listContent,
-        listHeaderHeight ? { paddingTop: listHeaderHeight } : null,
         isEmpty ? styles.emptyContent : null,
       ]}
       onEndReached={onEndReached}
