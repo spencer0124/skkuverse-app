@@ -8,6 +8,7 @@ import {
   PathIcon,
 } from "phosphor-react-native";
 import { Platform, Text } from "react-native";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
 import {
   useT,
   useSettingsStore,
@@ -17,6 +18,12 @@ import {
 import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
 import { NoticesAccessoryBar } from "@/features/notices/components/NoticesAccessoryBar";
+
+// iOS 26+ only. False on iOS < 26 and on Android — the single predicate
+// that gates NativeTabs (vs JSX <Tabs>) and useTabFocusTracking
+// (vs <Tabs screenListeners>). Module-scope is the project idiom; see
+// AccountSettingsScreen.tsx, RefreshFab.tsx, SearchBar.tsx, HeaderIconButton.tsx.
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 // `unstable_settings.initialRouteName` is consumed at module evaluation time
 // by expo-router's getRoutesCore. We read MMKV-backed lastTab synchronously
@@ -103,12 +110,17 @@ export default function TabLayout() {
   const noticesBadge: number | string | undefined =
     unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined;
 
-  // iOS: native tab bar (UITabBarController). On iOS 26 the system renders
-  // the new Liquid Glass material automatically — no extra prop required.
-  // Per-screen tab_switch tracking moves to useTabFocusTracking inside each
-  // tab screen component (NativeTabs doesn't expose screenListeners).
+  // iOS 26+ only: native tab bar (UITabBarController) with Liquid Glass
+  // material auto-applied by the OS. Earlier iOS versions and Android fall
+  // through to the JSX <Tabs> path below — UIKit's default
+  // UITabBarAppearance.scrollEdgeAppearance is transparent on iOS < 26, so
+  // letting those devices render <Tabs> with an opaque tabBarStyle is the
+  // simplest way to keep content from bleeding under the bar. Per-screen
+  // tab_switch tracking happens in useTabFocusTracking (NativeTabs doesn't
+  // expose screenListeners); the hook mirrors GLASS_AVAILABLE so iOS < 26
+  // doesn't double-track via screenListeners + useFocusEffect.
   // initialRouteName is set via the unstable_settings export above.
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === 'ios' && GLASS_AVAILABLE) {
     return (
       <NativeTabs
         iconColor={{ default: ICON_INACTIVE, selected: ICON_ACTIVE }}
