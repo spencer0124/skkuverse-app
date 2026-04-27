@@ -18,17 +18,14 @@
  * pop-in once data lands.
  */
 
-import { useMemo, useState } from 'react';
-import { LayoutAnimation, Pressable, StyleSheet, View } from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  CaretDownIcon,
-  CaretRightIcon,
-  CaretUpIcon,
-} from 'phosphor-react-native';
+import { CaretRightIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import {
   SdsColors,
+  SdsShadows,
   resolvePickerSelection,
   useMultiSourceNoticeList,
   useNoticeTabs,
@@ -46,12 +43,6 @@ export function DeptNoticesSection() {
   const storedIds = useNotificationStore(
     (s) => s.preferences.pickerSelections?.dept,
   );
-  const [collapsed, setCollapsed] = useState(false);
-
-  const toggleCollapsed = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setCollapsed((c) => !c);
-  };
 
   const deptTab = useMemo(
     () => tabsConfig?.tabs.find((t) => t.key === DEPT_TAB_KEY),
@@ -92,50 +83,40 @@ export function DeptNoticesSection() {
   return (
     <View style={styles.section}>
       <View style={styles.headerRow}>
+        <Txt
+          typography="t4"
+          fontWeight="bold"
+          color={SdsColors.grey900}
+          numberOfLines={1}
+          style={styles.title}
+        >
+          {headerLabel}
+        </Txt>
         <Pressable
           onPress={() => router.navigate('/(tabs)/notices' as never)}
           style={({ pressed }) => [
-            styles.titleBtn,
+            styles.viewAllBtn,
             { opacity: pressed ? 0.6 : 1 },
           ]}
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={`${headerLabel} 전체보기`}
         >
-          <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-            {headerLabel}
+          <Txt typography="t7" color={SdsColors.grey500}>
+            전체보기
           </Txt>
-          <CaretRightIcon size={16} color={SdsColors.grey400} />
-        </Pressable>
-        <Pressable
-          onPress={toggleCollapsed}
-          style={({ pressed }) => [
-            styles.collapseBtn,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={collapsed ? '펼치기' : '접기'}
-        >
-          {collapsed ? (
-            <CaretUpIcon size={18} color={SdsColors.grey500} />
-          ) : (
-            <CaretDownIcon size={18} color={SdsColors.grey500} />
-          )}
+          <CaretRightIcon size={12} color={SdsColors.grey400} />
         </Pressable>
       </View>
-      {!collapsed ? (
-        <View style={styles.card}>
-          {notices.map((item, i) => (
-            <View key={`${item.sourceId}/${item.articleNo}`}>
-              {i > 0 ? <View style={styles.divider} /> : null}
-              <NoticeRow
-                item={item}
-                onPress={handleNoticePress}
-                showDepartment={!isSingleDept}
-              />
-            </View>
-          ))}
-        </View>
-      ) : null}
+      {notices.map((item) => (
+        <NoticeRow
+          key={`${item.sourceId}/${item.articleNo}`}
+          item={item}
+          onPress={handleNoticePress}
+          showDepartment={!isSingleDept}
+          compact
+        />
+      ))}
     </View>
   );
 }
@@ -144,29 +125,32 @@ const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16,
     marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingTop: 20,
+    // 8 + row's own paddingVertical (12) = 20px effective bottom — matches
+    // paddingTop visually without double-padding the last row.
+    paddingBottom: 8,
+    paddingHorizontal: 20,
+    // Clips ListRow press underlay flash at rounded corners.
+    overflow: 'hidden',
+    boxShadow: SdsShadows.card.boxShadow,
+    ...SdsShadows.card.legacy,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  titleBtn: {
+  title: {
+    flex: 1,
+    marginRight: 12,
+  },
+  viewAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-  },
-  collapseBtn: {
-    padding: 4,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: SdsColors.grey100,
-    marginHorizontal: 16,
+    gap: 2,
+    flexShrink: 0,
   },
 });

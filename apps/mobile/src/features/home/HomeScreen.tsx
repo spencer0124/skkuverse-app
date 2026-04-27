@@ -1,13 +1,16 @@
+import { useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  Pressable,
+  // Pressable, // restore with bottom banner below
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { CaretRightIcon } from 'phosphor-react-native';
-import { SdsColors, useT } from '@skkuverse/shared';
+// import { CaretRightIcon } from 'phosphor-react-native'; // restore with bottom banner below
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { SdsColors, SdsShadows, useT } from '@skkuverse/shared';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
@@ -15,39 +18,92 @@ import {
 import { handleSduiAction } from '@/sdui/action-handler';
 import { DeptNoticesSection } from './DeptNoticesSection';
 
-const HOME_GRID_ITEMS: readonly TossfaceGridItem[] = [
-  {
-    id: 'lost_found',
-    title: '분실물',
-    emoji: '\u{1F9F3}',
-    onPress: () =>
-      handleSduiAction({
-        actionType: 'webview',
-        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
-        webviewTitle: '분실물',
-        webviewColor: '003626',
-      }),
-  },
-  {
-    id: 'inquiry',
-    title: '문의하기',
-    emoji: '\u{1F4AC}',
-    onPress: () =>
-      handleSduiAction({
-        actionType: 'external',
-        actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
-      }),
-  },
-];
+// iOS 26+ Liquid Glass capability — module-scope (runtime-constant).
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 export function HomeScreen() {
   useT();
+  const router = useRouter();
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
   // scroll-edge blur kicks in). useHeaderHeight reflects the live header
   // height so it tracks safe-area changes and large-title states.
   const headerHeight = useHeaderHeight();
+
+  const gridItems = useMemo<readonly TossfaceGridItem[]>(
+    () => [
+      {
+        id: 'notices',
+        title: '공지',
+        emoji: '\u{1F4E2}',
+        onPress: () => router.navigate('/(tabs)/notices' as never),
+      },
+      {
+        id: 'campus_map',
+        title: '캠퍼스맵',
+        emoji: '\u{1F9ED}',
+        onPress: () => router.navigate('/(tabs)/campus' as never),
+      },
+      {
+        id: 'hssc_shuttle',
+        title: '인사캠 셔틀',
+        emoji: '\u{1F68C}',
+        onPress: () => {
+          // Switch to transit tab first so the back button from the realtime
+          // screen returns to the transit list (matches the "이동 탭 가서
+          // 인사캠 셔틀" mental model). groupId 'hssc' is the SSOT id from
+          // skkuverse-server/features/bus/bus-config.data.js (screenType:
+          // 'realtime', visibility: always).
+          router.navigate('/(tabs)/transit' as never);
+          router.push({
+            pathname: '/bus/realtime',
+            params: { groupId: 'hssc' },
+          } as never);
+        },
+      },
+      {
+        id: 'inja_shuttle',
+        title: '인자셔틀',
+        emoji: '\u{1F690}',
+        onPress: () => {
+          // 인자셔틀 (INJA Shuttle, 인사캠↔자과캠) — groupId 'campus',
+          // screenType 'schedule' (timetable-based, no live tracking). SSOT:
+          // skkuverse-server/lib/i18n.js (busconfig.label.campus → 인자셔틀)
+          // + bus-config.data.js. Same navigate-then-push pattern as HSSC so
+          // back returns to the transit list.
+          router.navigate('/(tabs)/transit' as never);
+          router.push({
+            pathname: '/bus/schedule',
+            params: { groupId: 'campus' },
+          } as never);
+        },
+      },
+      {
+        id: 'lost_found',
+        title: '분실물',
+        emoji: '\u{1F9F3}',
+        onPress: () =>
+          handleSduiAction({
+            actionType: 'webview',
+            actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+            webviewTitle: '분실물',
+            webviewColor: '003626',
+          }),
+      },
+      {
+        id: 'inquiry',
+        title: '문의하기',
+        emoji: '\u{1F4AC}',
+        onPress: () =>
+          handleSduiAction({
+            actionType: 'external',
+            actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
+          }),
+      },
+    ],
+    [router],
+  );
 
   return (
     <View style={styles.container}>
@@ -62,27 +118,42 @@ export function HomeScreen() {
         {/* ── Banner Card ── */}
         <View style={styles.bannerCard}>
           <View style={styles.bannerContent}>
-            <Text style={styles.bannerSubtitle}>
-              스꾸버스 앱에서 확인하기 ›
-            </Text>
-            <Text style={styles.bannerTitle}>
-              캠퍼스 생활의 모든 것, 한 곳에서
-            </Text>
+            {GLASS_AVAILABLE ? (
+              // iOS 26+ Liquid Glass chip — title sits inside a brand-tinted
+              // glass capsule. brandLight base gives the glass material
+              // something to refract over (banner bg is solid white).
+              <View style={styles.titleGlassOuter}>
+                <View style={styles.titleGlassFillBase}>
+                  <GlassView
+                    style={styles.titleGlassSurface}
+                    glassEffectStyle="regular"
+                  >
+                    <Text style={styles.bannerTitle}>
+                      스꾸버스 | 성균관 유니버스
+                    </Text>
+                  </GlassView>
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.bannerTitle}>
+                스꾸버스 | 성균관 유니버스
+              </Text>
+            )}
             <Text style={styles.bannerDesc}>
-              셔틀 실시간 위치부터 건물 검색까지
+              캠퍼스 생활의 모든 것, 한 곳에서
             </Text>
           </View>
         </View>
 
         {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
         <View style={styles.gridWrap}>
-          <TossfaceButtonGrid items={HOME_GRID_ITEMS} />
+          <TossfaceButtonGrid items={gridItems} />
         </View>
 
         {/* ── Dept latest notices (top 3) ── */}
         <DeptNoticesSection />
 
-        {/* ── Bottom Banner ── */}
+        {/* ── Bottom Banner ── (temporarily disabled — restore with CaretRightIcon import above)
         <Pressable style={styles.bottomBanner}>
           <View>
             <Text style={styles.bottomBannerTitle}>
@@ -95,6 +166,7 @@ export function HomeScreen() {
             </View>
           </View>
         </Pressable>
+        */}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -121,20 +193,35 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#fff',
     padding: 20,
+    boxShadow: SdsShadows.card.boxShadow,
+    ...SdsShadows.card.legacy,
   },
   bannerContent: {
     gap: 4,
   },
-  bannerSubtitle: {
-    fontSize: 12,
-    color: SdsColors.brand,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
   bannerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: SdsColors.grey900,
+    color: SdsColors.brandDark,
+  },
+  // iOS 26+ Liquid Glass title chip — text-width capsule (alignSelf: flex-start)
+  // so the chip wraps tight around "스꾸버스 | 성균관 유니버스" rather than
+  // stretching across the banner.
+  titleGlassOuter: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+  },
+  // Substrate that the glass material refracts over. Without a base tint, the
+  // glass effect is barely visible on solid white (see HeaderIconButton.tsx
+  // glassFillBase comment for the same pattern).
+  titleGlassFillBase: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: SdsColors.brandLight,
+  },
+  titleGlassSurface: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   bannerDesc: {
     fontSize: 13,

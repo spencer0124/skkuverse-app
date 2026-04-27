@@ -16,6 +16,9 @@ interface Props {
    *  original casing preserved). Empty / undefined renders the title
    *  verbatim. */
   highlightQuery?: string;
+  /** Compact preview (e.g. home tab): renders title + one-liner only.
+   *  Hides meta row (date · dept · paperclip) and deadline badges. */
+  compact?: boolean;
 }
 
 // Plain RN <Text> (not SDS <Txt>) so the matched segment inherits the
@@ -77,20 +80,22 @@ export function NoticeRow({
   onPress,
   showDepartment,
   highlightQuery,
+  compact,
 }: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
-  const deadline = formatDeadlineBadge(item.summary ?? null);
+  const deadline = compact ? null : formatDeadlineBadge(item.summary ?? null);
   const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
   const belowBadge  = deadline && !isFixedBadge(deadline) ? deadline : null;
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
-  const relativeDate = formatRelativeDate(item.date, lang);
-  const deptLabel = showDepartment ? item.department : undefined;
+  const relativeDate = compact ? '' : formatRelativeDate(item.date, lang);
+  const deptLabel = !compact && showDepartment ? item.department : undefined;
 
   return (
     <ListRow
       onPress={() => onPress(item)}
-      style={styles.row}
-      containerStyle={styles.container}
+      style={[styles.row, compact && styles.rowCompact]}
+      containerStyle={[styles.container, compact && styles.containerCompact]}
+      horizontalPadding={compact ? 0 : undefined}
       contents={
         <View style={styles.contents}>
           {(relativeDate || deptLabel) ? (
@@ -132,7 +137,7 @@ export function NoticeRow({
             typography="t5"
             fontWeight="semiBold"
             color={SdsColors.grey900}
-            numberOfLines={2}
+            numberOfLines={compact ? 1 : 2}
             lineBreakStrategyIOS="hangul-word"
             textBreakStrategy="highQuality"
             style={[styles.title, fixedBadge && styles.titleWithBadge]}
@@ -167,8 +172,17 @@ const styles = StyleSheet.create({
   row: {
     backgroundColor: '#FFFFFF',
   },
+  // Compact (home preview) — transparent so the row blends into the page
+  // background instead of looking like a floating white chit when used
+  // outside a wrapping card.
+  rowCompact: {
+    backgroundColor: 'transparent',
+  },
   container: {
     paddingVertical: 16,
+  },
+  containerCompact: {
+    paddingVertical: 12,
   },
   contents: {
     gap: 4,
