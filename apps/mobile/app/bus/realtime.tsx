@@ -81,9 +81,14 @@ export default function RealtimeScreen() {
     ? hexToColor(config.card.themeColor, SdsColors.brand)
     : SdsColors.brand;
 
-  // Info button — opens webview with feature info URL
+  // Info button — opens webview with feature info URL. Server-driven via
+  // screen.features[]: if the bus has no info page (e.g. jongro02/jongro07
+  // currently lack authored content), `getInfoUrl` returns undefined, which
+  // propagates through `devRewriteInfoUrl` and hides the header button via
+  // `headerRight: infoUrl ? ... : undefined` below. Do NOT add a hardcoded
+  // fallback URL — the server's empty `features[]` is the SSOT for this.
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
-  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/hssc/info');
+  const infoUrl = devRewriteInfoUrl(serverInfoUrl);
 
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;

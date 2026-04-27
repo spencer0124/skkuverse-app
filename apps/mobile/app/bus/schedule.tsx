@@ -57,9 +57,14 @@ export default function ScheduleScreen() {
   const isSchedule = config?.screenType === 'schedule';
   const screenConfig = isSchedule ? config.screen : undefined;
 
-  // Info button — opens webview with feature info URL
+  // Info button — opens webview with feature info URL. Server-driven via
+  // screen.features[]: if the schedule group has no info page (e.g.
+  // fasttrack), `getInfoUrl` returns undefined, which propagates through
+  // `devRewriteInfoUrl` and hides the header button via `headerRight:
+  // infoUrl ? ... : undefined` below. Do NOT add a hardcoded fallback URL
+  // — the server's empty `features[]` is the SSOT for this.
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
-  const infoUrl = devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info');
+  const infoUrl = devRewriteInfoUrl(serverInfoUrl);
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
     router.push({
