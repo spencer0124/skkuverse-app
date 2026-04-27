@@ -79,10 +79,12 @@ export default function NoticesSearchScreen() {
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
-  // Below the gate the query becomes undefined → NoticeListPanel skips
-  // the q prop → hooks omit q from params → server returns the unfiltered
-  // tab feed. So a half-typed query gracefully shows the full list rather
-  // than an empty results screen.
+  // Below the gate `effectiveQuery` is undefined and the body renders
+  // blank — no network round-trip, no fallback feed. Results only appear
+  // once the query meets the gate. Rationale: showing the unfiltered tab
+  // feed on entry was visually indistinguishable from "search returned
+  // everything", which misled users into thinking their query was being
+  // ignored.
   const effectiveQuery = isMinLengthMet(debouncedQuery)
     ? debouncedQuery.trim()
     : undefined;
@@ -144,6 +146,11 @@ export default function NoticesSearchScreen() {
 
       {isTabsLoading ? (
         <NoticeListSkeleton />
+      ) : effectiveQuery === undefined ? (
+        // Empty / below-min-length query → render nothing under the
+        // search bar. Ordered before the sourceIds-empty guard so a
+        // scope-less cold start also shows blank until the user types.
+        <View style={styles.blank} />
       ) : sourceIds.length === 0 ? (
         // Edge case: cold-start direct nav to /notices/search before the
         // notices tab has been visited. activeTabKey unset → no scope to
@@ -181,6 +188,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchWrap: {
+    flex: 1,
+  },
+  blank: {
     flex: 1,
   },
 });
