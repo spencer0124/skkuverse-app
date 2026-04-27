@@ -1,6 +1,7 @@
-import { Tabs, useSegments } from "expo-router";
+import { Tabs, useSegments, useNavigation } from "expo-router";
 import { NativeTabs, Icon, Label, Badge } from "expo-router/unstable-native-tabs";
 import type { NavigationState } from "@react-navigation/native";
+import { useEffect } from "react";
 import {
   HouseIcon,
   MegaphoneSimpleIcon,
@@ -104,6 +105,20 @@ export default function TabLayout() {
 
   const initialTab: TabRoute = VALID_TABS.includes(lastTab) ? lastTab : 'home';
   const initialRouteName = tabRouteToScreen(initialTab);
+
+  // useNavigation() here resolves to the root Stack (TabLayout is the (tabs)
+  // screen body; NativeTabs context isn't pushed until JSX returns), so
+  // setOptions sets root Stack's (tabs) entry title for iOS long-press
+  // back-history. Cold-start window covered by static fallback in app/_layout.tsx.
+  const navigation = useNavigation();
+  const activeTabKey: TabRoute =
+    segments[0] === '(tabs)' && VALID_TABS.includes(segments[1] as TabRoute)
+      ? (segments[1] as TabRoute)
+      : initialTab;
+
+  useEffect(() => {
+    navigation.setOptions({ title: t(`nav.${activeTabKey}`) });
+  }, [activeTabKey, t, navigation]);
 
   // tabBarBadge expects number | string | undefined; 0/null hide the badge
   // but falsy numbers still render in some RN versions — use undefined.
