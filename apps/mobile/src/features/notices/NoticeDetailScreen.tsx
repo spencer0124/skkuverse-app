@@ -118,6 +118,20 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   // JSX `headerRight` with `HeaderIconButton`. Same dispatch pattern as the
   // home tab's profile/settings icons (see app/(tabs)/home/index.tsx).
   //
+  // Why stable `identifier` on iOS items (load-bearing for flicker fix):
+  //   When `saved` flips, this `useMemo` returns a new options reference,
+  //   `<Stack.Screen options>` re-applies, and react-native-screens does
+  //   `navitem.rightBarButtonItems = [...]` (RNSScreenStackHeaderConfig.mm).
+  //   `setRightBarButtonItems:` replaces the entire array. Without stable
+  //   identifiers, iOS 26 has no way to match old items to new items, so
+  //   it animates BOTH capsules out and BOTH back in — even share, whose
+  //   icon never changed. With `identifier: 'bookmark'` / `'share'`, iOS 26
+  //   matches items across the assignment (UIBarButtonItem.identifier was
+  //   introduced for this exact case) and animates only the changed
+  //   properties (image, accessibilityLabel) in place. RNSBarButtonItem.mm
+  //   already plumbs the field through (`@available(iOS 26.0, *)` guarded);
+  //   on iOS < 26 the property is silently ignored — no regression.
+  //
   // Why `label: ''` on iOS items (different from home tab which sets text):
   //   `label` (required by SharedHeaderItem type) maps to UIBarButtonItem.title.
   //   With both `image` and a non-empty `title`, the iOS 26 Liquid Glass
@@ -136,7 +150,10 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   //   would invalidate on every React Query background refetch, churning
   //   the memo. The `dataRef` pattern above keeps `handleSavePress` /
   //   `handleSharePress` stable across refetches so the memo recomputes
-  //   only on `saved` flip or language change.
+  //   only on `saved` flip or language change. Note: memoization alone
+  //   cannot prevent the toggle-time re-apply (saved MUST drive the icon
+  //   image change) — that's why the `identifier` mechanism above is
+  //   needed at the iOS layer, not in React.
   const headerOptions = useMemo<NativeStackNavigationOptions>(() => (
     Platform.OS === 'ios'
       ? {
@@ -144,6 +161,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
           unstable_headerRightItems: () => [
             {
               type: 'button' as const,
+              identifier: 'bookmark',
               label: '',
               icon: {
                 type: 'image' as const,
@@ -156,6 +174,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
             },
             {
               type: 'button' as const,
+              identifier: 'share',
               label: '',
               icon: { type: 'image' as const, source: ICON_SHARE, tinted: false },
               sharesBackground: false,
