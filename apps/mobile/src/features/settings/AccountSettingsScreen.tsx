@@ -1,21 +1,12 @@
-/**
- * Account settings — profile pill capsule (photo + name) with email below.
- *
- * iOS 26+: outer pill is a Liquid Glass material (`GlassView`). Photo inside
- * is a plain circular Image (no nested glass ring — would conflict with the
- * pill capsule per HIG).
- * iOS<26 / Android: solid white pill with a subtle shadow.
- */
-
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { CaretRightIcon, UserIcon } from 'phosphor-react-native';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Txt } from '@skkuverse/sds';
+import { UserIcon } from 'phosphor-react-native';
+import { Button, Dialog, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
+import { signOutFromGoogle } from '@/services/google-auth';
 
-const GLASS_AVAILABLE = isLiquidGlassAvailable();
-const PHOTO_SIZE = 56;
+const PHOTO_SIZE = 80;
 
 export function AccountSettingsScreen() {
   const router = useRouter();
@@ -28,6 +19,12 @@ export function AccountSettingsScreen() {
   const email = useAuthStore((s) => s.email);
 
   const showProfile = !isAnonymous || isSigningOut;
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+
+  const handleSignOut = async () => {
+    setShowSignOutDialog(false);
+    await signOutFromGoogle();
+  };
 
   return (
     <View style={styles.container}>
@@ -38,111 +35,97 @@ export function AccountSettingsScreen() {
       >
         {showProfile ? (
           <>
-            <ProfilePill>
+            <View style={styles.hero}>
               <PhotoOrIcon photoURL={photoURL} />
-              <View style={styles.nameWrap}>
-                <Txt
-                  typography="t4"
-                  fontWeight="semibold"
-                  color={SdsColors.grey900}
-                >
+              <View style={styles.identityBlock}>
+                <Txt typography="t2" fontWeight="bold" color={SdsColors.grey900}>
                   {displayName ?? ''}
                 </Txt>
+                {email ? (
+                  <Txt typography="t6" color={SdsColors.grey500}>
+                    {email}
+                  </Txt>
+                ) : null}
               </View>
-            </ProfilePill>
-            {email ? (
-              <Txt typography="t6" color={SdsColors.grey500}>
-                {email}
-              </Txt>
-            ) : null}
+            </View>
+
+            <View style={styles.actionSection}>
+              <Button
+                type="danger"
+                style="weak"
+                size="medium"
+                display="block"
+                onPress={() => setShowSignOutDialog(true)}
+              >
+                {t('auth.signOut')}
+              </Button>
+            </View>
           </>
         ) : (
           <>
-            <ProfilePill onPress={() => router.push('/login')}>
+            <View style={styles.hero}>
               <PhotoOrIcon photoURL={null} />
-              <View style={styles.nameWrap}>
-                <Txt
-                  typography="t4"
-                  fontWeight="semibold"
-                  color={SdsColors.grey900}
-                >
+              <View style={styles.identityBlock}>
+                <Txt typography="t2" fontWeight="bold" color={SdsColors.grey900}>
                   {t('auth.loginCardTitle')}
                 </Txt>
+                <Txt typography="t6" color={SdsColors.grey500}>
+                  {t('auth.loginPrompt')}
+                </Txt>
               </View>
-              <CaretRightIcon size={20} color={SdsColors.grey400} />
-            </ProfilePill>
-            <Txt typography="t6" color={SdsColors.grey500}>
-              {t('auth.loginPrompt')}
-            </Txt>
+            </View>
+
+            <View style={styles.actionSection}>
+              <Button
+                type="dark"
+                size="medium"
+                display="block"
+                onPress={() => router.push('/login')}
+              >
+                {t('auth.googleSignIn')}
+              </Button>
+            </View>
           </>
         )}
       </ScrollView>
+
+      <Dialog.Confirm
+        open={showSignOutDialog}
+        description={t('auth.signOutConfirm')}
+        onClose={() => setShowSignOutDialog(false)}
+        leftButton={
+          <Button
+            type="dark"
+            style="weak"
+            size="medium"
+            display="block"
+            onPress={() => setShowSignOutDialog(false)}
+          >
+            {t('common.close')}
+          </Button>
+        }
+        rightButton={
+          <Button
+            type="danger"
+            size="medium"
+            display="block"
+            onPress={handleSignOut}
+          >
+            {t('auth.signOut')}
+          </Button>
+        }
+      />
     </View>
   );
 }
 
 function PhotoOrIcon({ photoURL }: { photoURL: string | null | undefined }) {
   if (photoURL) {
-    return (
-      <Image
-        source={{ uri: photoURL }}
-        style={{
-          width: PHOTO_SIZE,
-          height: PHOTO_SIZE,
-          borderRadius: PHOTO_SIZE / 2,
-        }}
-      />
-    );
+    return <Image source={{ uri: photoURL }} style={styles.photo} />;
   }
   return (
-    <View
-      style={{
-        width: PHOTO_SIZE,
-        height: PHOTO_SIZE,
-        borderRadius: PHOTO_SIZE / 2,
-        backgroundColor: SdsColors.grey100,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <UserIcon size={28} color={SdsColors.grey500} />
-    </View>
-  );
-}
-
-interface ProfilePillProps {
-  children: React.ReactNode;
-  onPress?: () => void;
-}
-
-function ProfilePill({ children, onPress }: ProfilePillProps) {
-  const inner = onPress ? (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.pillContent,
-        { opacity: pressed ? 0.7 : 1 },
-      ]}
-    >
-      {children}
-    </Pressable>
-  ) : (
-    <View style={styles.pillContent}>{children}</View>
-  );
-
-  if (GLASS_AVAILABLE) {
-    return (
-      <View style={[styles.pillOuter, glassStyles.shadow]}>
-        <GlassView style={styles.pillSurface} glassEffectStyle="regular">
-          {inner}
-        </GlassView>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.pillOuter, styles.pillFallback, glassStyles.shadow]}>
-      {inner}
+    <View style={[styles.photo, styles.photoFallback]}>
+      <UserIcon size={36} color={SdsColors.grey500} />
     </View>
   );
 }
@@ -156,41 +139,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: SdsSpacing.xl,
+    paddingTop: 48,
     paddingHorizontal: SdsSpacing.lg,
     paddingBottom: 32,
-    gap: SdsSpacing.sm,
   },
-  pillOuter: {
-    borderRadius: 999,
-  },
-  pillSurface: {
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  pillFallback: {
-    backgroundColor: '#fff',
-  },
-  pillContent: {
-    flexDirection: 'row',
+  hero: {
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingLeft: 8,
-    paddingRight: 16,
-    gap: SdsSpacing.md,
+    gap: 16,
   },
-  nameWrap: {
-    flex: 1,
+  identityBlock: {
+    alignItems: 'center',
+    gap: 6,
   },
-});
-
-const glassStyles = StyleSheet.create({
-  shadow: {
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+  photo: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
+    borderRadius: PHOTO_SIZE / 2,
+  },
+  photoFallback: {
+    backgroundColor: SdsColors.grey100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionSection: {
+    marginTop: 48,
   },
 });

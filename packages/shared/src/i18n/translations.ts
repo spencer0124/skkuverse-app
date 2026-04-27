@@ -346,6 +346,19 @@ const ko = {
   // ── Settings ──
   'settings.title': '설정',
   'settings.account': '계정 설정',
+  'settings.accountSubtitle': '프로필·로그인 정보',
+  'settings.notifications': '알림 설정',
+  'settings.notificationsSubtitle': '푸시 알림 카테고리',
+  'settings.fcmDebug': 'FCM 디버그',
+  'settings.fcmDebugSubtitle': '토큰·구독 토픽 확인',
+  'settings.licenses': '라이선스',
+  'settings.licensesSubtitle': '오픈소스 라이선스 정보',
+  'settings.licensesOss': '오픈소스 라이선스',
+  'settings.licensesOssSubtitle': '사용 중인 오픈소스 패키지',
+  'settings.licensesCount': '{0}개 패키지',
+  'settings.licensesCountFiltered': '{0}/{1}개 표시',
+  'settings.licensesSearchPlaceholder': '패키지명·라이선스 검색',
+  'settings.licensesEmpty': '검색 결과 없음',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '알림 설정',
@@ -665,6 +678,19 @@ const en: TranslationMap = {
   // ── Settings ──
   'settings.title': 'Settings',
   'settings.account': 'Account',
+  'settings.accountSubtitle': 'Profile & login info',
+  'settings.notifications': 'Notifications',
+  'settings.notificationsSubtitle': 'Push notification categories',
+  'settings.fcmDebug': 'FCM Debug',
+  'settings.fcmDebugSubtitle': 'Token & subscribed topics',
+  'settings.licenses': 'Licenses',
+  'settings.licensesSubtitle': 'Open source license info',
+  'settings.licensesOss': 'Open Source Licenses',
+  'settings.licensesOssSubtitle': 'Open source packages in use',
+  'settings.licensesCount': '{0} packages',
+  'settings.licensesCountFiltered': '{0} of {1} shown',
+  'settings.licensesSearchPlaceholder': 'Search by package or license',
+  'settings.licensesEmpty': 'No results',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': 'Notifications',
@@ -984,6 +1010,19 @@ const zh: TranslationMap = {
   // ── Settings ──
   'settings.title': '设置',
   'settings.account': '账户',
+  'settings.accountSubtitle': '个人资料和登录',
+  'settings.notifications': '通知设置',
+  'settings.notificationsSubtitle': '推送通知类别',
+  'settings.fcmDebug': 'FCM 调试',
+  'settings.fcmDebugSubtitle': '令牌·订阅主题',
+  'settings.licenses': '许可证',
+  'settings.licensesSubtitle': '开源许可证信息',
+  'settings.licensesOss': '开源许可证',
+  'settings.licensesOssSubtitle': '使用的开源包',
+  'settings.licensesCount': '{0} 个包',
+  'settings.licensesCountFiltered': '显示 {0} / {1}',
+  'settings.licensesSearchPlaceholder': '搜索包名或许可证',
+  'settings.licensesEmpty': '无结果',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '通知设置',

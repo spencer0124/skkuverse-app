@@ -84,7 +84,7 @@ export default function RootLayout() {
                     nested Stack inside (e.g. (home)/_layout.tsx) that owns the
                     header. This avoids headerShown toggling on tab switch
                     (which previously caused content to slide up/down). */}
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Skkuverse' }} />
                 {/* bus/notices flattened — leaf routes register directly with
                     root Stack so push-from-tab gives an automatic back button.
                     Title/headerRight set inline in each screen file. */}
@@ -100,7 +100,7 @@ export default function RootLayout() {
 
                 {/* Terminal screens — native header on, static titles via i18n */}
                 <Stack.Screen
-                  name="settings"
+                  name="settings/index"
                   options={{ title: t('settings.title') }}
                 />
                 <Stack.Screen
