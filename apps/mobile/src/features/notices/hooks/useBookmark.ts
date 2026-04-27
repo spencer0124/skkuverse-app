@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import firestore from '@react-native-firebase/firestore';
 import {
   authStore,
@@ -11,6 +11,7 @@ import {
 import {
   saveBookmark,
   removeBookmark,
+  updateBookmarkSummary,
 } from '@/services/firestore-bookmarks';
 import { logBookmarkSave, logBookmarkUnsave } from '@/services/analytics';
 import { logHandledError } from '@/services/crashlytics';
@@ -42,6 +43,14 @@ export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
 export function useBookmark(sourceId: string, articleNo: number) {
   const key = bookmarkKey(sourceId, articleNo);
   const isSaved = useBookmarkStore((s) => Boolean(s.entries[key]));
+  // In-flight guard for refreshSummaryIfNewlyAvailable. The detail screen
+  // calls it from a useEffect on `notice` reference identity; React Query
+  // background refetch (e.g. on app focus) yields a new reference even when
+  // the JSON shape is stable, which would re-fire the effect before the
+  // first server write resolves and the listener clears the local null.
+  // Without this guard we'd issue a redundant updateDoc — same data, but a
+  // wasted Firestore write per refetch.
+  const refreshInFlightRef = useRef(false);
 
   const toggle = useCallback(
     async (notice: NoticeDetail): Promise<ToggleOutcome> => {
@@ -91,7 +100,52 @@ export function useBookmark(sourceId: string, articleNo: number) {
     [key, sourceId, articleNo],
   );
 
-  return { isSaved, toggle };
+  /**
+   * Opportunistic summary refresh. Call after the detail screen successfully
+   * loads a notice. If the bookmark exists with a null cached summary AND the
+   * live notice now has one, partial-update those two fields only. `savedAt`
+   * is preserved (no re-stamping → no "phantom jump" in 보관함).
+   *
+   * Trigger: prior.summaryOneLiner === null && live one-liner non-null. We
+   * tie summaryType to summaryOneLiner because the server pipeline produces
+   * them together (same upstream summarizer). If that contract ever changes,
+   * this trigger needs to be re-evaluated — flagged here to prevent silent
+   * breakage.
+   *
+   * Deleted-notice case (intentional): if the original notice has been
+   * removed server-side, `useNoticeDetail` resolves to error and the caller
+   * never invokes this. The bookmark stays at null-summary forever, which is
+   * fine under the natural-attrition policy — user either re-bookmarks or
+   * leaves it as a one-line dead reference.
+   */
+  const refreshSummaryIfNewlyAvailable = useCallback(
+    async (notice: NoticeDetail): Promise<void> => {
+      if (refreshInFlightRef.current) return;
+      const auth = authStore.getState();
+      if (auth.isAnonymous || !auth.uid) return;
+      const prior = useBookmarkStore.getState().entries[key];
+      if (!prior) return;
+      if (prior.summaryOneLiner !== null) return;
+      const liveOneLiner = notice.summary?.oneLiner;
+      const liveType = notice.summary?.type;
+      if (liveOneLiner == null || liveType == null) return;
+
+      refreshInFlightRef.current = true;
+      try {
+        await updateBookmarkSummary(auth.uid, key, {
+          summaryOneLiner: liveOneLiner,
+          summaryType: liveType,
+        });
+      } catch (err) {
+        logHandledError('bookmarks/refresh-summary', err);
+      } finally {
+        refreshInFlightRef.current = false;
+      }
+    },
+    [key],
+  );
+
+  return { isSaved, toggle, refreshSummaryIfNewlyAvailable };
 }
 
 /**

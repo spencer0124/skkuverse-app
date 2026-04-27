@@ -1,21 +1,17 @@
 import { useEffect, useMemo } from 'react';
-import { SectionList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import {
   SdsColors,
   bookmarkKey,
   useAuthStore,
-  useSettingsStore,
   useT,
-  type AppLanguage,
   type BookmarkEntry,
   type NoticeListItem,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
 import { NoticeRow } from '@/features/notices/NoticeRow';
 import { NoticeEmptyState } from '@/features/notices/EmptyState';
 import { NoticeLoginGate } from '@/features/notices/components/NoticeLoginGate';
-import { groupNoticesByDate } from '@/features/notices/utils/groupNotices';
 import { useBookmarks } from '@/features/notices/hooks/useBookmarks';
 import { logBookmarksListOpen } from '@/services/analytics';
 
@@ -23,34 +19,30 @@ import { logBookmarksListOpen } from '@/services/analytics';
  * Saved notices list screen — `/notices/saved`.
  *
  * Renders the user's bookmark collection (from the Firestore-synced Zustand
- * store) using the same NoticeRow + section grouping the main notices tab
- * uses. Cached display fields on each BookmarkEntry are sufficient — the
- * notice detail screen re-fetches live data on tap.
+ * store) as a flat reverse-chronological list ordered by `savedAt`. The
+ * notices tab uses `groupNoticesByDate` to bucket by article-publish date;
+ * a personal save list shouldn't — that bucketing scrambles the user's
+ * "newest-saved" mental model (Pocket / Twitter Bookmarks / Apple Reading
+ * List all use flat reverse-chronological for the same reason).
  *
  * Auth gate: anonymous users hit NoticeLoginGate (mirrors NoticesTabScreen).
- * Without this, an anonymous user landing here via deep link or back-stack
- * shenanigans would see an empty list with no explanation.
  *
  * Privacy: useAppInit's auth listener calls `useBookmarkStore.clearEntries()`
  * on sign-out, so the next anon user on a shared device sees an empty list
- * (which the gate then replaces with the login CTA), not the prior owner's
+ * (which the gate replaces with the login CTA), not the prior owner's
  * bookmarks.
  */
 export default function SavedNoticesScreen() {
   const { t } = useT();
   const router = useRouter();
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
   const { list } = useBookmarks();
 
   useEffect(() => {
     logBookmarksListOpen();
   }, []);
 
-  const sections = useMemo(() => {
-    const items = list.map(bookmarkToListItem);
-    return groupNoticesByDate(items, lang);
-  }, [list, lang]);
+  const items = useMemo(() => list.map(bookmarkToListItem), [list]);
 
   if (isAnonymous) {
     return (
@@ -67,9 +59,9 @@ export default function SavedNoticesScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: t('notices.saved') }} />
-      <SectionList
+      <FlatList
         style={styles.list}
-        sections={sections}
+        data={items}
         keyExtractor={(n) => n.id}
         renderItem={({ item }) => (
           <NoticeRow
@@ -79,13 +71,6 @@ export default function SavedNoticesScreen() {
             }
             showDepartment
           />
-        )}
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeader}>
-            <Txt typography="t6" fontWeight="semibold" color={SdsColors.grey500}>
-              {section.title}
-            </Txt>
-          </View>
         )}
         contentContainerStyle={styles.contentContainer}
         ListEmptyComponent={
@@ -145,11 +130,5 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexGrow: 1,
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-    backgroundColor: SdsColors.background,
   },
 });

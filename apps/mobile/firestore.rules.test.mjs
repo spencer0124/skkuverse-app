@@ -702,4 +702,47 @@ describe('users/{uid}/bookmarks/{key} rules — Phase 1', () => {
       ),
     );
   });
+
+  // ── UPDATE — partial update (opportunistic summary refresh path) ─
+  //
+  // Locks the assumption used by `updateBookmarkSummary()` in
+  // services/firestore-bookmarks.ts: a partial `update({summaryOneLiner,
+  // summaryType})` is allowed because `request.resource.data` evaluates as
+  // the post-merge doc — pre-existing identity/savedAt/title fields survive
+  // the merge and satisfy the type/identity checks at firestore.rules:81-89.
+  //
+  // If anyone later tightens Rules with an `affectedKeys()` whitelist or
+  // reshapes the validation, the first test will fail loudly instead of
+  // silently breaking the detail-screen refresh path.
+
+  test('owner partial-updates summaryOneLiner via update() → allow (savedAt preserved by merge)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry({ summaryOneLiner: null, summaryType: null }));
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').update({
+        summaryOneLiner: 'Filled by detail-open refresh',
+        summaryType: 'informational',
+      }),
+    );
+  });
+
+  test('owner update() trying to tamper sourceId identity → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env
+        .firestore()
+        .doc('users/uid-1/bookmarks/cse-undergrad:5847')
+        .set(bookmarkEntry());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      bookmarkRef(ctx, 'uid-1', 'cse-undergrad:5847').update({
+        sourceId: 'other-source',
+      }),
+    );
+  });
 });

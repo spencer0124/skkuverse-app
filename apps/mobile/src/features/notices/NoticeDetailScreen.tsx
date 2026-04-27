@@ -36,7 +36,20 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   // Real bookmark state — synced via Firestore listener in useAppInit. The
   // optimistic toggle policy lives inside `useBookmark` (revert only on
   // permanent error). UX outcome handling stays here.
-  const { isSaved: saved, toggle: toggleBookmark } = useBookmark(sourceId, articleNo);
+  const {
+    isSaved: saved,
+    toggle: toggleBookmark,
+    refreshSummaryIfNewlyAvailable,
+  } = useBookmark(sourceId, articleNo);
+
+  // Opportunistic summary refresh — heals bookmarks saved before the server
+  // had summarized the notice. Internal early-returns mean this is a no-op
+  // for: not-bookmarked, summary already cached, summary still null
+  // server-side, or an in-flight write from a prior refetch tick. See
+  // useBookmark.ts JSDoc on refreshSummaryIfNewlyAvailable for full rules.
+  useEffect(() => {
+    if (data) void refreshSummaryIfNewlyAvailable(data);
+  }, [data, refreshSummaryIfNewlyAvailable]);
 
   // Latest `data` is captured in a ref so header callbacks can stay stable
   // across React Query background refetches (focusManager refetch on app

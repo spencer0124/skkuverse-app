@@ -2,7 +2,7 @@ import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
 import appCheck from '@react-native-firebase/app-check';
-import type { BookmarkEntry } from '@skkuverse/shared';
+import type { BookmarkEntry, BookmarkSummaryType } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
 
 /**
@@ -83,6 +83,36 @@ export async function saveBookmark(
 export async function removeBookmark(uid: string, key: string): Promise<void> {
   await primeAppCheck();
   await bookmarkDocRef(uid, key).delete();
+}
+
+/**
+ * Partial update of just the summary cache fields. Used by the detail-screen
+ * opportunistic refresh when a previously-null summary becomes available
+ * server-side after the user already bookmarked the notice.
+ *
+ * CRITICAL: do NOT use saveBookmark() / setDoc() here — that would re-stamp
+ * `savedAt: serverTimestamp()`, bumping the bookmark to the top of the list
+ * and breaking the user's "save order" mental model. updateDoc() merges, so
+ * the existing savedAt Timestamp is preserved.
+ *
+ * Type: signature intentionally non-null. This function fills the summary;
+ * it does not erase one. If a "clear summary" use case ever appears, write
+ * a separate function — don't relax this signature, the compile-time guard
+ * is the whole point.
+ *
+ * Rules compatibility (firestore.rules:81-89): `request.resource.data` in an
+ * update is the merged post-write doc; pre-existing fields (sourceId,
+ * articleNo, title, savedAt) survive the merge and satisfy the type/identity
+ * checks. Locked by tests in firestore.rules.test.mjs covering the partial-
+ * update path (one allow, one identity-tamper deny).
+ */
+export async function updateBookmarkSummary(
+  uid: string,
+  key: string,
+  patch: { summaryOneLiner: string; summaryType: BookmarkSummaryType },
+): Promise<void> {
+  await primeAppCheck();
+  await bookmarkDocRef(uid, key).update(patch);
 }
 
 // ── Realtime subscription ────────────────────────────────────────
