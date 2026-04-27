@@ -42,7 +42,8 @@ export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
  */
 export function useBookmark(sourceId: string, articleNo: number) {
   const key = bookmarkKey(sourceId, articleNo);
-  const isSaved = useBookmarkStore((s) => Boolean(s.entries[key]));
+  const entry = useBookmarkStore((s) => s.entries[key] ?? null);
+  const isSaved = entry !== null;
   // In-flight guard for refreshSummaryIfNewlyAvailable. The detail screen
   // calls it from a useEffect on `notice` reference identity; React Query
   // background refetch (e.g. on app focus) yields a new reference even when
@@ -145,7 +146,40 @@ export function useBookmark(sourceId: string, articleNo: number) {
     [key],
   );
 
-  return { isSaved, toggle, refreshSummaryIfNewlyAvailable };
+  /**
+   * Remove-only bookmark mutation. Used by the deleted-notice tombstone
+   * (detail screen 404 + bookmark exists) — that case has no live
+   * NoticeDetail to feed `toggle()`, so this exposes a path that doesn't
+   * require it. Mirrors the remove branch of `toggle()` exactly:
+   * optimistic applyLocal, server delete, revert on permanent error.
+   *
+   * If the bookmark already isn't in the store (e.g. listener cleared it
+   * mid-flight), returns 'removed' as a no-op — caller doesn't need to
+   * distinguish "I removed it" from "it was already gone".
+   */
+  const unsave = useCallback(async (): Promise<ToggleOutcome> => {
+    const auth = authStore.getState();
+    if (auth.isAnonymous || !auth.uid) return 'auth-required';
+    const uid = auth.uid;
+    const prior = useBookmarkStore.getState().entries[key];
+    if (!prior) return 'removed';
+
+    useBookmarkStore.getState().applyLocal(key, null);
+    try {
+      await removeBookmark(uid, key);
+      logBookmarkUnsave({ sourceId, articleNo });
+      return 'removed';
+    } catch (err) {
+      if (classifyBookmarkToggleError(err) === 'permanent') {
+        useBookmarkStore.getState().applyLocal(key, prior);
+        logHandledError('bookmarks/unsave-permanent', err);
+        return 'failed';
+      }
+      return 'removed';
+    }
+  }, [key, sourceId, articleNo]);
+
+  return { isSaved, entry, toggle, unsave, refreshSummaryIfNewlyAvailable };
 }
 
 /**

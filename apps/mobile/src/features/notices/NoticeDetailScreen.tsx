@@ -17,6 +17,7 @@ import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
+import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 
 const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
@@ -31,16 +32,47 @@ interface Props {
 export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const { t, tpl } = useT();
   const router = useRouter();
-  const { data, isLoading, isError, refetch } = useNoticeDetail(sourceId, articleNo);
+  const { data, isLoading, isError, error, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [isUnsaving, setIsUnsaving] = useState(false);
   // Real bookmark state — synced via Firestore listener in useAppInit. The
   // optimistic toggle policy lives inside `useBookmark` (revert only on
   // permanent error). UX outcome handling stays here.
   const {
     isSaved: saved,
+    entry: bookmarkEntry,
     toggle: toggleBookmark,
+    unsave: unsaveBookmark,
     refreshSummaryIfNewlyAvailable,
   } = useBookmark(sourceId, articleNo);
+
+  // Tombstone gating: server returned 404 (notice deleted server-side per
+  // crawler 3-strikes + isDeleted flag) AND we have a cached BookmarkEntry
+  // for it. Non-bookmark 404s keep the simple error+retry path — that's
+  // the server team's documented decision (notices-api-architecture.md
+  // §3.15) and we honor it for non-saved traffic. The tombstone is scoped
+  // exclusively to the population that actually has expectations of finding
+  // the content.
+  const isDeletedBookmark =
+    isError &&
+    error?.type === 'server' &&
+    error.statusCode === 404 &&
+    bookmarkEntry !== null;
+
+  const handleRemoveDeletedBookmark = useCallback(() => {
+    setIsUnsaving(true);
+    void unsaveBookmark().then((outcome) => {
+      setIsUnsaving(false);
+      if (outcome === 'removed') {
+        router.back();
+      } else if (outcome === 'auth-required') {
+        setToastText(t('notices.authRequired'));
+        router.push('/login');
+      } else {
+        setToastText(t('notices.saveFailed'));
+      }
+    });
+  }, [unsaveBookmark, router, t]);
 
   // Opportunistic summary refresh — heals bookmarks saved before the server
   // had summarized the notice. Internal early-returns mean this is a no-op
@@ -154,8 +186,17 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   //   cannot prevent the toggle-time re-apply (saved MUST drive the icon
   //   image change) — that's why the `identifier` mechanism above is
   //   needed at the iOS layer, not in React.
-  const headerOptions = useMemo<NativeStackNavigationOptions>(() => (
-    Platform.OS === 'ios'
+  const headerOptions = useMemo<NativeStackNavigationOptions>(() => {
+    // Tombstone state: hide bookmark + share. Bookmark icon would be filled
+    // (saved) but tap → handleSavePress → toggleBookmark(dataRef.current)
+    // early-returns on null data, so the button would be visibly broken.
+    // Share is meaningless because the universal link 404s too.
+    if (isDeletedBookmark) {
+      return Platform.OS === 'ios'
+        ? { title: '', unstable_headerRightItems: () => [] }
+        : { title: '', headerRight: () => null };
+    }
+    return Platform.OS === 'ios'
       ? {
           title: '',
           unstable_headerRightItems: () => [
@@ -205,8 +246,8 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
               </HeaderIconButton>
             </View>
           ),
-        }
-  ), [saved, t, handleSavePress, handleSharePress]);
+        };
+  }, [isDeletedBookmark, saved, t, handleSavePress, handleSharePress]);
 
   // Single Stack.Screen at a stable position — branching it across 3
   // returns (loading / error / success) risks register-then-unregister churn
@@ -217,6 +258,16 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
       <Stack.Screen options={headerOptions} />
       {isLoading ? (
         <NoticeListSkeleton />
+      ) : isDeletedBookmark && bookmarkEntry ? (
+        // Server confirmed 404 (crawler 3-strikes, isDeleted: true) for a
+        // notice the user previously saved. Render the cached fields plus
+        // explicit "remove from saved" CTA. `bookmarkEntry` truth check is
+        // redundant with `isDeletedBookmark` but satisfies TS narrowing.
+        <DeletedNoticeTombstone
+          entry={bookmarkEntry}
+          onRemove={handleRemoveDeletedBookmark}
+          isRemoving={isUnsaving}
+        />
       ) : isError || !data ? (
         <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
       ) : (
