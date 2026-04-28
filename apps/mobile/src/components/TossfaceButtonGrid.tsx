@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     width: GRID_ITEM_SIZE,
     height: GRID_ITEM_SIZE,
     borderRadius: 16,
-    backgroundColor: SdsColors.grey50,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,

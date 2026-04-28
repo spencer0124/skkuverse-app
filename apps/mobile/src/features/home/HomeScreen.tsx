@@ -46,6 +46,32 @@ export function HomeScreen() {
         onPress: () => router.navigate('/(tabs)/campus' as never),
       },
       {
+        id: 'building_map',
+        title: '건물지도',
+        emoji: '\u{1F3E2}',
+        onPress: () => {
+          router.navigate('/(tabs)/campus' as never);
+          handleSduiAction({
+            actionType: 'webview',
+            actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
+            webviewTitle: '건물지도',
+            webviewColor: '003626',
+          });
+        },
+      },
+      {
+        id: 'building_code',
+        title: '건물코드',
+        emoji: '\u{1F522}',
+        onPress: () => {
+          router.navigate('/(tabs)/campus' as never);
+          handleSduiAction({
+            actionType: 'route',
+            actionValue: '/search',
+          });
+        },
+      },
+      {
         id: 'hssc_shuttle',
         title: '인사캠 셔틀',
         emoji: '\u{1F68C}',
