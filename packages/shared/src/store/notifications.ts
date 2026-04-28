@@ -65,6 +65,7 @@ export const useNotificationStore = create<NotificationStore>()(
         pickerSelections: {},
         subscribedTopics: [],
         derivedAt: null,
+        onboardedAt: null,
       },
       unreadCount: 0,
 

@@ -55,6 +55,17 @@ export interface PreferencesDocument {
   noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
 
+  /**
+   * Server timestamp at first onboarding completion. Null until the user
+   * finishes the wizard. Used as the canonical "user has onboarded" signal
+   * for second-device auto-restore (useAppInit prefs listener +
+   * notices/index.tsx handleExistingAccountSignIn).
+   *
+   * Immutable after first non-null write — Firestore Rules enforce
+   * "null → timestamp" one-way transition only.
+   */
+  onboardedAt: unknown | null; // Firestore Timestamp; typed `unknown` here to avoid pulling Firestore SDK types into shared.
+
   // Derived
   subscribedTopics: string[];
   derivedAt: unknown | null; // Firestore Timestamp; typed `unknown` here to avoid pulling Firestore SDK types into shared.

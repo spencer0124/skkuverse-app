@@ -55,6 +55,17 @@ service cloud.firestore {
                       && (
                         !('categoryEnabled' in request.resource.data) ||
                         request.resource.data.categoryEnabled.essential == true
+                      )
+                      // onboardedAt: 시드 시점에 'null → timestamp' 한 방향 전환만
+                      // 허용. 이후 immutable. CF는 admin SDK라 이 룰 우회 가능.
+                      // Used as canonical "user has onboarded" signal —
+                      // useAppInit 리스너 + notices/index handler가 자동복원
+                      // discriminator로 사용. Rules 테스트:
+                      // firestore.rules.test.mjs "ONBOARDED_AT IMMUTABILITY" 4 케이스.
+                      && (
+                        resource.data.onboardedAt == request.resource.data.onboardedAt
+                        || (resource.data.onboardedAt == null
+                            && request.resource.data.onboardedAt is timestamp)
                       );
 
         allow delete: if false;

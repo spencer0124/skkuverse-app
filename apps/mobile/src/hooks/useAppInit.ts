@@ -238,8 +238,50 @@ export function useAppInit() {
               unsubPrefs?.();
               prefsListenerUid = user.uid;
               unsubPrefs = onPreferencesChanged(user.uid, (prefs) => {
-                if (prefs) {
-                  useNotificationStore.getState().setPreferences(prefs);
+                if (!prefs) return;
+                useNotificationStore.getState().setPreferences(prefs);
+
+                // Auto-restore onboarding state from Firestore SSOT
+                // (cold-start fallback). Primary path: notices/index.tsx
+                // handleExistingAccountSignIn calls restoreOnboardingFromRemote
+                // synchronously after sign-in for UX immediacy. This listener
+                // handles the OTHER path: cold-start where a returning user is
+                // already authed (no sign-in event fires) — e.g. app re-launch
+                // after install + initial sign-in, or session restore.
+                //
+                // Discriminator: prefs.onboardedAt != null. Set by
+                // seedOnboardingPreferences as serverTimestamp().
+                // initializeFirestoreNotifications's default doc has
+                // onboardedAt: null so anon/first-time installers don't trip.
+                //
+                // 'dept' tab key cross-link: this listener mirrors
+                // prefs.pickerSelections.dept to MMKV. Same hard-code in
+                // notices/index.tsx handler + server-side tabsContract.ts —
+                // coordinated rename required.
+                //
+                // Action overwrites unconditionally — safe because dual-write
+                // writes identical data (handler reads same prefs the listener
+                // observes). always-overwrite also self-heals account-switch
+                // (logout A → signin B leaves A's stale data in MMKV otherwise).
+                if (prefs.onboardedAt != null) {
+                  const restoredDeptIds = prefs.pickerSelections?.dept ?? [];
+                  if (restoredDeptIds.length > 0) {
+                    useSettingsStore.getState().restoreOnboardingFromRemote({
+                      primaryDeptId: restoredDeptIds[0],
+                      interestDeptIds: restoredDeptIds.slice(1, 4),
+                    });
+                  } else {
+                    // Corrupt state — onboardedAt set but dept empty. Listener
+                    // can't navigate; just log so we notice in Crashlytics.
+                    // Inline handler (notices/index.tsx) handles the same case
+                    // by routing to wizard.
+                    logHandledError(
+                      'useAppInit/restore-corrupt-prefs',
+                      new Error(
+                        'onboardedAt set but pickerSelections.dept empty',
+                      ),
+                    );
+                  }
                 }
               });
             }

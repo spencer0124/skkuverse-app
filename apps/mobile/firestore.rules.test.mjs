@@ -282,6 +282,9 @@ const intentDoc = (overrides = {}) => ({
   pickerSelections: {},
   subscribedTopics: [],
   derivedAt: null,
+  // onboardedAt: 시드 시점에 serverTimestamp(). 미온보딩 default doc은 null.
+  // Rules: null → timestamp 한 방향 전환만 허용 (시드 후 immutable).
+  onboardedAt: null,
   ...overrides,
 });
 
@@ -441,6 +444,64 @@ describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () =>
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertSucceeds(
       prefsRef(ctx, 'uid-1').update({ 'categoryEnabled.essential': true }),
+    );
+  });
+
+  // ── ONBOARDED_AT IMMUTABILITY ────────────────────────────────────
+  // 'null → timestamp' 한 방향 전환만 허용 (시드 후 immutable).
+  // CF는 admin SDK라 이 룰 우회 가능. 클라가 이미 시드된 timestamp를
+  // 다른 timestamp로 바꾸거나 null로 되돌리려 하면 reject.
+  // Used as the canonical "user has onboarded" signal for second-device
+  // auto-restore (useAppInit prefs listener + notices/index.tsx handler).
+
+  test('owner sets onboardedAt: null → timestamp (seed) → allow', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ onboardedAt: new Date() }),
+    );
+  });
+
+  test('owner sets onboardedAt: timestampA → timestampB → deny (immutable)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(
+        intentDoc({ onboardedAt: new Date('2026-01-01') }),
+      );
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({ onboardedAt: new Date('2026-04-28') }),
+    );
+  });
+
+  test('owner sets onboardedAt: timestamp → null → deny (immutable)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(
+        intentDoc({ onboardedAt: new Date('2026-01-01') }),
+      );
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      prefsRef(ctx, 'uid-1').update({ onboardedAt: null }),
+    );
+  });
+
+  test('owner updates other field with onboardedAt unchanged → allow (post-onboarding toggle)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(
+        intentDoc({
+          enabled: true,
+          categoryEnabled: { essential: true, services: false, notices: true },
+          pickerSelections: { dept: ['cs'] },
+          onboardedAt: new Date('2026-01-01'),
+        }),
+      );
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'noticeTabEnabled.academic': false }),
     );
   });
 });
