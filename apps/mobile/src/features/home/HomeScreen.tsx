@@ -1,25 +1,22 @@
 import { useMemo } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   StyleSheet,
   // Pressable, // restore with bottom banner below
+  // Text, // restore with bottom banner below
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 // import { CaretRightIcon } from 'phosphor-react-native'; // restore with bottom banner below
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SdsColors, SdsShadows, useT } from '@skkuverse/shared';
+import { SdsColors, useT } from '@skkuverse/shared';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { DeptNoticesSection } from './DeptNoticesSection';
-
-// iOS 26+ Liquid Glass capability — module-scope (runtime-constant).
-const GLASS_AVAILABLE = isLiquidGlassAvailable();
+import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
   useT();
@@ -141,35 +138,8 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Banner Card ── */}
-        <View style={styles.bannerCard}>
-          <View style={styles.bannerContent}>
-            {GLASS_AVAILABLE ? (
-              // iOS 26+ Liquid Glass chip — title sits inside a brand-tinted
-              // glass capsule. brandLight base gives the glass material
-              // something to refract over (banner bg is solid white).
-              <View style={styles.titleGlassOuter}>
-                <View style={styles.titleGlassFillBase}>
-                  <GlassView
-                    style={styles.titleGlassSurface}
-                    glassEffectStyle="regular"
-                  >
-                    <Text style={styles.bannerTitle}>
-                      스꾸버스 | 성균관 유니버스
-                    </Text>
-                  </GlassView>
-                </View>
-              </View>
-            ) : (
-              <Text style={styles.bannerTitle}>
-                스꾸버스 | 성균관 유니버스
-              </Text>
-            )}
-            <Text style={styles.bannerDesc}>
-              캠퍼스 생활의 모든 것, 한 곳에서
-            </Text>
-          </View>
-        </View>
+        {/* ── Hero Banner (auto-playing intro animation) ── */}
+        <HeroBanner />
 
         {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
         <View style={styles.gridWrap}>
@@ -210,49 +180,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 32,
-  },
-
-  /* ── Banner ── */
-  bannerCard: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    padding: 20,
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
-  },
-  bannerContent: {
-    gap: 4,
-  },
-  bannerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: SdsColors.brandDark,
-  },
-  // iOS 26+ Liquid Glass title chip — text-width capsule (alignSelf: flex-start)
-  // so the chip wraps tight around "스꾸버스 | 성균관 유니버스" rather than
-  // stretching across the banner.
-  titleGlassOuter: {
-    alignSelf: 'flex-start',
-    borderRadius: 14,
-  },
-  // Substrate that the glass material refracts over. Without a base tint, the
-  // glass effect is barely visible on solid white (see HeaderIconButton.tsx
-  // glassFillBase comment for the same pattern).
-  titleGlassFillBase: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: SdsColors.brandLight,
-  },
-  titleGlassSurface: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  bannerDesc: {
-    fontSize: 13,
-    color: SdsColors.grey600,
-    marginTop: 2,
   },
 
   /* ── Grid wrap ── */
