@@ -359,6 +359,13 @@ const ko = {
   'settings.licensesOss': '오픈소스 정보',
   'settings.ossNotice': 'Skkuverse는 다음 오픈소스 소프트웨어를 사용해 만들어졌습니다.',
 
+  // ── Attributions ──
+  'attribution.notice': 'Skkuverse는 다음 출처의 데이터를 사용합니다.',
+  'attribution.skku': '성균관대학교',
+  'attribution.shuttle': '셔틀버스 정보',
+  'attribution.officialData': '공식 캠퍼스 데이터',
+  'attribution.officialTransit': '공식 셔틀 운행 정보',
+
   // ── Notifications (Phase 3) ──
   'notifications.settings': '알림 설정',
   'notifications.master': '알림 받기',
@@ -690,6 +697,13 @@ const en: TranslationMap = {
   'settings.licensesOss': 'Open Source Info',
   'settings.ossNotice': 'Skkuverse is built with the following open source software.',
 
+  // ── Attributions ──
+  'attribution.notice': 'Skkuverse uses data from the following sources.',
+  'attribution.skku': 'Sungkyunkwan University',
+  'attribution.shuttle': 'Shuttle Bus Info',
+  'attribution.officialData': 'Official campus data',
+  'attribution.officialTransit': 'Official shuttle service info',
+
   // ── Notifications (Phase 3) ──
   'notifications.settings': 'Notifications',
   'notifications.master': 'Receive notifications',
@@ -1020,6 +1034,13 @@ const zh: TranslationMap = {
   'settings.attributions': '信息来源',
   'settings.licensesOss': '开源信息',
   'settings.ossNotice': 'Skkuverse 由以下开源软件构建。',
+
+  // ── Attributions ──
+  'attribution.notice': 'Skkuverse 使用以下来源的数据。',
+  'attribution.skku': '成均馆大学',
+  'attribution.shuttle': '校车信息',
+  'attribution.officialData': '官方校园数据',
+  'attribution.officialTransit': '官方校车运行信息',
 
   // ── Notifications (Phase 3) ──
   'notifications.settings': '通知设置',

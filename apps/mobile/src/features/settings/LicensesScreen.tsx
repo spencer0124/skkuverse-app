@@ -15,10 +15,21 @@ export function LicensesScreen() {
         showsVerticalScrollIndicator={false}
       >
         <BadgeNavRow
+          badge="📄"
+          tossface
+          title={t('settings.tos')}
+          onPress={() => router.push('/settings/licenses/tos' as never)}
+        />
+        <BadgeNavRow
+          badge="🔗"
+          tossface
+          title={t('settings.attributions')}
+          onPress={() => router.push('/settings/licenses/attributions' as never)}
+        />
+        <BadgeNavRow
           badge="📦"
           tossface
           title={t('settings.licensesOss')}
-          subtitle={t('settings.licensesOssSubtitle')}
           onPress={() => router.push('/settings/licenses/oss' as never)}
         />
       </ScrollView>
