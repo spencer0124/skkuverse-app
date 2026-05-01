@@ -6,12 +6,27 @@ import { SdsColors } from '@skkuverse/shared';
 interface Props {
   name: string;
   selected: boolean;
+  /** Hard-disable: row is greyed out and onPress is suppressed entirely. */
   disabled?: boolean;
+  /**
+   * Soft-disable: row is greyed out but onPress still fires — used for
+   * intentionally-unsupported depts so the caller can open an explanation
+   * sheet on tap.
+   */
+  unsupported?: boolean;
   variant: 'radio' | 'checkbox';
   onPress: () => void;
 }
 
-export function DeptRow({ name, selected, disabled = false, variant, onPress }: Props) {
+export function DeptRow({
+  name,
+  selected,
+  disabled = false,
+  unsupported = false,
+  variant,
+  onPress,
+}: Props) {
+  const dimmed = disabled || unsupported;
   return (
     <Pressable
       style={[styles.row, selected && styles.rowSelected]}
@@ -25,7 +40,7 @@ export function DeptRow({ name, selected, disabled = false, variant, onPress }: 
         typography="t6"
         fontWeight={selected ? 'semiBold' : 'medium'}
         color={
-          disabled
+          dimmed
             ? SdsColors.grey300
             : selected
               ? '#1f3d2e'
@@ -39,7 +54,7 @@ export function DeptRow({ name, selected, disabled = false, variant, onPress }: 
         style={[
           variant === 'radio' ? styles.radio : styles.checkbox,
           selected && styles.indicatorSelected,
-          disabled && !selected && styles.indicatorDisabled,
+          dimmed && !selected && styles.indicatorDisabled,
         ]}
       >
         {selected && <CheckIcon size={10} color="#FFFFFF" />}

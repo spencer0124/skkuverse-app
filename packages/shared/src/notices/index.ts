@@ -9,6 +9,8 @@ export type { HighlightSegment } from './highlight';
 export { classifyBookmarkToggleError } from './bookmarkErrors';
 export { filterPickerSources, isUnsupportedSource } from './sourceFilters';
 export type { FilterPickerSourcesOptions } from './sourceFilters';
+export { recommendCollegeMates, findCollegeUmbrella } from './collegeRecommendation';
+export type { CollegeMates } from './collegeRecommendation';
 export type {
   ExcludeReasonKey,
   TabSource,

@@ -47,6 +47,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useFocusEffect } from '@react-navigation/native';
 import notifee from '@notifee/react-native';
 import {
+  filterPickerSources,
   resolvePickerSelection,
   useAuthStore,
   useNoticeTabs,
@@ -194,7 +195,12 @@ export function NoticesTabScreen() {
         {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
           <NoticePickerSheet
             ref={sheetRef}
-            items={activePickerTab.picker.sources}
+            // Hide intentionally-unsupported entries here — onboarding shows
+            // them greyed out for education, but in the main picker (a
+            // post-onboarding subscription change) they are noise.
+            items={filterPickerSources(activePickerTab.picker.sources, {
+              showUnsupported: false,
+            })}
             selectedIds={resolvePickerSelection(
               activePickerTab,
               pickerSelections[activePickerTab.key],

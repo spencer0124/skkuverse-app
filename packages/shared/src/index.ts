@@ -191,8 +191,13 @@ export {
   computeOnboardingPickerSeed,
   highlightMatches,
   classifyBookmarkToggleError,
+  filterPickerSources,
+  isUnsupportedSource,
+  recommendCollegeMates,
+  findCollegeUmbrella,
 } from './notices';
 export type {
+  ExcludeReasonKey,
   TabSource,
   PickerTabConfig,
   FixedTabConfig,
@@ -213,6 +218,8 @@ export type {
   NoticeAttachment,
   NoticeEditInfo,
   HighlightSegment,
+  FilterPickerSourcesOptions,
+  CollegeMates,
 } from './notices';
 
 // ── Hooks ──
