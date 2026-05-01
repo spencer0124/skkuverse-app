@@ -172,6 +172,111 @@ describe('parseTabsConfig', () => {
       nsc: [],
     });
   });
+
+  // ── New TabSource fields (college / noticeAvailable / excludeReason) ──
+
+  it('parses college, noticeAvailable, excludeReason on picker sources', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'dept',
+          label: '학과',
+          tabMode: 'picker',
+          picker: {
+            sources: [
+              {
+                id: 'cse-undergrad',
+                name: '소프트웨어학과(학부생)',
+                campus: 'nsc',
+                college: '소프트웨어융합대학',
+                noticeAvailable: true,
+                excludeReason: null,
+              },
+              {
+                id: 'med-undergrad',
+                name: '의과대학(학부생)',
+                campus: 'nsc',
+                college: '의과대학',
+                noticeAvailable: false,
+                excludeReason: 'loginRequired',
+              },
+            ],
+            maxSelection: 5,
+            defaultIds: [],
+            campusDefaultIds: {},
+          },
+        },
+      ],
+    });
+    const sources = parseTabsConfig(raw).tabs[0].picker?.sources ?? [];
+    expect(sources[0]).toMatchObject({
+      college: '소프트웨어융합대학',
+      noticeAvailable: true,
+      excludeReason: null,
+    });
+    expect(sources[1]).toMatchObject({
+      college: '의과대학',
+      noticeAvailable: false,
+      excludeReason: 'loginRequired',
+    });
+  });
+
+  it('downgrades unknown excludeReason to null (forward compat)', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'dept',
+          label: '학과',
+          tabMode: 'picker',
+          picker: {
+            sources: [
+              {
+                id: 'x',
+                name: 'X',
+                campus: 'nsc',
+                college: null,
+                noticeAvailable: false,
+                excludeReason: 'futureNewReason',
+              },
+            ],
+            maxSelection: 1,
+            defaultIds: [],
+            campusDefaultIds: {},
+          },
+        },
+      ],
+    });
+    const source = parseTabsConfig(raw).tabs[0].picker?.sources[0];
+    expect(source?.excludeReason).toBe(null);
+  });
+
+  it('defaults missing new fields safely (no crash, sensible values)', () => {
+    // Server response that pre-dates the schema bump.
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'dept',
+          label: '학과',
+          tabMode: 'picker',
+          picker: {
+            sources: [{ id: 'arch', name: '건축학과', campus: 'nsc' }],
+            maxSelection: 5,
+            defaultIds: [],
+            campusDefaultIds: {},
+          },
+        },
+      ],
+    });
+    const source = parseTabsConfig(raw).tabs[0].picker?.sources[0];
+    expect(source).toMatchObject({
+      college: null,
+      noticeAvailable: true,
+      excludeReason: null,
+    });
+  });
 });
 
 describe('parseNoticePage', () => {

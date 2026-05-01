@@ -117,10 +117,39 @@ export interface NoticeDetailSummary {
 
 // ── Server-driven tab config (GET /notices/tabs) ──
 
+/**
+ * Reason a department is intentionally unsupported, exposed by the server as
+ * an i18n enum key. The localized copy lives in the client translations
+ * (`onboarding.unsupportedDept.reason.<key>`).
+ *
+ * Adding a new key requires updating this union AND the matching translation
+ * key in the same release. The parser silently downgrades unknown keys to
+ * `null` so a server-side enum addition doesn't break older clients.
+ */
+export type ExcludeReasonKey =
+  | 'loginRequired'
+  | 'noWebsite'
+  | 'externalSystem'
+  | 'accessRestricted'
+  | 'temporarilyUnavailable';
+
 export interface TabSource {
   id: string;
   name: string;
   campus: string | null;
+  /** Parent 단과대학 (e.g. "소프트웨어융합대학"). `null` for umbrella entries. */
+  college: string | null;
+  /**
+   * Whether this source actually delivers notices in the app. `false` =
+   * intentionally unsupported (see `excludeReason`); `true` = crawled, even
+   * if cron is currently paused on the server side.
+   */
+  noticeAvailable: boolean;
+  /**
+   * When `noticeAvailable` is false, the reason is exposed as an i18n key.
+   * `null` whenever `noticeAvailable` is true (biconditional invariant).
+   */
+  excludeReason: ExcludeReasonKey | null;
 }
 
 export interface PickerTabConfig {

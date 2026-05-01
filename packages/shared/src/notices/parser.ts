@@ -6,6 +6,7 @@
 
 import type { ApiEnvelope } from '../api/types';
 import type {
+  ExcludeReasonKey,
   NoticeDetail,
   NoticeDetailSummary,
   NoticeEndAt,
@@ -22,6 +23,23 @@ import type {
   NoticeAttachment,
   NoticeEditInfo,
 } from './types';
+
+const KNOWN_EXCLUDE_REASONS: ReadonlySet<ExcludeReasonKey> = new Set<ExcludeReasonKey>([
+  'loginRequired',
+  'noWebsite',
+  'externalSystem',
+  'accessRestricted',
+  'temporarilyUnavailable',
+]);
+
+function asExcludeReason(raw: unknown): ExcludeReasonKey | null {
+  // Forward-compat: unknown enum values from a newer server are downgraded to
+  // null rather than rejected, so an enum addition can be deployed
+  // server-first without breaking existing clients.
+  return typeof raw === 'string' && KNOWN_EXCLUDE_REASONS.has(raw as ExcludeReasonKey)
+    ? (raw as ExcludeReasonKey)
+    : null;
+}
 
 // ── Internal helpers ──
 
@@ -235,6 +253,11 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
           id: asString(ss.id),
           name: asString(ss.name),
           campus: asNullableString(ss.campus),
+          college: asNullableString(ss.college),
+          // Default `true` so a server response that pre-dates the field
+          // doesn't render every dept as unsupported.
+          noticeAvailable: asBool(ss.noticeAvailable, true),
+          excludeReason: asExcludeReason(ss.excludeReason),
         };
       });
       const validIds = new Set(sources.map((s) => s.id));
