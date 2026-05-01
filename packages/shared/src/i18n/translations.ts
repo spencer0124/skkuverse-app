@@ -319,7 +319,7 @@ const ko = {
   'onboarding.hsscLocation': '명륜동',
   'onboarding.nscName': '자연과학캠퍼스',
   'onboarding.nscLocation': '율전동',
-  'onboarding.primaryDeptTitle': '대표 학과를\n골라주세요',
+  'onboarding.primaryDeptTitle': '대표 학과를 골라주세요',
   'onboarding.primaryDeptSubtitle': '언제든 바꿀 수 있어요',
   'onboarding.deptSearchPlaceholder': '학과 이름',
   'onboarding.interestDeptTitle': '더 보고 싶은\n학과 있어요?',
@@ -343,6 +343,19 @@ const ko = {
   'onboarding.oauthErrorTitle': '성균관대 계정이 아니에요',
   'onboarding.oauthErrorDescription': '성대생 전용이라\n@g.skku.edu 계정이 필요해요',
   'onboarding.oauthErrorRetry': '다시 해보기',
+  // 미지원 학과 안내 + 같은 단과대학 추천
+  'onboarding.unsupportedDept.title': '이 학과는 아직 지원하지 않아요',
+  'onboarding.unsupportedDept.alternative': '대신 소속 단과대학 {0}을(를) 선택할까요?',
+  'onboarding.unsupportedDept.acceptCta': '그렇게 할게요',
+  'onboarding.unsupportedDept.dismissCta': '다른 학과 고를게요',
+  'onboarding.unsupportedDept.toast': '아직 지원하지 않는 학과예요',
+  'onboarding.unsupportedDept.reason.loginRequired': '로그인이 필요한 사이트라 공지를 가져올 수 없어요',
+  'onboarding.unsupportedDept.reason.noWebsite': '아직 공식 사이트가 없어요',
+  'onboarding.unsupportedDept.reason.externalSystem': '외부 시스템을 사용해서 가져올 수 없어요',
+  'onboarding.unsupportedDept.reason.accessRestricted': '학내망에서만 볼 수 있어요',
+  'onboarding.unsupportedDept.reason.temporarilyUnavailable': '잠시 점검 중이에요',
+  'onboarding.interestDept.recommendedSection': '같은 단과대학',
+  'onboarding.interestDept.othersSection': '기타 학과',
 
   // ── Settings ──
   'settings.title': '설정',
@@ -681,6 +694,19 @@ const en: TranslationMap = {
   'onboarding.oauthErrorTitle': 'Not an SKKU account',
   'onboarding.oauthErrorDescription': 'SKKU students only\nAn @g.skku.edu account is required',
   'onboarding.oauthErrorRetry': 'Try again',
+  // Unsupported-dept notice + same-college recommendation
+  'onboarding.unsupportedDept.title': "This department isn't supported yet",
+  'onboarding.unsupportedDept.alternative': 'Pick the parent college {0} instead?',
+  'onboarding.unsupportedDept.acceptCta': "OK, let's do that",
+  'onboarding.unsupportedDept.dismissCta': "I'll pick another",
+  'onboarding.unsupportedDept.toast': "This department isn't supported yet",
+  'onboarding.unsupportedDept.reason.loginRequired': "Their site requires login, so we can't fetch notices",
+  'onboarding.unsupportedDept.reason.noWebsite': "They don't have an official site yet",
+  'onboarding.unsupportedDept.reason.externalSystem': "Their site uses an external system we can't reach",
+  'onboarding.unsupportedDept.reason.accessRestricted': 'Available only on the campus network',
+  'onboarding.unsupportedDept.reason.temporarilyUnavailable': 'Temporarily under maintenance',
+  'onboarding.interestDept.recommendedSection': 'Same college',
+  'onboarding.interestDept.othersSection': 'Other departments',
 
   // ── Settings ──
   'settings.title': 'Settings',
@@ -1019,6 +1045,19 @@ const zh: TranslationMap = {
   'onboarding.oauthErrorTitle': '不是成均馆大学账号',
   'onboarding.oauthErrorDescription': '仅限成大学生\n需要 @g.skku.edu 账号',
   'onboarding.oauthErrorRetry': '重试',
+  // 暂不支持的学科提示 + 同学院推荐
+  'onboarding.unsupportedDept.title': '此学科暂不支持',
+  'onboarding.unsupportedDept.alternative': '改选所属学院 {0} 怎么样?',
+  'onboarding.unsupportedDept.acceptCta': '好的',
+  'onboarding.unsupportedDept.dismissCta': '换一个',
+  'onboarding.unsupportedDept.toast': '此学科暂不支持',
+  'onboarding.unsupportedDept.reason.loginRequired': '此网站需要登录，无法抓取公告',
+  'onboarding.unsupportedDept.reason.noWebsite': '尚无官方网站',
+  'onboarding.unsupportedDept.reason.externalSystem': '使用外部系统，无法访问',
+  'onboarding.unsupportedDept.reason.accessRestricted': '仅限校内网访问',
+  'onboarding.unsupportedDept.reason.temporarilyUnavailable': '临时维护中',
+  'onboarding.interestDept.recommendedSection': '同学院',
+  'onboarding.interestDept.othersSection': '其他学科',
 
   // ── Settings ──
   'settings.title': '设置',
