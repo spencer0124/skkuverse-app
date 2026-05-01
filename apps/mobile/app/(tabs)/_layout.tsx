@@ -12,6 +12,7 @@ import { Platform, Text } from "react-native";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import {
   useT,
+  useAuthStore,
   useSettingsStore,
   useNotificationStore,
   resolveInitialTabRouteName,
@@ -81,10 +82,13 @@ function screenToTabRoute(name: string): TabRoute | null {
  */
 function NoticesBottomAccessoryGate() {
   const segments = useSegments();
-  // Parent guarantees segments[1] === 'notices'. We only filter pushed
-  // detail screens — typed routes collapse `index.tsx` so root has
-  // segments.length === 2 (segments[2] undefined); a pushed [articleNo]
-  // adds a third segment.
+  // Parent guarantees segments[1] === 'notices' AND that the user has
+  // onboarded (auth/onboarding gate is hoisted to TabLayout so the prop
+  // itself goes undefined when gated — returning null from here would
+  // leave an empty Liquid Glass capsule because UITabAccessory has no
+  // opt-out once attached). We only filter pushed detail screens — typed
+  // routes collapse `index.tsx` so root has segments.length === 2
+  // (segments[2] undefined); a pushed [articleNo] adds a third segment.
   if (segments.length > 2) return null;
   return <NoticesAccessoryBar />;
 }
@@ -102,6 +106,14 @@ export default function TabLayout() {
   const segments = useSegments();
   const isNoticesTab =
     segments[0] === '(tabs)' && segments[1] === 'notices';
+  // Auth/onboarding gate must be evaluated at THIS level so the
+  // `bottomAccessory` prop becomes undefined when gated — otherwise the
+  // empty Liquid Glass capsule reserves space above the tab bar even if
+  // the inner render returns null (UITabAccessory.h has no opt-out).
+  const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
+  const showNoticesAccessory =
+    isNoticesTab && !isAnonymous && onboardingCompleted;
 
   const initialTab: TabRoute = VALID_TABS.includes(lastTab) ? lastTab : 'home';
   const initialRouteName = tabRouteToScreen(initialTab);
@@ -163,7 +175,7 @@ export default function TabLayout() {
         // toggling the React subtree is the only way to truly hide it
         // (UITabAccessory.h has no opt-out — verified against iOS 26 SDK).
         bottomAccessory={
-          isNoticesTab ? () => <NoticesBottomAccessoryGate /> : undefined
+          showNoticesAccessory ? () => <NoticesBottomAccessoryGate /> : undefined
         }
       >
         <NativeTabs.Trigger name="home">

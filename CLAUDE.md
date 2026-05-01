@@ -56,8 +56,10 @@ Node version is pinned to **20** (see `.nvmrc`).
 
 **Provider stack** (defined in `app/_layout.tsx`):
 ```
-ErrorBoundary → GestureHandlerRootView → SDSProvider → QueryProvider → InitGate → Stack
+ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider → QueryProvider → InitGate → BottomSheetModalProvider → Stack
 ```
+
+`SafeAreaProvider` is **explicit at root**(rnsac + Expo docs 권장 패턴) AND **also re-mounted inside each modal route** (e.g. `app/onboarding.tsx`). Modal routes registered with `presentation: 'fullScreenModal'` / `'modal'` mount in a separate native UIViewController; the root provider measures the wrong VC's insets, so the modal's first paint loses top safe area. Per-modal `<SafeAreaProvider>` wrap is mandatory for any modal screen — see `docs/ios-modal-safe-area-provider.md`.
 
 **Tab structure (per-tab nested Stack):** `app/(tabs)/` 그룹 안에 4개 탭 디렉토리(`home/`, `campus/`, `transit/`, `notices/`)가 각자 `_layout.tsx`(`<Stack screenOptions={defaultHeaderOptions}/>`) + `index.tsx`(실제 화면)로 구성. 각 탭이 독립 Stack을 가지므로 탭 전환 시 부모 Stack의 `headerShown`이 토글되지 않음 — 콘텐츠가 위아래로 슬라이드하는 layout shift 방지. 헤더는 `react-native-screens` native-stack(iOS UINavigationController, Android Toolbar) 직접 사용 — 공통 옵션은 `apps/mobile/src/lib/header-options.ts`(`headerTitleAlign:'center'`, `headerBackButtonDisplayMode:'minimal'`, etc.), 헤더 우측 아이콘은 `apps/mobile/src/lib/HeaderIconButton.tsx`(44×44 고정으로 react-native-screens iOS customView stretch 회피). 동적 옵션(notices의 Bell/BellOff 등)은 화면 안에서 inline `<Stack.Screen options={...}/>`. Home 탭 URL은 `/home`. Cold-start root `/`는 `app/+native-intent.tsx`의 `redirectSystemPath`가 `initial: true && path === '/'` 분기에서 `/(tabs)/${resolveInitialTabRouteName(lastTab)}`로 직접 라우팅 — `app/index.tsx`(`<Redirect>`)는 마운트조차 안 됨. 이렇게 하는 이유: 만약 redirect-only 화면이 root Stack history에 남으면 iOS long-press 뒤로가기에서 titleless phantom 항목으로 보이는 결함이 생긴다. 만에 하나 leak되어도 `app/_layout.tsx`의 `<Stack.Screen name="index" options={{ title: t('nav.home') }}/>`가 fallback 라벨 보장. SDUI 'route' action에서 bare `/`도 마찬가지로 `router.dismissTo('/(tabs)/home')`로 가로채서 phantom 회피 (`apps/mobile/src/sdui/action-handler.ts`). Initial tab 복원은 `packages/shared/src/utils/resolveInitialTabRoute.ts` + `useSettingsStore.lastTab`.
 
@@ -97,7 +99,11 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 **Section grouping:** `groupNoticesByDate()` (`apps/mobile/src/features/notices/utils/groupNotices.ts`)가 공지를 5개 버킷으로 묶어 `SectionList` 헤더로 표시 — `recent7`(최근 7일) → `recent30`(최근 30일) → `month-{n}`(올해 월별, desc) → `year-{n}`(과거 연도, desc) → `unknown`(기타). `unknown`은 `item.date`가 빈 문자열·ISO timestamp·malformed 등 `YYYY-MM-DD` 파싱 실패 시 fallback (parser `asString(raw.date)`가 missing/null을 `''`로 강등하는 데 대한 방어). 라벨은 ko `기타` / en `Other` / zh `其他`. 정렬 priority 99998로 모든 year 버킷보다 뒤·default(`99999`)보다 앞에 위치.
 
-**Onboarding gate + 자동복원 (2026-04-28):** 공지 탭 진입 게이트는 `isAnonymous || !onboardingCompleted` (`apps/mobile/app/(tabs)/notices/index.tsx`). 둘 중 하나라도 true면 `OnboardingLanding`(녹색 sparkle + 메인 CTA "시작하기" + 보조 액션 "이미 가입한 적 있어요") 표시. `@g.skku.edu` 도메인 필수.
+**Onboarding gate + 자동복원 (2026-04-28, v2 redesign 2026-05-01):** 공지 탭 진입 게이트는 `isAnonymous || !onboardingCompleted` (`apps/mobile/app/(tabs)/notices/index.tsx`). 둘 중 하나라도 true면 `OnboardingLanding` 표시. `@g.skku.edu` 도메인 필수.
+
+**v2 게이트 화면 (2026-05-01)**: 좌상단 정렬 hook 헤드라인 ("긴 공지도 / 30초면 끝", 32pt bold) + 가운데 mock 노티스 카드(복수전공 D-3 예시, 한국어 하드코딩 — i18n 미적용은 의도적 prototype 스코프) + 다크 그린 #1f3d2e CTA "시작하기" + 보조 "이미 가입한 적 있어요" (grey400 t6). CTA는 SDS Button variant에 없는 색이라 커스텀 Pressable로 인라인. 게이트 활성 시 화면을 가입 유도에 집중시키기 위해:
+- **상단 9탭 스트립 숨김**: `notices/index.tsx`의 게이트 분기에서 `<Stack.Screen options={{ headerShown: false }} />` 발화. 정상 분기는 그대로 `header: () => <NoticesHeader />`. native-stack header는 body의 sibling이 아니라 별도 계층 mount이라 body 안 absolute overlay로 못 덮음 → header 자체를 mount 안 하는 게 유일한 방법.
+- **하단 Search/Bookmarks/Filter 액세서리 바 숨김**: `(tabs)/_layout.tsx`에서 `showNoticesAccessory = isNoticesTab && !isAnonymous && onboardingCompleted` 게이트를 부모 `TabLayout`에 hoist해서 `bottomAccessory={showNoticesAccessory ? () => <NoticesBottomAccessoryGate /> : undefined}` 발화. 자식에서 `null` 리턴해도 빈 Liquid Glass capsule이 공간을 잡으므로 prop 자체를 `undefined`로 만들어야 `setBottomAccessory:nil animated:YES` 호출 → 진짜 unmount.
 
 - **메인 CTA**: 5-step Toss-style wizard로 push (`/onboarding`).
 - **보조 액션 "이미 가입한 적 있어요"**: 인라인 Google Sign-In 핸들러 (`notices/index.tsx` `handleExistingAccountSignIn`) — `login.tsx` 패턴 미러 (pre-unregister anon device → sign-in → re-register). sign-in 후 `getPreferences(uid)` 명시 read → `prefs.onboardedAt != null && pickerSelections.dept.length > 0`이면 `useSettingsStore.restoreOnboardingFromRemote()` 즉시 호출 (게이트 자동 해제, flicker 없음). 신규 가입자거나 corrupt state면 `/onboarding`으로 push.

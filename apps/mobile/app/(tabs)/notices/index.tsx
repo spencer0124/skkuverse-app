@@ -157,7 +157,7 @@ export default function NoticesTab() {
   if (isAnonymous || !onboardingCompleted) {
     return (
       <>
-        {screenOptions}
+        <Stack.Screen options={{ headerShown: false }} />
         <OnboardingLanding
           onStartPress={() => router.push('/onboarding')}
           onExistingAccountPress={handleExistingAccountSignIn}
