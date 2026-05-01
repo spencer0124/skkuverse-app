@@ -1,8 +1,16 @@
 import { Text, View, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SparkleIcon } from 'phosphor-react-native';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Txt, TextButton } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
+
+// iOS 26+ NativeTabs uses a floating Liquid Glass capsule that is NOT
+// included in safeAreaInsets (UITabBarController auto-inset path doesn't
+// apply to the floating overlay). Earlier iOS / Android use JSX <Tabs>
+// whose tab bar height IS in insets, so the extra absorption is unwanted.
+// Module-scope per project idiom (see (tabs)/_layout.tsx).
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 interface Props {
   onStartPress: () => void;
@@ -113,7 +121,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 56,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    // iOS 26+ NativeTabs floating capsule만 명시 흡수, 그 외 OS는 standard
+    // tab bar가 safeAreaInsets에 포함되므로 24면 충분 (자세한 배경은 위
+    // GLASS_AVAILABLE 주석 참조).
+    paddingBottom: GLASS_AVAILABLE ? 80 : 24,
   },
   headline: {
     fontSize: 32,
