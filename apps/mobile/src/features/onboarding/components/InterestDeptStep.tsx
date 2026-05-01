@@ -52,11 +52,11 @@ export function InterestDeptStep({
 
       {primaryDept && (
         <View style={styles.pinnedCard}>
-          <Txt typography="t6" fontWeight="semiBold" color={SdsColors.green500}>
+          <Txt typography="t6" fontWeight="semiBold" color="#1f3d2e">
             {primaryDept.name}
           </Txt>
           <View style={styles.pinnedTag}>
-            <Txt typography="t7" fontWeight="bold" color={SdsColors.green500}>
+            <Txt typography="t7" fontWeight="bold" color="#1f3d2e">
               {t('onboarding.primaryTag')}
             </Txt>
           </View>
@@ -116,7 +116,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pinnedTag: {
-    backgroundColor: 'rgba(27, 94, 63, 0.12)',
+    // rgba(31, 61, 46, 0.12) — deepgreen #1f3d2e at 12% alpha
+    backgroundColor: 'rgba(31, 61, 46, 0.12)',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,

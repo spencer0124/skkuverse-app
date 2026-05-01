@@ -16,7 +16,6 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SdsColors } from '@skkuverse/shared';
 
 export interface FixedBottomCTAProps {
   children: ReactNode;
@@ -64,14 +63,8 @@ const styles = StyleSheet.create({
     right: 0,
   },
   container: {
-    backgroundColor: SdsColors.background,
     paddingHorizontal: 20,
     paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 8,
   },
 });
 

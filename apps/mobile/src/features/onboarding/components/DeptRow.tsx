@@ -28,7 +28,7 @@ export function DeptRow({ name, selected, disabled = false, variant, onPress }: 
           disabled
             ? SdsColors.grey300
             : selected
-              ? SdsColors.green500
+              ? '#1f3d2e'
               : SdsColors.grey900
         }
         style={styles.name}
@@ -81,8 +81,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   indicatorSelected: {
-    borderColor: SdsColors.green500,
-    backgroundColor: SdsColors.green500,
+    borderColor: '#1f3d2e',
+    backgroundColor: '#1f3d2e',
   },
   indicatorDisabled: {
     borderColor: SdsColors.grey100,

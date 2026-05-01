@@ -136,10 +136,6 @@ export function OnboardingScreen() {
     }
   }, [state.step]);
 
-  const handleClose = useCallback(() => {
-    setShowExitDialog(true);
-  }, []);
-
   const handleLeave = useCallback(() => {
     setShowExitDialog(false);
     router.back();
@@ -413,9 +409,7 @@ export function OnboardingScreen() {
   return (
     <>
       <OnboardingLayout
-        step={state.step}
         onBack={handleBack}
-        onClose={handleClose}
         ctaLabel={ctaLabel}
         ctaDisabled={ctaDisabled}
         onCtaPress={onCtaPress}

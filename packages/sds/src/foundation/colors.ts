@@ -40,7 +40,10 @@ export function getAdaptiveColors(preference: ColorPreference) {
 
 /** Default seed colors for the theme system */
 export const colorSeeds = {
-  primary: SdsColors.blue500,
+  // SKKU deepgreen — single brand action color across the app. Derived
+  // tokens (backgroundFillColor, dim variants, textWeakColor) are
+  // recomputed by ThemeProvider.deriveButtonTheme() from this seed.
+  primary: '#1f3d2e',
   danger: SdsColors.red500,
   success: SdsColors.green500,
   warning: SdsColors.orange500,

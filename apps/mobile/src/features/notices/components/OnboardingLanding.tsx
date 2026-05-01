@@ -1,8 +1,8 @@
-import { Text, View, Pressable, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SparkleIcon } from 'phosphor-react-native';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Txt, TextButton } from '@skkuverse/sds';
+import { Button, Txt, TextButton } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
 
 // iOS 26+ NativeTabs uses a floating Liquid Glass capsule that is NOT
@@ -71,17 +71,15 @@ export function OnboardingLanding({
         </View>
 
         <View>
-          <Pressable
+          <Button
+            type="primary"
+            size="big"
+            display="block"
             onPress={onStartPress}
             disabled={loading}
-            style={({ pressed }) => [
-              styles.cta,
-              pressed && styles.ctaPressed,
-              loading && styles.ctaDisabled,
-            ]}
           >
-            <Text style={styles.ctaText}>{t('onboarding.landingCta')}</Text>
-          </Pressable>
+            {t('onboarding.landingCta')}
+          </Button>
           <TextButton
             typography="t6"
             color={SdsColors.grey400}
@@ -227,25 +225,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#2c2c2c',
     lineHeight: 15,
-  },
-  cta: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#1f3d2e',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ctaPressed: {
-    opacity: 0.85,
-  },
-  ctaDisabled: {
-    opacity: 0.5,
-  },
-  ctaText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
   },
   existingAccountButton: {
     alignSelf: 'center',

@@ -1,22 +1,18 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CaretLeftIcon, XIcon } from 'phosphor-react-native';
+import { CaretLeftIcon } from 'phosphor-react-native';
 import {
   Button,
   FixedBottomCTA,
   IconButton,
-  ProgressBar,
   TextButton,
   Txt,
 } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing } from '@skkuverse/shared';
-import { TOTAL_STEPS, type OnboardingStep } from '../types';
 
 interface Props {
-  step: OnboardingStep;
   onBack: () => void;
-  onClose: () => void;
   ctaLabel: string;
   ctaDisabled?: boolean;
   onCtaPress: () => void;
@@ -26,15 +22,13 @@ interface Props {
   secondaryAction?: { label: string; onPress: () => void };
   /** Text below CTA (e.g. "성대생은 무료예요") */
   ctaFineprint?: string;
-  /** Hide progress bar + back button (e.g. completion step) */
+  /** Hide top bar (e.g. completion step has no back) */
   minimal?: boolean;
   children: ReactNode;
 }
 
 export function OnboardingLayout({
-  step,
   onBack,
-  onClose,
   ctaLabel,
   ctaDisabled = false,
   onCtaPress,
@@ -44,32 +38,14 @@ export function OnboardingLayout({
   minimal = false,
   children,
 }: Props) {
-  const progress = (step / TOTAL_STEPS) * 100;
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {!minimal && (
         <View style={styles.topBar}>
-          {step > 1 ? (
-            <IconButton
-              icon={<CaretLeftIcon size={22} color={SdsColors.grey900} />}
-              onPress={onBack}
-              label="뒤로"
-            />
-          ) : (
-            <View style={styles.placeholder} />
-          )}
-          <ProgressBar
-            progress={progress}
-            size="light"
-            withAnimation
-            color={SdsColors.green500}
-            style={styles.progressBar}
-          />
           <IconButton
-            icon={<XIcon size={20} color={SdsColors.grey900} />}
-            onPress={onClose}
-            label="닫기"
+            icon={<CaretLeftIcon size={22} color={SdsColors.grey900} />}
+            onPress={onBack}
+            label="뒤로"
           />
         </View>
       )}
@@ -119,14 +95,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SdsSpacing.md,
-    gap: SdsSpacing.sm,
-  },
-  placeholder: {
-    width: 40,
-    height: 40,
-  },
-  progressBar: {
-    flex: 1,
   },
   content: {
     flex: 1,

@@ -23,7 +23,7 @@ export function CampusCard({ name, location, selected, onPress }: Props) {
         <Txt
           typography="t5"
           fontWeight="bold"
-          color={selected ? SdsColors.green500 : SdsColors.grey900}
+          color={selected ? '#1f3d2e' : SdsColors.grey900}
         >
           {name}
         </Txt>
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     backgroundColor: SdsColors.green50,
-    borderColor: SdsColors.green500,
+    borderColor: '#1f3d2e',
   },
   location: {
     marginTop: 3,
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: SdsColors.green500,
+    backgroundColor: '#1f3d2e',
     alignItems: 'center',
     justifyContent: 'center',
   },
