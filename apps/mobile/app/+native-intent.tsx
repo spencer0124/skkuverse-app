@@ -1,3 +1,5 @@
+import { useSettingsStore, resolveInitialTabRouteName } from '@skkuverse/shared';
+
 const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
 
 const TAB_PATHS: Record<string, string> = {
@@ -14,12 +16,22 @@ const TAB_PATHS: Record<string, string> = {
 const NOTICE_PATH_RE = /^\/notices\/[a-z0-9-]+\/\d+$/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
-  // Cold-start path delivery: don't redirect. expo-router's default routing
-  // via unstable_settings.initialRouteName picks the right tab from MMKV-
-  // persisted lastTab (home/campus/transit/notices). Without this guard,
-  // every cold launch would hit the `/` whitelist below and force-redirect
-  // to a fixed tab, ignoring the user's last-visited tab.
-  if (initial) return path;
+  // Cold-start path delivery. Bare `/` is resolved to the lastTab-restored
+  // route here so app/index.tsx never mounts (its <Redirect> would otherwise
+  // leave a titleless phantom entry in the root Stack history, visible on
+  // iOS long-press of the back button). All other cold-start paths bypass
+  // the redirect logic below — deep links like /notices/cse/5847 must land
+  // on their static route handler unmodified, and unstable_settings.
+  // initialRouteName='(tabs)' anchors the stack underneath them.
+  // MMKV is sync (Zustand+MMKV — see (tabs)/_layout.tsx:30-37 for the
+  // mirror pattern at the tabs nav level), safe to read here.
+  if (initial) {
+    if (path === '/') {
+      const lastTab = useSettingsStore.getState().lastTab;
+      return `/(tabs)/${resolveInitialTabRouteName(lastTab)}`;
+    }
+    return path;
+  }
 
   try {
     let pathname = path;

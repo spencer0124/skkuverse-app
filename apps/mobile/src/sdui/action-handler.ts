@@ -26,6 +26,16 @@ export function handleSduiAction({
 }: SduiAction): void {
   switch (actionType) {
     case 'route':
+      // Bare `/` means "go home from anywhere". router.push would leave a
+      // titleless app/index.tsx entry in the root Stack (long-press back
+      // shows blank); router.dismissTo retains v3-navigate semantics
+      // (pop-to-target if in dismissable history, else navigate) which
+      // matches the intent. v4+ removed router.navigate's smart behavior
+      // — see expo/expo#35212.
+      if (actionValue === '/') {
+        router.dismissTo('/(tabs)/home' as never);
+        break;
+      }
       router.push(actionValue as never);
       break;
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
+import { Stack, usePathname, useGlobalSearchParams, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -64,6 +64,7 @@ export default function RootLayout() {
   const pathname = usePathname();
   const params = useGlobalSearchParams<Record<string, string>>();
   const lastLoggedScreen = useRef<string>('');
+  const navigation = useNavigation();
 
   useEffect(() => {
     const screenName = resolveScreenName(pathname, params);
@@ -71,7 +72,22 @@ export default function RootLayout() {
       lastLoggedScreen.current = screenName;
       logScreenView(screenName);
     }
-  }, [pathname, params]);
+    // DIAG: blank-entry investigation. Logs root Stack state on every
+    // pathname change so we can see exactly what UIKit's long-press back
+    // history will read from. Remove once root cause is identified.
+    if (__DEV__) {
+      const state = navigation.getState();
+      console.log('[diag/back-history]', JSON.stringify({
+        pathname,
+        index: state?.index,
+        routes: state?.routes?.map((r) => ({
+          name: r.name,
+          path: (r as { path?: string }).path,
+          params: r.params,
+        })),
+      }, null, 2));
+    }
+  }, [pathname, params, navigation]);
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -85,6 +101,15 @@ export default function RootLayout() {
                     header. This avoids headerShown toggling on tab switch
                     (which previously caused content to slide up/down). */}
                 <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Skkuverse' }} />
+                {/* `/` redirect catch-all (app/index.tsx). Production paths
+                    (cold-start + SDUI) route directly to /(tabs)/<lastTab>,
+                    so this entry is unreachable in practice — but keeping
+                    the title set means any future leak shows a labeled "홈"
+                    row instead of a blank one in iOS long-press back history. */}
+                <Stack.Screen
+                  name="index"
+                  options={{ headerShown: false, title: t('nav.home') }}
+                />
                 {/* bus/notices flattened — leaf routes register directly with
                     root Stack so push-from-tab gives an automatic back button.
                     Title/headerRight set inline in each screen file. */}
