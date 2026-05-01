@@ -48,11 +48,13 @@
 
 `redirectSystemPath`는 Expo Router가 외부 딥링크를 처리할 때만 호출된다:
 
-- **Cold start** (앱이 꺼져있을 때 딥링크로 실행): `initial: true`로 호출됨 — **redirect 안 함, path 그대로 통과** (불필요한 OS-intent 가로채기 차단). 실제 라우트 매칭은 `app/index.tsx` Redirect 등 라우터-internal layer가 담당.
+- **Cold start** (앱이 꺼져있을 때 딥링크로 실행 또는 단순 앱 실행): `initial: true`로 호출됨 — **bare `/`는 `/(tabs)/<lastTab>`으로 직접 매핑** (lastTab은 MMKV-persisted Zustand에서 sync read), **그 외 path는 그대로 통과** (불필요한 OS-intent 가로채기 차단).
+  - bare `/`만 특별 처리하는 이유: 그대로 통과시키면 `app/index.tsx`의 `<Redirect href="/(tabs)/home" />`가 root Stack history에 titleless 한 entry를 남겨 iOS long-press 뒤로가기에서 phantom 항목으로 보임. 이를 회피하려고 redirect-only 화면을 아예 마운트하지 않게 직접 라우팅. 만에 하나 leak되어도 `app/_layout.tsx`의 `<Stack.Screen name="index" options={{ title: t('nav.home') }}/>` fallback 라벨로 blank 회피.
+  - 다른 cold-start path(예: `/notices/cse/5847` 딥링크)는 그대로 통과시켜 expo-router의 정적 route handler가 받게 둠.
 - **Warm start** (앱이 백그라운드에 있을 때 딥링크 수신): `initial: false` — 화이트리스트 redirect 적용.
-- **앱 내부 네비게이션** (`router.push()` 등): 호출되지 않음. 단, 내부에서 `/`로 푸시될 경우 `app/index.tsx`의 `<Redirect href="/(tabs)/home" />`가 잡아서 home 탭으로 보냄.
+- **앱 내부 네비게이션** (`router.push()` 등): `redirectSystemPath` 미호출. 다만 SDUI 'route' action에 bare `/`가 들어오면 `router.dismissTo('/(tabs)/home')`로 가로채서 (`apps/mobile/src/sdui/action-handler.ts`) 위와 같은 phantom 회피.
 
-따라서 SDUI action handler, 버스 화면 내부 이동 등 앱 내부 네비게이션은 영향받지 않는다.
+따라서 SDUI action handler, 버스 화면 내부 이동 등 앱 내부 네비게이션은 화이트리스트 redirect의 영향을 받지 않는다.
 
 ### path 파싱
 
