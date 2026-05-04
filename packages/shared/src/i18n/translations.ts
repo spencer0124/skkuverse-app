@@ -95,8 +95,8 @@ const ko = {
   'auth.unknownError': '로그인에 실패했어요. 다시 시도해 주세요',
   'auth.signOut': '로그아웃',
   'auth.signOutConfirm': '로그아웃하시겠어요?',
-  'auth.loginPrompt': '로그인하면 더 많은 기능을 사용할 수 있어요',
-  'auth.loginCardTitle': '로그인이 필요해요',
+  'auth.loginPrompt': '설정도 안전하게 지켜드릴게요',
+  'auth.loginCardTitle': '로그인하고\nAI 공지까지 받아보세요',
 
   // ── Notices ──
   'notices.loginRequired': '공지를 보려면 로그인이 필요해요',
@@ -444,8 +444,8 @@ const en: TranslationMap = {
   'auth.unknownError': 'Sign-in failed. Please try again.',
   'auth.signOut': 'Sign out',
   'auth.signOutConfirm': 'Sign out?',
-  'auth.loginPrompt': 'Sign in to access more features',
-  'auth.loginCardTitle': 'Sign in required',
+  'auth.loginPrompt': 'Your settings stay safe with us',
+  'auth.loginCardTitle': 'Sign in to receive\nAI-summarized notices',
 
   // ── Notices ──
   'notices.loginRequired': 'Sign in to view notices',
@@ -796,8 +796,8 @@ const zh: TranslationMap = {
   'auth.unknownError': '登录失败，请重试',
   'auth.signOut': '退出登录',
   'auth.signOutConfirm': '确定退出登录？',
-  'auth.loginPrompt': '登录后可使用更多功能',
-  'auth.loginCardTitle': '需要登录',
+  'auth.loginPrompt': '您的设置将受到安全保护',
+  'auth.loginCardTitle': '登录后接收\nAI 总结的公告',
 
   // ── Notices ──
   'notices.loginRequired': '登录后可查看公告',
