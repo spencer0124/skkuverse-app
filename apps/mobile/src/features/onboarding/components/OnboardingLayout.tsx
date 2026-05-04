@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CaretLeftIcon } from 'phosphor-react-native';
@@ -52,33 +52,37 @@ export function OnboardingLayout({
 
       <View style={styles.content}>{children}</View>
 
-      <FixedBottomCTA>
-        {ctaContent ?? (
-          <Button
-            type="primary"
-            size="big"
-            display="block"
-            disabled={ctaDisabled}
-            onPress={onCtaPress}
-          >
-            {ctaLabel}
-          </Button>
-        )}
-        {secondaryAction && (
-          <TextButton
-            typography="t6"
-            color={SdsColors.grey400}
-            fontWeight="medium"
-            onPress={secondaryAction.onPress}
-            style={styles.secondaryButton}
-          >
-            {secondaryAction.label}
-          </TextButton>
-        )}
-        {ctaFineprint && (
-          <Txt typography="t7" color={SdsColors.grey400} style={styles.fineprint}>
-            {ctaFineprint}
-          </Txt>
+      <FixedBottomCTA flushOnKeyboard>
+        {({ keyboardVisible }) => (
+          <Fragment>
+            {ctaContent ?? (
+              <Button
+                type="primary"
+                size="big"
+                display={keyboardVisible ? 'full' : 'block'}
+                disabled={ctaDisabled}
+                onPress={onCtaPress}
+              >
+                {ctaLabel}
+              </Button>
+            )}
+            {secondaryAction && !keyboardVisible && (
+              <TextButton
+                typography="t6"
+                color={SdsColors.grey400}
+                fontWeight="medium"
+                onPress={secondaryAction.onPress}
+                style={styles.secondaryButton}
+              >
+                {secondaryAction.label}
+              </TextButton>
+            )}
+            {ctaFineprint && !keyboardVisible && (
+              <Txt typography="t7" color={SdsColors.grey400} style={styles.fineprint}>
+                {ctaFineprint}
+              </Txt>
+            )}
+          </Fragment>
         )}
       </FixedBottomCTA>
     </SafeAreaView>
