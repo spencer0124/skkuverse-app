@@ -430,7 +430,6 @@ export function OnboardingScreen() {
               )
             : undefined
         }
-        ctaFineprint={state.step === 4 ? t('onboarding.loginFineprint') : undefined}
         secondaryAction={
           state.step === 3
             ? { label: t('onboarding.skip'), onPress: handleSkipInterests }
