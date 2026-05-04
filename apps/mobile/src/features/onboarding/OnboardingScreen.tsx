@@ -1,26 +1,21 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, StyleSheet, View } from 'react-native';
-import Constants from 'expo-constants';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   computeOnboardingPickerSeed,
   useNoticeTabs,
-  useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
-import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
+import { GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
+import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
-import {
-  initializeFirestoreNotifications,
-  seedOnboardingPreferences,
-  unregisterDevice,
-} from '@/services/firestore-notifications';
+import { seedOnboardingPreferences } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
@@ -142,73 +137,17 @@ export function OnboardingScreen() {
   }, [router]);
 
   // ── Google Sign-In (Step 4) ──
+  // Wizard 강제 흐름 — classifyAndRestoreOnboarding은 의도적으로 호출하지 않음.
+  // 신규 가입자는 step 5에서 seedOnboardingPreferences로 새 시드를 쓰고,
+  // 이미 onboarded된 사용자가 wizard로 들어와도 step 5 완료 시 동일하게
+  // 시드를 덮어쓴다 (의도적 — wizard 진입 자체가 사용자가 다시 wizard
+  // 통과하기로 한 결정). 자동복원이 필요한 returning user는 다른 진입점
+  // (notices landing의 "이미 가입한 적 있어요" 또는 login.tsx)을 사용.
   const handleSignIn = useCallback(async () => {
     setLoginLoading(true);
     setLoginError(null);
-
-    // Mirror of signOutFromGoogle's pre-unregister: mark the current (anon)
-    // device's doc inactive BEFORE the auth state changes. After the
-    // anon→Google transition, useAppInit's onAuthStateChanged listener
-    // re-runs initializeFirestoreNotifications under the new uid; the
-    // Firestore rule for devices/{deviceId} update permits a non-owner
-    // claim only when `resource.data.active == false` (path b). Without
-    // this step the migration write is rejected silently
-    // (logHandledError('notifications/auth-transition')), the device doc
-    // stays under the anon uid forever, and syncPreferencesToDevices
-    // can't find it on subsequent toggles — the exact symptom that broke
-    // dogfooding the first time around.
-    const deviceId = useNotificationStore.getState().deviceId;
-    if (deviceId) {
-      try {
-        await unregisterDevice(deviceId);
-      } catch (err) {
-        // Non-fatal — proceed with sign-in. Worst case the migration
-        // still fails and the user re-encounters the issue (recoverable
-        // via app reinstall or signOut/signIn cycle).
-        logHandledError('onboarding/pre-unregister-anon-device', err);
-      }
-    }
-
     try {
-      const result = await signInWithGoogle();
-      const user = result.user;
-      authStore.getState().setAuthenticated({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        isAnonymous: user.isAnonymous,
-      });
-
-      // Synchronously re-register the device under the post-signin uid.
-      // - iOS (signInWithCredential, new uid): rule path b — pre-unregister
-      //   above made the doc inactive, so this write claims it under
-      //   the Google uid. Done synchronously so step 5 handleComplete
-      //   doesn't race against useAppInit's async withRetry migration.
-      // - Android (linkWithCredential preserves uid + onAuthStateChanged
-      //   doesn't fire): this is the *only* path that re-activates the
-      //   device after our pre-unregister. Without it the device stays
-      //   active:false until the next cold start.
-      const fcmToken = useNotificationStore.getState().fcmToken;
-      if (deviceId && fcmToken) {
-        const lang = useSettingsStore.getState().appLanguage;
-        try {
-          await initializeFirestoreNotifications({
-            uid: user.uid,
-            deviceId,
-            token: fcmToken,
-            platform: Platform.OS === 'ios' ? 'ios' : 'android',
-            appVersion: Constants.expoConfig?.version ?? '0.0.0',
-            osLocale: lang === 'ko' ? 'ko' : 'en',
-          });
-        } catch (err) {
-          // Non-fatal — useAppInit's onAuthStateChanged migration may
-          // still recover on iOS, and Android's next launch will. The
-          // user will still complete onboarding.
-          logHandledError('onboarding/post-signin-register', err);
-        }
-      }
-
+      const user = await signInWithDeviceMigration('onboarding');
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
       dispatch({ type: 'NEXT' });
     } catch (err) {
