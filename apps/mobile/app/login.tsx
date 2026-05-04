@@ -14,6 +14,7 @@ import {
 } from '@skkuverse/shared';
 import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
 import {
+  getPreferences,
   initializeFirestoreNotifications,
   unregisterDevice,
 } from '@/services/firestore-notifications';
@@ -78,7 +79,46 @@ export default function LoginScreen() {
         }
       }
 
-      router.back();
+      // Listener fallback (useAppInit.ts:240) handles cold-start, but
+      // sign-in 직후 명시 read는 router.back() 전에 게이트 flag를 동기 갱신
+      // → returning user가 직전 게이트 화면으로 돌아갈 때 flicker 차단.
+      // 신규 가입자는 wizard로 명시 라우팅 (router.back()이면 onboarding
+      // 미완 상태로 게이트가 그대로 남음). Mirror of notices/index.tsx
+      // handleExistingAccountSignIn — 핸들러 통합은 후속 PR.
+      let prefs;
+      try {
+        prefs = await getPreferences(user.uid);
+      } catch (readErr) {
+        logHandledError('login/prefs-read', readErr);
+        // Offline: listener fallback에 위임. 신규/기존 분기 불가하므로
+        // back으로 돌려보내서 호출자 컨텍스트 보존.
+        router.back();
+        return;
+      }
+
+      const restoredDeptIds = prefs?.pickerSelections?.dept ?? [];
+      const hasOnboardingMarker = prefs?.onboardedAt != null;
+      const hasUsableDept = restoredDeptIds.length > 0;
+
+      if (hasOnboardingMarker && hasUsableDept) {
+        useSettingsStore.getState().restoreOnboardingFromRemote({
+          primaryDeptId: restoredDeptIds[0],
+          interestDeptIds: restoredDeptIds.slice(1, 4),
+        });
+        router.back();
+      } else {
+        if (hasOnboardingMarker && !hasUsableDept) {
+          logHandledError(
+            'login/corrupt-prefs',
+            new Error('onboardedAt set but pickerSelections.dept empty'),
+          );
+        }
+        // 신규 가입자 or corrupt state → wizard. router.replace로 login
+        // 화면을 stack에서 제거하여 wizard 완료 후 dismissAll이 호출자 화면
+        // 컨텍스트로 자연 복귀. AnonymousGate (router.replace 진입) 경로에선
+        // 알림 설정 화면이 stack에서 이미 사라진 상태라 settings 탭 루트로 복귀.
+        router.replace('/onboarding');
+      }
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
