@@ -117,8 +117,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
+    lineHeight: 30,
     color: SdsColors.grey900,
     marginBottom: SdsSpacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,

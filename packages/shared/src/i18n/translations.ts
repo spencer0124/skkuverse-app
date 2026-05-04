@@ -87,9 +87,9 @@ const ko = {
   'nav.more': '전체',
 
   // ── Auth ──
-  'auth.loginTitle': '성균관대 로그인',
-  'auth.loginSubtitle': '성균관대 학부생 전용\n@g.skku.edu 계정이 필요합니다',
-  'auth.googleSignIn': 'Google 계정으로 로그인',
+  'auth.loginTitle': '로그인하고\nAI 공지까지 받아보세요',
+  'auth.loginSubtitle': '설정도 안전하게 지켜드릴게요',
+  'auth.googleSignIn': '성균관대 계정으로 로그인',
   'auth.domainNotAllowed': '성균관대 학부생 계정(@g.skku.edu)으로만\n로그인 가능합니다',
   'auth.playServicesError': 'Google Play 서비스를 업데이트해 주세요',
   'auth.unknownError': '로그인에 실패했어요. 다시 시도해 주세요',
@@ -436,9 +436,9 @@ const en: TranslationMap = {
   'nav.more': 'More',
 
   // ── Auth ──
-  'auth.loginTitle': 'SKKU Sign In',
-  'auth.loginSubtitle': 'For SKKU students only\nRequires a @g.skku.edu account',
-  'auth.googleSignIn': 'Sign in with Google',
+  'auth.loginTitle': 'Sign in to receive\nAI-summarized notices',
+  'auth.loginSubtitle': 'Your settings stay safe with us',
+  'auth.googleSignIn': 'Sign in with SKKU account',
   'auth.domainNotAllowed': 'Only SKKU accounts (@g.skku.edu)\nare allowed',
   'auth.playServicesError': 'Please update Google Play Services',
   'auth.unknownError': 'Sign-in failed. Please try again.',
@@ -788,9 +788,9 @@ const zh: TranslationMap = {
   'nav.more': '全部',
 
   // ── Auth ──
-  'auth.loginTitle': '成均馆大学登录',
-  'auth.loginSubtitle': '成均馆大学学生专用\n需要 @g.skku.edu 账号',
-  'auth.googleSignIn': '使用 Google 账号登录',
+  'auth.loginTitle': '登录后接收\nAI 总结的公告',
+  'auth.loginSubtitle': '您的设置将受到安全保护',
+  'auth.googleSignIn': '使用成均馆大学账号登录',
   'auth.domainNotAllowed': '仅支持成均馆大学账号\n(@g.skku.edu)',
   'auth.playServicesError': '请更新 Google Play 服务',
   'auth.unknownError': '登录失败，请重试',
