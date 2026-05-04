@@ -133,16 +133,21 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
     // Universal link: app-installed devices open detail screen directly
     // (AASA + +native-intent NOTICE_PATH_RE), app-missing devices fall
     // through to the Cloudflare Pages Function at the same path which
-    // renders an unfurl-friendly notice page.
-    //   iOS  → UIActivityViewController (AirDrop / Messages / Mail / Copy …)
-    //          uses `url` for rich activity entries
-    //   Android → Intent.ACTION_SEND chooser, only `message` is rendered;
-    //             URL duplicated into message to keep parity
+    // renders an unfurl-friendly notice page (og:title/description/image
+    // meta tags present so iOS Messages renders a rich link card).
+    //   iOS  → pass `url` only + `message` = title. iOS auto-appends `url`
+    //          to Messages text, so embedding the URL in `message` would
+    //          cause it to render twice. Title alone in `message` gives a
+    //          graceful fallback if rich-link OG fetch fails, and improves
+    //          Mail subject + Copy paste UX.
+    //   Android → ACTION_SEND chooser ignores `url`, so embed the URL in
+    //          `message` to keep parity.
     const noticeUrl = `https://skkuverse.com/p/notices/${current.sourceId}/${current.articleNo}`;
-    void Share.share({
-      message: `${current.title}\n${noticeUrl}`,
-      url: noticeUrl,
-    });
+    void Share.share(
+      Platform.OS === 'ios'
+        ? { url: noticeUrl, message: current.title }
+        : { message: `${current.title}\n${noticeUrl}` },
+    );
   }, []);
 
   // Header right items — iOS uses native UIBarButtonItem so each gets its own

@@ -1,4 +1,4 @@
-import { useSettingsStore, resolveInitialTabRouteName } from '@skkuverse/shared';
+import { normalizeIncomingPath, resolveInitialTabRouteName, useSettingsStore } from '@skkuverse/shared';
 
 const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
 
@@ -16,83 +16,39 @@ const TAB_PATHS: Record<string, string> = {
 const NOTICE_PATH_RE = /^\/notices\/[a-z0-9-]+\/\d+$/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
-  // Cold-start path delivery. Bare `/` is resolved to the lastTab-restored
-  // route here so app/index.tsx never mounts (its <Redirect> would otherwise
-  // leave a titleless phantom entry in the root Stack history, visible on
-  // iOS long-press of the back button). All other cold-start paths bypass
-  // the redirect logic below — deep links like /notices/cse/5847 must land
-  // on their static route handler unmodified, and unstable_settings.
-  // initialRouteName='(tabs)' anchors the stack underneath them.
-  // MMKV is sync (Zustand+MMKV — see (tabs)/_layout.tsx:30-37 for the
-  // mirror pattern at the tabs nav level), safe to read here.
-  if (initial) {
-    if (path === '/') {
-      const lastTab = useSettingsStore.getState().lastTab;
-      return `/(tabs)/${resolveInitialTabRouteName(lastTab)}`;
-    }
-    return path;
-  }
-
+  // Cold start (`initial: true`) receives the launch URL — possibly the full
+  // form "skkuverse:///p/notices/x/y" — while warm start receives the parsed
+  // pathname "/p/notices/x/y" via Expo's Linking event subscription. Both go
+  // through normalizeIncomingPath (uses `new URL()` per Expo native-intent
+  // doc) so downstream validation is uniform. Only the bare-/ branch differs:
+  // cold restores lastTab (avoids titleless phantom entry in iOS long-press
+  // back history when app/index.tsx mounts a <Redirect>); warm sends to home.
+  // MMKV is sync (Zustand+MMKV), safe to read here even though +native-intent
+  // runs outside the React tree.
   try {
-    let pathname = path;
+    const pathname = normalizeIncomingPath(path);
 
-    // Strip scheme if present
-    const schemeIndex = pathname.indexOf('://');
-    if (schemeIndex !== -1) {
-      const afterScheme = pathname.substring(schemeIndex + 3);
-      const slashIndex = afterScheme.indexOf('/');
-
-      if (slashIndex === -1) {
-        // "skkuverse://search" or "https://skkuverse.com" — no slash after scheme
-        const segment = afterScheme.split('?')[0];
-        // If it looks like a domain (has a dot), treat as host-only → root
-        pathname = segment.includes('.') ? '/' : '/' + segment;
-      } else {
-        const host = afterScheme.substring(0, slashIndex);
-        const rest = afterScheme.substring(slashIndex);
-        // If host looks like a domain (has a dot), strip it
-        // "skkuverse.com/map/hssc" → "/map/hssc"
-        // "map/hssc" → keep as-is (shouldn't happen but safe)
-        pathname = host.includes('.') ? rest : '/' + afterScheme;
+    if (pathname === '/') {
+      if (initial) {
+        const lastTab = useSettingsStore.getState().lastTab;
+        return `/(tabs)/${resolveInitialTabRouteName(lastTab)}`;
       }
+      return '/(tabs)/home';
     }
 
-    // Ensure leading slash
-    if (!pathname.startsWith('/')) {
-      pathname = '/' + pathname;
-    }
+    // Dynamic notice path → app/notices/[sourceId]/[articleNo].tsx.
+    // Done before the static whitelist because the dynamic shape can't be
+    // enumerated in ALLOWED_PATHS.
+    if (NOTICE_PATH_RE.test(pathname)) return pathname;
 
-    // Remove query string
-    const qIndex = pathname.indexOf('?');
-    if (qIndex !== -1) {
-      pathname = pathname.substring(0, qIndex);
-    }
-
-    // Strip /p/ prefix (universal link path namespace)
-    if (pathname.startsWith('/p/')) {
-      pathname = pathname.substring(2); // "/p/search" → "/search"
-    }
-
-    // 루트("/")는 home 탭으로
-    if (pathname === '/') return '/(tabs)/home';
-
-    // Dynamic notice path — pass through to expo-router so it lands on
-    // app/notices/[sourceId]/[articleNo].tsx. Done BEFORE the static
-    // whitelist check because /notices/* is intentionally not in
-    // ALLOWED_PATHS (the dynamic shape can't be enumerated statically).
-    if (NOTICE_PATH_RE.test(pathname)) {
-      return pathname;
-    }
-
-    // 화이트리스트 체크
+    // Whitelist — anything else falls back to home (uniform across cold/warm
+    // so untrusted deep links can't push to arbitrary internal routes like
+    // /login or /onboarding).
     if (!ALLOWED_PATHS.some((allowed) => pathname === allowed)) {
       return '/(tabs)/home';
     }
 
-    // 탭 경로는 명시적 그룹 경로로 반환
     if (TAB_PATHS[pathname]) return TAB_PATHS[pathname];
-
-    // 비탭 경로 (search, map/hssc) — unstable_settings가 (tabs)를 스택 아래에 삽입
     return pathname;
   } catch {
     return '/(tabs)/home';

@@ -154,6 +154,7 @@ export { parseAppConfig } from './app/parser';
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
 export { resolveInitialTabRouteName } from './utils/resolveInitialTabRoute';
+export { normalizeIncomingPath } from './utils/normalizeIncomingPath';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
