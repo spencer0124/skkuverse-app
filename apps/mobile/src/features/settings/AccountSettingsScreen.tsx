@@ -66,10 +66,15 @@ export function AccountSettingsScreen() {
             <View style={styles.hero}>
               <PhotoOrIcon photoURL={null} />
               <View style={styles.identityBlock}>
-                <Txt typography="t2" fontWeight="bold" color={SdsColors.grey900}>
+                <Txt
+                  typography="t2"
+                  fontWeight="bold"
+                  color={SdsColors.grey900}
+                  textAlign="center"
+                >
                   {t('auth.loginCardTitle')}
                 </Txt>
-                <Txt typography="t6" color={SdsColors.grey500}>
+                <Txt typography="t6" color={SdsColors.grey500} textAlign="center">
                   {t('auth.loginPrompt')}
                 </Txt>
               </View>
