@@ -9,18 +9,27 @@ import {
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 // import { CaretRightIcon } from 'phosphor-react-native'; // restore with bottom banner below
-import { SdsColors, useT } from '@skkuverse/shared';
+import {
+  SdsColors,
+  useAuthStore,
+  useSettingsStore,
+  useT,
+} from '@skkuverse/shared';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { DeptNoticesSection } from './DeptNoticesSection';
-import { HeroBanner } from './HeroBanner';
+import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
+// import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
   useT();
   const router = useRouter();
+  const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
+  const showOnboardingGate = isAnonymous || !onboardingCompleted;
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -139,15 +148,15 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Hero Banner (auto-playing intro animation) ── */}
-        <HeroBanner />
+        {/* <HeroBanner /> */}
 
         {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
         <View style={styles.gridWrap}>
           <TossfaceButtonGrid items={gridItems} />
         </View>
 
-        {/* ── Dept latest notices (top 3) ── */}
-        <DeptNoticesSection />
+        {/* ── Dept latest notices (top 3) — gated for non-onboarded users ── */}
+        {showOnboardingGate ? <HomeOnboardingGateCard /> : <DeptNoticesSection />}
 
         {/* ── Bottom Banner ── (temporarily disabled — restore with CaretRightIcon import above)
         <Pressable style={styles.bottomBanner}>
