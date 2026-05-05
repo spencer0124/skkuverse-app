@@ -57,6 +57,7 @@ import {
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
 import { NoticePickerSheet } from './NoticePickerSheet';
+import { NoticesTabStrip } from './components/NoticesTabStrip';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { useNoticesUiStore } from './store/noticesUiStore';
@@ -174,22 +175,25 @@ export function NoticesTabScreen() {
     return null;
   }
 
-  // Picker tab: NoticeListPanel hosts the selector inside its SectionList
-  // via `listHeader`, so the selector is guaranteed to mount as the list's
-  // first row. NoticeListPanel is the Fragment's first child → RNSScreen
-  // subviews[0] is the SectionList → finder reaches it. The picker sheet
-  // is a Fragment sibling (BottomSheetModal portals out of the view tree
-  // when presented, so it never affects the chain).
+  // Picker tab: NoticeListPanel hosts NoticesTabStrip + the dept selector
+  // inside its SectionList via `listHeader`, so both are guaranteed to mount
+  // as the list's first rows. NoticeListPanel is the Fragment's first child
+  // → RNSScreen subviews[0] is the SectionList → finder reaches it. The
+  // picker sheet is a Fragment sibling (BottomSheetModal portals out of the
+  // view tree when presented, so it never affects the chain).
   if (activeTab.tabMode === 'picker' && activeTab.picker) {
     return (
       <>
         <NoticeListPanel
           sourceIds={pickerSelectedIds}
           listHeader={
-            <NoticeSelector
-              label={pickerSelectorLabel}
-              onPress={() => openPicker(activeTab.key)}
-            />
+            <>
+              <NoticesTabStrip />
+              <NoticeSelector
+                label={pickerSelectorLabel}
+                onPress={() => openPicker(activeTab.key)}
+              />
+            </>
           }
         />
         {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
@@ -215,10 +219,16 @@ export function NoticesTabScreen() {
     );
   }
 
-  // Fixed tab: NoticeListPanel directly = SectionList directly. Nothing
-  // wraps it, so the finder reaches the scroll view in one step.
+  // Fixed tab: NoticeListPanel directly = SectionList directly. NoticesTabStrip
+  // is hosted as the SectionList's ListHeaderComponent so the finder still
+  // reaches the scroll view in one step (subviews[0] = SectionList).
   if (activeTab.tabMode === 'fixed' && activeTab.fixed) {
-    return <NoticeListPanel sourceId={activeTab.fixed.sourceId} />;
+    return (
+      <NoticeListPanel
+        sourceId={activeTab.fixed.sourceId}
+        listHeader={<NoticesTabStrip />}
+      />
+    );
   }
 
   return null;

@@ -1,16 +1,24 @@
 /**
- * Custom header for the notices tab — Tab fluid only.
+ * 9-tab horizontal strip rendered inside the notices SectionList's
+ * ListHeaderComponent (via NoticeListPanel `listHeader` prop).
  *
  *   ┌──────────────────────────────────────────────────┐
- *   │  (safe area top inset)                           │
- *   │  [학과] [학사] [장학] [취업] ...      ⇄         │  ← Tab fluid
+ *   │  [학과] [학사] [장학] [취업] ...      ⇄         │
  *   └──────────────────────────────────────────────────┘
  *
- * Why custom header (and trade-offs): the previous in-body Tab control was
- * a horizontal ScrollView (Tab fluid), which iOS 26 `tabBarMinimizeBehavior`
- * picks up via first-descendant chain instead of the SectionList. Moving Tab
- * to the Stack header removes it from the screen body view tree → UIKit
- * finds only the SectionList → minimize triggers correctly.
+ * Why this lives in the screen body (not a custom Stack header):
+ *   The notices tab uses the native iOS bar (UINavigationBar) for the top
+ *   chrome — same `unstable_headerRightItems` API as the home tab — so the
+ *   profile + kebab icons get the system Liquid Glass capsule treatment.
+ *   That precludes a `header: () => Component` callback (which replaces
+ *   the entire bar). The 9-tab strip therefore lives in the SectionList
+ *   ListHeaderComponent. Per docs/ios-26-native-tabs-minimize.md (chain
+ *   root rule), this preserves minimize-on-scroll because RNSScreen
+ *   subviews[0] is still the SectionList — the strip is rendered INSIDE
+ *   the list, not as a sibling.
+ *
+ *   Trade-off: the strip scrolls away with content (not sticky). Future
+ *   sticky variant would use SectionList stickyHeaderIndices.
  *
  * State sharing: see `noticesUiStore` for why the Tab reads/writes
  * `activeTabKey` through Zustand instead of props/context.
@@ -21,23 +29,14 @@ import { SdsColors, useNoticeTabs } from '@skkuverse/shared';
 import { Tab } from '@skkuverse/sds';
 import { useNoticesUiStore } from '../store/noticesUiStore';
 
-interface Props {
-  // Top safe-area inset is captured by the screen body (which is inside the
-  // SafeAreaProvider tree) and passed in. Reading useSafeAreaInsets() here
-  // returns 0 because native-stack's custom header callback mounts outside
-  // the SafeAreaProvider tree (UINavigationBar host view), so the strip
-  // would render under the status bar / Dynamic Island.
-  topInset: number;
-}
-
-export function NoticesHeader({ topInset }: Props) {
+export function NoticesTabStrip() {
   const { data: tabsConfig } = useNoticeTabs();
   const tabs = tabsConfig?.tabs ?? [];
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
   const setActiveTabKey = useNoticesUiStore((s) => s.setActiveTabKey);
 
   return (
-    <View style={[styles.container, { paddingTop: topInset }]}>
+    <View style={styles.container}>
       {tabs.length > 0 ? (
         <Tab value={activeTabKey} onChange={setActiveTabKey} size="small" fluid>
           {tabs.map((tab) => (

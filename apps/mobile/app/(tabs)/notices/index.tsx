@@ -10,10 +10,13 @@ import {
   classifyAndRestoreOnboarding,
 } from '@/services/auth-flow';
 
-// Custom header replaces native Stack header so the 9-tab fluid Tab control
-// lives OUTSIDE the screen body view tree. The body itself is built to keep
-// the SectionList as RNSScreen subviews[0] so iOS 26 NativeTabs
-// `tabBarMinimizeBehavior` discovers it via the strict subviews[0] chain.
+// Native iOS bar (UINavigationBar) handles the top chrome — same
+// `unstable_headerRightItems` API as the home tab so profile + kebab buttons
+// get the system Liquid Glass capsule treatment automatically. Header
+// options are configured in notices/_layout.tsx. The 9-tab strip lives
+// inside the SectionList ListHeaderComponent (NoticesTabStrip via
+// NoticesTabScreen → NoticeListPanel listHeader prop), preserving the iOS 26
+// NativeTabs chain-root rule (RNSScreen subviews[0] = SectionList).
 export default function NoticesTab() {
   useTabFocusTracking('notices');
   const router = useRouter();

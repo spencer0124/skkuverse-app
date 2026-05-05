@@ -143,6 +143,20 @@ export function NoticeListPanel(props: Props) {
       }
       ItemSeparatorComponent={() => <View style={styles.divider} />}
       stickySectionHeadersEnabled={false}
+      // Pin listHeader (NoticesTabStrip + optional NoticeSelector) at the
+      // top so the 9-tab fluid + dept dropdown stay visible while only the
+      // notice rows scroll. Index 0 because ListHeaderComponent is at the
+      // first flat-render position. Compatible with iOS 26 NativeTabs
+      // minimize-on-scroll: stickiness is internal layout, the underlying
+      // UIScrollView contentOffset still changes so the system gesture
+      // recognizer triggers tabBarMinimizeBehavior normally. RNSScreen
+      // subviews[0] is still this SectionList (chain root rule).
+      //
+      // ts-expect-error: SectionListProps in RN 0.81 types omits this prop
+      // although it's forwarded to VirtualizedList/ScrollView at runtime.
+      // Tracked in facebook/react-native types — safe to suppress.
+      // @ts-expect-error stickyHeaderIndices missing from SectionListProps
+      stickyHeaderIndices={[0]}
       ListHeaderComponent={listHeader}
       contentContainerStyle={[
         styles.listContent,
