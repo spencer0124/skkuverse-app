@@ -1,5 +1,4 @@
 import { View, StyleSheet } from 'react-native';
-import { SparkleIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { formatDisplayDate } from './utils/formatDisplayDate';
@@ -9,6 +8,12 @@ import type {
   NoticeSummaryDetails,
   TranslationKey,
 } from '@skkuverse/shared';
+
+// Project deepgreen — same accent used by the onboarding pinned-card and
+// the unified notice pill palette (NoticeRow.tsx). HTML mock proposed
+// #00563F; we keep the existing palette to avoid re-fragmenting brand
+// green right after the consolidation in 7bd5ba0.
+const DEEPGREEN = '#1f3d2e';
 
 interface Props {
   summary: NoticeDetailSummary;
@@ -59,21 +64,23 @@ export function SummaryCard({ summary }: Props) {
 
   return (
     <>
-      {/* Card 1: AI Summary */}
+      {/* Card 1: AI Summary — left-accent line, no surface fill */}
       {summary.text ? (
         <View style={styles.summaryCard}>
-          <View style={styles.aiHeader}>
-            <SparkleIcon
-              size={14}
-              color={SdsColors.grey600}
-              weight="fill"
-              style={styles.aiHeaderIcon}
-            />
-            <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
-              {t('notices.aiSummaryLabel')}
-            </Txt>
-          </View>
-          <Txt typography="t6" color={SdsColors.grey700} style={styles.text}>
+          <Txt
+            typography="t7"
+            fontWeight="semiBold"
+            color={DEEPGREEN}
+            style={styles.aiLabel}
+          >
+            {t('notices.aiSummaryLabel')}
+          </Txt>
+          <Txt
+            typography="t6"
+            fontWeight="medium"
+            color={SdsColors.grey800}
+            style={styles.text}
+          >
             {summary.text}
           </Txt>
         </View>
@@ -157,19 +164,14 @@ function joinDateTime(date: string, time: string | null): string {
 const styles = StyleSheet.create({
   summaryCard: {
     marginTop: 12,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: SdsColors.grey50,
-    gap: 8,
-  },
-  aiHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingLeft: 12,
+    paddingVertical: 2,
+    borderLeftWidth: 2,
+    borderLeftColor: DEEPGREEN,
     gap: 6,
-    marginBottom: 4,
   },
-  aiHeaderIcon: {
-    opacity: 0.7,
+  aiLabel: {
+    letterSpacing: 0.2,
   },
   text: {
     lineHeight: 22,
