@@ -41,15 +41,19 @@ function renderTitleWithHighlight(title: string, query: string | undefined) {
   );
 }
 
+// SKKU deepgreen (#1f3d2e) on green50 (#F0FAF6) — matches the onboarding
+// pinned-card / wizard-accent palette. Single brand action color.
+// hmr-probe
+const DEEPGREEN = '#1f3d2e';
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
-  normal: { color: '#03B26C', background: '#F0FAF6' },
+  normal: { color: DEEPGREEN, background: SdsColors.green50 },
   closed: { color: '#8B95A1', background: '#F2F4F6' },
-  eventToday: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
-  inProgress: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
-  upcoming: { color: '#03B26C', background: '#F0FAF6' },
+  eventToday: { color: DEEPGREEN, background: SdsColors.green50 },
+  inProgress: { color: DEEPGREEN, background: SdsColors.green50 },
+  upcoming: { color: DEEPGREEN, background: SdsColors.green50 },
 };
-const DEFAULT_PILL = { color: '#03B26C', background: '#F0FAF6' };
+const DEFAULT_PILL = { color: DEEPGREEN, background: SdsColors.green50 };
 
 function isFixedBadge(d: DeadlineInfo): boolean {
   return d.pill.variant === 'closed';
