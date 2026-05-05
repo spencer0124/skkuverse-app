@@ -43,7 +43,6 @@ function renderTitleWithHighlight(title: string, query: string | undefined) {
 
 // SKKU deepgreen (#1f3d2e) on green50 (#F0FAF6) — matches the onboarding
 // pinned-card / wizard-accent palette. Single brand action color.
-// hmr-probe
 const DEEPGREEN = '#1f3d2e';
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
