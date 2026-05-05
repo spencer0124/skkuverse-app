@@ -17,20 +17,27 @@
  */
 
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SdsColors, useNoticeTabs } from '@skkuverse/shared';
 import { Tab } from '@skkuverse/sds';
 import { useNoticesUiStore } from '../store/noticesUiStore';
 
-export function NoticesHeader() {
-  const insets = useSafeAreaInsets();
+interface Props {
+  // Top safe-area inset is captured by the screen body (which is inside the
+  // SafeAreaProvider tree) and passed in. Reading useSafeAreaInsets() here
+  // returns 0 because native-stack's custom header callback mounts outside
+  // the SafeAreaProvider tree (UINavigationBar host view), so the strip
+  // would render under the status bar / Dynamic Island.
+  topInset: number;
+}
+
+export function NoticesHeader({ topInset }: Props) {
   const { data: tabsConfig } = useNoticeTabs();
   const tabs = tabsConfig?.tabs ?? [];
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
   const setActiveTabKey = useNoticesUiStore((s) => s.setActiveTabKey);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: topInset }]}>
       {tabs.length > 0 ? (
         <Tab value={activeTabKey} onChange={setActiveTabKey} size="small" fluid>
           {tabs.map((tab) => (

@@ -3,7 +3,6 @@ import { Stack, useRouter } from 'expo-router';
 import { useAuthStore, useSettingsStore, useT } from '@skkuverse/shared';
 import { NoticesTabScreen } from '@/features/notices/NoticesTabScreen';
 import { OnboardingLanding } from '@/features/notices/components/OnboardingLanding';
-import { NoticesHeader } from '@/features/notices/components/NoticesHeader';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 import { GoogleAuthError } from '@/services/google-auth';
 import {
@@ -77,14 +76,15 @@ export default function NoticesTab() {
     }
   }
 
-  const screenOptions = (
-    <Stack.Screen
-      options={{
-        header: () => <NoticesHeader />,
-      }}
-    />
-  );
-
+  // Header (NoticesHeader 9-tab strip) is configured at the Stack layout level
+  // — see notices/_layout.tsx. Branches override `headerShown` to gate the
+  // 9-tab strip (visible only on the normal branch). Both branches MUST set
+  // headerShown explicitly because react-navigation's inline setOptions is
+  // sticky: an `isAnonymous` flicker on cold-start (Firebase hydration race)
+  // makes the gate branch fire briefly and write `headerShown: false`, which
+  // would persist into the normal branch without an explicit re-set here.
+  // `<Stack.Screen>` is options-only (no UIView), so it doesn't break the
+  // iOS 26 NativeTabs chain-root rule for minimize-on-scroll.
   if (isAnonymous || !onboardingCompleted) {
     return (
       <>
@@ -101,7 +101,7 @@ export default function NoticesTab() {
 
   return (
     <>
-      {screenOptions}
+      <Stack.Screen options={{ headerShown: true }} />
       <NoticesTabScreen />
     </>
   );
