@@ -1,38 +1,57 @@
 /**
  * Vertical notice list — single-source (`sourceId`) or multi-source
- * (`sourceIds`). Returns a `<FlatList>` as its root element so RNSScreen
- * subviews[0] is a UIScrollView (iOS 26 NativeTabs `tabBarMinimizeBehavior`
- * chain root rule). Date grouping is rendered inline as title rows in a
- * flat data array; FlatList's `stickyHeaderIndices={[0]}` pins the
- * `ListHeaderComponent` (NoticesTabStrip + optional NoticeSelector).
+ * (`sourceIds`). Returns a `<FlatList>` as the Fragment's first child so
+ * RNSScreen subviews[0] is a UIScrollView (iOS 26 NativeTabs
+ * `tabBarMinimizeBehavior` chain root rule).
  *
- * Why FlatList instead of SectionList:
- *   SectionList's `stickyHeaderIndices` for ListHeaderComponent is
- *   unreliable — it conflicts with the section-sticky logic and did not
- *   pin the header in practice (verified 2026-05-05 on RN 0.81 + iOS 26;
- *   the listHeader still scrolled away). FlatList inherits
- *   `stickyHeaderIndices` directly from ScrollView and pins
- *   ListHeaderComponent dependably.
+ * Architecture — chrome OUTSIDE the FlatList:
+ *   The 9-tab strip + optional dept selector (passed via `listHeader`
+ *   prop) is rendered as an absolute-positioned `<View>` Fragment-sibling
+ *   AFTER the FlatList. The FlatList itself uses `style.marginTop =
+ *   chromeHeight` so its underlying UIScrollView starts at viewport y =
+ *   chromeHeight. iOS native `<RefreshControl>` then auto-positions its
+ *   indicator at the FlatList's top edge (= just below the chrome
+ *   overlay) — exactly the user-requested "pull-to-refresh below the
+ *   chrome" visual.
  *
- * Loading / error / empty states are rendered via `ListEmptyComponent`
- * with `contentContainerStyle.flexGrow: 1` so the FlatList stays as
- * subviews[0] during transient states (never swap to a non-ScrollView
- * root, which would break the discovery chain).
+ * Why not `stickyHeaderIndices` / `Animated.View` listHeader:
+ *   - `Animated.View` + `stickyHeaderIndices` throws
+ *     `throwOnImmutableMutation` on iOS in Expo SDK 54
+ *     (software-mansion/react-native-reanimated#8284).
+ *   - iOS UIRefreshControl ignores `progressViewOffset` (Android-only in
+ *     practice; facebook/react-native#54183 is the current iOS regression
+ *     of PR #30737's earlier fix).
+ *   - With sticky listHeader, the strip rubber-bands with content during
+ *     pull and the refresh indicator overlaps it — the very symptom the
+ *     user reported.
  *
- * `listHeader` prop renders inside the FlatList as its
- * `ListHeaderComponent` — pinned at the top via `stickyHeaderIndices`.
+ * Why FlatList style.marginTop preserves chain root:
+ *   `style` propagates to the underlying ScrollView (RN doesn't insert a
+ *   wrapping View). The native UIScrollView has the margin applied
+ *   directly — still subviews[0] of RNSScreen, still a UIScrollView, so
+ *   the chain finder reaches it on first `mountChildComponentView`.
+ *
+ * Trade-off: pull-down on the chrome area itself does NOT trigger
+ *   refresh (chrome is outside the scroll view). User must pull from the
+ *   notice-row area. Acceptable per requirements (chrome stays visible
+ *   while scrolling; no shared scroll mechanics needed).
+ *
+ * Loading / error / empty states render via `ListEmptyComponent` with
+ * `contentContainerStyle.flexGrow: 1`. FlatList stays as Fragment first
+ * child during transient states (no non-ScrollView root swap).
  *
  * Chain root rule background: `docs/ios-26-native-tabs-minimize.md`.
  */
 
 import type { ReactElement } from 'react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   View,
   FlatList,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -66,6 +85,13 @@ type Props = (
 type Row =
   | { type: 'title'; text: string; key: string }
   | { type: 'item'; notice: NoticeListItem; key: string };
+
+// First-frame estimate so chrome doesn't briefly overlap the first notice
+// row before onLayout settles. 94pt covers the picker case (NoticesTabStrip
+// ~44 + NoticeSelector ~50); fixed tabs measure ~44 and the marginTop
+// shrinks on the next frame. Overestimate is safer than under (extra empty
+// space briefly is less jarring than chrome covering content).
+const ESTIMATED_CHROME_HEIGHT = 94;
 
 export function NoticeListPanel(props: Props) {
   const multi = 'sourceIds' in props && props.sourceIds != null;
@@ -108,8 +134,9 @@ export function NoticeListPanel(props: Props) {
   );
 
   // Flatten sections into a typed Row[]: each section becomes a title row
-  // followed by its item rows. FlatList renders inline; sticky pinning
-  // works reliably on FlatList's ListHeaderComponent (unlike SectionList).
+  // followed by its item rows. FlatList renders inline; date headers are
+  // ordinary rows since the chrome (handled separately) carries the
+  // sticky-pinned UI now.
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
     for (const s of sections) {
@@ -184,66 +211,77 @@ export function NoticeListPanel(props: Props) {
     [],
   );
 
-  // FlatList must be the root element on every render so that the
-  // RNSScrollViewFinder strict subviews[0] chain (RN-screens 4.19,
-  // RNSScrollViewFinder.mm:5-20) reaches a UIScrollView at the screen's
-  // initial mount — required for iOS 26 NativeTabs minimizeBehavior. The
-  // native finder runs once via mountChildComponentView(index==0); JS-level
-  // conditional swaps below the screen root won't re-trigger it. Loading /
-  // error / empty states are therefore rendered through ListEmptyComponent
-  // and contentContainerStyle.flexGrow=1 to fill the visible area.
+  // Measure the chrome overlay so the FlatList's marginTop matches it
+  // exactly. Initial estimate covers picker tabs; onLayout corrects on the
+  // next frame for fixed tabs (NoticesTabStrip alone, no selector).
+  const [chromeHeight, setChromeHeight] = useState(ESTIMATED_CHROME_HEIGHT);
+  const onChromeLayout = useCallback((e: LayoutChangeEvent) => {
+    const next = e.nativeEvent.layout.height;
+    if (next > 0 && next !== chromeHeight) setChromeHeight(next);
+  }, [chromeHeight]);
+
   const isEmpty = rows.length === 0;
   return (
-    <FlatList
-      style={styles.list}
-      data={rows}
-      keyExtractor={(r) => r.key}
-      renderItem={renderItem}
-      ItemSeparatorComponent={renderSeparator}
-      // Pin listHeader (NoticesTabStrip + optional NoticeSelector) at the
-      // top so the 9-tab fluid + dept dropdown stay visible while only the
-      // notice rows scroll. Index 0 because ListHeaderComponent is at the
-      // first flat-render position. Compatible with iOS 26 NativeTabs
-      // minimize-on-scroll: stickiness is internal layout, the underlying
-      // UIScrollView contentOffset still changes so the system gesture
-      // recognizer triggers tabBarMinimizeBehavior normally. RNSScreen
-      // subviews[0] is still this FlatList (chain root rule).
-      stickyHeaderIndices={[0]}
-      ListHeaderComponent={listHeader}
-      contentContainerStyle={[
-        styles.listContent,
-        isEmpty ? styles.emptyContent : null,
-      ]}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.4}
-      refreshControl={
-        <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-      }
-      ListEmptyComponent={
-        isLoading ? (
-          <NoticeListSkeleton />
-        ) : isError ? (
-          <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-        ) : q && q.length > 0 ? (
-          <NoticeEmptyState message={t('notices.search.empty.subtitle')} />
-        ) : (
-          <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
-        )
-      }
-      ListFooterComponent={
-        isEmpty ? null : isFetchingNextPage ? (
-          <View style={styles.footer}>
-            <ActivityIndicator color={SdsColors.grey500} />
-          </View>
-        ) : !hasNextPage && items.length > 0 ? (
-          <View style={styles.endOfList}>
-            <Txt typography="t7" color={SdsColors.grey500}>
-              {t('notices.endOfList')}
-            </Txt>
-          </View>
-        ) : null
-      }
-    />
+    <>
+      <FlatList
+        style={[styles.list, { marginTop: chromeHeight }]}
+        data={rows}
+        keyExtractor={(r) => r.key}
+        renderItem={renderItem}
+        ItemSeparatorComponent={renderSeparator}
+        contentContainerStyle={[
+          styles.listContent,
+          isEmpty ? styles.emptyContent : null,
+        ]}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.4}
+        // Native iOS / Android RefreshControl. Indicator auto-positions at
+        // the UIScrollView's top edge — which is `marginTop` below the
+        // chrome overlay above, so the spinner appears just below the
+        // chrome during pull. No JS-side offset needed.
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <NoticeListSkeleton />
+          ) : isError ? (
+            <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+          ) : q && q.length > 0 ? (
+            <NoticeEmptyState message={t('notices.search.empty.subtitle')} />
+          ) : (
+            <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
+          )
+        }
+        ListFooterComponent={
+          isEmpty ? null : isFetchingNextPage ? (
+            <View style={styles.footer}>
+              <ActivityIndicator color={SdsColors.grey500} />
+            </View>
+          ) : !hasNextPage && items.length > 0 ? (
+            <View style={styles.endOfList}>
+              <Txt typography="t7" color={SdsColors.grey500}>
+                {t('notices.endOfList')}
+              </Txt>
+            </View>
+          ) : null
+        }
+      />
+      {/* Chrome overlay — Fragment-sibling AFTER the FlatList so subviews[0]
+          remains the UIScrollView (chain root rule). pointerEvents="box-none"
+          lets taps pass through this wrapper while children (Tab strip,
+          NoticeSelector pressable) still receive their own taps. Background
+          is opaque so list rows behind don't bleed through during scroll. */}
+      {listHeader && (
+        <View
+          style={styles.chromeOverlay}
+          onLayout={onChromeLayout}
+          pointerEvents="box-none"
+        >
+          {listHeader}
+        </View>
+      )}
+    </>
   );
 }
 
@@ -278,5 +316,12 @@ const styles = StyleSheet.create({
   endOfList: {
     paddingVertical: 24,
     alignItems: 'center',
+  },
+  chromeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: SdsColors.background,
   },
 });
