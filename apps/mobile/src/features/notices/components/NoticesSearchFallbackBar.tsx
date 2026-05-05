@@ -25,8 +25,7 @@
  * native view and the third child stays unrendered.
  */
 
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
@@ -34,27 +33,22 @@ import { SdsColors, useT } from '@skkuverse/shared';
 const ICON_SIZE = 20;
 const CAPSULE_HEIGHT = 52;
 const HORIZONTAL_INSET = 16;
-// JSX <Tabs> path uses react-navigation/bottom-tabs default chrome height
-// (49pt iOS, 56pt Android). `(tabs)/_layout.tsx`'s tabBarStyle sets only
-// backgroundColor + borderTop — no height override, so these defaults hold.
-// `useBottomTabBarHeight()` was tried first but returned a value larger than
-// the visual chrome on iOS 18 (likely double-counts inset under expo-router's
-// Tabs wrapper), pushing the capsule too high; computing from
-// safeAreaInsets + a known chrome constant is exact.
-const TAB_BAR_CHROME = Platform.select({
-  ios: 49,
-  android: 56,
-  default: 49,
-})!;
+// react-navigation/bottom-tabs 7.x BottomTabView is a flex column where the
+// tab bar (position: undefined → static, see BottomTabBar.tsx:373) consumes
+// its own height inside the layout flow, and MaybeScreenContainer (flex: 1)
+// holds the screen content above it. So a `position: 'absolute'` child
+// inside the screen has its `bottom: 0` aligned to the tab bar's visual top
+// edge — NOT the absolute screen bottom. Adding tab bar height
+// (useBottomTabBarHeight or safeArea+49) double-counts the inset and the
+// capsule floats ~80pt too high. We just need the gap above the tab bar.
+// Same pattern as RefreshFab.tsx:34 (banner offset only, not tab bar).
 const BOTTOM_GAP = 8;
 
 export function NoticesSearchFallbackBar() {
   const { t } = useT();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const bottom = insets.bottom + TAB_BAR_CHROME + BOTTOM_GAP;
   return (
-    <View pointerEvents="box-none" style={[styles.wrap, { bottom }]}>
+    <View pointerEvents="box-none" style={[styles.wrap, { bottom: BOTTOM_GAP }]}>
       <Pressable
         onPress={() => router.push('/notices/search')}
         style={({ pressed }) => [
