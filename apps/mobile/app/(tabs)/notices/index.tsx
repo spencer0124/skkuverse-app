@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useAuthStore, useSettingsStore, useT } from '@skkuverse/shared';
 import { NoticesTabScreen } from '@/features/notices/NoticesTabScreen';
 import { OnboardingLanding } from '@/features/notices/components/OnboardingLanding';
+import { NoticesSearchFallbackBar } from '@/features/notices/components/NoticesSearchFallbackBar';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 import { GoogleAuthError } from '@/services/google-auth';
 import {
   signInWithDeviceMigration,
   classifyAndRestoreOnboarding,
 } from '@/services/auth-flow';
+
+// iOS 26+ only. False on iOS<26 and Android. Mirrors the predicate used in
+// `(tabs)/_layout.tsx:28` — when false, NativeTabs (and bottomAccessory) is
+// not in play, so the search-entry UI must come from the screen body
+// instead. Module-scope is the project idiom.
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 // Native iOS bar (UINavigationBar) handles the top chrome — same
 // `unstable_headerRightItems` API as the home tab so profile + kebab buttons
@@ -102,10 +110,21 @@ export default function NoticesTab() {
     );
   }
 
+  // iOS<26 / Android fallback: bottomAccessory (NoticesAccessoryBar) only
+  // mounts on iOS 26 NativeTabs path; pre-26 + Android take JSX <Tabs> with
+  // no accessory slot. Mount NoticesSearchFallbackBar as a Fragment sibling
+  // so the search entry exists on every OS. iOS 26 keeps `!GLASS_AVAILABLE`
+  // false → the bar never mounts there, leaving NoticesTabScreen as the
+  // first native subview (RNSScreen subviews[0] = SectionList/FlatList for
+  // the chain-root rule). Stack.Screen emits no native view either — only
+  // options. The fallback bar is `position: 'absolute'` with `bottom`
+  // computed from useBottomTabBarHeight(), so it overlays the list rather
+  // than displacing it.
   return (
     <>
       <Stack.Screen options={{ headerShown: true }} />
       <NoticesTabScreen />
+      {!GLASS_AVAILABLE && <NoticesSearchFallbackBar />}
     </>
   );
 }
