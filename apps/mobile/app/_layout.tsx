@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { Stack, usePathname, useGlobalSearchParams, useNavigation } from 'expo-router';
+import {
+  Stack,
+  usePathname,
+  useGlobalSearchParams,
+  useNavigation,
+  useRootNavigationState,
+  router,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -14,6 +21,7 @@ import { useT } from '@skkuverse/shared';
 import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
+import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -41,6 +49,40 @@ function resolveScreenName(
     return slug ? `webview_${slug}_screen` : 'webview_screen';
   }
   return SCREEN_NAMES[pathname] ?? null;
+}
+
+/**
+ * External-entry deep-link consumer. Universal links and FCM taps stash a
+ * pending {sourceId, articleNo} in pendingExternalNoticeLink and route the
+ * navigation to /(tabs)/notices first; this component pushes the actual
+ * detail screen on the next animation frame once navigation root is ready.
+ *
+ * Hosted as its own component (not inlined in RootLayout) because
+ * useRootNavigationState re-renders on every nav state change — keeping it
+ * isolated here prevents the entire RootLayout subtree from re-rendering.
+ */
+function PendingNoticeLinkConsumer() {
+  const navState = useRootNavigationState();
+
+  useEffect(() => {
+    if (!navState?.key) return; // wait until navigation root is mounted
+
+    const tryConsume = () => {
+      const p = pendingExternalNoticeLink.consume();
+      if (!p) return;
+      // Defer to next frame so the /(tabs)/notices navigate dispatched by the
+      // caller commits before we push detail. Same-tick push risks RNScreens
+      // dedupe coalescing the two transitions.
+      requestAnimationFrame(() => {
+        router.push(`/notices/${p.sourceId}/${p.articleNo}`);
+      });
+    };
+
+    tryConsume(); // cold-start: +native-intent set the pending before tree mount
+    return pendingExternalNoticeLink.subscribe(tryConsume); // warm-start follow-ups
+  }, [navState?.key]);
+
+  return null;
 }
 
 /**
@@ -192,6 +234,7 @@ export default function RootLayout() {
                   }}
                 />
               </Stack>
+              <PendingNoticeLinkConsumer />
               <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>
