@@ -298,7 +298,6 @@ const ko = {
   'notices.selectDept': '학과 선택',
   'notices.selectDeptMax': '최대 {0}개까지 선택할 수 있어요',
   'notices.done': '완료',
-  'notices.accessory.search': '검색',
   'notices.accessory.searchPlaceholder': '공지 검색',
   'notices.accessory.bookmark': '보관함',
   'notices.accessory.filter': '필터',
@@ -306,6 +305,7 @@ const ko = {
   'notices.picker.searchPlaceholder': '검색',
   'notices.picker.selectedHeader': '선택 {0}/{1}',
   'notices.picker.empty': '결과 없음',
+  'notices.search.placeholderWithTab': '{0} 공지 검색',
   'notices.search.empty.title': '검색 결과 없음',
   'notices.search.empty.subtitle': '선택한 소스에서 일치하는 공지가 없습니다',
 
@@ -651,7 +651,6 @@ const en: TranslationMap = {
   'notices.selectDept': 'Select departments',
   'notices.selectDeptMax': 'Up to {0} departments',
   'notices.done': 'Done',
-  'notices.accessory.search': 'Search',
   'notices.accessory.searchPlaceholder': 'Search notices',
   'notices.accessory.bookmark': 'Bookmarks',
   'notices.accessory.filter': 'Filter',
@@ -659,6 +658,7 @@ const en: TranslationMap = {
   'notices.picker.searchPlaceholder': 'Search',
   'notices.picker.selectedHeader': 'Selected {0}/{1}',
   'notices.picker.empty': 'No results',
+  'notices.search.placeholderWithTab': 'Search {0} notices',
   'notices.search.empty.title': 'No results',
   'notices.search.empty.subtitle': 'No matching notices in the selected sources',
 
@@ -1004,7 +1004,6 @@ const zh: TranslationMap = {
   'notices.selectDept': '选择学科',
   'notices.selectDeptMax': '最多可选择{0}个',
   'notices.done': '完成',
-  'notices.accessory.search': '搜索',
   'notices.accessory.searchPlaceholder': '搜索通知',
   'notices.accessory.bookmark': '书签',
   'notices.accessory.filter': '筛选',
@@ -1012,6 +1011,7 @@ const zh: TranslationMap = {
   'notices.picker.searchPlaceholder': '搜索',
   'notices.picker.selectedHeader': '已选 {0}/{1}',
   'notices.picker.empty': '无结果',
+  'notices.search.placeholderWithTab': '搜索{0}通知',
   'notices.search.empty.title': '无搜索结果',
   'notices.search.empty.subtitle': '所选来源中没有匹配的公告',
 

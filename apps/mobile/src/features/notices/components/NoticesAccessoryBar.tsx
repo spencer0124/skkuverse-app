@@ -61,24 +61,25 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
-import { SdsColors, useT } from '@skkuverse/shared';
+import { SdsColors } from '@skkuverse/shared';
+import { useNoticesSearchPlaceholder } from '../hooks/useNoticesSearchPlaceholder';
 
 const ICON_SIZE = 20;
 
 export function NoticesAccessoryBar() {
-  const { t } = useT();
   const router = useRouter();
+  const placeholder = useNoticesSearchPlaceholder();
   return (
     <Pressable
       onPress={() => router.push('/notices/search')}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={t('notices.accessory.search')}
+      accessibilityLabel={placeholder}
     >
       <View style={styles.iconLeft} pointerEvents="none">
         <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
       </View>
-      <Text style={styles.label}>{t('notices.accessory.search')}</Text>
+      <Text style={styles.label}>{placeholder}</Text>
     </Pressable>
   );
 }

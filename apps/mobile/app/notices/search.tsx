@@ -41,6 +41,7 @@ import { NoticeListPanel } from '@/features/notices/NoticeListPanel';
 import { NoticeListSkeleton } from '@/features/notices/NoticeListSkeleton';
 import { NoticeEmptyState } from '@/features/notices/EmptyState';
 import { useNoticesUiStore } from '@/features/notices/store/noticesUiStore';
+import { useNoticesSearchPlaceholder } from '@/features/notices/hooks/useNoticesSearchPlaceholder';
 
 const DEBOUNCE_MS = 300;
 const KOREAN_SYLLABLE_START = 0xac00;
@@ -76,6 +77,7 @@ export default function NoticesSearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
+  const placeholder = useNoticesSearchPlaceholder();
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
@@ -135,7 +137,7 @@ export default function NoticesSearchScreen() {
           <SearchField
             value={query}
             onChangeText={setQuery}
-            placeholder={t('notices.accessory.searchPlaceholder')}
+            placeholder={placeholder}
             hasClearButton
             autoFocus
             autoCorrect={false}

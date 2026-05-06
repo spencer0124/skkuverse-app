@@ -28,7 +28,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
-import { SdsColors, useT } from '@skkuverse/shared';
+import { SdsColors } from '@skkuverse/shared';
+import { useNoticesSearchPlaceholder } from '../hooks/useNoticesSearchPlaceholder';
 
 const ICON_SIZE = 20;
 const CAPSULE_HEIGHT = 52;
@@ -45,8 +46,8 @@ const HORIZONTAL_INSET = 16;
 const BOTTOM_GAP = 8;
 
 export function NoticesSearchFallbackBar() {
-  const { t } = useT();
   const router = useRouter();
+  const placeholder = useNoticesSearchPlaceholder();
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { bottom: BOTTOM_GAP }]}>
       <Pressable
@@ -56,14 +57,12 @@ export function NoticesSearchFallbackBar() {
           pressed && styles.capsulePressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={t('notices.accessory.searchPlaceholder')}
+        accessibilityLabel={placeholder}
       >
         <View style={styles.iconLeft} pointerEvents="none">
           <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
         </View>
-        <Text style={styles.label}>
-          {t('notices.accessory.searchPlaceholder')}
-        </Text>
+        <Text style={styles.label}>{placeholder}</Text>
       </Pressable>
     </View>
   );
