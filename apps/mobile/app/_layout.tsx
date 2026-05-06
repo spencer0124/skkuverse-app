@@ -233,6 +233,21 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                {/* Notices source picker — native iOS UISheetPresentationController
+                    on iOS 16+ via `presentation: 'formSheet'`. Detents [0.8, 1.0]
+                    give an 80% landing height with drag-to-full. Android falls
+                    back to a regular modal (no native partial sheet). */}
+                <Stack.Screen
+                  name="notices/picker"
+                  options={{
+                    headerShown: false,
+                    presentation: 'formSheet',
+                    sheetAllowedDetents: [0.8, 1.0],
+                    sheetGrabberVisible: true,
+                    sheetCornerRadius: 16,
+                    contentStyle: { backgroundColor: '#FFFFFF' },
+                  }}
+                />
               </Stack>
               <PendingNoticeLinkConsumer />
               <StatusBar style="dark" />

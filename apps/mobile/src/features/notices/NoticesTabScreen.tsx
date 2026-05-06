@@ -42,30 +42,26 @@
  * Full pattern + native mechanism: `docs/ios-26-native-tabs-minimize.md`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import notifee from '@notifee/react-native';
 import {
-  filterPickerSources,
   resolvePickerSelection,
-  useAuthStore,
   useNoticeTabs,
   useNotificationStore,
   useT,
 } from '@skkuverse/shared';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
-import { NoticePickerSheet } from './NoticePickerSheet';
 import { NoticesTabStrip } from './components/NoticesTabStrip';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { useNoticesUiStore } from './store/noticesUiStore';
-import { setPickerSelectionRemote } from '@/services/firestore-notifications';
-import { logHandledError } from '@/services/crashlytics';
 
 export function NoticesTabScreen() {
   const { t } = useT();
+  const router = useRouter();
   const { data: tabsConfig, isLoading, isError, refetch } = useNoticeTabs();
   const tabs = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
 
@@ -87,47 +83,22 @@ export function NoticesTabScreen() {
     }
   }, [tabs, activeTabKey, setActiveTabKey]);
 
-  // ── Picker state (single sheet, dynamic binding) ──
-  const sheetRef = useRef<BottomSheetModal>(null);
-  const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
-
+  // ── Picker state (delegated to /notices/picker route) ──
+  // Tapping the selector pushes a native iOS form-sheet route which owns
+  // its own pending state, search, and grouping. Selection commit happens
+  // inside that route via setPickerSelectionRemote → Firestore listener
+  // pushes the new value back into pickerSelections, re-rendering this
+  // screen with the new sourceIds.
   const pickerSelections = useNotificationStore(
     (s) => s.preferences.pickerSelections ?? {},
   );
-  const uid = useAuthStore((s) => s.uid);
-  const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const subscriptionUid = !isAnonymous ? uid : null;
 
-  const openPicker = useCallback((tabKey: string) => {
-    setPickerTabKey(tabKey);
-  }, []);
-
-  const activePickerTab = useMemo(
-    () => (pickerTabKey ? tabs.find((tab) => tab.key === pickerTabKey) : null),
-    [pickerTabKey, tabs],
-  );
-
-  useEffect(() => {
-    if (activePickerTab?.tabMode === 'picker') {
-      sheetRef.current?.present();
-    }
-  }, [activePickerTab]);
-
-  const handlePickerConfirm = useCallback(
-    (newIds: string[]) => {
-      if (!pickerTabKey || !subscriptionUid) return;
-      setPickerSelectionRemote(subscriptionUid, pickerTabKey, newIds).catch(
-        (e) => {
-          logHandledError('notifications/picker-set', e);
-        },
-      );
+  const openPicker = useCallback(
+    (tabKey: string) => {
+      router.push(`/notices/picker?tabKey=${encodeURIComponent(tabKey)}`);
     },
-    [pickerTabKey, subscriptionUid],
+    [router],
   );
-
-  const handlePickerDismiss = useCallback(() => {
-    setPickerTabKey(null);
-  }, []);
 
   const hasValidTabs = tabs.length > 0;
   const activeTab = useMemo(
@@ -177,45 +148,24 @@ export function NoticesTabScreen() {
 
   // Picker tab: NoticeListPanel hosts NoticesTabStrip + the dept selector
   // inside its SectionList via `listHeader`, so both are guaranteed to mount
-  // as the list's first rows. NoticeListPanel is the Fragment's first child
-  // → RNSScreen subviews[0] is the SectionList → finder reaches it. The
-  // picker sheet is a Fragment sibling (BottomSheetModal portals out of the
-  // view tree when presented, so it never affects the chain).
+  // as the list's first rows. NoticeListPanel is the screen root → RNSScreen
+  // subviews[0] is the SectionList → minimize-on-scroll finder reaches it.
+  // The picker sheet is now a separate route (`/notices/picker`), mounted
+  // by the navigator in its own RNSScreen — no overlay child here.
   if (activeTab.tabMode === 'picker' && activeTab.picker) {
     return (
-      <>
-        <NoticeListPanel
-          sourceIds={pickerSelectedIds}
-          listHeader={
-            <>
-              <NoticesTabStrip />
-              <NoticeSelector
-                label={pickerSelectorLabel}
-                onPress={() => openPicker(activeTab.key)}
-              />
-            </>
-          }
-        />
-        {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
-          <NoticePickerSheet
-            ref={sheetRef}
-            // Hide intentionally-unsupported entries here — onboarding shows
-            // them greyed out for education, but in the main picker (a
-            // post-onboarding subscription change) they are noise.
-            items={filterPickerSources(activePickerTab.picker.sources, {
-              showUnsupported: false,
-            })}
-            selectedIds={resolvePickerSelection(
-              activePickerTab,
-              pickerSelections[activePickerTab.key],
-            )}
-            maxSelection={activePickerTab.picker.maxSelection}
-            onConfirm={handlePickerConfirm}
-            onDismiss={handlePickerDismiss}
-            title={activePickerTab.label}
-          />
-        )}
-      </>
+      <NoticeListPanel
+        sourceIds={pickerSelectedIds}
+        listHeader={
+          <>
+            <NoticesTabStrip />
+            <NoticeSelector
+              label={pickerSelectorLabel}
+              onPress={() => openPicker(activeTab.key)}
+            />
+          </>
+        }
+      />
     );
   }
 

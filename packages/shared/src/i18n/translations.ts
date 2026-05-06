@@ -303,6 +303,9 @@ const ko = {
   'notices.accessory.bookmark': '보관함',
   'notices.accessory.filter': '필터',
   'notices.accessory.sort': '정렬',
+  'notices.picker.searchPlaceholder': '검색',
+  'notices.picker.selectedHeader': '선택 {0}/{1}',
+  'notices.picker.empty': '결과 없음',
   'notices.search.empty.title': '검색 결과 없음',
   'notices.search.empty.subtitle': '선택한 소스에서 일치하는 공지가 없습니다',
 
@@ -653,6 +656,9 @@ const en: TranslationMap = {
   'notices.accessory.bookmark': 'Bookmarks',
   'notices.accessory.filter': 'Filter',
   'notices.accessory.sort': 'Sort',
+  'notices.picker.searchPlaceholder': 'Search',
+  'notices.picker.selectedHeader': 'Selected {0}/{1}',
+  'notices.picker.empty': 'No results',
   'notices.search.empty.title': 'No results',
   'notices.search.empty.subtitle': 'No matching notices in the selected sources',
 
@@ -1003,6 +1009,9 @@ const zh: TranslationMap = {
   'notices.accessory.bookmark': '书签',
   'notices.accessory.filter': '筛选',
   'notices.accessory.sort': '排序',
+  'notices.picker.searchPlaceholder': '搜索',
+  'notices.picker.selectedHeader': '已选 {0}/{1}',
+  'notices.picker.empty': '无结果',
   'notices.search.empty.title': '无搜索结果',
   'notices.search.empty.subtitle': '所选来源中没有匹配的公告',
 

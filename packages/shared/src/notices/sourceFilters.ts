@@ -7,9 +7,9 @@
  *   stay in the list (rendered greyed out) so the user can tap one and learn
  *   *why* it's not supported, with a parent-college alternative offered.
  *
- * - **Main NoticePickerSheet** — `showUnsupported: false`. The user has
- *   already onboarded; unsupported entries here are noise during a
- *   subscription change.
+ * - **Main notices picker route** (`app/notices/picker.tsx`) —
+ *   `showUnsupported: false`. The user has already onboarded; unsupported
+ *   entries here are noise during a subscription change.
  *
  * The filter is intentionally a thin selector with no React Query / store
  * coupling — call it where you produce the list for the renderer.
