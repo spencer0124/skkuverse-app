@@ -13,6 +13,7 @@ import { SdsColors, SdsTypo, useT, type RealtimeStation, hexToColor } from '@skk
 
 const STATION_ROW_HEIGHT = 66;
 const LEFT_PADDING = 70;
+const PLATE_GUTTER = 60;
 const LINE_WIDTH = 3;
 const DOT_SIZE = 12;
 
@@ -87,13 +88,14 @@ export function StationRow({ station, themeColor, eta }: StationRowProps) {
   );
 }
 
-export { STATION_ROW_HEIGHT, LEFT_PADDING };
+export { STATION_ROW_HEIGHT, LEFT_PADDING, PLATE_GUTTER };
 
 const styles = StyleSheet.create({
   container: {
     height: STATION_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingLeft: PLATE_GUTTER,
   },
   timelineContainer: {
     width: LEFT_PADDING,
