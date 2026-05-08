@@ -38,25 +38,34 @@ export function navigateFromNotification(data: NotificationData | undefined): bo
       // Strict string narrowing — FCM payloads are typed as string, but type
       // closure on the union prevents number/boolean from sneaking into the
       // template literal below via consume().
-      if (typeof data.sourceId !== 'string' || typeof data.articleNo !== 'string') {
-        devLog('navigateFromNotification.exit', {
-          result: false,
-          reason: 'missing-sourceId-or-articleNo',
-          hasSourceId: typeof data.sourceId === 'string',
-          hasArticleNo: typeof data.articleNo === 'string',
+      const hasSourceId = typeof data.sourceId === 'string';
+      const hasArticleNo = typeof data.articleNo === 'string';
+
+      if (hasSourceId && hasArticleNo) {
+        // Happy path: deep-link to detail. Activate the notices tab first,
+        // then stash the intent. PendingNoticeLinkConsumer in app/_layout.tsx
+        // pushes the detail on the next frame so back arrow lands on the tab.
+        router.push('/(tabs)/notices');
+        pendingExternalNoticeLink.set({
+          sourceId: data.sourceId as string,
+          articleNo: data.articleNo as string,
         });
-        return false;
+        devLog('navigateFromNotification.exit', { result: true });
+        return true;
       }
-      // Activate the notices tab first, then stash the intent. The
-      // PendingNoticeLinkConsumer in app/_layout.tsx will pick up the pending
-      // entry and push the detail screen on the next animation frame so the
-      // back arrow lands on the notices tab.
+
+      // Fallback: server payload incomplete (e.g. dispatcher omits sourceId).
+      // Open the notices tab anyway so the user lands somewhere meaningful
+      // rather than getting silent no-op. Server fix tracked separately —
+      // see plans/cuddly-foraging-comet.md Track 2.
       router.push('/(tabs)/notices');
-      pendingExternalNoticeLink.set({
-        sourceId: data.sourceId,
-        articleNo: data.articleNo,
+      devLog('navigateFromNotification.exit', {
+        result: true,
+        fallback: 'tab-only',
+        reason: 'missing-sourceId-or-articleNo',
+        hasSourceId,
+        hasArticleNo,
       });
-      devLog('navigateFromNotification.exit', { result: true });
       return true;
     }
     default:
