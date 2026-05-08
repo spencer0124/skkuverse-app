@@ -22,6 +22,7 @@ import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { devLog } from '@/services/dev-log';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -65,10 +66,24 @@ function PendingNoticeLinkConsumer() {
   const navState = useRootNavigationState();
 
   useEffect(() => {
+    // RELEASE-GATE(debug-menu): navState 변화 로깅 — 가설 B(race) vs D(dedupe)
+    // 분리용. timestamp 비교로 router.push 호출과 navState ready 선후 판정.
+    // 의도: navState.key 변화 시점만 캡처 (root mount 1회) — index/routeCount는
+    // 그 시점의 부수 정보일 뿐 deps에 넣으면 매 push마다 재실행됨.
+    devLog('rootNavState.change', {
+      hasKey: !!navState?.key,
+      index: navState?.index,
+      routeCount: navState?.routes?.length,
+    });
+
     if (!navState?.key) return; // wait until navigation root is mounted
 
     const tryConsume = () => {
       const p = pendingExternalNoticeLink.consume();
+      devLog('pendingLink.tryConsume', {
+        navStateKey: !!navState?.key,
+        hasPending: !!p,
+      });
       if (!p) return;
       // Defer to next frame so the /(tabs)/notices navigate dispatched by the
       // caller commits before we push detail. Same-tick push risks RNScreens
@@ -80,6 +95,7 @@ function PendingNoticeLinkConsumer() {
 
     tryConsume(); // cold-start: +native-intent set the pending before tree mount
     return pendingExternalNoticeLink.subscribe(tryConsume); // warm-start follow-ups
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.key]);
 
   return null;
@@ -191,6 +207,12 @@ export default function RootLayout() {
                 <Stack.Screen
                   name="notices/saved"
                   options={{ title: t('notices.saved') }}
+                />
+                {/* RELEASE-GATE(debug-menu): 정식 App Store 출시 전 이 entry +
+                    app/settings/debug-logs.tsx + settings 디버깅 row 모두 제거. */}
+                <Stack.Screen
+                  name="settings/debug-logs"
+                  options={{ title: '디버깅 로그' }}
                 />
                 <Stack.Screen
                   name="map/hssc"
