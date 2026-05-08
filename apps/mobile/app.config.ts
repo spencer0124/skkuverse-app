@@ -58,6 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: true,
     buildNumber: "69",
+    icon: "./assets/skkuverse-logo.icon",
     googleServicesFile: "./GoogleService-Info.plist",
     associatedDomains: ["applinks:skkuverse.com"],
     entitlements: {

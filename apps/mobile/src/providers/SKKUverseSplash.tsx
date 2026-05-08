@@ -1,46 +1,25 @@
-import React, { useEffect } from 'react';
-import { Text, StyleSheet } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-  runOnJS,
-} from 'react-native-reanimated';
-
-const GREEN = '#2B5A3A';
+import { useEffect } from 'react';
+import { View, Image, StyleSheet } from 'react-native';
 
 interface Props {
   isReady?: boolean;
   onDismiss?: () => void;
-  showReplayHint?: boolean;
 }
 
-export function SKKUverseSplash({
-  isReady = false,
-  onDismiss,
-}: Props) {
-  const opacity = useSharedValue(1);
-
+export function SKKUverseSplash({ isReady = false, onDismiss }: Props) {
   useEffect(() => {
     if (!isReady) return;
-    opacity.value = withTiming(
-      0,
-      { duration: 400, easing: Easing.in(Easing.ease) },
-      (fin) => {
-        if (fin && onDismiss) runOnJS(onDismiss)();
-      },
-    );
+    onDismiss?.();
   }, [isReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const containerAnim = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
   return (
-    <Animated.View style={[s.root, containerAnim]}>
-      <Text style={s.text}>스꾸버스</Text>
-    </Animated.View>
+    <View style={s.root}>
+      <Image
+        source={require('../../assets/images/splash-icon.png')}
+        style={s.icon}
+        resizeMode="contain"
+      />
+    </View>
   );
 }
 
@@ -51,11 +30,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  text: {
-    fontFamily: 'IBMPlexSansKR-Bold',
-    fontWeight: '700',
-    fontSize: 42,
-    color: GREEN,
-    letterSpacing: -1.5,
+  icon: {
+    width: 160,
+    height: 160,
   },
 });
