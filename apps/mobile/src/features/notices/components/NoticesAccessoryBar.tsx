@@ -76,22 +76,31 @@ export function NoticesAccessoryBar() {
       accessibilityRole="button"
       accessibilityLabel={placeholder}
     >
-      <View style={styles.iconLeft} pointerEvents="none">
-        <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
+      <View style={styles.inner} pointerEvents="none">
+        <View style={styles.iconLeft}>
+          <MagnifyingGlassIcon size={ICON_SIZE} color={SdsColors.grey700} />
+        </View>
+        <Text style={styles.label}>{placeholder}</Text>
       </View>
-      <Text style={styles.label}>{placeholder}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  // Full-width tap area. Label centered via justifyContent on the parent;
-  // icon absolute-positioned at left edge so it doesn't affect the label's
-  // center calculation. UITabAccessory's contentView is always full-width
-  // (forced by iOS), so the centered label sits at the screen's horizontal
-  // midpoint regardless of accessory padding.
+  // Full-width tap area. UITabAccessory's contentView is always full-width
+  // (forced by iOS). Inner box clamps the visual icon+label group so on iPad
+  // the icon doesn't drift to the screen edge while the label sits at center.
   row: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inner: {
+    width: '100%',
+    maxWidth: 480,
+    height: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

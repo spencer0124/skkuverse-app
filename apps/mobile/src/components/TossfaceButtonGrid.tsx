@@ -1,4 +1,11 @@
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { useMemo } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from 'react-native';
 import { SdsColors } from '@skkuverse/shared';
 
 export interface TossfaceGridItem {
@@ -12,11 +19,28 @@ interface Props {
   items: readonly TossfaceGridItem[];
 }
 
+const GRID_PADDING = 16;
+const GRID_GAP = 8;
+const GRID_COLS = 4;
+const PHONE_MAX_WIDTH = 480;
+
 export function TossfaceButtonGrid({ items }: Props) {
+  const { width: screenW } = useWindowDimensions();
+  const { containerWidth, itemSize } = useMemo(() => {
+    const w = Math.min(screenW, PHONE_MAX_WIDTH);
+    const inner = w - GRID_PADDING * 2;
+    const size = (inner - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+    return { containerWidth: w, itemSize: size };
+  }, [screenW]);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { width: containerWidth }]}>
       {items.map((item) => (
-        <Pressable key={item.id} style={styles.button} onPress={item.onPress}>
+        <Pressable
+          key={item.id}
+          style={[styles.button, { width: itemSize, height: itemSize }]}
+          onPress={item.onPress}
+        >
           <Text style={styles.emoji}>{item.emoji}</Text>
           <Text style={styles.title} numberOfLines={1}>
             {item.title}
@@ -27,23 +51,15 @@ export function TossfaceButtonGrid({ items }: Props) {
   );
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const GRID_MARGIN = 16;
-const GRID_GAP = 8;
-const GRID_COLS = 4;
-const GRID_ITEM_SIZE =
-  (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: GRID_MARGIN,
+    paddingHorizontal: GRID_PADDING,
     gap: GRID_GAP,
+    alignSelf: 'center',
   },
   button: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
     borderRadius: 16,
     backgroundColor: '#fff',
     alignItems: 'center',

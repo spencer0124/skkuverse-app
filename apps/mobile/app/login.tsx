@@ -103,6 +103,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: SdsSpacing.xl,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   header: {
     alignItems: 'center',

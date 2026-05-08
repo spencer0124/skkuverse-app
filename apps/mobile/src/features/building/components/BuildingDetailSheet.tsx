@@ -402,6 +402,9 @@ const FADE_WIDTH = 48; // gradient fade region width
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   handleIndicator: {
     backgroundColor: SdsColors.grey300,

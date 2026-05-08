@@ -104,6 +104,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: SdsSpacing.xl,
     paddingTop: SdsSpacing.md,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   secondaryButton: {
     alignSelf: 'center',

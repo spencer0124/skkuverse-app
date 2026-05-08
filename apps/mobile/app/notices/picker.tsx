@@ -46,6 +46,7 @@ import {
   ScrollView,
   SectionList,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -93,6 +94,8 @@ function NoticesPickerScreenInner() {
   const { tabKey } = useLocalSearchParams<{ tabKey: string }>();
   const { t, tpl } = useT();
   const insets = useSafeAreaInsets();
+  const { width: screenW } = useWindowDimensions();
+  const chipMaxWidth = Math.min(Math.round(screenW * 0.6), 360);
 
   const { data: tabsConfig } = useNoticeTabs();
   const tab = useMemo(
@@ -301,6 +304,7 @@ function NoticesPickerScreenInner() {
                   onPress={() => handleToggle(id)}
                   style={({ pressed }) => [
                     styles.chip,
+                    { maxWidth: chipMaxWidth },
                     pressed && styles.chipPressed,
                   ]}
                   accessibilityRole="button"
@@ -450,7 +454,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 7,
     gap: 6,
-    maxWidth: 220,
   },
   chipPressed: {
     opacity: 0.75,
