@@ -51,7 +51,12 @@ export function navigateFromNotification(data: NotificationData | undefined): bo
       // PendingNoticeLinkConsumer in app/_layout.tsx will pick up the pending
       // entry and push the detail screen on the next animation frame so the
       // back arrow lands on the notices tab.
-      router.push('/(tabs)/notices');
+      // navigate (not push): rewinds to existing notices tab if already in
+      // history, switches tab otherwise — both paths avoid stacking a new
+      // (tabs) entry on root Stack (which `push` would do, causing a duplicate
+      // notices tab in back history when the tap arrives while already on
+      // the notices tab).
+      router.navigate('/(tabs)/notices');
       pendingExternalNoticeLink.set({
         sourceId: data.sourceId,
         articleNo: data.articleNo,
