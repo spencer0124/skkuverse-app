@@ -18,11 +18,16 @@ import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 
-// iOS 26 hosts tabs in UITabBarController (NativeTabs); the safe-area chain
-// from the host VC propagates to RN content even with headerShown:false.
-// iOS<26 + Android use JS-rendered <Tabs> (see app/(tabs)/_layout.tsx) — that
-// path doesn't auto-pad headerless screens, so we apply the top inset
-// manually for those platforms only.
+// iOS 26 NativeTabs auto-applies UIKit `automatic` contentInsetAdjustmentBehavior
+// to the FIRST ScrollView in the screen's view tree (resolved by
+// RNSScrollViewFinder at mount). The status-bar inset gets baked into
+// contentInset.top — no manual paddingTop needed. But the chain root must be a
+// ScrollView at MOUNT time: if the loading branch first renders a <View>, the
+// finder caches "no scrollable root" and never re-resolves once data lands.
+// So the skeleton lives INSIDE the same ScrollView, not as a sibling branch.
+//
+// iOS<26 + Android use JS-rendered <Tabs> which doesn't auto-pad headerless
+// screens — apply useSafeAreaInsets().top manually for those platforms only.
 const NEEDS_MANUAL_TOP_INSET =
   !(Platform.OS === 'ios' && isLiquidGlassAvailable());
 
@@ -35,18 +40,16 @@ export default function TransitScreen() {
   const { data: notice } = useMainNotice();
 
   return (
-    <>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: topInset }]}
+      alwaysBounceVertical={false}
+      overScrollMode="never"
+    >
       {isLoading ? (
-        <View style={[styles.container, { paddingTop: topInset }]}>
-          <TransitSkeleton />
-        </View>
+        <TransitSkeleton />
       ) : (
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={[styles.content, { paddingTop: topInset }]}
-          alwaysBounceVertical={false}
-          overScrollMode="never"
-        >
+        <>
           {notice && <NoticeBanner notice={notice} />}
 
           {data?.map((item) => (
@@ -67,9 +70,9 @@ export default function TransitScreen() {
 
           {/* Bottom spacing for tab bar clearance */}
           <View style={styles.bottomSpacer} />
-        </ScrollView>
+        </>
       )}
-    </>
+    </ScrollView>
   );
 }
 

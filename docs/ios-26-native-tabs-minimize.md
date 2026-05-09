@@ -1,20 +1,30 @@
-# iOS 26 NativeTabs `minimizeBehavior` 작동 조건 — chain root rule
+# iOS 26 NativeTabs chain root rule — minimize + auto contentInset
 
 ## 한 줄 요약
 
-iOS 26 NativeTabs (`expo-router/unstable-native-tabs` = `react-native-screens` 4.19+의 `RNSBottomTabsHostComponentView`) 의 `minimizeBehavior`가 발화하려면, 각 탭 화면의 **RNSScreen `subviews[0]` 직계가 `UIScrollView` (RN의 ScrollView/FlatList/SectionList)** 여야 한다. View wrapping 한 겹이라도 추가되면 minimize가 영구 비활성된다. 화면 root는 ScrollView/SectionList를 직계 반환하거나, `<>...</>` (Fragment)의 **첫 자식**으로 두어야 한다.
+iOS 26 NativeTabs (`expo-router/unstable-native-tabs` = `react-native-screens` 4.19+의 `RNSBottomTabsHostComponentView`) 의 두 동작 — (1) `minimizeBehavior` 발화, (2) headerless 화면의 status-bar 영역 auto contentInset adjustment — 가 모두 같은 native finder에 게이트된다. 각 탭 화면의 **RNSScreen `subviews[0]` 직계가 `UIScrollView` (RN의 ScrollView/FlatList/SectionList)** 여야 한다. View wrapping 한 겹이라도 추가되거나 isLoading 분기가 첫 마운트에 ScrollView가 아닌 view를 두면 두 동작 모두 영구 비활성. 화면 root는 ScrollView/SectionList를 직계 반환하거나, `<>...</>` (Fragment)의 **첫 자식**으로 둬야 한다.
+
+## chain root rule이 게이트하는 두 동작
+
+| 동작 | 어떻게 작동하나 | 깨졌을 때 증상 |
+| --- | --- | --- |
+| **minimize-on-scroll** (iOS 26) | UITabBarController가 mount 시점에 first-descendant ScrollView를 tracking scroll view로 자동 등록 → 스크롤 방향 감지 시 탭 바 minimize/expand | 탭 바가 절대 minimize 안 됨 |
+| **Auto contentInset adjustment** | `RNSScrollViewHelper.overrideScrollViewBehaviorInFirstDescendantChainFrom:`가 chain root ScrollView의 `contentInsetAdjustmentBehavior`를 `Never`(RN 기본) → `Automatic`으로 flip → safe-area inset(특히 `headerShown:false`일 때 status bar 영역)이 contentInset.top에 자동 반영 | 컨텐츠가 status bar 아래로 들어가 시계와 겹침 |
+
+두 동작 모두 RN의 `ScrollView` 기본 `contentInsetAdjustmentBehavior=Never` (UIKit 기본 `Automatic` 대신) 정책 위에서 작동하므로, RNS가 의도적으로 chain root에 한해 UIKit-native 동작으로 reverts하는 구조다.
 
 ## 왜 이 룰인가 — native 메커니즘
 
-`react-native-screens` 4.19에서 minimize 동작은 다음 native 코드 경로로 작동한다:
+`react-native-screens` 4.19에서 두 동작 모두 다음 native 코드 경로로 작동한다:
 
-1. **finder 호출**: `RNSBottomTabsScreenComponentView.mm`의 `mountChildComponentView(index==0)` 시점에 단 한 번:
+1. **finder 호출**: `RNSBottomTabsScreenComponentView.mm:463`의 `mountChildComponentView(index==0)` 시점에 단 한 번:
    ```objc
    if (index == 0) {
      [self overrideScrollViewBehaviorInFirstDescendantChainIfNeeded];
      [self updateContentScrollViewEdgeEffectsIfExists];
    }
    ```
+   첫 메서드는 `RNSScrollViewHelper.mm:6`에서 finder를 호출해 chain root ScrollView를 찾고, 그것의 `contentInsetAdjustmentBehavior`만 `Automatic`으로 flip (단일 책임). 두 번째는 scroll-edge appearance 처리. UITabBarController의 minimize tracking 또한 같은 first-descendant chain 위에서 작동.
 
 2. **finder 알고리즘** (`RNSScrollViewFinder.mm:5-20`):
    ```objc
@@ -26,9 +36,9 @@ iOS 26 NativeTabs (`expo-router/unstable-native-tabs` = `react-native-screens` 4
    ```
    명목상 strict `subviews[0]` chain을 끝까지 따라간다.
 
-3. **실제 한계 — mount 타이밍**: `mountChildComponentView(index==0)`은 첫 자식 view가 mount되자마자 호출되며, **그 시점에 첫 자식의 자식들은 아직 mount 전**이다. 따라서 chain이 1단계 깊이에서 `subviews.count == 0`으로 break되어 nil 반환. 한 번 nil이 반환되면 `tabBarMinimizeBehavior` 자체가 영구 비활성된다 (이후 layout pass에서 finder 재호출 보장 없음).
+3. **실제 한계 — mount 타이밍**: `mountChildComponentView(index==0)`은 첫 자식 view가 mount되자마자 호출되며, **그 시점에 첫 자식의 자식들은 아직 mount 전**이다. 따라서 chain이 1단계 깊이에서 `subviews.count == 0`으로 break되어 nil 반환. 한 번 nil이 반환되면 두 동작 모두 영구 비활성된다 — finder 재호출이 layout pass에서 보장되지 않고, RN의 root element 종류 변경(예: `<View>` → `<ScrollView>` swap) 시점이 와야만 RN이 RNSScreen 첫 자식을 unmount/mount해 finder가 재발화한다.
 
-→ 결과적으로 **1단계 깊이만 사실상 보장된다**: RNSScreen 직계가 UIScrollView여야만 minimize가 활성화된다.
+→ 결과적으로 **1단계 깊이만 사실상 보장된다**: RNSScreen 직계가 UIScrollView여야만 minimize와 auto contentInset 둘 다 활성화된다.
 
 ## 실험적으로 확인한 사실
 
@@ -151,7 +161,17 @@ return <SectionList ... />;
 
 ### Transit 탭 (`apps/mobile/app/(tabs)/transit/index.tsx`)
 
-처음부터 `<ScrollView style={container} ...>` 직계 반환. 이 룰의 모범 케이스.
+`headerShown:false` + ScrollView 직계 반환. 단, **isLoading 분기를 ScrollView 안으로 흡수**해야 chain root rule이 모든 시점에 만족된다 — 처음 fix(2026-05-08)에서 `isLoading ? <View><Skeleton/></View> : <ScrollView>...</ScrollView>` 패턴이었는데, cold-start 진입 시 `<View>`가 첫 마운트되어 finder가 nil 반환 → ScrollView로 swap된 후에도 auto contentInset이 영원히 발화 안 함 → 첫 row가 status bar(시계 영역)와 겹치는 증상 발견. 정정 후 패턴:
+
+```tsx
+return (
+  <ScrollView style={container} contentContainerStyle={[...]}>     {/* chain root이 항상 ScrollView */}
+    {isLoading ? <TransitSkeleton/> : <>{...rows}</>}                {/* swap은 ScrollView 안에서만 */}
+  </ScrollView>
+);
+```
+
+이로써 cold-start와 hot-reload 양쪽 모두에서 NativeTabs 자동 inset이 일관되게 status-bar 높이를 contentInset.top에 반영. iOS<26 + Android JS Tabs 환경은 자동 inset이 없으므로 `paddingTop: useSafeAreaInsets().top`을 manual로 적용 (`NEEDS_MANUAL_TOP_INSET` 분기).
 
 ## 관련 자료
 
