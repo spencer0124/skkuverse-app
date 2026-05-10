@@ -75,6 +75,7 @@ const ko = {
   // ── Campus ──
   'campus.hssc': '인사캠',
   'campus.nsc': '자과캠',
+  'campus.both': '공통',
   'campus.hsscMap': '인사캠 건물지도',
   'campus.nscMap': '자과캠 건물지도',
 
@@ -427,6 +428,7 @@ const en: TranslationMap = {
   // ── Campus ──
   'campus.hssc': 'HSSC',
   'campus.nsc': 'NSC',
+  'campus.both': 'Common',
   'campus.hsscMap': ' HSSC Map ',
   'campus.nscMap': 'NSC Map ',
 
@@ -782,6 +784,7 @@ const zh: TranslationMap = {
   // ── Campus ──
   'campus.hssc': '人文社会校区',
   'campus.nsc': '自然科学校区',
+  'campus.both': '通用',
   'campus.hsscMap': '人文社会校区地图',
   'campus.nscMap': '自然科学校区地图',
 

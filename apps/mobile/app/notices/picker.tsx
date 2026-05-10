@@ -171,31 +171,44 @@ function NoticesPickerScreenInner() {
       });
       return out;
     }
-    // Campus-grouped (library / dorm / general): user's campus first.
+    // Campus-grouped (library / dorm / general): both → user's → other.
+    // 'both' (or null, normalized to 'both' by parser) goes to its own
+    // section so dual-campus items aren't visually misclassified into a
+    // single campus bucket.
     const otherCampus: Campus = preferredCampus === 'hssc' ? 'nsc' : 'hssc';
+    const bothBucket: TabSource[] = [];
     const userBucket: TabSource[] = [];
     const otherBucket: TabSource[] = [];
     for (const src of filtered) {
-      if (
-        src.campus === preferredCampus ||
-        src.campus === 'both' ||
-        src.campus == null
-      ) {
+      if (src.campus === 'both' || src.campus == null) {
+        bothBucket.push(src);
+      } else if (src.campus === preferredCampus) {
         userBucket.push(src);
       } else {
         otherBucket.push(src);
       }
     }
+    const sectionCount =
+      (bothBucket.length > 0 ? 1 : 0) +
+      (userBucket.length > 0 ? 1 : 0) +
+      (otherBucket.length > 0 ? 1 : 0);
+    const showHeaders = sectionCount > 1;
     const out: PickerSection[] = [];
+    if (bothBucket.length > 0) {
+      out.push({
+        title: showHeaders ? t('campus.both') : '',
+        data: bothBucket,
+      });
+    }
     if (userBucket.length > 0) {
       out.push({
-        title: otherBucket.length > 0 ? t(CAMPUS_HEADER_KEY[preferredCampus]) : '',
+        title: showHeaders ? t(CAMPUS_HEADER_KEY[preferredCampus]) : '',
         data: userBucket,
       });
     }
     if (otherBucket.length > 0) {
       out.push({
-        title: t(CAMPUS_HEADER_KEY[otherCampus]),
+        title: showHeaders ? t(CAMPUS_HEADER_KEY[otherCampus]) : '',
         data: otherBucket,
       });
     }
