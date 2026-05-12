@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import Constants from 'expo-constants';
+import { getAuth } from '@react-native-firebase/auth';
 import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   computeOnboardingPickerSeed,
   useNoticeTabs,
+  useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
@@ -15,7 +18,12 @@ import { GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
-import { seedOnboardingPreferences } from '@/services/firestore-notifications';
+import {
+  initializeFirestoreNotifications,
+  seedOnboardingPreferences,
+} from '@/services/firestore-notifications';
+import { ensureRegistered, getDeviceToken, requestPermission } from '@/services/messaging';
+import { openOsSettings } from '@/lib/openOsSettings';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
@@ -25,6 +33,7 @@ import { CampusStep } from './components/CampusStep';
 import { PrimaryDeptStep } from './components/PrimaryDeptStep';
 import { InterestDeptStep } from './components/InterestDeptStep';
 import { LoginStep } from './components/LoginStep';
+import { NotificationStep } from './components/NotificationStep';
 import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
 
@@ -73,7 +82,7 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
       return { ...state, userName: action.name };
 
     case 'NEXT':
-      if (state.step >= 5) return state;
+      if (state.step >= 6) return state;
       return { ...state, step: (state.step + 1) as OnboardingStep };
 
     case 'PREV':
@@ -111,7 +120,7 @@ export function OnboardingScreen() {
   // ── Android back handler ──
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (state.step === 5) return true; // Block back on completion
+      if (state.step === 6) return true; // Block back on completion
       if (state.step === 1) {
         setShowExitDialog(true);
         return true;
@@ -247,6 +256,89 @@ export function OnboardingScreen() {
     dispatch({ type: 'NEXT' });
   }, []);
 
+  // ── Notification permission (Step 5) ──
+  // Persists across the OS-settings round-trip via component-local ref.
+  // Set true right before openOsSettings(); the AppState listener consumes it
+  // on the next 'active' transition (foreground return) and resets to false.
+  const sentToSettingsRef = useRef(false);
+
+  // Mirrors useAppInit's bootstrap: ensureRegistered → getDeviceToken →
+  // initializeFirestoreNotifications. uid resolved at call-time so we always
+  // write under the current Google uid (Notification step is post-Login).
+  const registerDeviceForNotifications = useCallback(async () => {
+    await ensureRegistered();
+    const fcmToken = await getDeviceToken();
+    if (!fcmToken) return;
+    useNotificationStore.getState().setFcmToken(fcmToken);
+
+    const deviceId = useNotificationStore.getState().deviceId;
+    if (!deviceId) return;
+
+    const uid = getAuth().currentUser?.uid;
+    if (!uid) return;
+
+    const appLang = useSettingsStore.getState().appLanguage;
+    const osLocale: 'ko' | 'en' = appLang === 'ko' ? 'ko' : 'en';
+    const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+    const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+    await initializeFirestoreNotifications({
+      uid,
+      deviceId,
+      token: fcmToken,
+      platform,
+      appVersion,
+      osLocale,
+    });
+    useNotificationStore.getState().setIsTokenRegistered(true);
+  }, []);
+
+  const handleEnable = useCallback(async () => {
+    const prior = useNotificationStore.getState().permissionStatus;
+    if (prior === 'denied') {
+      // iOS won't re-prompt after first denial. Send user to OS settings;
+      // resolution is picked up by the AppState 'active' listener below.
+      sentToSettingsRef.current = true;
+      await openOsSettings();
+      return;
+    }
+    const status = await requestPermission();
+    useNotificationStore.getState().setPermissionStatus(status);
+    if (status === 'authorized' || status === 'provisional') {
+      try {
+        await registerDeviceForNotifications();
+      } catch (err) {
+        logHandledError('onboarding/notification-register', err);
+      }
+    }
+    dispatch({ type: 'NEXT' });
+  }, [registerDeviceForNotifications]);
+
+  const handleSkipNotifications = useCallback(() => {
+    dispatch({ type: 'NEXT' });
+  }, []);
+
+  // Handle return from OS Settings: re-check permission, register if granted,
+  // then advance. The ref guard prevents firing on unrelated foreground
+  // transitions (e.g., user replied to a different app's notification).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active' || !sentToSettingsRef.current) return;
+      sentToSettingsRef.current = false;
+      const status = await requestPermission();
+      useNotificationStore.getState().setPermissionStatus(status);
+      if (status === 'authorized' || status === 'provisional') {
+        try {
+          await registerDeviceForNotifications();
+        } catch (err) {
+          logHandledError('onboarding/notification-register', err);
+        }
+      }
+      dispatch({ type: 'NEXT' });
+    });
+    return () => sub.remove();
+  }, [registerDeviceForNotifications]);
+
   // ── CTA config per step ──
   const ctaDisabled = (() => {
     switch (state.step) {
@@ -259,7 +351,8 @@ export function OnboardingScreen() {
 
   const ctaLabel = (() => {
     switch (state.step) {
-      case 5: return t('onboarding.completionCta');
+      case 5: return t('onboarding.notificationCta');
+      case 6: return t('onboarding.completionCta');
       default: return t('onboarding.next');
     }
   })();
@@ -267,7 +360,8 @@ export function OnboardingScreen() {
   const onCtaPress = (() => {
     switch (state.step) {
       case 4: return handleSignIn;
-      case 5: return handleComplete;
+      case 5: return handleEnable;
+      case 6: return handleComplete;
       default: return handleNext;
     }
   })();
@@ -341,6 +435,8 @@ export function OnboardingScreen() {
           />
         );
       case 5:
+        return <NotificationStep />;
+      case 6:
         return <CompletionStep userName={state.userName ?? ''} />;
     }
   };
@@ -352,7 +448,7 @@ export function OnboardingScreen() {
         ctaLabel={ctaLabel}
         ctaDisabled={ctaDisabled}
         onCtaPress={onCtaPress}
-        minimal={state.step === 5}
+        minimal={state.step === 6}
         ctaContent={
           state.step === 4
             ? (
@@ -372,6 +468,8 @@ export function OnboardingScreen() {
         secondaryAction={
           state.step === 3
             ? { label: t('onboarding.skip'), onPress: handleSkipInterests }
+            : state.step === 5
+            ? { label: t('onboarding.notificationSkip'), onPress: handleSkipNotifications }
             : undefined
         }
       >

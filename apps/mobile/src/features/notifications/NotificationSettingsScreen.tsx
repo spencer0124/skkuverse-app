@@ -11,8 +11,6 @@
 
 import { useCallback, useState } from 'react';
 import {
-  Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -37,6 +35,7 @@ import {
 import { setMasterEnabled } from '@/services/firestore-notifications';
 import { checkPermission, requestPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
+import { openOsSettings } from '@/lib/openOsSettings';
 import { AnonymousGate } from './components/AnonymousGate';
 
 export default function NotificationSettingsScreen() {
@@ -180,18 +179,6 @@ export default function NotificationSettingsScreen() {
       />
     </View>
   );
-}
-
-async function openOsSettings(): Promise<void> {
-  try {
-    if (Platform.OS === 'ios') {
-      await Linking.openURL('app-settings:');
-    } else {
-      await Linking.openSettings();
-    }
-  } catch (e) {
-    if (__DEV__) console.warn('[notifications] openOsSettings failed:', e);
-  }
 }
 
 const styles = StyleSheet.create({

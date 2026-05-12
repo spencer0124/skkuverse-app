@@ -323,60 +323,78 @@ export function useAppInit() {
 
         // 5. FCM registration + Firestore bootstrap (Phase 2)
         //
-        // Use requestPermission() here because it's idempotent on iOS — no
-        // dialog appears if permission is already granted/denied. This gives
-        // us correct behavior on first launch (prompt shows) without spurious
-        // prompts on subsequent launches. Phase 3 will add a richer permission
-        // UX via a master toggle, but the real OS-level dialog still flows
-        // through here.
+        // Channels and deviceId are unconditional — needed regardless of
+        // whether the user has granted notification permission yet (deviceId
+        // is just a UUID, channels are Android display config).
+        //
+        // requestPermission() itself is gated behind two conditions:
+        //   1. onboardingCompleted — user finished the wizard, so the
+        //      NotificationStep already handled the first-time prompt.
+        //   2. permissionStatus !== 'notDetermined' — if the user explicitly
+        //      tapped "다음에 할게요" (skip), the persisted MMKV value stays
+        //      'notDetermined'. Re-calling requestPermission() in that state
+        //      would surface the iOS system dialog at launch — exactly what
+        //      the wizard step was designed to prevent. The gate honors the
+        //      user's deferral.
+        //
+        // For users who responded once (authorized/denied), requestPermission
+        // is idempotent on iOS — returns the cached status without a dialog,
+        // which keeps the token sync flow alive.
         await setupNotificationChannels();
         const deviceId = getOrCreateDeviceId();
         useNotificationStore.getState().setDeviceId(deviceId);
 
-        const permStatus = await requestPermission();
-        useNotificationStore.getState().setPermissionStatus(permStatus);
+        const onboardingCompleted = useSettingsStore.getState().onboardingCompleted;
+        const persistedStatus = useNotificationStore.getState().permissionStatus;
+        const shouldQueryPermission =
+          onboardingCompleted && persistedStatus !== 'notDetermined';
 
-        if (permStatus === 'authorized' || permStatus === 'provisional') {
-          await ensureRegistered();
-          const fcmToken = await getDeviceToken();
-          if (__DEV__) console.log('[fcm] token:', fcmToken);
-          useNotificationStore.getState().setFcmToken(fcmToken);
+        if (shouldQueryPermission) {
+          const permStatus = await requestPermission();
+          useNotificationStore.getState().setPermissionStatus(permStatus);
 
-          // Fire-and-forget Firestore bootstrap.
-          // - Promise.all inside initializeFirestoreNotifications parallelizes reads
-          // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
-          // - logHandledError on exhaustion; app launch is NOT blocked on this path
-          //
-          // Task #12: uid is resolved lazily per retry attempt (inside the
-          // closure) rather than captured once. This way, a retry landing
-          // after a uid transition writes the current uid, not the stale
-          // one that was live at the initial call.
-          if (fcmToken) {
-            const bootstrapLang = resolveAppLanguage();
-            const osLocale = toNotificationLocale(bootstrapLang);
-            const appVersion = Constants.expoConfig?.version ?? '0.0.0';
-            const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+          if (permStatus === 'authorized' || permStatus === 'provisional') {
+            await ensureRegistered();
+            const fcmToken = await getDeviceToken();
+            if (__DEV__) console.log('[fcm] token:', fcmToken);
+            useNotificationStore.getState().setFcmToken(fcmToken);
 
-            withRetry(() => {
-              const currentUid = getAuth().currentUser?.uid;
-              if (!currentUid) {
-                throw new Error('no authenticated user');
-              }
-              return initializeFirestoreNotifications({
-                uid: currentUid,
-                deviceId,
-                token: fcmToken,
-                platform,
-                appVersion,
-                osLocale,
-              });
-            })
-              .then(() => {
-                useNotificationStore.getState().setIsTokenRegistered(true);
+            // Fire-and-forget Firestore bootstrap.
+            // - Promise.all inside initializeFirestoreNotifications parallelizes reads
+            // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
+            // - logHandledError on exhaustion; app launch is NOT blocked on this path
+            //
+            // Task #12: uid is resolved lazily per retry attempt (inside the
+            // closure) rather than captured once. This way, a retry landing
+            // after a uid transition writes the current uid, not the stale
+            // one that was live at the initial call.
+            if (fcmToken) {
+              const bootstrapLang = resolveAppLanguage();
+              const osLocale = toNotificationLocale(bootstrapLang);
+              const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+              const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+              withRetry(() => {
+                const currentUid = getAuth().currentUser?.uid;
+                if (!currentUid) {
+                  throw new Error('no authenticated user');
+                }
+                return initializeFirestoreNotifications({
+                  uid: currentUid,
+                  deviceId,
+                  token: fcmToken,
+                  platform,
+                  appVersion,
+                  osLocale,
+                });
               })
-              .catch((err) => {
-                logHandledError('notifications/init', err);
-              });
+                .then(() => {
+                  useNotificationStore.getState().setIsTokenRegistered(true);
+                })
+                .catch((err) => {
+                  logHandledError('notifications/init', err);
+                });
+            }
           }
         }
 

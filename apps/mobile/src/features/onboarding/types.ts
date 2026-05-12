@@ -1,6 +1,6 @@
 import type { Campus } from '@skkuverse/shared';
 
-export type OnboardingStep = 1 | 2 | 3 | 4 | 5;
+export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface OnboardingState {
   step: OnboardingStep;
@@ -20,4 +20,4 @@ export type OnboardingAction =
   | { type: 'PREV' };
 
 export const MAX_INTEREST_DEPTS = 3;
-export const TOTAL_STEPS = 5;
+export const TOTAL_STEPS = 6;
