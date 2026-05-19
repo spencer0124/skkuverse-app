@@ -37,6 +37,14 @@ interface NotificationState {
   permissionStatus: PushPermissionStatus;
   preferences: PreferencesDocument;
   unreadCount: number;
+  /**
+   * Session-scoped flag for the enable-notifications bottom sheet shown when
+   * a user enters NotificationSettingsScreen while permission is not granted.
+   * Intentionally excluded from partialize → resets to false on every cold
+   * start, so the sheet gets one fresh attempt per app launch even after a
+   * dismissal in a prior session.
+   */
+  enableSheetDismissedThisSession: boolean;
 }
 
 interface NotificationActions {
@@ -47,6 +55,7 @@ interface NotificationActions {
   setPreferences: (p: PreferencesDocument) => void;
   incrementUnread: () => void;
   resetUnread: () => void;
+  setEnableSheetDismissedThisSession: (v: boolean) => void;
 }
 
 export type NotificationStore = NotificationState & NotificationActions;
@@ -68,6 +77,7 @@ export const useNotificationStore = create<NotificationStore>()(
         onboardedAt: null,
       },
       unreadCount: 0,
+      enableSheetDismissedThisSession: false,
 
       setFcmToken: (fcmToken) => set({ fcmToken }),
       setDeviceId: (deviceId) => set({ deviceId }),
@@ -76,6 +86,8 @@ export const useNotificationStore = create<NotificationStore>()(
       setPreferences: (preferences) => set({ preferences }),
       incrementUnread: () => set((s) => ({ unreadCount: s.unreadCount + 1 })),
       resetUnread: () => set({ unreadCount: 0 }),
+      setEnableSheetDismissedThisSession: (enableSheetDismissedThisSession) =>
+        set({ enableSheetDismissedThisSession }),
     }),
     {
       name: 'notifications',

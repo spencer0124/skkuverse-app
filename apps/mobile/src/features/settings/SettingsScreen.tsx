@@ -28,29 +28,6 @@ export function SettingsScreen() {
           subtitle={t('settings.notificationsSubtitle')}
           onPress={() => router.push('/notifications/settings' as never)}
         />
-        <BadgeNavRow
-          badge="🐛"
-          tossface
-          title={t('settings.fcmDebug')}
-          subtitle={t('settings.fcmDebugSubtitle')}
-          onPress={() => router.push('/debug-fcm' as never)}
-        />
-        {/* RELEASE-GATE(debug-menu): 정식 App Store 출시 전 이 row 제거. 외부
-            테스터 0명 가정. 본인 디바이스 진단 전용 — FCM 토큰 노출됨. */}
-        <BadgeNavRow
-          badge="📋"
-          tossface
-          title="디버깅 로그"
-          subtitle="알림 탭 진단 (TestFlight)"
-          onPress={() => router.push('/settings/debug-logs' as never)}
-        />
-        <BadgeNavRow
-          badge="📜"
-          tossface
-          title={t('settings.licenses')}
-          subtitle={t('settings.licensesSubtitle')}
-          onPress={() => router.push('/settings/licenses' as never)}
-        />
       </ScrollView>
     </View>
   );

@@ -19,5 +19,5 @@ export type OnboardingAction =
   | { type: 'NEXT' }
   | { type: 'PREV' };
 
-export const MAX_INTEREST_DEPTS = 3;
+export const MAX_INTEREST_DEPTS = 4;
 export const TOTAL_STEPS = 6;

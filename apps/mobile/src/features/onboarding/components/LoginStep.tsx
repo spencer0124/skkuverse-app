@@ -67,7 +67,12 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <Txt typography="t7" color={SdsColors.grey400} style={styles.summaryLabel}>
         {label}
       </Txt>
-      <Txt typography="t7" fontWeight="medium" color={SdsColors.grey900}>
+      <Txt
+        typography="t7"
+        fontWeight="medium"
+        color={SdsColors.grey900}
+        style={styles.summaryValue}
+      >
         {value}
       </Txt>
     </View>
@@ -94,9 +99,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     paddingVertical: 7,
+    alignItems: 'flex-start',
   },
   summaryLabel: {
     width: 72,
+  },
+  summaryValue: {
+    flex: 1,
+    flexShrink: 1,
   },
   spacer: {
     flex: 1,

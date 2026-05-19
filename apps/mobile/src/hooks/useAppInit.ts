@@ -268,7 +268,7 @@ export function useAppInit() {
                   if (restoredDeptIds.length > 0) {
                     useSettingsStore.getState().restoreOnboardingFromRemote({
                       primaryDeptId: restoredDeptIds[0],
-                      interestDeptIds: restoredDeptIds.slice(1, 4),
+                      interestDeptIds: restoredDeptIds.slice(1, 5),
                     });
                   } else {
                     // Corrupt state — onboardedAt set but dept empty. Listener

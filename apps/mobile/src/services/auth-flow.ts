@@ -142,7 +142,7 @@ export async function classifyAndRestoreOnboarding(
   if (hasOnboardingMarker && hasUsableDept) {
     useSettingsStore.getState().restoreOnboardingFromRemote({
       primaryDeptId: restoredDeptIds[0],
-      interestDeptIds: restoredDeptIds.slice(1, 4),
+      interestDeptIds: restoredDeptIds.slice(1, 5),
     });
     return { kind: 'restored' };
   }

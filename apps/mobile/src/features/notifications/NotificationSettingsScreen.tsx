@@ -9,7 +9,7 @@
  *   2. NoticesTabScreen → bell icon (deeplink, deeper detail은 자체적으로 router.push)
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   BadgeNavRow,
   Button,
@@ -37,6 +38,7 @@ import { checkPermission, requestPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
 import { openOsSettings } from '@/lib/openOsSettings';
 import { AnonymousGate } from './components/AnonymousGate';
+import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
@@ -47,6 +49,9 @@ export default function NotificationSettingsScreen() {
   const preferences = useNotificationStore((s) => s.preferences);
   const permissionStatus = useNotificationStore((s) => s.permissionStatus);
   const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
+  const enableSheetDismissed = useNotificationStore(
+    (s) => s.enableSheetDismissedThisSession,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -59,6 +64,19 @@ export default function NotificationSettingsScreen() {
       };
     }, [setPermissionStatus]),
   );
+
+  // Proactively prompt users who could be receiving notifications but aren't.
+  // Re-runs when permissionStatus refreshes (via useFocusEffect's checkPermission)
+  // so externally-revoked permissions surface the sheet on the next status pull.
+  // BottomSheetModal.present() is idempotent if already shown.
+  const enableSheetRef = useRef<BottomSheetModal>(null);
+  useEffect(() => {
+    const notGranted =
+      permissionStatus === 'denied' || permissionStatus === 'notDetermined';
+    if (notGranted && !enableSheetDismissed) {
+      enableSheetRef.current?.present();
+    }
+  }, [permissionStatus, enableSheetDismissed]);
 
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
@@ -117,21 +135,6 @@ export default function NotificationSettingsScreen() {
 
         <View style={styles.categories}>
           <BadgeNavRow
-            badge="🔒"
-            tossface
-            title={t('notifications.essential')}
-            subtitle={t('notifications.essentialSubtitle')}
-            onPress={() => router.push('/notifications/essential')}
-          />
-          <BadgeNavRow
-            badge="⚙️"
-            tossface
-            title={t('notifications.services')}
-            subtitle={t('notifications.servicesSubtitle')}
-            onPress={() => router.push('/notifications/services')}
-            disabled={!masterEnabled}
-          />
-          <BadgeNavRow
             badge="📢"
             tossface
             title={t('notifications.notices')}
@@ -177,6 +180,8 @@ export default function NotificationSettingsScreen() {
           </Button>
         }
       />
+
+      <EnableNotificationsSheet ref={enableSheetRef} />
     </View>
   );
 }

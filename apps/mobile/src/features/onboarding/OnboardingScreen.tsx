@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
-import Constants from 'expo-constants';
-import { getAuth } from '@react-native-firebase/auth';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   computeOnboardingPickerSeed,
   useNoticeTabs,
-  useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
@@ -18,12 +15,8 @@ import { GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
-import {
-  initializeFirestoreNotifications,
-  seedOnboardingPreferences,
-} from '@/services/firestore-notifications';
-import { ensureRegistered, getDeviceToken, requestPermission } from '@/services/messaging';
-import { openOsSettings } from '@/lib/openOsSettings';
+import { seedOnboardingPreferences } from '@/services/firestore-notifications';
+import { useEnableNotificationsFlow } from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
@@ -257,87 +250,17 @@ export function OnboardingScreen() {
   }, []);
 
   // ── Notification permission (Step 5) ──
-  // Persists across the OS-settings round-trip via component-local ref.
-  // Set true right before openOsSettings(); the AppState listener consumes it
-  // on the next 'active' transition (foreground return) and resets to false.
-  const sentToSettingsRef = useRef(false);
-
-  // Mirrors useAppInit's bootstrap: ensureRegistered → getDeviceToken →
-  // initializeFirestoreNotifications. uid resolved at call-time so we always
-  // write under the current Google uid (Notification step is post-Login).
-  const registerDeviceForNotifications = useCallback(async () => {
-    await ensureRegistered();
-    const fcmToken = await getDeviceToken();
-    if (!fcmToken) return;
-    useNotificationStore.getState().setFcmToken(fcmToken);
-
-    const deviceId = useNotificationStore.getState().deviceId;
-    if (!deviceId) return;
-
-    const uid = getAuth().currentUser?.uid;
-    if (!uid) return;
-
-    const appLang = useSettingsStore.getState().appLanguage;
-    const osLocale: 'ko' | 'en' = appLang === 'ko' ? 'ko' : 'en';
-    const appVersion = Constants.expoConfig?.version ?? '0.0.0';
-    const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
-
-    await initializeFirestoreNotifications({
-      uid,
-      deviceId,
-      token: fcmToken,
-      platform,
-      appVersion,
-      osLocale,
-    });
-    useNotificationStore.getState().setIsTokenRegistered(true);
-  }, []);
-
-  const handleEnable = useCallback(async () => {
-    const prior = useNotificationStore.getState().permissionStatus;
-    if (prior === 'denied') {
-      // iOS won't re-prompt after first denial. Send user to OS settings;
-      // resolution is picked up by the AppState 'active' listener below.
-      sentToSettingsRef.current = true;
-      await openOsSettings();
-      return;
-    }
-    const status = await requestPermission();
-    useNotificationStore.getState().setPermissionStatus(status);
-    if (status === 'authorized' || status === 'provisional') {
-      try {
-        await registerDeviceForNotifications();
-      } catch (err) {
-        logHandledError('onboarding/notification-register', err);
-      }
-    }
-    dispatch({ type: 'NEXT' });
-  }, [registerDeviceForNotifications]);
+  // All branching (denied→openOsSettings, else→requestPermission), AppState
+  // settings-return handling, and token registration live inside the hook.
+  // Onboarding has nothing extra to do on grant — step 6's
+  // seedOnboardingPreferences already writes `enabled: true` master intent.
+  const { handleEnable } = useEnableNotificationsFlow({
+    onResolved: () => dispatch({ type: 'NEXT' }),
+  });
 
   const handleSkipNotifications = useCallback(() => {
     dispatch({ type: 'NEXT' });
   }, []);
-
-  // Handle return from OS Settings: re-check permission, register if granted,
-  // then advance. The ref guard prevents firing on unrelated foreground
-  // transitions (e.g., user replied to a different app's notification).
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', async (nextState) => {
-      if (nextState !== 'active' || !sentToSettingsRef.current) return;
-      sentToSettingsRef.current = false;
-      const status = await requestPermission();
-      useNotificationStore.getState().setPermissionStatus(status);
-      if (status === 'authorized' || status === 'provisional') {
-        try {
-          await registerDeviceForNotifications();
-        } catch (err) {
-          logHandledError('onboarding/notification-register', err);
-        }
-      }
-      dispatch({ type: 'NEXT' });
-    });
-    return () => sub.remove();
-  }, [registerDeviceForNotifications]);
 
   // ── CTA config per step ──
   const ctaDisabled = (() => {
