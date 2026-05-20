@@ -27,7 +27,8 @@ interface SettingsActions {
   setLastTab: (tab: TabRoute) => void;
   completeOnboarding: (data: {
     campus: Campus;
-    primaryDeptId: string;
+    // null when the user tapped "내 학과가 없어요" on Step 2 of the wizard.
+    primaryDeptId: string | null;
     interestDeptIds: string[];
   }) => void;
   /**
@@ -47,7 +48,8 @@ interface SettingsActions {
    * so default 'hssc' is preserved on second device.
    */
   restoreOnboardingFromRemote: (data: {
-    primaryDeptId: string;
+    // null when restored prefs encode a primary-skipped user (dept[0] === '').
+    primaryDeptId: string | null;
     interestDeptIds: string[];
   }) => void;
 }

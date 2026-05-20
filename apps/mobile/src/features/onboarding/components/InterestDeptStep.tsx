@@ -14,7 +14,8 @@ import { DeptRow } from './DeptRow';
 
 interface Props {
   campus: Campus;
-  primaryDeptId: string;
+  // null when the user tapped "내 학과가 없어요" on the previous step.
+  primaryDeptId: string | null;
   sources: TabSource[];
   selectedIds: string[];
   onToggle: (deptId: string) => void;
@@ -37,7 +38,9 @@ export function InterestDeptStep({
   const [toastText, setToastText] = useState<string | null>(null);
   const atMax = selectedIds.length >= MAX_INTEREST_DEPTS;
 
-  const primaryDept = sourceDepartments.find((d) => d.id === primaryDeptId);
+  const primaryDept = primaryDeptId
+    ? sourceDepartments.find((d) => d.id === primaryDeptId)
+    : undefined;
 
   // Step 1: campus filter + drop primary + search.
   const candidates = useMemo(() => {

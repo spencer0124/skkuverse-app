@@ -100,7 +100,6 @@ export async function signInWithDeviceMigration(
 export type OnboardingClassification =
   | { kind: 'restored' }
   | { kind: 'new' }
-  | { kind: 'corrupt' }
   | { kind: 'read-failed' };
 
 /**
@@ -118,10 +117,14 @@ export type OnboardingClassification =
  * Routing decision left to caller. See plan auth-handler-unification.md
  * "Caller별 라우팅 매트릭스" section for the 3×4 matrix.
  *
- * Logging contract: failures are logged via logHandledError with
- * `${scope}/{prefs-read, corrupt-prefs}` keys. Never throws — all
- * outcomes encoded in the OnboardingClassification union. Callers do
- * not need try/catch around this function.
+ * Logging contract: prefs read failures are logged via logHandledError with
+ * `${scope}/prefs-read` key. Never throws — all outcomes encoded in the
+ * OnboardingClassification union. Callers do not need try/catch around
+ * this function.
+ *
+ * Discriminator policy: onboardedAt 단독으로 판별. dept 배열은 비어 있을
+ * 수도 있고 ('대표학과 스킵' 경로) 첫 자리에 sentinel ''이 있을 수도
+ * 있음 (primary 스킵 + interest 선택). 둘 다 정상 시나리오.
  */
 export async function classifyAndRestoreOnboarding(
   uid: string,
@@ -135,24 +138,16 @@ export async function classifyAndRestoreOnboarding(
     return { kind: 'read-failed' };
   }
 
-  const restoredDeptIds = prefs?.pickerSelections?.dept ?? [];
-  const hasOnboardingMarker = prefs?.onboardedAt != null;
-  const hasUsableDept = restoredDeptIds.length > 0;
-
-  if (hasOnboardingMarker && hasUsableDept) {
+  if (prefs?.onboardedAt != null) {
+    const restoredDeptIds = prefs?.pickerSelections?.dept ?? [];
+    // sentinel '' → null (primary 스킵 사용자). truthy id면 그대로.
+    const restoredPrimary = restoredDeptIds[0] || null;
+    const restoredInterests = restoredDeptIds.slice(1, 5);
     useSettingsStore.getState().restoreOnboardingFromRemote({
-      primaryDeptId: restoredDeptIds[0],
-      interestDeptIds: restoredDeptIds.slice(1, 5),
+      primaryDeptId: restoredPrimary,
+      interestDeptIds: restoredInterests,
     });
     return { kind: 'restored' };
-  }
-
-  if (hasOnboardingMarker && !hasUsableDept) {
-    logHandledError(
-      `${scope}/corrupt-prefs`,
-      new Error('onboardedAt set but pickerSelections.dept empty'),
-    );
-    return { kind: 'corrupt' };
   }
 
   return { kind: 'new' };

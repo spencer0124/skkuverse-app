@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
@@ -21,6 +22,7 @@ import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
 import { MAX_INTEREST_DEPTS } from './types';
+import { UNSUPPORTED_DEPT_SURVEY_URL } from './constants';
 import { OnboardingLayout } from './components/OnboardingLayout';
 import { CampusStep } from './components/CampusStep';
 import { PrimaryDeptStep } from './components/PrimaryDeptStep';
@@ -52,6 +54,11 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
         // Remove new primary from interest list if present
         interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
       };
+
+    case 'SKIP_PRIMARY_DEPT':
+      // User tapped "내 학과가 없어요" → opened survey webview → dismissed.
+      // primary null로 마킹. interest는 보존 (이후 step에서 picking 가능).
+      return { ...state, primaryDeptId: null };
 
     case 'TOGGLE_INTEREST_DEPT': {
       const exists = state.interestDeptIds.includes(action.deptId);
@@ -186,7 +193,7 @@ export function OnboardingScreen() {
   // zustand `completeOnboarding` continues to track the local "did this user
   // finish onboarding?" flag.
   const handleComplete = useCallback(async () => {
-    if (!state.campus || !state.primaryDeptId) return;
+    if (!state.campus) return;
     const campus: Campus = state.campus;
     const settingsStore = useSettingsStore.getState();
     settingsStore.completeOnboarding({
@@ -197,10 +204,17 @@ export function OnboardingScreen() {
 
     const uid = authStore.getState().uid;
     if (uid) {
-      // dept: user picks (deduped + capped)
+      // dept: user picks (deduped + capped). Primary 스킵 시 sentinel '' 사용.
+      // dept[0] === '' 컨벤션 — derive가 falsy id 필터링.
       const combined: string[] = [];
       const seen = new Set<string>();
-      for (const id of [state.primaryDeptId, ...state.interestDeptIds]) {
+      if (state.primaryDeptId === null) {
+        combined.push('');
+      } else {
+        combined.push(state.primaryDeptId);
+        seen.add(state.primaryDeptId);
+      }
+      for (const id of state.interestDeptIds) {
         if (!seen.has(id)) {
           seen.add(id);
           combined.push(id);
@@ -246,6 +260,23 @@ export function OnboardingScreen() {
   // ── Skip interests (Step 3) ──
   const handleSkipInterests = useCallback(() => {
     dispatch({ type: 'CLEAR_INTEREST_DEPTS' });
+    dispatch({ type: 'NEXT' });
+  }, []);
+
+  // ── Skip primary dept (Step 2 "내 학과가 없어요") ──
+  // Opens in-app webview with the "request my dept" survey/info page.
+  // Result type (cancel/dismiss) is intentionally ignored — closing the
+  // browser is itself the decision to skip and advance.
+  const handleUnsupportedDept = useCallback(async () => {
+    await WebBrowser.openBrowserAsync(UNSUPPORTED_DEPT_SURVEY_URL, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+      controlsColor: '#1A8A5C',
+      toolbarColor: '#ffffff',
+      dismissButtonStyle: 'close',
+      showTitle: true,
+      enableBarCollapsing: true,
+    });
+    dispatch({ type: 'SKIP_PRIMARY_DEPT' });
     dispatch({ type: 'NEXT' });
   }, []);
 
@@ -341,7 +372,7 @@ export function OnboardingScreen() {
         return (
           <InterestDeptStep
             campus={state.campus!}
-            primaryDeptId={state.primaryDeptId!}
+            primaryDeptId={state.primaryDeptId}
             sources={deptList}
             selectedIds={state.interestDeptIds}
             onToggle={(deptId: string) => dispatch({ type: 'TOGGLE_INTEREST_DEPT', deptId })}
@@ -351,7 +382,7 @@ export function OnboardingScreen() {
         return (
           <LoginStep
             campus={state.campus!}
-            primaryDeptId={state.primaryDeptId!}
+            primaryDeptId={state.primaryDeptId}
             interestDeptIds={state.interestDeptIds}
             sources={deptList}
             loginError={loginError}
@@ -389,7 +420,9 @@ export function OnboardingScreen() {
             : undefined
         }
         secondaryAction={
-          state.step === 3
+          state.step === 2
+            ? { label: t('onboarding.primaryDeptUnsupportedHelp'), onPress: handleUnsupportedDept }
+            : state.step === 3
             ? { label: t('onboarding.skip'), onPress: handleSkipInterests }
             : state.step === 5
             ? { label: t('onboarding.notificationSkip'), onPress: handleSkipNotifications }

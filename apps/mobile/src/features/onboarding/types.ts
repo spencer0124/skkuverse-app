@@ -13,6 +13,7 @@ export interface OnboardingState {
 export type OnboardingAction =
   | { type: 'SET_CAMPUS'; campus: Campus }
   | { type: 'SET_PRIMARY_DEPT'; deptId: string }
+  | { type: 'SKIP_PRIMARY_DEPT' }
   | { type: 'TOGGLE_INTEREST_DEPT'; deptId: string }
   | { type: 'CLEAR_INTEREST_DEPTS' }
   | { type: 'SET_USER'; name: string }

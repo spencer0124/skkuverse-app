@@ -32,10 +32,8 @@ export default function LoginScreen() {
           router.back();
           break;
         case 'new':
-        case 'corrupt':
-          // 신규 가입자 또는 corrupt state(onboardedAt set + dept empty) →
-          // wizard 진입. router.replace로 login 화면 stack 제거하여
-          // wizard dismissAll이 호출자 컨텍스트로 자연 복귀.
+          // 신규 가입자 → wizard 진입. router.replace로 login 화면 stack
+          // 제거하여 wizard dismissAll이 호출자 컨텍스트로 자연 복귀.
           router.replace('/onboarding');
           break;
       }

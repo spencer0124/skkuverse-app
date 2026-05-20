@@ -265,23 +265,12 @@ export function useAppInit() {
                 // (logout A → signin B leaves A's stale data in MMKV otherwise).
                 if (prefs.onboardedAt != null) {
                   const restoredDeptIds = prefs.pickerSelections?.dept ?? [];
-                  if (restoredDeptIds.length > 0) {
-                    useSettingsStore.getState().restoreOnboardingFromRemote({
-                      primaryDeptId: restoredDeptIds[0],
-                      interestDeptIds: restoredDeptIds.slice(1, 5),
-                    });
-                  } else {
-                    // Corrupt state — onboardedAt set but dept empty. Listener
-                    // can't navigate; just log so we notice in Crashlytics.
-                    // Inline handler (notices/index.tsx) handles the same case
-                    // by routing to wizard.
-                    logHandledError(
-                      'useAppInit/restore-corrupt-prefs',
-                      new Error(
-                        'onboardedAt set but pickerSelections.dept empty',
-                      ),
-                    );
-                  }
+                  // sentinel '' → null (primary 스킵 사용자). truthy면 그대로.
+                  const restoredPrimary = restoredDeptIds[0] || null;
+                  useSettingsStore.getState().restoreOnboardingFromRemote({
+                    primaryDeptId: restoredPrimary,
+                    interestDeptIds: restoredDeptIds.slice(1, 5),
+                  });
                 }
               });
             }

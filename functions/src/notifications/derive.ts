@@ -59,6 +59,10 @@ export function deriveSubscribedTopics(
       }
       if (!tabOn(pickerKey)) continue;
       for (const id of ids) {
+        // dept[0] === '' sentinel ('대표학과 스킵' marker) 등 falsy id는
+        // topic 'dept:' 형식이 invalid라 v1 API에서 reject. 컨벤션 보존
+        // 위해 storage엔 유지하지만 emit 단계에서 필터.
+        if (!id) continue;
         topics.add(`${pickerKey}:${id}`);
       }
     }

@@ -60,8 +60,7 @@ export default function NoticesTab() {
           setSignInError(t('error.network'));
           break;
         case 'new':
-        case 'corrupt':
-          // 신규 가입자 또는 corrupt state — wizard 강제. modal stack push.
+          // 신규 가입자 — wizard 강제. modal stack push.
           router.push('/onboarding');
           break;
       }

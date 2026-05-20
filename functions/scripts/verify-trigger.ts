@@ -9,6 +9,8 @@
  *   3. Intent change → trigger re-derives correctly
  *   4. Idempotent intent shape (different write but same derive output)
  *      → Guard 2 short-circuits the write
+ *   5. dept[0] === '' sentinel ("대표학과 스킵") → derive filters falsy
+ *      ids; truthy interest ids still emit, no invalid 'dept:' topic.
  *
  * Run: `npm run verify:trigger` from functions/ (boots emulator + this script).
  *
@@ -159,7 +161,37 @@ async function main(): Promise<void> {
   );
   console.log('  ✓ enabled=true with notices=false: still [], Guard 2 skipped');
 
-  console.log('\n✅ All 4 scenarios passed\n');
+  // ── Scenario 5: dept[0] === '' sentinel → derive filters falsy ids ──
+  // 사용자가 wizard step 2 "내 학과가 없어요" 경로로 primary를 건너뛰고
+  // interest 2개만 picking. storage엔 sentinel '' 유지하지만 derive는
+  // emit 단계에서 falsy id 필터링 → 'dept:' invalid topic 누수 없음.
+  console.log('\nScenario 5: dept[0]="" sentinel → only truthy ids become topics');
+  await ref.set({
+    enabled: true,
+    categoryEnabled: { essential: false, services: false, notices: true },
+    noticeTabEnabled: {},
+    pickerSelections: { dept: ['', '12345', '67890'] },
+    subscribedTopics: [],
+    derivedAt: null,
+  });
+  await sleep(TRIGGER_LATENCY_MS);
+
+  const s5 = await readState();
+  // 5 fixed + 2 valid dept (sentinel '' filtered) = 7
+  assert.equal(
+    s5.subscribedTopics.length,
+    7,
+    `expected 7 topics (5 fixed + 2 valid dept), got ${s5.subscribedTopics.length}: ${JSON.stringify(s5.subscribedTopics)}`,
+  );
+  assert.ok(
+    !s5.subscribedTopics.includes('dept:'),
+    "invalid 'dept:' topic must not be emitted from sentinel '' id",
+  );
+  assert.ok(s5.subscribedTopics.includes('dept:12345'), 'dept:12345 should be present');
+  assert.ok(s5.subscribedTopics.includes('dept:67890'), 'dept:67890 should be present');
+  console.log(`  ✓ 7 topics derived, sentinel '' filtered: ${JSON.stringify(s5.subscribedTopics.sort())}`);
+
+  console.log('\n✅ All 5 scenarios passed\n');
 }
 
 main()
