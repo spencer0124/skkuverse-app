@@ -24,6 +24,40 @@ interface UseEnableNotificationsFlowOptions {
 }
 
 /**
+ * Module-level token registration. Mirrors useAppInit's lazy-uid pattern so
+ * writes land under the current uid. No hook state — safe to call from
+ * fire-and-forget contexts (e.g. onboarding skip path when permission is
+ * already granted and step 5's handleEnable won't run).
+ */
+export async function registerCurrentDeviceForNotifications(): Promise<void> {
+  await ensureRegistered();
+  const fcmToken = await getDeviceToken();
+  if (!fcmToken) return;
+  useNotificationStore.getState().setFcmToken(fcmToken);
+
+  const deviceId = useNotificationStore.getState().deviceId;
+  if (!deviceId) return;
+
+  const uid = getAuth().currentUser?.uid;
+  if (!uid) return;
+
+  const appLang = useSettingsStore.getState().appLanguage;
+  const osLocale: 'ko' | 'en' = appLang === 'ko' ? 'ko' : 'en';
+  const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+  const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+  await initializeFirestoreNotifications({
+    uid,
+    deviceId,
+    token: fcmToken,
+    platform,
+    appVersion,
+    osLocale,
+  });
+  useNotificationStore.getState().setIsTokenRegistered(true);
+}
+
+/**
  * Shared "ask for notification permission" flow used by both the onboarding
  * Step 5 and the settings-screen enable sheet. Encapsulates:
  *
@@ -50,37 +84,9 @@ export function useEnableNotificationsFlow({
     additionalOnGrantedRef.current = additionalOnGranted;
   });
 
-  const registerDeviceForNotifications = useCallback(async () => {
-    await ensureRegistered();
-    const fcmToken = await getDeviceToken();
-    if (!fcmToken) return;
-    useNotificationStore.getState().setFcmToken(fcmToken);
-
-    const deviceId = useNotificationStore.getState().deviceId;
-    if (!deviceId) return;
-
-    const uid = getAuth().currentUser?.uid;
-    if (!uid) return;
-
-    const appLang = useSettingsStore.getState().appLanguage;
-    const osLocale: 'ko' | 'en' = appLang === 'ko' ? 'ko' : 'en';
-    const appVersion = Constants.expoConfig?.version ?? '0.0.0';
-    const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
-
-    await initializeFirestoreNotifications({
-      uid,
-      deviceId,
-      token: fcmToken,
-      platform,
-      appVersion,
-      osLocale,
-    });
-    useNotificationStore.getState().setIsTokenRegistered(true);
-  }, []);
-
   const runGrantedSideEffects = useCallback(async () => {
     try {
-      await registerDeviceForNotifications();
+      await registerCurrentDeviceForNotifications();
     } catch (err) {
       logHandledError('notifications/register', err);
     }
@@ -92,7 +98,7 @@ export function useEnableNotificationsFlow({
         logHandledError('notifications/additional-on-granted', err);
       }
     }
-  }, [registerDeviceForNotifications]);
+  }, []);
 
   const handleEnable = useCallback(async () => {
     const prior = useNotificationStore.getState().permissionStatus;

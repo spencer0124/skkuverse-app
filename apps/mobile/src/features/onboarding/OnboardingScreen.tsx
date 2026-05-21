@@ -7,6 +7,7 @@ import {
   SdsColors,
   computeOnboardingPickerSeed,
   useNoticeTabs,
+  useNotificationStore,
   useSettingsStore,
   useT,
   type Campus,
@@ -17,7 +18,11 @@ import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
 import { seedOnboardingPreferences } from '@/services/firestore-notifications';
-import { useEnableNotificationsFlow } from '@/features/notifications/hooks/useEnableNotificationsFlow';
+import { checkPermission } from '@/services/messaging';
+import {
+  registerCurrentDeviceForNotifications,
+  useEnableNotificationsFlow,
+} from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
@@ -158,7 +163,24 @@ export function OnboardingScreen() {
     try {
       const user = await signInWithDeviceMigration('onboarding');
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
+
+      // 알림 권한 이미 허용된 사용자는 step 5(권한 화면)를 스킵.
+      // checkPermission()은 OS dialog 없는 조회. useAppInit의 권한 refresh가
+      // onboarding 진행 중인 사용자에겐 안 도므로(useAppInit onboardingCompleted
+      // gate) 여기서 명시 fetch.
+      const status = await checkPermission();
+      useNotificationStore.getState().setPermissionStatus(status);
+      const granted = status === 'authorized' || status === 'provisional';
+
       dispatch({ type: 'NEXT' });
+      if (granted) {
+        dispatch({ type: 'NEXT' });
+        // step 5의 handleEnable이 했을 토큰 등록을 fire-and-forget.
+        // 빼면 cold restart 전까지 FCM 토큰 미등록 회귀.
+        void registerCurrentDeviceForNotifications().catch((err) =>
+          logHandledError('onboarding/register-skip-path', err),
+        );
+      }
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
