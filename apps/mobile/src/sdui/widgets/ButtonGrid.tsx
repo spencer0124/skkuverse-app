@@ -7,7 +7,14 @@
  * Flutter source: sdui_button_grid_widget.dart + option_campus_service_button.dart
  */
 
-import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { useMemo } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from 'react-native';
 import { SdsColors, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 
@@ -15,13 +22,26 @@ interface Props {
   section: ButtonGridType;
 }
 
+const GRID_PADDING = 16;
+const GRID_GAP = 8;
+const GRID_COLS = 4;
+const PHONE_MAX_WIDTH = 480;
+
 export function ButtonGrid({ section }: Props) {
+  const { width: screenW } = useWindowDimensions();
+  const { containerWidth, itemSize } = useMemo(() => {
+    const w = Math.min(screenW, PHONE_MAX_WIDTH);
+    const inner = w - GRID_PADDING * 2;
+    const size = (inner - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+    return { containerWidth: w, itemSize: size };
+  }, [screenW]);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { width: containerWidth }]}>
       {section.items.map((item) => (
         <Pressable
           key={item.id}
-          style={styles.button}
+          style={[styles.button, { width: itemSize, height: itemSize }]}
           onPress={() =>
             handleSduiAction({
               actionType: item.actionType,
@@ -41,23 +61,15 @@ export function ButtonGrid({ section }: Props) {
   );
 }
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const GRID_MARGIN = 16;
-const GRID_GAP = 8;
-const GRID_COLS = 4;
-const GRID_ITEM_SIZE =
-  (SCREEN_WIDTH - GRID_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: GRID_PADDING,
+    gap: GRID_GAP,
+    alignSelf: 'center',
   },
   button: {
-    width: GRID_ITEM_SIZE,
-    height: GRID_ITEM_SIZE,
     borderRadius: 16,
     backgroundColor: SdsColors.grey50,
     alignItems: 'center',

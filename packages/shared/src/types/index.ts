@@ -67,3 +67,7 @@ export type {
   BuildingNavPayload,
 } from './building';
 export { getLocalizedText } from './building';
+
+// ── Bookmark types ──
+export type { BookmarkEntry, BookmarkSummaryType } from './bookmarks';
+export { bookmarkKey, parseBookmarkKey } from './bookmarks';

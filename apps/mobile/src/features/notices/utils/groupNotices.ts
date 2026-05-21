@@ -1,3 +1,15 @@
+/**
+ * Notice list section bucketing for `SectionList` headers.
+ *
+ * Bucket precedence (top → bottom):
+ *   recent7 → recent30 → month-{0..11} (this year) → year-{Y} (past, desc) → unknown
+ *
+ * `unknown` is the fallback for items whose `date` field cannot be parsed as
+ * `YYYY-MM-DD` (empty string, ISO timestamp, malformed). The notice list
+ * parser collapses missing/null dates to `''` (`parser.ts: asString(raw.date)`),
+ * so this layer must tolerate them rather than dropping items. Renders as
+ * 기타 / Other / 其他 and sorts below all year buckets.
+ */
 import type { NoticeListItem, AppLanguage } from '@skkuverse/shared';
 import { tpl } from '@skkuverse/shared';
 
@@ -21,7 +33,8 @@ function startOfLocalDay(d: Date): number {
 
 function sectionKeyFor(itemDate: string, todayStart: number, thisYear: number): string {
   const parts = itemDate.split('-').map(Number);
-  if (parts.length < 3 || parts.some(Number.isNaN)) return 'year-0';
+  // Empty string, ISO timestamp, malformed format → "기타" bucket.
+  if (parts.length < 3 || parts.some(Number.isNaN)) return 'unknown';
   const [y, m, d] = parts;
   const itemStart = new Date(y, m - 1, d).getTime();
   const days = Math.floor((todayStart - itemStart) / DAY_MS);
@@ -35,6 +48,7 @@ function sectionKeyFor(itemDate: string, todayStart: number, thisYear: number): 
 function sectionLabel(key: string, lang: AppLanguage): string {
   if (key === 'recent7') return tpl(lang, 'notices.sectionRecent7');
   if (key === 'recent30') return tpl(lang, 'notices.sectionRecent30');
+  if (key === 'unknown') return tpl(lang, 'notices.sectionUnknown');
 
   if (key.startsWith('month-')) {
     const monthIdx = parseInt(key.slice(6), 10);
@@ -62,6 +76,7 @@ function sectionSortOrder(key: string): number {
     const y = parseInt(key.slice(5), 10);
     return 1000 + (9999 - y); // higher year first (desc)
   }
+  if (key === 'unknown') return 99998; // sort below all year buckets, above default
   return 99999;
 }
 

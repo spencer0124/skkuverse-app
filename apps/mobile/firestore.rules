@@ -55,10 +55,99 @@ service cloud.firestore {
                       && (
                         !('categoryEnabled' in request.resource.data) ||
                         request.resource.data.categoryEnabled.essential == true
+                      )
+                      // onboardedAt: 시드 시점에 'null → timestamp' 한 방향 전환만
+                      // 허용. 이후 immutable. CF는 admin SDK라 이 룰 우회 가능.
+                      // Used as canonical "user has onboarded" signal —
+                      // useAppInit 리스너 + notices/index handler가 자동복원
+                      // discriminator로 사용. Rules 테스트:
+                      // firestore.rules.test.mjs "ONBOARDED_AT IMMUTABILITY" 4 케이스.
+                      && (
+                        resource.data.onboardedAt == request.resource.data.onboardedAt
+                        || (resource.data.onboardedAt == null
+                            && request.resource.data.onboardedAt is timestamp)
                       );
 
         allow delete: if false;
       }
+
+      // users/{uid}/feedback/{docId} — user-submitted negative feedback
+      // collected by the review-prompt stage 2b sheet. Append-only:
+      // owner can create + read, never update/delete (preserve evidence
+      // of historical sentiment for product analysis).
+      //
+      // `context` is a fixed-vocabulary enum so unknown contexts can't be
+      // injected to fragment the analysis later. Add new contexts here as
+      // the surface grows.
+      match /feedback/{docId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        // createdAt == request.time: append-only + forensic-grade. Stricter
+        // than the sibling bookmarks/{key} rule which accepts `savedAt is
+        // timestamp` — bookmarks/savedAt is a display label, but feedback
+        // docs are evidence of historical sentiment and we don't want an
+        // authed client to backdate them. Client must use serverTimestamp().
+        //
+        // Optional noticeRef fields (sourceId, articleNo) are validated when
+        // present using the same anchored regex as bookmarks/{key} (^[a-z0-9-]+$).
+        // Absence is allowed — the helpful-sheet doesn't always know the
+        // notice context at submit time. The short-circuit pattern
+        // `!('field' in data) || (validation...)` makes the field optional
+        // without weakening validation when supplied.
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.context in ['ai_summary_helpful_sheet']
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 2000
+                      && request.resource.data.createdAt == request.time
+                      && (
+                        !('sourceId' in request.resource.data) ||
+                        (request.resource.data.sourceId is string
+                         && request.resource.data.sourceId.matches('^[a-z0-9-]+$'))
+                      )
+                      && (
+                        !('articleNo' in request.resource.data) ||
+                        (request.resource.data.articleNo is int
+                         && request.resource.data.articleNo > 0)
+                      );
+        allow update, delete: if false;
+      }
+
+      // users/{uid}/bookmarks/{key} — saved notices, Phase 1 Chunk A.
+      //
+      // Subcollection model (NOT a single doc with a map of entries):
+      //   key = `${sourceId}:${articleNo}`
+      //
+      // Why subcollection: Firestore Rules cannot iterate map entries to assert
+      // key/value consistency. Per-doc keying lets us compare the path variable
+      // `{key}` directly to `request.resource.data.sourceId + ':' + string(articleNo)`,
+      // which catches inconsistent writes (a key claiming one notice while the
+      // body describes a different one).
+      //
+      // Why anchored regex `^[a-z0-9-]+$`: CEL `matches()` is partial-match by
+      // default. Without `^...$`, `"valid:bad"` would slip through because the
+      // substring `valid` matches `[a-z0-9-]+`. The "anchor canary" test in
+      // firestore.rules.test.mjs is the regression guard for this.
+      match /bookmarks/{key} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null
+                              && request.auth.uid == uid
+                              && key == request.resource.data.sourceId + ':' + string(request.resource.data.articleNo)
+                              && request.resource.data.sourceId is string
+                              && request.resource.data.sourceId.matches('^[a-z0-9-]+$')
+                              && request.resource.data.articleNo is int
+                              && request.resource.data.articleNo > 0
+                              && request.resource.data.title is string
+                              && request.resource.data.savedAt is timestamp;
+      }
+    }
+
+    // account_deletion_feedback/{docId} — anonymous survey collected by the
+    // `deleteAccount` Cloud Function when a user withdraws. Admin SDK writes
+    // only; never readable or writable from the client. Documents have no uid
+    // field by design (anonymity is the whole point — the user is leaving).
+    match /account_deletion_feedback/{docId} {
+      allow read, write: if false;
     }
 
     // devices/{deviceId} — top-level so the Cloud Function can query by

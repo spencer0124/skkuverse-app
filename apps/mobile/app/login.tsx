@@ -1,23 +1,14 @@
 import { useState } from 'react';
-import { Image, Platform, StyleSheet, Text, View } from 'react-native';
-import Constants from 'expo-constants';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@skkuverse/sds';
+import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
+import { GoogleAuthError } from '@/services/google-auth';
 import {
-  SdsColors,
-  SdsSpacing,
-  authStore,
-  useNotificationStore,
-  useSettingsStore,
-  useT,
-} from '@skkuverse/shared';
-import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
-import {
-  initializeFirestoreNotifications,
-  unregisterDevice,
-} from '@/services/firestore-notifications';
-import { logHandledError } from '@/services/crashlytics';
+  signInWithDeviceMigration,
+  classifyAndRestoreOnboarding,
+} from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
 
 export default function LoginScreen() {
@@ -29,56 +20,23 @@ export default function LoginScreen() {
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMessage(null);
-
-    // Pre-unregister current (anon) device — mirror of signOutFromGoogle's
-    // pattern. Without this the iOS anon→Google transition fails the
-    // device-update Rule (path a needs uid match, path b needs active=false),
-    // leaving the device stuck under the anon uid and breaking
-    // syncPreferencesToDevices fan-out. See OnboardingScreen.handleSignIn
-    // for the longer comment.
-    const deviceId = useNotificationStore.getState().deviceId;
-    if (deviceId) {
-      try {
-        await unregisterDevice(deviceId);
-      } catch (err) {
-        logHandledError('login/pre-unregister-anon-device', err);
-      }
-    }
-
     try {
-      const result = await signInWithGoogle();
-      // Android: linkWithCredential doesn't fire onAuthStateChanged
-      // (same UID preserved), so manually sync the store.
-      const user = result.user;
-      authStore.getState().setAuthenticated({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        isAnonymous: user.isAnonymous,
-      });
-
-      // Re-register device under the post-signin uid synchronously so
-      // syncPreferencesToDevices fan-out finds the device on subsequent
-      // toggles (rather than racing against useAppInit's async migration).
-      const fcmToken = useNotificationStore.getState().fcmToken;
-      if (deviceId && fcmToken) {
-        const lang = useSettingsStore.getState().appLanguage;
-        try {
-          await initializeFirestoreNotifications({
-            uid: user.uid,
-            deviceId,
-            token: fcmToken,
-            platform: Platform.OS === 'ios' ? 'ios' : 'android',
-            appVersion: Constants.expoConfig?.version ?? '0.0.0',
-            osLocale: lang === 'ko' ? 'ko' : 'en',
-          });
-        } catch (err) {
-          logHandledError('login/post-signin-register', err);
-        }
+      const user = await signInWithDeviceMigration('login');
+      const result = await classifyAndRestoreOnboarding(user.uid, 'login');
+      switch (result.kind) {
+        case 'restored':
+        case 'read-failed':
+          // restored: 게이트 flag 동기 갱신 후 호출자 복귀.
+          // read-failed: offline 등 — listener fallback (useAppInit.ts:240)
+          // 이 곧 자동 unlock 시도. 호출자 컨텍스트 보존이 toast보다 자연.
+          router.back();
+          break;
+        case 'new':
+          // 신규 가입자 → wizard 진입. router.replace로 login 화면 stack
+          // 제거하여 wizard dismissAll이 호출자 컨텍스트로 자연 복귀.
+          router.replace('/onboarding');
+          break;
       }
-
-      router.back();
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
@@ -143,6 +101,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: SdsSpacing.xl,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   header: {
     alignItems: 'center',
@@ -157,8 +118,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
+    lineHeight: 30,
     color: SdsColors.grey900,
     marginBottom: SdsSpacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,

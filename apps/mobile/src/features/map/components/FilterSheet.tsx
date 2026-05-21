@@ -80,6 +80,9 @@ const styles = StyleSheet.create({
   content: {
     padding: SdsSpacing.base,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   sectionTitle: {
     ...SdsTypo.t5,

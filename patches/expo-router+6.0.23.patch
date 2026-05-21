@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-router/build/native-tabs/NativeBottomTabs/NativeTabsView.js b/node_modules/expo-router/build/native-tabs/NativeBottomTabs/NativeTabsView.js
+index 106de95..51cf442 100644
+--- a/node_modules/expo-router/build/native-tabs/NativeBottomTabs/NativeTabsView.js
++++ b/node_modules/expo-router/build/native-tabs/NativeBottomTabs/NativeTabsView.js
+@@ -103,7 +103,7 @@ function NativeTabsView(props) {
+     tabBarItemActiveIndicatorColor={options[inBoundsDeferredFocusedIndex]?.indicatorColor ?? props?.indicatorColor} tabBarItemActiveIndicatorEnabled={!disableIndicator} 
+     // #endregion
+     // #region iOS props
+-    tabBarTintColor={props?.tintColor} tabBarMinimizeBehavior={minimizeBehavior} 
++    tabBarTintColor={props?.tintColor} tabBarMinimizeBehavior={minimizeBehavior} bottomAccessory={props?.bottomAccessory}
+     // #endregion
+     onNativeFocusChange={({ nativeEvent: { tabKey } }) => {
+             const descriptor = descriptors[tabKey];

@@ -28,7 +28,7 @@ const OUT_DIR = resolve(__dirname, '../assets/tab-icons');
 // Prefix is icon-shape based (not route name) for naming consistency.
 const ICONS = [
   { tab: 'home', phosphor: 'house' },
-  { tab: 'bell', phosphor: 'bell' },
+  { tab: 'megaphone-simple', phosphor: 'megaphone-simple' },
   { tab: 'compass', phosphor: 'compass' },
   { tab: 'path', phosphor: 'path' },
 ];

@@ -89,10 +89,26 @@ export const onPreferencesWrite = onDocumentWritten(
       return;
     }
 
-    await change.after.ref.update({
-      subscribedTopics: derived,
-      derivedAt: FieldValue.serverTimestamp(),
-    });
+    // Race-tolerant update: a concurrent admin-SDK delete (deleteAccount CF
+    // path) can remove the doc between the existence check above and this
+    // write. NOT_FOUND in that window is a no-op — the derived fields are
+    // dead anyway. Other update errors still surface.
+    try {
+      await change.after.ref.update({
+        subscribedTopics: derived,
+        derivedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (err: unknown) {
+      const code = (err as { code?: number | string })?.code;
+      // Firestore Admin SDK throws gRPC code 5 (NOT_FOUND) here.
+      if (code === 5 || code === 'not-found') {
+        logger.info('preferences doc concurrently deleted; skip derive write', {
+          uid,
+        });
+        return;
+      }
+      throw err;
+    }
 
     logger.info('notifications.derive.written', {
       uid,

@@ -1,5 +1,5 @@
-import { View, StyleSheet } from 'react-native';
-import { SdsColors, useSettingsStore } from '@skkuverse/shared';
+import { Text, View, StyleSheet } from 'react-native';
+import { SdsColors, highlightMatches, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import { PaperclipIcon } from 'phosphor-react-native';
@@ -11,17 +11,48 @@ interface Props {
   onPress: (item: NoticeListItem) => void;
   /** Show department label (only for multi-dept tabs like 학과/도서관). */
   showDepartment?: boolean;
+  /** Search query — when set, the matched substrings inside the title
+   *  are wrapped in a styled inner <Text> (case-insensitive match,
+   *  original casing preserved). Empty / undefined renders the title
+   *  verbatim. */
+  highlightQuery?: string;
+  /** Compact preview (e.g. home tab): renders title + one-liner only.
+   *  Hides meta row (date · dept · paperclip) and deadline badges. */
+  compact?: boolean;
 }
 
+// Plain RN <Text> (not SDS <Txt>) so the matched segment inherits the
+// outer parent's fontSize / lineHeight via RN's text-style inheritance.
+// SDS <Txt> applies its own typography defaults (default 't5') which
+// overrides the parent's explicit style.fontSize=16 — causing the
+// highlighted glyphs to render at a different size than the surrounding
+// title. Plain <Text> only carries the styles we explicitly set (color
+// + weight), so size matches the parent.
+function renderTitleWithHighlight(title: string, query: string | undefined) {
+  if (!query) return title;
+  return highlightMatches(title, query).map((seg, i) =>
+    seg.matched ? (
+      <Text key={i} style={styles.highlightedSegment}>
+        {seg.text}
+      </Text>
+    ) : (
+      seg.text
+    ),
+  );
+}
+
+// SKKU deepgreen (#1f3d2e) on green50 (#F0FAF6) — matches the onboarding
+// pinned-card / wizard-accent palette. Single brand action color.
+const DEEPGREEN = '#1f3d2e';
 const PILL_COLORS: Partial<Record<string, { color: string; background: string }>> = {
   urgent: { color: '#F04452', background: 'rgba(240, 68, 82, 0.08)' },
-  normal: { color: '#03B26C', background: '#F0FAF6' },
+  normal: { color: DEEPGREEN, background: SdsColors.green50 },
   closed: { color: '#8B95A1', background: '#F2F4F6' },
-  eventToday: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
-  inProgress: { color: SdsColors.green500, background: 'rgba(3, 178, 108, 0.08)' },
-  upcoming: { color: '#03B26C', background: '#F0FAF6' },
+  eventToday: { color: DEEPGREEN, background: SdsColors.green50 },
+  inProgress: { color: DEEPGREEN, background: SdsColors.green50 },
+  upcoming: { color: DEEPGREEN, background: SdsColors.green50 },
 };
-const DEFAULT_PILL = { color: '#03B26C', background: '#F0FAF6' };
+const DEFAULT_PILL = { color: DEEPGREEN, background: SdsColors.green50 };
 
 function isFixedBadge(d: DeadlineInfo): boolean {
   return d.pill.variant === 'closed';
@@ -47,20 +78,27 @@ function renderPill(info: DeadlineInfo) {
   );
 }
 
-export function NoticeRow({ item, onPress, showDepartment }: Props) {
+export function NoticeRow({
+  item,
+  onPress,
+  showDepartment,
+  highlightQuery,
+  compact,
+}: Props) {
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
-  const deadline = formatDeadlineBadge(item.summary ?? null);
+  const deadline = compact ? null : formatDeadlineBadge(item.summary ?? null);
   const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
   const belowBadge  = deadline && !isFixedBadge(deadline) ? deadline : null;
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
-  const relativeDate = formatRelativeDate(item.date, lang);
-  const deptLabel = showDepartment ? item.department : undefined;
+  const relativeDate = compact ? '' : formatRelativeDate(item.date, lang);
+  const deptLabel = !compact && showDepartment ? item.department : undefined;
 
   return (
     <ListRow
       onPress={() => onPress(item)}
-      style={styles.row}
-      containerStyle={styles.container}
+      style={[styles.row, compact && styles.rowCompact]}
+      containerStyle={[styles.container, compact && styles.containerCompact]}
+      horizontalPadding={compact ? 0 : undefined}
       contents={
         <View style={styles.contents}>
           {(relativeDate || deptLabel) ? (
@@ -102,12 +140,12 @@ export function NoticeRow({ item, onPress, showDepartment }: Props) {
             typography="t5"
             fontWeight="semiBold"
             color={SdsColors.grey900}
-            numberOfLines={2}
+            numberOfLines={compact ? 1 : 2}
             lineBreakStrategyIOS="hangul-word"
             textBreakStrategy="highQuality"
             style={[styles.title, fixedBadge && styles.titleWithBadge]}
           >
-            {item.title}
+            {renderTitleWithHighlight(item.title, highlightQuery)}
           </Txt>
           {oneLiner.length > 0 ? (
             <Txt
@@ -137,8 +175,17 @@ const styles = StyleSheet.create({
   row: {
     backgroundColor: '#FFFFFF',
   },
+  // Compact (home preview) — transparent so the row blends into the page
+  // background instead of looking like a floating white chit when used
+  // outside a wrapping card.
+  rowCompact: {
+    backgroundColor: 'transparent',
+  },
   container: {
     paddingVertical: 16,
+  },
+  containerCompact: {
+    paddingVertical: 12,
   },
   contents: {
     gap: 4,
@@ -194,6 +241,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
+  },
+  // Inline emphasis on matched search substrings. fontSize/lineHeight
+  // intentionally OMITTED so the segment inherits from the parent
+  // <Txt>'s explicit title style (16/23) — keeps glyph size identical
+  // across the row regardless of which substring is matched.
+  highlightedSegment: {
+    color: SdsColors.blue500,
+    fontWeight: 'bold' as const,
   },
 });
 

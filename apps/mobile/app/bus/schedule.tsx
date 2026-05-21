@@ -1,5 +1,5 @@
 /**
- * BusIcon schedule screen — timetable with segmented control and week navigation.
+ * Bus schedule screen — timetable with segmented control and week navigation.
  *
  * Flow:
  * 1. useBusConfig(groupId) → BusGroup (screenType 'schedule')
@@ -14,7 +14,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { InfoIcon } from 'phosphor-react-native';
 import {
   useBusConfig,
   useSmartSchedule,
@@ -23,7 +24,7 @@ import {
   SdsColors,
 } from '@skkuverse/shared';
 import { SegmentedControl } from '@skkuverse/sds';
-import { NavigationBar } from '@/features/bus/realtime/NavigationBar';
+import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { InfoBanner } from '@/features/bus/schedule/InfoBanner';
 import { DayGrid } from '@/features/bus/schedule/DayGrid';
 import { SectionCard } from '@/features/bus/schedule/SectionCard';
@@ -56,9 +57,14 @@ export default function ScheduleScreen() {
   const isSchedule = config?.screenType === 'schedule';
   const screenConfig = isSchedule ? config.screen : undefined;
 
-  // InfoIcon button — opens webview with feature info URL
+  // Info button — opens webview with feature info URL. Server-driven via
+  // screen.features[]: if the schedule group has no info page (e.g.
+  // fasttrack), `getInfoUrl` returns undefined, which propagates through
+  // `devRewriteInfoUrl` and hides the header button via `headerRight:
+  // infoUrl ? ... : undefined` below. Do NOT add a hardcoded fallback URL
+  // — the server's empty `features[]` is the SSOT for this.
   const serverInfoUrl = screenConfig ? getInfoUrl(screenConfig.features) : undefined;
-  const infoUrl = serverInfoUrl ? devRewriteInfoUrl(serverInfoUrl, '#/bus/campus/info') : undefined;
+  const infoUrl = devRewriteInfoUrl(serverInfoUrl);
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
     router.push({
@@ -144,7 +150,7 @@ export default function ScheduleScreen() {
   if (configLoading || !config) {
     return (
       <View style={styles.container}>
-        <NavigationBar title="" />
+        <Stack.Screen options={{ title: '' }} />
         <ScheduleSkeleton />
       </View>
     );
@@ -152,7 +158,18 @@ export default function ScheduleScreen() {
 
   return (
     <View style={styles.container}>
-      <NavigationBar title={config.label} onInfoPress={infoUrl ? handleInfoPress : undefined} />
+      <Stack.Screen
+        options={{
+          title: config.label,
+          headerRight: infoUrl
+            ? () => (
+                <HeaderIconButton onPress={handleInfoPress}>
+                  <InfoIcon size={22} color={SdsColors.grey900} />
+                </HeaderIconButton>
+              )
+            : undefined,
+        }}
+      />
 
       {/* Fixed header — toggle + day grid */}
       <SectionCard style={styles.headerSection}>

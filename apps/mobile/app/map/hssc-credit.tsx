@@ -5,34 +5,12 @@
  * Flutter source: hssc_building_credit.dart
  */
 
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
-import { SdsColors, SdsTypo } from '@skkuverse/shared';
+import { View, Text, StyleSheet } from 'react-native';
+import { SdsColors } from '@skkuverse/shared';
 
 export default function HSSCCreditScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Navigation bar */}
-      <View style={styles.bar}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.iconButton}
-          hitSlop={8}
-        >
-          <ArrowLeft size={24} color={SdsColors.grey900} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          인사캠 건물지도
-        </Text>
-        <View style={styles.iconButton} />
-      </View>
-
-      {/* Credit card */}
+    <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
@@ -53,27 +31,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: SdsColors.background,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 56,
-    paddingHorizontal: 4,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: SdsTypo.t6.fontSize,
-    lineHeight: SdsTypo.t6.lineHeight,
-    fontWeight: '700',
-    color: SdsColors.grey900,
   },
   content: {
     paddingHorizontal: 16,

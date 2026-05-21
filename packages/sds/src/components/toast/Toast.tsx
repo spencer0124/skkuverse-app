@@ -153,7 +153,7 @@ const iconComponents: Record<IconType, typeof CheckCircleIcon> = {
 function ToastIcon({ type, size = 20 }: ToastIconProps) {
   const color = iconColors[type];
   const IconComponent = iconComponents[type];
-  return <IconComponent size={size} color="#FFFFFF" weight="fill" />;
+  return <IconComponent size={size} color={color} weight="fill" />;
 }
 
 // ── Toast.Button ──

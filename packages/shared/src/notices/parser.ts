@@ -6,6 +6,7 @@
 
 import type { ApiEnvelope } from '../api/types';
 import type {
+  ExcludeReasonKey,
   NoticeDetail,
   NoticeDetailSummary,
   NoticeEndAt,
@@ -23,10 +24,38 @@ import type {
   NoticeEditInfo,
 } from './types';
 
+const KNOWN_EXCLUDE_REASONS: ReadonlySet<ExcludeReasonKey> = new Set<ExcludeReasonKey>([
+  'loginRequired',
+  'noWebsite',
+  'externalSystem',
+  'accessRestricted',
+  'temporarilyUnavailable',
+]);
+
+function asExcludeReason(raw: unknown): ExcludeReasonKey | null {
+  // Forward-compat: unknown enum values from a newer server are downgraded to
+  // null rather than rejected, so an enum addition can be deployed
+  // server-first without breaking existing clients.
+  return typeof raw === 'string' && KNOWN_EXCLUDE_REASONS.has(raw as ExcludeReasonKey)
+    ? (raw as ExcludeReasonKey)
+    : null;
+}
+
 // ── Internal helpers ──
 
 function asRecord(raw: unknown): Record<string, unknown> {
   return (raw ?? {}) as Record<string, unknown>;
+}
+
+/**
+ * Server-side `date` field is contractually "YYYY-MM-DD" (per NoticeListItem
+ * docs + formatRelativeDate / groupNoticesByDate consumers), but some sources
+ * (e.g. ecostat-undergrad) emit "YYYY-MM-DD HH:MM" and ISO timestamps could
+ * appear in the future. Truncate to the first 10 chars so downstream split('-')
+ * always sees `[YYYY, MM, DD]` and items don't fall into the "기타" bucket.
+ */
+function normalizeNoticeDate(raw: string): string {
+  return raw.slice(0, 10);
 }
 
 function asString(raw: unknown, fallback = ''): string {
@@ -98,7 +127,7 @@ function parseNoticeListItem(raw: Record<string, unknown>): NoticeListItem {
     category: asNullableString(raw.category),
     author: asNullableString(raw.author),
     department: asNullableString(raw.department),
-    date: asString(raw.date),
+    date: normalizeNoticeDate(asString(raw.date)),
     views: asNumber(raw.views, 0),
     sourceUrl: asString(raw.sourceUrl),
     hasContent: contentHash !== null && contentHash !== undefined && contentHash !== '',
@@ -224,6 +253,11 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
           id: asString(ss.id),
           name: asString(ss.name),
           campus: asNullableString(ss.campus),
+          college: asNullableString(ss.college),
+          // Default `true` so a server response that pre-dates the field
+          // doesn't render every dept as unsupported.
+          noticeAvailable: asBool(ss.noticeAvailable, true),
+          excludeReason: asExcludeReason(ss.excludeReason),
         };
       });
       const validIds = new Set(sources.map((s) => s.id));

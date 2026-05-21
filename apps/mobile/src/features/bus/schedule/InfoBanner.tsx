@@ -1,5 +1,5 @@
 /**
- * Dismissable info banner — blue-tinted notification strip with XIcon button.
+ * Dismissable info banner — blue-tinted notification strip with X button.
  *
  * Design source: shuttle-v3.html (.banner)
  */

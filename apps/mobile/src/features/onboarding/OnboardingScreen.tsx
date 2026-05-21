@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, StyleSheet, View } from 'react-native';
-import Constants from 'expo-constants';
+import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
@@ -13,23 +13,27 @@ import {
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
-import { signInWithGoogle, GoogleAuthError } from '@/services/google-auth';
+import { GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
+import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
+import { seedOnboardingPreferences } from '@/services/firestore-notifications';
+import { checkPermission } from '@/services/messaging';
 import {
-  initializeFirestoreNotifications,
-  seedOnboardingPreferences,
-  unregisterDevice,
-} from '@/services/firestore-notifications';
+  registerCurrentDeviceForNotifications,
+  useEnableNotificationsFlow,
+} from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
 
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
 import { MAX_INTEREST_DEPTS } from './types';
+import { UNSUPPORTED_DEPT_SURVEY_URL } from './constants';
 import { OnboardingLayout } from './components/OnboardingLayout';
 import { CampusStep } from './components/CampusStep';
 import { PrimaryDeptStep } from './components/PrimaryDeptStep';
 import { InterestDeptStep } from './components/InterestDeptStep';
 import { LoginStep } from './components/LoginStep';
+import { NotificationStep } from './components/NotificationStep';
 import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
 
@@ -56,6 +60,11 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
         interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
       };
 
+    case 'SKIP_PRIMARY_DEPT':
+      // User tapped "내 학과가 없어요" → opened survey webview → dismissed.
+      // primary null로 마킹. interest는 보존 (이후 step에서 picking 가능).
+      return { ...state, primaryDeptId: null };
+
     case 'TOGGLE_INTEREST_DEPT': {
       const exists = state.interestDeptIds.includes(action.deptId);
       if (exists) {
@@ -78,7 +87,7 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
       return { ...state, userName: action.name };
 
     case 'NEXT':
-      if (state.step >= 5) return state;
+      if (state.step >= 6) return state;
       return { ...state, step: (state.step + 1) as OnboardingStep };
 
     case 'PREV':
@@ -116,7 +125,7 @@ export function OnboardingScreen() {
   // ── Android back handler ──
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (state.step === 5) return true; // Block back on completion
+      if (state.step === 6) return true; // Block back on completion
       if (state.step === 1) {
         setShowExitDialog(true);
         return true;
@@ -136,85 +145,43 @@ export function OnboardingScreen() {
     }
   }, [state.step]);
 
-  const handleClose = useCallback(() => {
-    setShowExitDialog(true);
-  }, []);
-
   const handleLeave = useCallback(() => {
     setShowExitDialog(false);
     router.back();
   }, [router]);
 
   // ── Google Sign-In (Step 4) ──
+  // Wizard 강제 흐름 — classifyAndRestoreOnboarding은 의도적으로 호출하지 않음.
+  // 신규 가입자는 step 5에서 seedOnboardingPreferences로 새 시드를 쓰고,
+  // 이미 onboarded된 사용자가 wizard로 들어와도 step 5 완료 시 동일하게
+  // 시드를 덮어쓴다 (의도적 — wizard 진입 자체가 사용자가 다시 wizard
+  // 통과하기로 한 결정). 자동복원이 필요한 returning user는 다른 진입점
+  // (notices landing의 "이미 가입한 적 있어요" 또는 login.tsx)을 사용.
   const handleSignIn = useCallback(async () => {
     setLoginLoading(true);
     setLoginError(null);
-
-    // Mirror of signOutFromGoogle's pre-unregister: mark the current (anon)
-    // device's doc inactive BEFORE the auth state changes. After the
-    // anon→Google transition, useAppInit's onAuthStateChanged listener
-    // re-runs initializeFirestoreNotifications under the new uid; the
-    // Firestore rule for devices/{deviceId} update permits a non-owner
-    // claim only when `resource.data.active == false` (path b). Without
-    // this step the migration write is rejected silently
-    // (logHandledError('notifications/auth-transition')), the device doc
-    // stays under the anon uid forever, and syncPreferencesToDevices
-    // can't find it on subsequent toggles — the exact symptom that broke
-    // dogfooding the first time around.
-    const deviceId = useNotificationStore.getState().deviceId;
-    if (deviceId) {
-      try {
-        await unregisterDevice(deviceId);
-      } catch (err) {
-        // Non-fatal — proceed with sign-in. Worst case the migration
-        // still fails and the user re-encounters the issue (recoverable
-        // via app reinstall or signOut/signIn cycle).
-        logHandledError('onboarding/pre-unregister-anon-device', err);
-      }
-    }
-
     try {
-      const result = await signInWithGoogle();
-      const user = result.user;
-      authStore.getState().setAuthenticated({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        isAnonymous: user.isAnonymous,
-      });
-
-      // Synchronously re-register the device under the post-signin uid.
-      // - iOS (signInWithCredential, new uid): rule path b — pre-unregister
-      //   above made the doc inactive, so this write claims it under
-      //   the Google uid. Done synchronously so step 5 handleComplete
-      //   doesn't race against useAppInit's async withRetry migration.
-      // - Android (linkWithCredential preserves uid + onAuthStateChanged
-      //   doesn't fire): this is the *only* path that re-activates the
-      //   device after our pre-unregister. Without it the device stays
-      //   active:false until the next cold start.
-      const fcmToken = useNotificationStore.getState().fcmToken;
-      if (deviceId && fcmToken) {
-        const lang = useSettingsStore.getState().appLanguage;
-        try {
-          await initializeFirestoreNotifications({
-            uid: user.uid,
-            deviceId,
-            token: fcmToken,
-            platform: Platform.OS === 'ios' ? 'ios' : 'android',
-            appVersion: Constants.expoConfig?.version ?? '0.0.0',
-            osLocale: lang === 'ko' ? 'ko' : 'en',
-          });
-        } catch (err) {
-          // Non-fatal — useAppInit's onAuthStateChanged migration may
-          // still recover on iOS, and Android's next launch will. The
-          // user will still complete onboarding.
-          logHandledError('onboarding/post-signin-register', err);
-        }
-      }
-
+      const user = await signInWithDeviceMigration('onboarding');
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
+
+      // 알림 권한 이미 허용된 사용자는 step 5(권한 화면)를 스킵.
+      // checkPermission()은 OS dialog 없는 조회. useAppInit의 권한 refresh가
+      // onboarding 진행 중인 사용자에겐 안 도므로 (useAppInit onboardingCompleted
+      // gate) 여기서 명시 fetch. denied 사용자는 step 5에 그대로 진입해서
+      // "허용하기" CTA → OS 설정 deep-link 경로를 따른다.
+      const status = await checkPermission();
+      useNotificationStore.getState().setPermissionStatus(status);
+      const granted = status === 'authorized' || status === 'provisional';
+
       dispatch({ type: 'NEXT' });
+      if (granted) {
+        dispatch({ type: 'NEXT' });
+        // step 5의 handleEnable이 했을 토큰 등록을 fire-and-forget.
+        // 빼면 cold restart 전까지 FCM 토큰 미등록 회귀.
+        void registerCurrentDeviceForNotifications().catch((err) =>
+          logHandledError('onboarding/register-skip-path', err),
+        );
+      }
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
@@ -249,7 +216,7 @@ export function OnboardingScreen() {
   // zustand `completeOnboarding` continues to track the local "did this user
   // finish onboarding?" flag.
   const handleComplete = useCallback(async () => {
-    if (!state.campus || !state.primaryDeptId) return;
+    if (!state.campus) return;
     const campus: Campus = state.campus;
     const settingsStore = useSettingsStore.getState();
     settingsStore.completeOnboarding({
@@ -260,10 +227,17 @@ export function OnboardingScreen() {
 
     const uid = authStore.getState().uid;
     if (uid) {
-      // dept: user picks (deduped + capped)
+      // dept: user picks (deduped + capped). Primary 스킵 시 sentinel '' 사용.
+      // dept[0] === '' 컨벤션 — derive가 falsy id 필터링.
       const combined: string[] = [];
       const seen = new Set<string>();
-      for (const id of [state.primaryDeptId, ...state.interestDeptIds]) {
+      if (state.primaryDeptId === null) {
+        combined.push('');
+      } else {
+        combined.push(state.primaryDeptId);
+        seen.add(state.primaryDeptId);
+      }
+      for (const id of state.interestDeptIds) {
         if (!seen.has(id)) {
           seen.add(id);
           combined.push(id);
@@ -312,6 +286,36 @@ export function OnboardingScreen() {
     dispatch({ type: 'NEXT' });
   }, []);
 
+  // ── Skip primary dept (Step 2 "내 학과가 없어요") ──
+  // Opens in-app webview with the "request my dept" survey/info page.
+  // Result type (cancel/dismiss) is intentionally ignored — closing the
+  // browser is itself the decision to skip and advance.
+  const handleUnsupportedDept = useCallback(async () => {
+    await WebBrowser.openBrowserAsync(UNSUPPORTED_DEPT_SURVEY_URL, {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+      controlsColor: '#1A8A5C',
+      toolbarColor: '#ffffff',
+      dismissButtonStyle: 'close',
+      showTitle: true,
+      enableBarCollapsing: true,
+    });
+    dispatch({ type: 'SKIP_PRIMARY_DEPT' });
+    dispatch({ type: 'NEXT' });
+  }, []);
+
+  // ── Notification permission (Step 5) ──
+  // All branching (denied→openOsSettings, else→requestPermission), AppState
+  // settings-return handling, and token registration live inside the hook.
+  // Onboarding has nothing extra to do on grant — step 6's
+  // seedOnboardingPreferences already writes `enabled: true` master intent.
+  const { handleEnable } = useEnableNotificationsFlow({
+    onResolved: () => dispatch({ type: 'NEXT' }),
+  });
+
+  const handleSkipNotifications = useCallback(() => {
+    dispatch({ type: 'NEXT' });
+  }, []);
+
   // ── CTA config per step ──
   const ctaDisabled = (() => {
     switch (state.step) {
@@ -324,7 +328,8 @@ export function OnboardingScreen() {
 
   const ctaLabel = (() => {
     switch (state.step) {
-      case 5: return t('onboarding.completionCta');
+      case 5: return t('onboarding.notificationCta');
+      case 6: return t('onboarding.completionCta');
       default: return t('onboarding.next');
     }
   })();
@@ -332,7 +337,8 @@ export function OnboardingScreen() {
   const onCtaPress = (() => {
     switch (state.step) {
       case 4: return handleSignIn;
-      case 5: return handleComplete;
+      case 5: return handleEnable;
+      case 6: return handleComplete;
       default: return handleNext;
     }
   })();
@@ -389,7 +395,7 @@ export function OnboardingScreen() {
         return (
           <InterestDeptStep
             campus={state.campus!}
-            primaryDeptId={state.primaryDeptId!}
+            primaryDeptId={state.primaryDeptId}
             sources={deptList}
             selectedIds={state.interestDeptIds}
             onToggle={(deptId: string) => dispatch({ type: 'TOGGLE_INTEREST_DEPT', deptId })}
@@ -399,13 +405,15 @@ export function OnboardingScreen() {
         return (
           <LoginStep
             campus={state.campus!}
-            primaryDeptId={state.primaryDeptId!}
+            primaryDeptId={state.primaryDeptId}
             interestDeptIds={state.interestDeptIds}
             sources={deptList}
             loginError={loginError}
           />
         );
       case 5:
+        return <NotificationStep />;
+      case 6:
         return <CompletionStep userName={state.userName ?? ''} />;
     }
   };
@@ -413,13 +421,11 @@ export function OnboardingScreen() {
   return (
     <>
       <OnboardingLayout
-        step={state.step}
         onBack={handleBack}
-        onClose={handleClose}
         ctaLabel={ctaLabel}
         ctaDisabled={ctaDisabled}
         onCtaPress={onCtaPress}
-        minimal={state.step === 5}
+        minimal={state.step === 6}
         ctaContent={
           state.step === 4
             ? (
@@ -436,10 +442,13 @@ export function OnboardingScreen() {
               )
             : undefined
         }
-        ctaFineprint={state.step === 4 ? t('onboarding.loginFineprint') : undefined}
         secondaryAction={
-          state.step === 3
+          state.step === 2
+            ? { label: t('onboarding.primaryDeptUnsupportedHelp'), onPress: handleUnsupportedDept }
+            : state.step === 3
             ? { label: t('onboarding.skip'), onPress: handleSkipInterests }
+            : state.step === 5
+            ? { label: t('onboarding.notificationSkip'), onPress: handleSkipNotifications }
             : undefined
         }
       >

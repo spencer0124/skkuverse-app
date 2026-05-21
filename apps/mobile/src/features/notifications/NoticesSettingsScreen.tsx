@@ -1,8 +1,8 @@
-import { useCallback } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Button, ListRow, Switch, Txt } from '@skkuverse/sds';
+import { useCallback, useEffect, useRef } from 'react';
+import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { Button, ListRow, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -15,10 +15,11 @@ import {
   setCategoryEnabled,
   setNoticeTabEnabled,
 } from '@/services/firestore-notifications';
+import { checkPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
 import { AnonymousGate } from './components/AnonymousGate';
+import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 import { HintBanner } from './components/HintBanner';
-import { ScreenHeader } from './components/ScreenHeader';
 
 // 9탭 key → Tossface 이모지 매핑.
 // CLAUDE.md tabsContract 의 9개 key 와 일치 (dept/academic/scholarship/career/
@@ -37,12 +38,42 @@ const TAB_EMOJI: Record<string, string> = {
 };
 
 export default function NoticesSettingsScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const preferences = useNotificationStore((s) => s.preferences);
+  const permissionStatus = useNotificationStore((s) => s.permissionStatus);
+  const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
+  const enableSheetDismissed = useNotificationStore(
+    (s) => s.enableSheetDismissedThisSession,
+  );
+
+  // NotificationSettingsScreen과 동일 패턴: focus 시 OS truth fetch → store mirror.
+  // 사용자가 OS 설정에서 권한 변경 후 돌아오면 fresh status 반영되어 self-heal.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void checkPermission().then((status) => {
+        if (!cancelled) setPermissionStatus(status);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [setPermissionStatus]),
+  );
+
+  // Auto-present enable sheet when permission isn't granted — 공지 탭 bell icon
+  // 으로 들어온 사용자도 NotificationSettingsScreen과 동일하게 권한 유도 받음.
+  // enableSheetDismissedThisSession은 store에서 session-scoped라 두 screen 간
+  // dismissal intent 공유 (한 번 닫으면 같은 세션엔 다른 screen에서도 안 뜸).
+  const enableSheetRef = useRef<BottomSheetModal>(null);
+  useEffect(() => {
+    const notGranted =
+      permissionStatus === 'denied' || permissionStatus === 'notDetermined';
+    if (notGranted && !enableSheetDismissed) {
+      enableSheetRef.current?.present();
+    }
+  }, [permissionStatus, enableSheetDismissed]);
 
   const {
     data: tabsConfig,
@@ -89,8 +120,7 @@ export default function NoticesSettingsScreen() {
   if (!authReady) return <AnonymousGate />;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.notices')} onBack={() => router.back()} />
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {!masterEnabled && <HintBanner message={t('notifications.masterOffHint')} />}
         {masterEnabled && !noticesEnabled && (
@@ -100,16 +130,16 @@ export default function NoticesSettingsScreen() {
         <ListRow
           contents={
             <ListRow.Texts
-              type="2RowTypeA"
+              type="1RowTypeA"
               top={t('notifications.noticesDetailSwitchLabel')}
-              bottom={t('notifications.noticesDetailDesc')}
             />
           }
           right={
             <Switch
-              checked={noticesEnabled}
-              onCheckedChange={handleToggleCategory}
+              value={noticesEnabled}
+              onValueChange={handleToggleCategory}
               disabled={togglesDisabled}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
             />
           }
         />
@@ -140,6 +170,8 @@ export default function NoticesSettingsScreen() {
           </View>
         )}
       </ScrollView>
+
+      <EnableNotificationsSheet ref={enableSheetRef} />
     </View>
   );
 }
@@ -159,11 +191,23 @@ function TabToggleRow({ tab, checked, onChange, disabled }: TabToggleRowProps) {
         <Text style={styles.badgeEmoji}>{emoji}</Text>
       </View>
       <View style={styles.tabTitleWrap}>
-        <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+        <Txt
+          typography="t5"
+          fontWeight="regular"
+          color={SdsColors.grey900}
+          style={styles.tabTitleText}
+        >
           {tab.label}
         </Txt>
       </View>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+      <View style={styles.switchWrap}>
+        <Switch
+          value={checked}
+          onValueChange={onChange}
+          disabled={disabled}
+          trackColor={{ true: SdsColors.brand, false: undefined }}
+        />
+      </View>
     </View>
   );
 }
@@ -179,7 +223,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 10,
   },
   badge: {
@@ -198,6 +242,29 @@ const styles = StyleSheet.create({
   tabTitleWrap: {
     flex: 1,
     marginLeft: 16,
+    // Fixed envelope matching the badge (40) and switchWrap so all three
+    // share an identical vertical container under alignItems:'center'.
+    height: 40,
+    justifyContent: 'center',
+  },
+  tabTitleText: {
+    // RN iOS Text+Switch baseline mismatch is structural: alignItems:'center'
+    // centers layout boxes, not glyphs. Direct lineHeight collapse triggers
+    // RN bug facebook/react-native#29507 (leading removed only from above
+    // when lineHeight <= fontSize), so we keep t5's default 25.5 lineHeight
+    // and instead let verticalAlign:'middle' (RN 0.74+) center the glyph
+    // within its line-box. Combined with the fixed-height tabTitleWrap +
+    // switchWrap envelopes, the row's alignItems:'center' lines up the
+    // glyph center with the Switch's visual center.
+    verticalAlign: 'middle',
+  },
+  switchWrap: {
+    // Mirrors tabTitleWrap's vertical envelope so the row's alignItems:
+    // 'center' lines up Switch and label at the same Y, removing the
+    // single-line baseline drift that 2-row master ListRow happens to
+    // avoid by accident (Switch sits between two text lines).
+    height: 40,
+    justifyContent: 'center',
   },
   retryBlock: {
     alignItems: 'center',

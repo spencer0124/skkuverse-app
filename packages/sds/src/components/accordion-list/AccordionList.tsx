@@ -62,7 +62,7 @@ export interface AccordionListProps<T = unknown> {
   highlightKey?: string | null;
   /** Max visible items before "show more". @default 5 */
   maxVisible?: number;
-  /** MapTrifoldIcon of section index → whether all items are shown */
+  /** Map of section index → whether all items are shown */
   showAllMap?: Record<number, boolean>;
   /** Called when "show more" is tapped */
   onShowAll?: (sectionIndex: number) => void;

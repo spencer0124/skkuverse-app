@@ -1,0 +1,24 @@
+diff --git a/node_modules/react-native-screens/ios/bottom-tabs/accessory/RNSBottomAccessoryHelper.mm b/node_modules/react-native-screens/ios/bottom-tabs/accessory/RNSBottomAccessoryHelper.mm
+index 3f7e675..7806bcd 100644
+--- a/node_modules/react-native-screens/ios/bottom-tabs/accessory/RNSBottomAccessoryHelper.mm
++++ b/node_modules/react-native-screens/ios/bottom-tabs/accessory/RNSBottomAccessoryHelper.mm
+@@ -194,7 +194,18 @@ namespace react = facebook::react;
+   _traitChangeRegistration = nil;
+   // Using nativeWrapperView directly here to avoid failing RCTAssert in self.nativeWrapperView.
+   // If we're called from didMoveToWindow, it's not a problem, but I'm not sure if this will always be the case.
+-  [_bottomAccessoryView.superview.superview removeObserver:self forKeyPath:@"center"];
++  // [skkuverse patch] addObserver registers on nativeWrapperView (line 115) but
++  // removeObserver here uses _bottomAccessoryView.superview.superview, which can
++  // become a different object (or nil) by invalidate time when the view hierarchy
++  // is reparented. The mismatched removeObserver throws an NSException → SIGABRT.
++  // Wrap in @try/@catch — we're tearing down, so a missed KVO unregister is
++  // harmless (observer dies with self). Bug present in 4.19, 4.24, and
++  // 4.25-nightly (verified 2026-04-26).
++  @try {
++    [_bottomAccessoryView.superview.superview removeObserver:self forKeyPath:@"center"];
++  } @catch (NSException *exception) {
++    // intentionally swallowed — see comment above
++  }
+   _bottomAccessoryView = nil;
+ #if REACT_NATIVE_VERSION_MINOR < 82
+   [self invalidateDisplayLink];

@@ -1,4 +1,5 @@
 import analytics from '@react-native-firebase/analytics';
+import type { NoticeSummaryType } from '@skkuverse/shared';
 
 /**
  * Centralized analytics service — fire-and-forget wrapper around Firebase Analytics.
@@ -149,6 +150,134 @@ export function logBusRouteOpen(params: {
 
 export function logBusServiceSwitch(routeId: string, serviceId: string) {
   logEvent('bus_service_switch', { route_id: routeId, service_id: serviceId });
+}
+
+// ── Notice Bookmarks ───────────────────────────────────────────────
+
+/**
+ * Bookmark events. Phase 1 Chunk A defines the signatures; Chunk B wires the
+ * call sites (toggle in NoticeDetailScreen, list-mount in saved.tsx). Adding
+ * the events now is cheap and avoids backfill pain — without these, "how many
+ * users bookmark notices" can't be answered until they ship.
+ */
+export function logBookmarkSave(params: { sourceId: string; articleNo: number }) {
+  logEvent('bookmark_save', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+  });
+}
+
+export function logBookmarkUnsave(params: { sourceId: string; articleNo: number }) {
+  logEvent('bookmark_unsave', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+  });
+}
+
+export function logBookmarksListOpen() {
+  logEvent('bookmarks_list_open', {});
+}
+
+// ── Notice Detail / AI Summary ─────────────────────────────────────
+
+/**
+ * 노티스 상세 진입 이벤트. 라우트 마운트당 1회 발화. `has_summary`는 백엔드
+ * AI 커버리지 모니터링용 — `notice_view` 대비 `notice_ai_summary_view`
+ * 비율로 derived metric을 얻기 위해 별도 이벤트(`logAiSummaryView`)도
+ * summary 존재 시 함께 발화한다.
+ */
+export function logNoticeView(params: {
+  sourceId: string;
+  articleNo: number;
+  tabKey?: string;
+  hasSummary: boolean;
+  summaryType?: NoticeSummaryType;
+}) {
+  logEvent('notice_view', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+    has_summary: params.hasSummary ? 'true' : 'false',
+    ...(params.tabKey && { tab_key: params.tabKey }),
+    ...(params.summaryType && { summary_type: params.summaryType }),
+  });
+}
+
+/**
+ * AI 요약 카드 실제 노출 impression. `<SummaryCard>` 마운트(=서버가 summary를
+ * 제공한 경우)에서만 발화. 백엔드가 추출한 필드 구성(`has_periods`,
+ * `has_locations`, `has_details`)도 함께 보내 어느 메타데이터가 가장 자주
+ * 채워지는지 트래킹.
+ */
+export function logAiSummaryView(params: {
+  sourceId: string;
+  articleNo: number;
+  summaryType: NoticeSummaryType;
+  hasOneLiner: boolean;
+  hasPeriods: boolean;
+  hasLocations: boolean;
+  hasDetails: boolean;
+  model?: string | null;
+}) {
+  logEvent('notice_ai_summary_view', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+    summary_type: params.summaryType,
+    has_one_liner: params.hasOneLiner ? 'true' : 'false',
+    has_periods: params.hasPeriods ? 'true' : 'false',
+    has_locations: params.hasLocations ? 'true' : 'false',
+    has_details: params.hasDetails ? 'true' : 'false',
+    ...(params.model && { model: truncate(params.model) }),
+  });
+}
+
+// ── Store Review Prompt ────────────────────────────────────────────
+
+/**
+ * Review prompt funnel — instrumented at every stage so we can measure:
+ *   shown → positive → native_called    (the success path)
+ *   shown → negative                    (filtered out before native)
+ *   shown → dismissed                   (no engagement either way)
+ *
+ * `review_native_called` is logged at the moment we invoke
+ * `StoreReview.requestReview()`, NOT when the system prompt actually shows.
+ * iOS silently skips the prompt when over quota / in TestFlight, and there
+ * is no JS callback for that. Treat the funnel rate (positive → native_called)
+ * as the "we attempted to ask" rate, and compare against actual App Store
+ * Connect / Play Console rating velocity to infer real exposure.
+ */
+export function logReviewPromptShown(params: { reason: string; count: number }) {
+  logEvent('review_prompt_shown', {
+    reason: params.reason,
+    delighted_count: params.count,
+  });
+}
+
+export function logReviewPromptPositive(params: { reason: string }) {
+  logEvent('review_prompt_positive', { reason: params.reason });
+}
+
+export function logReviewPromptNegative(params: { reason: string; hasText: boolean }) {
+  logEvent('review_prompt_negative', {
+    reason: params.reason,
+    has_text: params.hasText ? 'true' : 'false',
+  });
+}
+
+export function logReviewPromptDismissed(params: { reason: string }) {
+  logEvent('review_prompt_dismissed', { reason: params.reason });
+}
+
+/**
+ * `available: false` fires when StoreReview.isAvailableAsync() returns false
+ * (Android without Play Services, certain China builds). We log it as a
+ * separate signal so the funnel can distinguish "OS skipped the prompt"
+ * (silent on iOS quota) from "we never asked because the API was missing".
+ */
+export function logReviewNativeCalled(params: { reason: string; available: boolean }) {
+  logEvent('review_native_called', {
+    reason: params.reason,
+    available: params.available ? 'true' : 'false',
+  });
 }
 
 // ── Screen View (manual) ───────────────────────────────────────────

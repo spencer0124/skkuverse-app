@@ -99,7 +99,7 @@ export function CampusScreen() {
   const [buildingSource, setBuildingSource] = useState<string>('marker');
 
   // ── Sheet snap points ──
-  const snapPoints = useMemo(() => ['25%', '50%', '85%'], []);
+  const snapPoints = useMemo(() => ['30%', '50%', '85%'], []);
 
   // ── Init layers from config ──
   useEffect(() => {
@@ -176,19 +176,6 @@ export function CampusScreen() {
     // Sheet is already open, just switch building
   }, [selectedSkkuId]);
 
-  // ── Campus reselect (same toggle tapped again) ──
-  const handleCampusReselect = useCallback(
-    (campus: { centerLat: number; centerLng: number; defaultZoom: number }) => {
-      mapRef.current?.animateCameraTo({
-        latitude: campus.centerLat,
-        longitude: campus.centerLng,
-        zoom: campus.defaultZoom,
-        duration: 500,
-      });
-    },
-    [],
-  );
-
   return (
       <View style={styles.root}>
         {/* Map (behind everything) */}
@@ -225,7 +212,6 @@ export function CampusScreen() {
             pointerEvents="box-none"
           >
             <SearchBar />
-            <CampusToggle campuses={mapConfig.campuses} onReselect={handleCampusReselect} />
           </View>
         )}
 
@@ -241,6 +227,9 @@ export function CampusScreen() {
               <CampusSkeleton />
             ) : (
               <>
+                <View style={styles.sheetTopToggleWrap}>
+                  <CampusToggle campuses={mapConfig.campuses} />
+                </View>
                 <View style={styles.hardcodedGridWrap}>
                   <TossfaceButtonGrid items={CAMPUS_GRID_ITEMS} />
                 </View>
@@ -289,6 +278,11 @@ const styles = StyleSheet.create({
   sheetContent: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  sheetTopToggleWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   hardcodedGridWrap: {
     paddingTop: 8,

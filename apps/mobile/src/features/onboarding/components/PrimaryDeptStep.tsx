@@ -3,11 +3,14 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { SearchField, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
+  findCollegeUmbrella,
+  isUnsupportedSource,
   useT,
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
 import { DeptRow } from './DeptRow';
+import { UnsupportedDeptSheet } from './UnsupportedDeptSheet';
 
 interface Props {
   campus: Campus;
@@ -24,6 +27,7 @@ export function PrimaryDeptStep({
 }: Props) {
   const { t } = useT();
   const [query, setQuery] = useState('');
+  const [unsupportedTapped, setUnsupportedTapped] = useState<TabSource | null>(null);
 
   const departments = useMemo(() => {
     // `campus == null` tolerant: server may use null for "any-campus" entries.
@@ -33,6 +37,19 @@ export function PrimaryDeptStep({
     if (!query.trim()) return filtered;
     return filtered.filter((d) => d.name.includes(query.trim()));
   }, [campus, sourceDepartments, query]);
+
+  const umbrella = useMemo(
+    () => (unsupportedTapped ? findCollegeUmbrella(unsupportedTapped, sourceDepartments) : null),
+    [unsupportedTapped, sourceDepartments],
+  );
+
+  const handleRowPress = (item: TabSource) => {
+    if (isUnsupportedSource(item)) {
+      setUnsupportedTapped(item);
+      return;
+    }
+    onSelect(item.id);
+  };
 
   return (
     <View style={styles.container}>
@@ -56,14 +73,24 @@ export function PrimaryDeptStep({
           <DeptRow
             name={item.name}
             selected={item.id === selectedId}
+            unsupported={!item.noticeAvailable}
             variant="radio"
-            onPress={() => onSelect(item.id)}
+            onPress={() => handleRowPress(item)}
           />
         )}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         style={styles.list}
+      />
+      <UnsupportedDeptSheet
+        source={unsupportedTapped}
+        umbrella={umbrella}
+        onAccept={(picked) => {
+          setUnsupportedTapped(null);
+          onSelect(picked.id);
+        }}
+        onDismiss={() => setUnsupportedTapped(null)}
       />
     </View>
   );

@@ -27,9 +27,41 @@ interface SettingsActions {
   setLastTab: (tab: TabRoute) => void;
   completeOnboarding: (data: {
     campus: Campus;
-    primaryDeptId: string;
+    // null when the user tapped "내 학과가 없어요" on Step 2 of the wizard.
+    primaryDeptId: string | null;
     interestDeptIds: string[];
   }) => void;
+  /**
+   * Mirror Firestore preferences/main → local settings on second-device
+   * sign-in, app reinstall, or account switch. Distinct from
+   * completeOnboarding to keep analytics / event semantics separate
+   * (completeOnboarding = user finished the wizard on this device;
+   * restore = device synced from existing SSOT).
+   *
+   * **Always overwrites** (no idempotency guard). Intentional: this is a
+   * SSOT mirror, so eventual consistency > idempotency. Critical for
+   * account-switch case — without overwrite, logout(A) → signin(B) would
+   * leave A's primaryDeptId stale in MMKV and B sees A's dept notices.
+   *
+   * `campus` is intentionally NOT in the payload — preferred campus is
+   * not stored in Firestore prefs (see plan: Firebase 자동복원 매트릭스),
+   * so default 'hssc' is preserved on second device.
+   */
+  restoreOnboardingFromRemote: (data: {
+    // null when restored prefs encode a primary-skipped user (dept[0] === '').
+    primaryDeptId: string | null;
+    interestDeptIds: string[];
+  }) => void;
+  /**
+   * Wipe user-scoped fields so the next sign-in (or anon fallback) starts
+   * from a clean slate. Used by the account-deletion flow.
+   *
+   * Preserves device-local fields (preferredCampus, appLanguage, lastTab)
+   * — those represent the device owner's UI choices, not the deleted user's
+   * data, and resetting them would force the user to re-pick campus/language
+   * on a device they still own.
+   */
+  resetUserScopedState: () => void;
 }
 
 export type SettingsStore = SettingsState & SettingsActions;
@@ -64,6 +96,18 @@ export const useSettingsStore = create<SettingsStore>()(
           primaryDeptId: data.primaryDeptId,
           interestDeptIds: data.interestDeptIds,
           onboardingCompleted: true,
+        }),
+      restoreOnboardingFromRemote: (data) =>
+        set({
+          primaryDeptId: data.primaryDeptId,
+          interestDeptIds: data.interestDeptIds,
+          onboardingCompleted: true,
+        }),
+      resetUserScopedState: () =>
+        set({
+          onboardingCompleted: false,
+          primaryDeptId: null,
+          interestDeptIds: [],
         }),
     }),
     {

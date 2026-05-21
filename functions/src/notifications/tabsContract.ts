@@ -13,6 +13,11 @@
  * Convention: picker tab의 key는 topic prefix와 identity 매핑.
  *   key='dept' → topic 'dept:<id>', key='library' → 'library:<id>', etc.
  *   따라서 prefix 매핑 상수는 불필요 — KNOWN_PICKER_KEYS 자체가 prefix 집합.
+ *
+ * Sentinel: pickerSelections.dept[0] === '' 은 사용자가 wizard step 2에서
+ *   "내 학과가 없어요"로 primary를 명시적으로 건너뛴 상태를 나타냄.
+ *   derive() falsy id 필터로 invalid topic emit 차단. 'dept:' 토픽은
+ *   FCM v1 API validation에서 reject되므로 누수 시 dispatch 전체 실패.
  */
 
 export const FIXED_TAB_KEYS = [

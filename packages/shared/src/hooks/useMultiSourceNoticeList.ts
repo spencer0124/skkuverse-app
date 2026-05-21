@@ -9,7 +9,11 @@
  * regardless of the order the caller provides them.
  */
 
-import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { safeGet } from '../api/safe-request';
 import { ApiEndpoints } from '../api/endpoints';
 import { parseNoticePage } from '../notices/parser';
@@ -22,12 +26,16 @@ const PAGE_LIMIT = 20;
 export interface UseMultiSourceNoticeListArgs {
   sourceIds: string[];
   type?: NoticeSummaryType;
+  /** Optional case-insensitive search query — server applies regex on
+   *  (title, summaryOneLiner). Empty/undefined skips the search clause. */
+  q?: string;
   enabled?: boolean;
 }
 
 export function useMultiSourceNoticeList({
   sourceIds,
   type,
+  q,
   enabled = true,
 }: UseMultiSourceNoticeListArgs) {
   const sortedKey = sourceIds.slice().sort().join(',');
@@ -39,7 +47,11 @@ export function useMultiSourceNoticeList({
     readonly unknown[],
     string | null
   >({
-    queryKey: [...NOTICE_MULTI_KEY, sortedKey, { type: type ?? 'all' }],
+    queryKey: [
+      ...NOTICE_MULTI_KEY,
+      sortedKey,
+      { type: type ?? 'all', q: q ?? '' },
+    ],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = {
@@ -47,6 +59,7 @@ export function useMultiSourceNoticeList({
         sourceIds: sortedKey,
       };
       if (type) params.type = type;
+      if (q) params.q = q;
       if (pageParam) params.cursor = pageParam;
       const result = await safeGet(
         ApiEndpoints.noticesMulti(),
@@ -59,5 +72,9 @@ export function useMultiSourceNoticeList({
     getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined),
     enabled: enabled && sourceIds.length > 0,
     staleTime: 2 * 60_000,
+    // Mirror useNoticeList — keep previous results visible across q
+    // changes so the SectionList chain root stays mounted (iOS 26
+    // minimize behavior is sensitive to remount).
+    placeholderData: keepPreviousData,
   });
 }

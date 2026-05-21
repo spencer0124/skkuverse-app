@@ -1,30 +1,221 @@
-import { useCallback, useState } from 'react';
-import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Share, View, ScrollView, Pressable, StyleSheet } from 'react-native';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { Stack, useRouter } from 'expo-router';
+import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
   SdsColors,
+  useEngagementStore,
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
-import { BottomCTA, Button, Toast, Txt } from '@skkuverse/sds';
+import { Toast, Txt } from '@skkuverse/sds';
+import { HeaderIconButton } from '@/lib/HeaderIconButton';
+import {
+  logNoticeView,
+  logReviewPromptDismissed,
+  logReviewPromptNegative,
+  logReviewPromptPositive,
+} from '@/services/analytics';
+import { requestNativeReview } from '@/services/store-review';
+import { submitNegativeFeedback } from '@/services/feedback';
+import { useBookmark } from './hooks/useBookmark';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
+import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
+import { AISummaryHelpfulSheet } from './components/AISummaryHelpfulSheet';
+import { NegativeFeedbackSheet } from './components/NegativeFeedbackSheet';
 import { formatDisplayDate } from './utils/formatDisplayDate';
+
+const REVIEW_PROMPT_REASON = 'push_ai_bookmark';
+
+const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
+const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
+const ICON_SHARE = require('../../../assets/header-icons/share-network.png');
 
 interface Props {
   sourceId: string;
   articleNo: number;
+  /**
+   * How the user arrived at this screen. Set by the [articleNo].tsx route
+   * file from `useLocalSearchParams().entrySource`, which itself is set by
+   * the PendingNoticeLinkConsumer when consuming a `pendingExternalNoticeLink`
+   * stashed by either +native-intent (universal_link) or notification-router
+   * (push). Undefined for in-app navigations. Load-bearing for the review-
+   * prompt gate — only 'push' counts toward delight signal.
+   */
+  entrySource?: 'push' | 'universal_link';
 }
 
-export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
+export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) {
   const { t, tpl } = useT();
-  const { data, isLoading, isError, refetch } = useNoticeDetail(sourceId, articleNo);
+  const router = useRouter();
+  const { data, isLoading, isError, error, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [isUnsaving, setIsUnsaving] = useState(false);
+  const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+  const helpfulSheetRef = useRef<BottomSheetModal>(null);
+  const feedbackSheetRef = useRef<BottomSheetModal>(null);
+  // Track which explicit choice (if any) the user made on the helpful sheet.
+  // Both sheets fire onDismiss for any close path; if the user chose 👍/👎
+  // explicitly, we record it here so the dismiss handler doesn't double-fire
+  // as 'dismissed' (which would corrupt the funnel + clobber the persisted
+  // outcome).
+  const explicitOutcomeRef = useRef<'positive' | 'negative' | null>(null);
+  const setEngagementOutcome = useEngagementStore((s) => s.setOutcome);
+
+  const handleShowReviewPrompt = useCallback(() => {
+    explicitOutcomeRef.current = null;
+    helpfulSheetRef.current?.present();
+  }, []);
+
+  // Real bookmark state — synced via Firestore listener in useAppInit. The
+  // optimistic toggle policy lives inside `useBookmark` (revert only on
+  // permanent error). UX outcome handling stays here.
+  const {
+    isSaved: saved,
+    entry: bookmarkEntry,
+    toggle: toggleBookmark,
+    unsave: unsaveBookmark,
+    refreshSummaryIfNewlyAvailable,
+  } = useBookmark(sourceId, articleNo, {
+    entrySource,
+    hasAiSummary: data?.summary?.text != null,
+    onShowReviewPrompt: handleShowReviewPrompt,
+  });
+
+  const handleHelpfulPositive = useCallback(() => {
+    explicitOutcomeRef.current = 'positive';
+    setEngagementOutcome('positive');
+    logReviewPromptPositive({ reason: REVIEW_PROMPT_REASON });
+    void requestNativeReview(REVIEW_PROMPT_REASON);
+  }, [setEngagementOutcome]);
+
+  const handleHelpfulNegative = useCallback(() => {
+    explicitOutcomeRef.current = 'negative';
+    // Stage 2 sheet — feedback collection. We DO NOT record outcome
+    // 'negative' yet; that happens on actual submit/dismiss of stage 2 so
+    // the funnel cleanly distinguishes "👎 then bailed" from "👎 then sent".
+    feedbackSheetRef.current?.present();
+  }, []);
+
+  const handleHelpfulDismiss = useCallback(() => {
+    if (explicitOutcomeRef.current !== null) return; // already handled
+    setEngagementOutcome('dismissed');
+    logReviewPromptDismissed({ reason: REVIEW_PROMPT_REASON });
+  }, [setEngagementOutcome]);
+
+  const handleFeedbackSubmit = useCallback(
+    (text: string) => {
+      setIsFeedbackSubmitting(true);
+      void submitNegativeFeedback({
+        context: 'ai_summary_helpful_sheet',
+        text,
+        noticeRef: { sourceId, articleNo },
+      })
+        .then((success) => {
+          if (!success) {
+            // Keep the sheet open so the user can retry. We deliberately do
+            // NOT set outcome or log analytics here — handleFeedbackDismiss
+            // records 'negative' if the user eventually gives up, so stage-1
+            // intent is preserved without inflating the submit funnel with
+            // events that never actually wrote a doc.
+            setToastText(t('notices.aiHelpful.retry'));
+            return;
+          }
+          setEngagementOutcome('negative');
+          logReviewPromptNegative({
+            reason: REVIEW_PROMPT_REASON,
+            hasText: text.length > 0,
+          });
+          setToastText(t('notices.aiHelpful.thanks'));
+          feedbackSheetRef.current?.dismiss();
+        })
+        .finally(() => setIsFeedbackSubmitting(false));
+    },
+    [sourceId, articleNo, setEngagementOutcome, t],
+  );
+
+  const handleFeedbackDismiss = useCallback(() => {
+    // Negative path final outcome: regardless of submit-vs-bail we already
+    // captured intent at stage 1 (explicitOutcomeRef='negative'). If
+    // outcome wasn't set by submit success, persist as 'negative' here so
+    // the 90d cooldown applies — bailing on stage 2 still counts as
+    // a negative signal.
+    if (useEngagementStore.getState().reviewPromptOutcome === null) {
+      setEngagementOutcome('negative');
+      logReviewPromptNegative({ reason: REVIEW_PROMPT_REASON, hasText: false });
+    }
+  }, [setEngagementOutcome]);
+
+  // Tombstone gating: server returned 404 (notice deleted server-side per
+  // crawler 3-strikes + isDeleted flag) AND we have a cached BookmarkEntry
+  // for it. Non-bookmark 404s keep the simple error+retry path — that's
+  // the server team's documented decision (notices-api-architecture.md
+  // §3.15) and we honor it for non-saved traffic. The tombstone is scoped
+  // exclusively to the population that actually has expectations of finding
+  // the content.
+  const isDeletedBookmark =
+    isError &&
+    error?.type === 'server' &&
+    error.statusCode === 404 &&
+    bookmarkEntry !== null;
+
+  const handleRemoveDeletedBookmark = useCallback(() => {
+    setIsUnsaving(true);
+    void unsaveBookmark().then((outcome) => {
+      setIsUnsaving(false);
+      if (outcome === 'removed') {
+        router.back();
+      } else if (outcome === 'auth-required') {
+        setToastText(t('notices.authRequired'));
+        router.push('/login');
+      } else {
+        setToastText(t('notices.saveFailed'));
+      }
+    });
+  }, [unsaveBookmark, router, t]);
+
+  // Opportunistic summary refresh — heals bookmarks saved before the server
+  // had summarized the notice. Internal early-returns mean this is a no-op
+  // for: not-bookmarked, summary already cached, summary still null
+  // server-side, or an in-flight write from a prior refetch tick. See
+  // useBookmark.ts JSDoc on refreshSummaryIfNewlyAvailable for full rules.
+  useEffect(() => {
+    if (data) void refreshSummaryIfNewlyAvailable(data);
+  }, [data, refreshSummaryIfNewlyAvailable]);
+
+  // Notice-detail view event. Mirrors logBuildingView's "fire once per
+  // unique key" pattern. Dep narrowed to (id, summary.type) so React Query
+  // background refetches with structural-sharing breaks don't re-emit
+  // unless the server newly populated/changed the AI summary classification.
+  useEffect(() => {
+    if (!data) return;
+    logNoticeView({
+      sourceId,
+      articleNo,
+      hasSummary: data.summary != null,
+      summaryType: data.summary?.type,
+    });
+  }, [sourceId, articleNo, data?.summary?.type]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Latest `data` is captured in a ref so header callbacks can stay stable
+  // across React Query background refetches (focusManager refetch on app
+  // resume, structural-sharing breakdown on JSON shape drift). Without this,
+  // each new `data` reference would invalidate `handleSavePress` /
+  // `handleSharePress` → `headerOptions` `useMemo` → react-native-screens
+  // re-applies native bar items, which is the very transition window in
+  // which iOS UIBarButtonItem briefly leaks its `title` text. Refs are
+  // intentionally read at call-time, not closed over at definition-time.
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const handleCopyText = useCallback((text: string) => {
     void Clipboard.setStringAsync(text);
@@ -44,28 +235,169 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
     [data?.sourceUrl],
   );
 
-  if (isLoading) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: '' }} />
-        <NoticeListSkeleton />
-      </View>
-    );
-  }
+  const handleSavePress = useCallback(() => {
+    const current = dataRef.current;
+    if (!current) return;
+    void toggleBookmark(current).then((outcome) => {
+      if (outcome === 'auth-required') {
+        setToastText(t('notices.authRequired'));
+        router.push('/login');
+      } else if (outcome === 'failed') {
+        setToastText(t('notices.saveFailed'));
+      }
+    });
+  }, [toggleBookmark, t, router]);
 
-  if (isError || !data) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={{ title: '' }} />
-        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-      </View>
+  const handleSharePress = useCallback(() => {
+    const current = dataRef.current;
+    if (!current) return;
+    // Universal link: app-installed devices open detail screen directly
+    // (AASA + +native-intent NOTICE_PATH_RE), app-missing devices fall
+    // through to the Cloudflare Pages Function at the same path which
+    // renders an unfurl-friendly notice page (og:title/description/image
+    // meta tags present so iOS Messages renders a rich link card).
+    //   iOS  → pass `url` only + `message` = title. iOS auto-appends `url`
+    //          to Messages text, so embedding the URL in `message` would
+    //          cause it to render twice. Title alone in `message` gives a
+    //          graceful fallback if rich-link OG fetch fails, and improves
+    //          Mail subject + Copy paste UX.
+    //   Android → ACTION_SEND chooser ignores `url`, so embed the URL in
+    //          `message` to keep parity.
+    const noticeUrl = `https://skkuverse.com/p/notices/${current.sourceId}/${current.articleNo}`;
+    void Share.share(
+      Platform.OS === 'ios'
+        ? { url: noticeUrl, message: current.title }
+        : { message: `${current.title}\n${noticeUrl}` },
     );
-  }
+  }, []);
 
+  // Header right items — iOS uses native UIBarButtonItem so each gets its own
+  // Liquid Glass capsule (`sharesBackground: false`); Android falls back to
+  // JSX `headerRight` with `HeaderIconButton`. Same dispatch pattern as the
+  // home tab's profile/settings icons (see app/(tabs)/home/index.tsx).
+  //
+  // Why stable `identifier` on iOS items (load-bearing for flicker fix):
+  //   When `saved` flips, this `useMemo` returns a new options reference,
+  //   `<Stack.Screen options>` re-applies, and react-native-screens does
+  //   `navitem.rightBarButtonItems = [...]` (RNSScreenStackHeaderConfig.mm).
+  //   `setRightBarButtonItems:` replaces the entire array. Without stable
+  //   identifiers, iOS 26 has no way to match old items to new items, so
+  //   it animates BOTH capsules out and BOTH back in — even share, whose
+  //   icon never changed. With `identifier: 'bookmark'` / `'share'`, iOS 26
+  //   matches items across the assignment (UIBarButtonItem.identifier was
+  //   introduced for this exact case) and animates only the changed
+  //   properties (image, accessibilityLabel) in place. RNSBarButtonItem.mm
+  //   already plumbs the field through (`@available(iOS 26.0, *)` guarded);
+  //   on iOS < 26 the property is silently ignored — no regression.
+  //
+  // Why `label: ''` on iOS items (different from home tab which sets text):
+  //   `label` (required by SharedHeaderItem type) maps to UIBarButtonItem.title.
+  //   With both `image` and a non-empty `title`, the iOS 26 Liquid Glass
+  //   capsule briefly shows the title text during the layout transition
+  //   that follows item creation/refresh before settling. The bookmark
+  //   item refreshes on every `saved` flip (toggle-time) AND on the
+  //   loading→success transition (mount-time) — both produced visible
+  //   Korean text flashes ("저장" / "저장 취소"). Empty title → image-only
+  //   layout, no text to flash. accessibilityLabel still provides VoiceOver
+  //   announcement. Home tab does not refresh after first mount so users
+  //   do not perceive the same flash there even with non-empty labels.
+  //
+  // Why `useMemo` + stable callbacks:
+  //   `<Stack.Screen options={...}>` re-applies when the options object
+  //   reference changes. Callbacks built from `useCallback([data, ...])`
+  //   would invalidate on every React Query background refetch, churning
+  //   the memo. The `dataRef` pattern above keeps `handleSavePress` /
+  //   `handleSharePress` stable across refetches so the memo recomputes
+  //   only on `saved` flip or language change. Note: memoization alone
+  //   cannot prevent the toggle-time re-apply (saved MUST drive the icon
+  //   image change) — that's why the `identifier` mechanism above is
+  //   needed at the iOS layer, not in React.
+  const headerOptions = useMemo<NativeStackNavigationOptions>(() => {
+    // Tombstone state: hide bookmark + share. Bookmark icon would be filled
+    // (saved) but tap → handleSavePress → toggleBookmark(dataRef.current)
+    // early-returns on null data, so the button would be visibly broken.
+    // Share is meaningless because the universal link 404s too.
+    if (isDeletedBookmark) {
+      return Platform.OS === 'ios'
+        ? { title: '', unstable_headerRightItems: () => [] }
+        : { title: '', headerRight: () => null };
+    }
+    return Platform.OS === 'ios'
+      ? {
+          title: '',
+          unstable_headerRightItems: () => [
+            {
+              type: 'button' as const,
+              identifier: 'bookmark',
+              label: '',
+              icon: {
+                type: 'image' as const,
+                source: saved ? ICON_BOOKMARK_FILL : ICON_BOOKMARK,
+                tinted: false,
+              },
+              sharesBackground: false,
+              accessibilityLabel: saved ? t('notices.unsave') : t('notices.save'),
+              onPress: handleSavePress,
+            },
+            {
+              type: 'button' as const,
+              identifier: 'share',
+              label: '',
+              icon: { type: 'image' as const, source: ICON_SHARE, tinted: false },
+              sharesBackground: false,
+              accessibilityLabel: t('notices.share'),
+              onPress: handleSharePress,
+            },
+          ],
+        }
+      : {
+          title: '',
+          headerRight: () => (
+            <View style={styles.headerRight}>
+              <HeaderIconButton
+                onPress={handleSavePress}
+                accessibilityLabel={saved ? t('notices.unsave') : t('notices.save')}
+              >
+                <BookmarkIcon
+                  size={22}
+                  color={saved ? SdsColors.blue500 : SdsColors.grey700}
+                  weight={saved ? 'fill' : 'regular'}
+                />
+              </HeaderIconButton>
+              <HeaderIconButton
+                onPress={handleSharePress}
+                accessibilityLabel={t('notices.share')}
+              >
+                <ShareNetworkIcon size={22} color={SdsColors.grey700} />
+              </HeaderIconButton>
+            </View>
+          ),
+        };
+  }, [isDeletedBookmark, saved, t, handleSavePress, handleSharePress]);
+
+  // Single Stack.Screen at a stable position — branching it across 3
+  // returns (loading / error / success) risks register-then-unregister churn
+  // even though React reconciles same-type at same-position. Keeping it
+  // hoisted also makes the header guarantee independent of body state.
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: '' }} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <Stack.Screen options={headerOptions} />
+      {isLoading ? (
+        <NoticeListSkeleton />
+      ) : isDeletedBookmark && bookmarkEntry ? (
+        // Server confirmed 404 (crawler 3-strikes, isDeleted: true) for a
+        // notice the user previously saved. Render the cached fields plus
+        // explicit "remove from saved" CTA. `bookmarkEntry` truth check is
+        // redundant with `isDeletedBookmark` but satisfies TS narrowing.
+        <DeletedNoticeTombstone
+          entry={bookmarkEntry}
+          onRemove={handleRemoveDeletedBookmark}
+          isRemoving={isUnsaving}
+        />
+      ) : isError || !data ? (
+        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll}>
         <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
           {data.title}
         </Txt>
@@ -92,7 +424,13 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
           ) : null}
         </View>
 
-        {data.summary ? <SummaryCard summary={data.summary} /> : null}
+        {data.summary ? (
+          <SummaryCard
+            summary={data.summary}
+            sourceId={sourceId}
+            articleNo={articleNo}
+          />
+        ) : null}
 
         <NoticeMarkdownView
           markdown={data.contentMarkdown}
@@ -153,33 +491,25 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
             {t('notices.openOriginal')}
           </Txt>
         </Pressable>
-      </ScrollView>
-      <BottomCTA>
-        <View style={styles.ctaRow}>
-          <Button
-            display="block"
-            style="weak"
-            size="large"
-            leftAccessory={<BookmarkIcon size={18} color={SdsColors.blue500} />}
-            viewStyle={styles.ctaButton}
-          >
-            {t('notices.save')}
-          </Button>
-          <Button
-            display="block"
-            size="large"
-            leftAccessory={<ShareNetworkIcon size={18} color={SdsColors.background} />}
-            viewStyle={styles.ctaButton}
-          >
-            {t('notices.share')}
-          </Button>
-        </View>
-      </BottomCTA>
+        </ScrollView>
+      )}
       <Toast
         open={toastText !== null}
         text={toastText ?? ''}
         icon={<Toast.Icon type="check" />}
         onClose={() => setToastText(null)}
+      />
+      <AISummaryHelpfulSheet
+        ref={helpfulSheetRef}
+        onPositive={handleHelpfulPositive}
+        onNegative={handleHelpfulNegative}
+        onDismiss={handleHelpfulDismiss}
+      />
+      <NegativeFeedbackSheet
+        ref={feedbackSheetRef}
+        isSubmitting={isFeedbackSubmitting}
+        onSubmit={handleFeedbackSubmit}
+        onDismiss={handleFeedbackDismiss}
       />
     </View>
   );
@@ -221,10 +551,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.background,
   },
+  headerRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 120,
+    paddingBottom: 32,
     gap: 8,
   },
   title: {
@@ -285,14 +619,6 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
-  },
-  ctaRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  ctaButton: {
-    flex: 1,
-    alignSelf: 'stretch',
   },
 });
 

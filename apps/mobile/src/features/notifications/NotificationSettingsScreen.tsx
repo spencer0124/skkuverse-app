@@ -9,26 +9,23 @@
  *   2. NoticesTabScreen → bell icon (deeplink, deeper detail은 자체적으로 router.push)
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Linking,
-  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   BadgeNavRow,
   Button,
   Dialog,
   ListRow,
-  Switch,
   Txt,
 } from '@skkuverse/sds';
-// Switch is still used by master toggle below; categories are drill-in only.
 import {
   SdsColors,
   useAuthStore,
@@ -39,11 +36,11 @@ import {
 import { setMasterEnabled } from '@/services/firestore-notifications';
 import { checkPermission, requestPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
+import { openOsSettings } from '@/lib/openOsSettings';
 import { AnonymousGate } from './components/AnonymousGate';
-import { ScreenHeader } from './components/ScreenHeader';
+import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 
 export default function NotificationSettingsScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
@@ -52,6 +49,9 @@ export default function NotificationSettingsScreen() {
   const preferences = useNotificationStore((s) => s.preferences);
   const permissionStatus = useNotificationStore((s) => s.permissionStatus);
   const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
+  const enableSheetDismissed = useNotificationStore(
+    (s) => s.enableSheetDismissedThisSession,
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -64,6 +64,19 @@ export default function NotificationSettingsScreen() {
       };
     }, [setPermissionStatus]),
   );
+
+  // Proactively prompt users who could be receiving notifications but aren't.
+  // Re-runs when permissionStatus refreshes (via useFocusEffect's checkPermission)
+  // so externally-revoked permissions surface the sheet on the next status pull.
+  // BottomSheetModal.present() is idempotent if already shown.
+  const enableSheetRef = useRef<BottomSheetModal>(null);
+  useEffect(() => {
+    const notGranted =
+      permissionStatus === 'denied' || permissionStatus === 'notDetermined';
+    if (notGranted && !enableSheetDismissed) {
+      enableSheetRef.current?.present();
+    }
+  }, [permissionStatus, enableSheetDismissed]);
 
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
@@ -93,9 +106,7 @@ export default function NotificationSettingsScreen() {
   if (!authReady) return <AnonymousGate />;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.settings')} onBack={() => router.back()} />
-
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {appLanguage === 'zh' && (
           <View style={styles.hintBanner}>
@@ -114,26 +125,15 @@ export default function NotificationSettingsScreen() {
             />
           }
           right={
-            <Switch checked={masterEnabled} onCheckedChange={handleToggleMaster} />
+            <Switch
+              value={masterEnabled}
+              onValueChange={handleToggleMaster}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
+            />
           }
         />
 
         <View style={styles.categories}>
-          <BadgeNavRow
-            badge="🔒"
-            tossface
-            title={t('notifications.essential')}
-            subtitle={t('notifications.essentialSubtitle')}
-            onPress={() => router.push('/notifications/essential')}
-          />
-          <BadgeNavRow
-            badge="⚙️"
-            tossface
-            title={t('notifications.services')}
-            subtitle={t('notifications.servicesSubtitle')}
-            onPress={() => router.push('/notifications/services')}
-            disabled={!masterEnabled}
-          />
           <BadgeNavRow
             badge="📢"
             tossface
@@ -180,20 +180,10 @@ export default function NotificationSettingsScreen() {
           </Button>
         }
       />
+
+      <EnableNotificationsSheet ref={enableSheetRef} />
     </View>
   );
-}
-
-async function openOsSettings(): Promise<void> {
-  try {
-    if (Platform.OS === 'ios') {
-      await Linking.openURL('app-settings:');
-    } else {
-      await Linking.openSettings();
-    }
-  } catch (e) {
-    if (__DEV__) console.warn('[notifications] openOsSettings failed:', e);
-  }
 }
 
 const styles = StyleSheet.create({

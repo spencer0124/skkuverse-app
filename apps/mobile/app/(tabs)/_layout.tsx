@@ -1,21 +1,31 @@
-import { Tabs } from "expo-router";
+import { Tabs, useSegments, useNavigation } from "expo-router";
 import { NativeTabs, Icon, Label, Badge } from "expo-router/unstable-native-tabs";
 import type { NavigationState } from "@react-navigation/native";
+import { useEffect } from "react";
 import {
   HouseIcon,
-  BellIcon,
+  MegaphoneSimpleIcon,
   CompassIcon,
   PathIcon,
 } from "phosphor-react-native";
 import { Platform, Text } from "react-native";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
 import {
   useT,
+  useAuthStore,
   useSettingsStore,
   useNotificationStore,
   resolveInitialTabRouteName,
 } from "@skkuverse/shared";
 import type { TabRoute } from "@skkuverse/shared";
 import { logTabSwitch } from "@/services/analytics";
+import { NoticesAccessoryBar } from "@/features/notices/components/NoticesAccessoryBar";
+
+// iOS 26+ only. False on iOS < 26 and on Android — the single predicate
+// that gates NativeTabs (vs JSX <Tabs>) and useTabFocusTracking
+// (vs <Tabs screenListeners>). Module-scope is the project idiom; see
+// AccountSettingsScreen.tsx, RefreshFab.tsx, SearchBar.tsx, HeaderIconButton.tsx.
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 // `unstable_settings.initialRouteName` is consumed at module evaluation time
 // by expo-router's getRoutesCore. We read MMKV-backed lastTab synchronously
@@ -38,16 +48,49 @@ const VALID_TABS: readonly TabRoute[] = ['home', 'campus', 'transit', 'notices']
 const ICON_ACTIVE = "#191F28";
 const ICON_INACTIVE = "#B0B8C1";
 
-/** Map persisted TabRoute → expo-router screen name (index.tsx is 'index'). */
+/** Map persisted TabRoute → expo-router screen name. All four tabs are
+ *  directories with their own nested Stack; URL = '/home', '/campus', etc. */
 function tabRouteToScreen(tab: TabRoute): string {
-  return tab === 'home' ? 'index' : tab;
+  return tab;
 }
 
 /** Map expo-router screen name → persisted TabRoute. */
 function screenToTabRoute(name: string): TabRoute | null {
-  if (name === 'index') return 'home';
-  if (name === 'campus' || name === 'transit' || name === 'notices') return name;
+  if (name === 'home' || name === 'campus' || name === 'transit' || name === 'notices') {
+    return name;
+  }
   return null;
+}
+
+/**
+ * iOS 26 NativeTabs bottom accessory gate. Renders <NoticesAccessoryBar/>
+ * in BOTH 'regular' and 'inline' placements (so the search/filter UI is
+ * visible whether the tab bar is expanded or scroll-minimized) when at the
+ * notices tab root (not a pushed detail).
+ *
+ * The notices-tab guard is handled by the PARENT — TabLayout passes
+ * `bottomAccessory={undefined}` for non-notices tabs so this component
+ * never mounts there. iOS 26 UITabAccessory is fully unmounted on tab
+ * switch (rn-screens calls `setBottomAccessory:nil animated:YES` —
+ * RNSBottomTabsHostComponentView.mm:213). This gate only filters one
+ * remaining case: root-vs-detail-push.
+ *
+ * Requires patches/expo-router+6.0.23.patch (forwards bottomAccessory) and
+ * patches/react-native-screens+4.19.0.patch (KVO removeObserver swallow).
+ * On Expo SDK 55+ migration, replace the callback prop on <NativeTabs>
+ * below with the <NativeTabs.BottomAccessory> wrapper component.
+ */
+function NoticesBottomAccessoryGate() {
+  const segments = useSegments();
+  // Parent guarantees segments[1] === 'notices' AND that the user has
+  // onboarded (auth/onboarding gate is hoisted to TabLayout so the prop
+  // itself goes undefined when gated — returning null from here would
+  // leave an empty Liquid Glass capsule because UITabAccessory has no
+  // opt-out once attached). We only filter pushed detail screens — typed
+  // routes collapse `index.tsx` so root has segments.length === 2
+  // (segments[2] undefined); a pushed [articleNo] adds a third segment.
+  if (segments.length > 2) return null;
+  return <NoticesAccessoryBar />;
 }
 
 export default function TabLayout() {
@@ -55,21 +98,56 @@ export default function TabLayout() {
   const lastTab = useSettingsStore((s) => s.lastTab);
   const setLastTab = useSettingsStore((s) => s.setLastTab);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
+  // Drives conditional bottomAccessory mount. useSegments is reactive — pulls
+  // from useRouteInfo (expo-router/build/hooks.js) which updates on tab
+  // switch, causing NativeTabs to re-render with prop toggled. rn-screens
+  // animates setBottomAccessory:nil on unmount (animated:YES) so transition
+  // between tabs is smooth.
+  const segments = useSegments();
+  const isNoticesTab =
+    segments[0] === '(tabs)' && segments[1] === 'notices';
+  // Auth/onboarding gate must be evaluated at THIS level so the
+  // `bottomAccessory` prop becomes undefined when gated — otherwise the
+  // empty Liquid Glass capsule reserves space above the tab bar even if
+  // the inner render returns null (UITabAccessory.h has no opt-out).
+  const isAnonymous = useAuthStore((s) => s.isAnonymous);
+  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
+  const showNoticesAccessory =
+    isNoticesTab && !isAnonymous && onboardingCompleted;
 
   const initialTab: TabRoute = VALID_TABS.includes(lastTab) ? lastTab : 'home';
   const initialRouteName = tabRouteToScreen(initialTab);
+
+  // useNavigation() here resolves to the root Stack (TabLayout is the (tabs)
+  // screen body; NativeTabs context isn't pushed until JSX returns), so
+  // setOptions sets root Stack's (tabs) entry title for iOS long-press
+  // back-history. Cold-start window covered by static fallback in app/_layout.tsx.
+  const navigation = useNavigation();
+  const activeTabKey: TabRoute =
+    segments[0] === '(tabs)' && VALID_TABS.includes(segments[1] as TabRoute)
+      ? (segments[1] as TabRoute)
+      : initialTab;
+
+  useEffect(() => {
+    navigation.setOptions({ title: t(`nav.${activeTabKey}`) });
+  }, [activeTabKey, t, navigation]);
 
   // tabBarBadge expects number | string | undefined; 0/null hide the badge
   // but falsy numbers still render in some RN versions — use undefined.
   const noticesBadge: number | string | undefined =
     unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined;
 
-  // iOS: native tab bar (UITabBarController). On iOS 26 the system renders
-  // the new Liquid Glass material automatically — no extra prop required.
-  // Per-screen tab_switch tracking moves to useTabFocusTracking inside each
-  // tab screen component (NativeTabs doesn't expose screenListeners).
+  // iOS 26+ only: native tab bar (UITabBarController) with Liquid Glass
+  // material auto-applied by the OS. Earlier iOS versions and Android fall
+  // through to the JSX <Tabs> path below — UIKit's default
+  // UITabBarAppearance.scrollEdgeAppearance is transparent on iOS < 26, so
+  // letting those devices render <Tabs> with an opaque tabBarStyle is the
+  // simplest way to keep content from bleeding under the bar. Per-screen
+  // tab_switch tracking happens in useTabFocusTracking (NativeTabs doesn't
+  // expose screenListeners); the hook mirrors GLASS_AVAILABLE so iOS < 26
+  // doesn't double-track via screenListeners + useFocusEffect.
   // initialRouteName is set via the unstable_settings export above.
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === 'ios' && GLASS_AVAILABLE) {
     return (
       <NativeTabs
         iconColor={{ default: ICON_INACTIVE, selected: ICON_ACTIVE }}
@@ -77,8 +155,30 @@ export default function TabLayout() {
           default: { color: ICON_INACTIVE },
           selected: { color: ICON_ACTIVE },
         }}
+        // iOS 26+ tab bar collapses on scroll-down. Chain-root rule:
+        // every tab screen must return a ScrollView/SectionList/FlatList
+        // as the screen root (or first Fragment child). Outer wrapping
+        // <View> blocks the native discovery — see
+        // `docs/ios-26-native-tabs-minimize.md`.
+        minimizeBehavior="onScrollDown"
+        // bottomAccessory: requires patches/expo-router+6.0.23.patch (forwards
+        // prop to react-native-screens BottomTabs) and patches/
+        // react-native-screens+4.19.0.patch (RNSBottomAccessoryHelper KVO
+        // swallow). SDK 55+ migration → switch to <NativeTabs.BottomAccessory>
+        // wrapper + delete both patches. See NoticesAccessoryBar.tsx docstring.
+        //
+        // Conditional pass: when not on the notices tab, prop is undefined →
+        // BottomTabs.tsx skips rendering <BottomTabsAccessory> →
+        // RNSBottomTabsHostComponentView.mm:213 calls setBottomAccessory:nil
+        // animated:YES → empty Liquid Glass capsule disappears with slide
+        // animation. iOS forces glass on UITabAccessory whenever attached;
+        // toggling the React subtree is the only way to truly hide it
+        // (UITabAccessory.h has no opt-out — verified against iOS 26 SDK).
+        bottomAccessory={
+          showNoticesAccessory ? () => <NoticesBottomAccessoryGate /> : undefined
+        }
       >
-        <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger name="home">
           <Icon
             src={{
               default: require('../../assets/tab-icons/home-outline.png'),
@@ -91,8 +191,8 @@ export default function TabLayout() {
         <NativeTabs.Trigger name="notices">
           <Icon
             src={{
-              default: require('../../assets/tab-icons/bell-outline.png'),
-              selected: require('../../assets/tab-icons/bell-filled.png'),
+              default: require('../../assets/tab-icons/megaphone-simple-outline.png'),
+              selected: require('../../assets/tab-icons/megaphone-simple-filled.png'),
             }}
           />
           <Label>{t("nav.notices")}</Label>
@@ -151,7 +251,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: t("nav.home"),
           tabBarIcon: ({ focused, color }) => (
@@ -177,7 +277,7 @@ export default function TabLayout() {
           title: t("nav.notices"),
           tabBarBadge: noticesBadge,
           tabBarIcon: ({ focused, color }) => (
-            <BellIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
+            <MegaphoneSimpleIcon size={22} color={color} weight={focused ? "fill" : "regular"} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text

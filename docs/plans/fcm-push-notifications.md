@@ -1555,6 +1555,9 @@ PreferencesDocument = {
   },
   noticeTabEnabled: Record<string, boolean>,     // per-notice-tab override (key: server tab key)
   pickerSelections: Record<string, string[]>,    // per picker tab의 사용자 선택 id 배열
+  onboardedAt: Timestamp | null,                 // 첫 onboarding 완료 시각. canonical "user has onboarded" signal
+                                                 // for second-device auto-restore (notices/index handler + useAppInit listener).
+                                                 // Rules: 'null → timestamp' 한 방향 immutability 강제 (시드 후 immutable).
 
   // === Derived (CF only — Rules block client write) ===
   subscribedTopics: string[],                    // CF가 채움; handle-notice의 array-contains-any 쿼리 대상
@@ -1562,7 +1565,7 @@ PreferencesDocument = {
 }
 ```
 
-**불변식**: `subscribedTopics === deriveSubscribedTopics(enabled, categoryEnabled, noticeTabEnabled, pickerSelections)`.
+**불변식**: `subscribedTopics === deriveSubscribedTopics(enabled, categoryEnabled, noticeTabEnabled, pickerSelections)`. (`onboardedAt`은 derive 입력 아님 — provenance metadata.)
 
 ### 카테고리 → 토픽 매핑
 
@@ -1594,12 +1597,19 @@ PreferencesDocument = {
 match /users/{uid}/preferences/main {
   allow read: if auth.uid == uid;
   allow create: if auth.uid == uid && (subscribedTopics absent or empty);
-  allow update: if auth.uid == uid && !affectedKeys().hasAny(['subscribedTopics', 'derivedAt']);
+  allow update: if auth.uid == uid
+                && !affectedKeys().hasAny(['subscribedTopics', 'derivedAt'])
+                // onboardedAt: 'null → timestamp' 한 방향 전환만 허용 (시드 후 immutable).
+                // CF는 admin SDK라 우회 가능. seedOnboardingPreferences가 wizard 완료 시
+                // serverTimestamp()로 시드 — 자동복원 discriminator 책임.
+                && (resource.data.onboardedAt == request.resource.data.onboardedAt
+                    || (resource.data.onboardedAt == null
+                        && request.resource.data.onboardedAt is timestamp));
   allow delete: if false;
 }
 ```
 
-테스트: `apps/mobile/firestore.rules.test.mjs` 26 케이스 (devices 13 + preferences 13). 실행: `yarn test:rules`.
+테스트: `apps/mobile/firestore.rules.test.mjs` 30 케이스 (devices 13 + preferences 13 + onboardedAt immutability 4). 실행: `yarn test:rules`.
 
 ### Anon → Google 디바이스 claim (2026-04-25 보강)
 
@@ -1607,11 +1617,31 @@ Task #12가 Google→anon 방향만 커버했고 anon→Google (onboarding 첫 �
 
 **해결**: `OnboardingScreen.handleSignIn` + `app/login.tsx` 양쪽에 mirror 패턴 — sign-in 전 `unregisterDevice(deviceId)` (rule path a로 self-unregister 허용 → active:false) + sign-in 후 `await initializeFirestoreNotifications({uid: user.uid, ...})` (rule path b로 새 uid가 inactive doc claim).
 
+### Auto-restore on second-device sign-in (2026-04-28)
+
+**배경.** 게이트는 `isAnonymous || !onboardingCompleted` (`apps/mobile/app/(tabs)/notices/index.tsx`). `onboardingCompleted`가 MMKV-local 플래그라 2번째 기기 / 앱 재설치 후 항상 false → Firestore preferences가 SSOT로 살아있어도 같은 Google 계정 유저가 wizard를 다시 밟아야 했음. UX 결함 + 본인이 dogfooding 중 발견.
+
+**Discriminator 결정 — 명시 필드 채택.** v3까지 implicit 시그널(`pickerSelections.dept ≥1` non-empty)을 검토했지만 출시 전이라 schema migration 부담 0 → `PreferencesDocument`에 `onboardedAt: Timestamp | null` 명시 필드 추가가 더 정직. JSDoc 시간폭탄(wizard step 2 invariant) 회피 + Rules가 'null→timestamp' 한 방향 immutability 강제로 데이터 레이어가 contract 보장.
+
+**구현 — dual-write always-overwrite**:
+- **Primary path (인라인 핸들러)**: `notices/index.tsx`의 `handleExistingAccountSignIn` — OnboardingLanding 보조 액션 "이미 가입한 적 있어요" → Google sign-in 직후 `getPreferences(uid)` 명시 read → `onboardedAt != null && pickerSelections.dept.length > 0`이면 `useSettingsStore.restoreOnboardingFromRemote()` 즉시 호출 (UX 즉시성, flicker 없음). 신규 가입자 또는 corrupt state면 `/onboarding` push.
+- **Fallback path (cold-start)**: `useAppInit.ts`의 prefs listener가 동일한 자동복원 로직을 fallback으로 호출 — 평범한 부팅(이미 인증된 returning user)에서도 게이트 자동 해제. listener는 navigate 못하니 corrupt state는 log-only.
+- **`restoreOnboardingFromRemote` action** (`packages/shared/src/store/settings.ts`): always-overwrite (no idempotency guard). 의도: SSOT mirror = eventual consistency > idempotency. 부수효과: account-switch (logout A → signin B) 시 A의 stale dept를 B 값으로 자동 self-heal. dual-write는 동일 데이터로 race-free.
+
+**Seed**: `seedOnboardingPreferences`가 wizard 완료 시 `onboardedAt: serverTimestamp()` 박음 — clock skew 방어. `initializeFirestoreNotifications` default doc은 `onboardedAt: null` (anon/신규 유저).
+
+**'dept' cross-cutting hard-code**: discriminator 책임은 `onboardedAt`이 떠맡았지만 dept 미러 read는 여전히 3 sites — `notices/index.tsx` handler, `useAppInit.ts` listener, server-side `tabsContract.ts`. coordinated rename 필요. Inline 주석에 cross-link.
+
+**검증**: Rules 4 케이스 (`firestore.rules.test.mjs` "ONBOARDED_AT IMMUTABILITY"), settings store 4 케이스 (`packages/shared/src/store/__tests__/settings.test.ts`). 마이그레이션 액션: 출시 전이라 strict Rule 채택 → 본인 doc은 console에서 삭제 후 재시드 (다음 부팅에 default doc 자동 생성, wizard 한 번 통과로 onboardedAt 채움).
+
+**Sticky 잔존** (본 PR scope 외 후속): logout 후 `useSettingsStore` / `useNotificationStore.preferences` reset 없음 — anon 상태 유지 시 이전 유저 데이터 sticky. always-overwrite가 다른 계정 sign-in 케이스는 self-heal하지만 anon-only 케이스는 후속 PR (`resetOnboardingState` + `resetPreferences` action 신설 + `signOutFromGoogle`에서 호출).
+
 ### 검증 인프라
 
 - `cd functions && npm test` — derive + tabsContract + equality 31 케이스
 - `cd functions && npm run verify:trigger` — 에뮬레이터 4 시나리오
-- `yarn test:rules` — 26 케이스
+- `yarn test:rules` — 30 케이스 (devices 13 + preferences 13 + onboardedAt immutability 4)
+- `cd packages/shared && yarn test` — 89 케이스 (`restoreOnboardingFromRemote` 4 신설 포함)
 - `cd apps/mobile && yarn lint && npx tsc --noEmit` — 타입/린트
 - 매 phase 끝, deploy 직전, dogfooding 시작 전 모두 회귀 가능
 

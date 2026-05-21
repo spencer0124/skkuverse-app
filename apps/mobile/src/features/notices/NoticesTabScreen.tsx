@@ -12,45 +12,60 @@
  * `users/{uid}/preferences/main.pickerSelections` and synced to all of
  * the user's devices (v5 SSOT). Local zustand subscribes via onSnapshot.
  *
- * Top-right bell icon: contextual deeplink to NotificationSettingsScreen.
- * Strikethrough variant when `categoryEnabled.notices === false` — Toss
- * pattern of "show current state without owning a duplicate UI." Master
- * toggle is intentionally NOT exposed here; that destructive control
- * lives only in the global Settings entry.
+ * iOS 26 NativeTabs minimize chain root rule
+ * ─────────────────────────────────────────
+ * No outer container `<View>` wrapping. The component returns one of:
+ *   - `<NoticeListPanel/>` (itself a SectionList root) — fixed tabs
+ *   - Fragment `<>NoticeListPanel + selectorOverlay + sheet</>` — picker tabs
+ *   - `<NoticeListSkeleton/>` or `<NoticeEmptyState/>` — initial transient
+ *   - `null`
+ *
+ * Why no outer View: `RNSScrollViewFinder` runs once at
+ * `mountChildComponentView(index==0)` and only sees subviews[0] one level
+ * deep (the first child's grandchildren aren't mounted yet at that time).
+ * If RNSScreen subviews[0] isn't a UIScrollView, the finder returns nil and
+ * `tabBarMinimizeBehavior` is permanently disabled for this screen. So the
+ * SectionList must be the screen root, or the first Fragment child.
+ *
+ * For picker tabs the selector is rendered inside the SectionList via
+ * NoticeListPanel's `listHeader` prop (= ListHeaderComponent). This keeps
+ * the SectionList as the chain root while guaranteeing the selector
+ * mounts as the list's first row. The selector scrolls with the list (no
+ * sticky pinning) — acceptable trade-off for a robust visible mount.
+ *
+ * For initial transient states (no activeTab yet) we return Skeleton /
+ * EmptyState directly. The finder returns nil during this brief window;
+ * once `activeTab` resolves, React swaps the screen root to NoticeListPanel
+ * which causes RNSScreen to re-fire `mountChildComponentView` and the
+ * finder picks up the SectionList.
+ *
+ * Full pattern + native mechanism: `docs/ios-26-native-tabs-minimize.md`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import notifee from '@notifee/react-native';
 import {
-  SdsColors,
   resolvePickerSelection,
-  useAuthStore,
   useNoticeTabs,
   useNotificationStore,
   useT,
-  type NoticeTab,
 } from '@skkuverse/shared';
-import { Tab } from '@skkuverse/sds';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
-import { NoticePickerSheet } from './NoticePickerSheet';
+import { NoticesTabStrip } from './components/NoticesTabStrip';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
-import { setPickerSelectionRemote } from '@/services/firestore-notifications';
-import { logHandledError } from '@/services/crashlytics';
+import { useNoticesUiStore } from './store/noticesUiStore';
 
 export function NoticesTabScreen() {
   const { t } = useT();
+  const router = useRouter();
   const { data: tabsConfig, isLoading, isError, refetch } = useNoticeTabs();
   const tabs = useMemo(() => tabsConfig?.tabs ?? [], [tabsConfig]);
 
-  // Badge reconcile on tab focus — see P0-1 β. Resets both the OS app-icon
-  // badge (iOS authoritative) and the in-app Zustand counter (tabBarBadge
-  // authoritative on Android). Keeps empty deps so the callback identity is
-  // stable across focus events.
+  // Badge reconcile on tab focus.
   useFocusEffect(
     useCallback(() => {
       void notifee.setBadgeCount(0).catch(() => {});
@@ -58,196 +73,113 @@ export function NoticesTabScreen() {
     }, []),
   );
 
-  // ── Tab state ──
-  const [activeTabKey, setActiveTabKey] = useState<string>('');
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set());
+  // ── Active tab state (hoisted to store so the custom header can drive it) ──
+  const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
+  const setActiveTabKey = useNoticesUiStore((s) => s.setActiveTabKey);
 
-  // Initialize active tab to first server tab when data loads
   useEffect(() => {
-    if (tabs.length > 0 && activeTabKey === '') {
+    if (tabs.length > 0 && !activeTabKey) {
       setActiveTabKey(tabs[0].key);
-      setVisitedTabs(new Set([tabs[0].key]));
     }
-  }, [tabs, activeTabKey]);
+  }, [tabs, activeTabKey, setActiveTabKey]);
 
-  const handleTabChange = useCallback((tab: string) => {
-    setVisitedTabs((prev) => {
-      if (prev.has(tab)) return prev;
-      const next = new Set(prev);
-      next.add(tab);
-      return next;
-    });
-    setActiveTabKey(tab);
-  }, []);
-
-  // ── Picker state (single sheet, dynamic binding) ──
-  const sheetRef = useRef<BottomSheetModal>(null);
-  const [pickerTabKey, setPickerTabKey] = useState<string | null>(null);
-
-  // Picker selections come from Firestore-synced store. The `?? {}` fallback
-  // keeps the screen render-safe in the brief window between mount and the
-  // first onSnapshot pump from useAppInit.
+  // ── Picker state (delegated to /notices/picker route) ──
+  // Tapping the selector pushes a native iOS form-sheet route which owns
+  // its own pending state, search, and grouping. Selection commit happens
+  // inside that route via setPickerSelectionRemote → Firestore listener
+  // pushes the new value back into pickerSelections, re-rendering this
+  // screen with the new sourceIds.
   const pickerSelections = useNotificationStore(
     (s) => s.preferences.pickerSelections ?? {},
   );
-  const uid = useAuthStore((s) => s.uid);
-  const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const subscriptionUid = !isAnonymous ? uid : null;
 
-  const openPicker = useCallback((tabKey: string) => {
-    setPickerTabKey(tabKey);
-    // Sheet present is deferred to next render after pickerTabKey updates
-  }, []);
-
-  // Present sheet when pickerTabKey changes to a valid tab
-  const activePickerTab = useMemo(
-    () => (pickerTabKey ? tabs.find((tab) => tab.key === pickerTabKey) : null),
-    [pickerTabKey, tabs],
-  );
-
-  useEffect(() => {
-    if (activePickerTab?.tabMode === 'picker') {
-      sheetRef.current?.present();
-    }
-  }, [activePickerTab]);
-
-  // v5 SSOT: client writes only intent. CF onPreferencesWrite derives
-  // subscribedTopics. No diff-sync, no resolvePickerSelection roundtrip,
-  // no Guard logic — just persist the user's chosen ids.
-  const handlePickerConfirm = useCallback(
-    (newIds: string[]) => {
-      if (!pickerTabKey || !subscriptionUid) return;
-      setPickerSelectionRemote(subscriptionUid, pickerTabKey, newIds).catch(
-        (e) => {
-          logHandledError('notifications/picker-set', e);
-        },
-      );
+  const openPicker = useCallback(
+    (tabKey: string) => {
+      router.push(`/notices/picker?tabKey=${encodeURIComponent(tabKey)}`);
     },
-    [pickerTabKey, subscriptionUid],
+    [router],
   );
-
-  const handlePickerDismiss = useCallback(() => {
-    setPickerTabKey(null);
-  }, []);
 
   const hasValidTabs = tabs.length > 0;
-
-  return (
-    <View style={styles.container}>
-      {isLoading ? (
-        <NoticeListSkeleton />
-      ) : isError || !hasValidTabs ? (
-        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
-      ) : (
-        <>
-          <Tab value={activeTabKey} onChange={handleTabChange} size="small" fluid>
-            {tabs.map((tab) => (
-              <Tab.Item key={tab.key} value={tab.key}>
-                {tab.label}
-              </Tab.Item>
-            ))}
-          </Tab>
-
-          <View style={styles.panels}>
-            {tabs.map((tab) => {
-              if (!visitedTabs.has(tab.key)) return null;
-              const isActive = activeTabKey === tab.key;
-
-              if (tab.tabMode === 'picker' && tab.picker) {
-                return (
-                  <PickerPanel
-                    key={tab.key}
-                    tab={tab}
-                    isActive={isActive}
-                    storedIds={pickerSelections[tab.key]}
-                    onOpenPicker={() => openPicker(tab.key)}
-                  />
-                );
-              }
-
-              if (tab.tabMode === 'fixed' && tab.fixed) {
-                return (
-                  <View
-                    key={tab.key}
-                    style={[styles.panel, !isActive && styles.hidden]}
-                  >
-                    <NoticeListPanel sourceId={tab.fixed.sourceId} />
-                  </View>
-                );
-              }
-
-              return null; // unknown tabMode — skip
-            })}
-          </View>
-
-          {/* Single picker sheet, dynamically bound to the active picker tab */}
-          {activePickerTab?.tabMode === 'picker' && activePickerTab.picker && (
-            <NoticePickerSheet
-              ref={sheetRef}
-              items={activePickerTab.picker.sources}
-              selectedIds={resolvePickerSelection(
-                activePickerTab,
-                pickerSelections[activePickerTab.key],
-              )}
-              maxSelection={activePickerTab.picker.maxSelection}
-              onConfirm={handlePickerConfirm}
-              onDismiss={handlePickerDismiss}
-              title={activePickerTab.label}
-            />
-          )}
-        </>
-      )}
-    </View>
-  );
-}
-
-// ── Picker panel sub-component (avoids inline useMemo in loop) ──
-
-function PickerPanel({
-  tab,
-  isActive,
-  storedIds,
-  onOpenPicker,
-}: {
-  tab: NoticeTab;
-  isActive: boolean;
-  storedIds: string[] | undefined;
-  onOpenPicker: () => void;
-}) {
-  const selectedIds = useMemo(
-    () => resolvePickerSelection(tab, storedIds),
-    [tab, storedIds],
+  const activeTab = useMemo(
+    () => tabs.find((tab) => tab.key === activeTabKey),
+    [tabs, activeTabKey],
   );
 
-  const selectorLabel = useMemo(
+  // Picker selection (resolved selected ids + label string), evaluated up
+  // front so hooks are not called inside conditional branches below.
+  const pickerSelectedIds = useMemo(
     () =>
-      selectedIds
-        .map((id) => tab.picker!.sources.find((s) => s.id === id)?.name ?? id)
-        .join(', '),
-    [selectedIds, tab.picker],
+      activeTab && activeTab.tabMode === 'picker' && activeTab.picker
+        ? resolvePickerSelection(activeTab, pickerSelections[activeTab.key])
+        : [],
+    [activeTab, pickerSelections],
   );
 
-  return (
-    <View style={[styles.panel, !isActive && styles.hidden]}>
-      <NoticeSelector label={selectorLabel} onPress={onOpenPicker} />
-      <NoticeListPanel sourceIds={selectedIds} />
-    </View>
-  );
+  const pickerSelectorLabel = useMemo(() => {
+    if (!activeTab || activeTab.tabMode !== 'picker' || !activeTab.picker) {
+      return '';
+    }
+    return pickerSelectedIds
+      .map(
+        (id) =>
+          activeTab.picker!.sources.find((s) => s.id === id)?.name ?? id,
+      )
+      .join(', ');
+  }, [activeTab, pickerSelectedIds]);
+
+  // ── Render ────────────────────────────────────────────────────────────
+  // Initial transient: no activeTab yet. Rendering Skeleton / EmptyState
+  // here means the screen has no UIScrollView at first mount — the finder
+  // returns nil. Once activeTab is set the root element swaps to a
+  // NoticeListPanel (or Fragment containing it), at which point React
+  // unmounts the previous root and mounts the new one, re-firing
+  // RNSBottomTabsScreen's `mountChildComponentView(index==0)` → finder
+  // re-runs and now finds the SectionList.
+  if (!activeTab) {
+    if (isLoading) return <NoticeListSkeleton />;
+    if (isError || !hasValidTabs) {
+      return (
+        <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
+      );
+    }
+    return null;
+  }
+
+  // Picker tab: NoticeListPanel hosts NoticesTabStrip + the dept selector
+  // inside its SectionList via `listHeader`, so both are guaranteed to mount
+  // as the list's first rows. NoticeListPanel is the screen root → RNSScreen
+  // subviews[0] is the SectionList → minimize-on-scroll finder reaches it.
+  // The picker sheet is now a separate route (`/notices/picker`), mounted
+  // by the navigator in its own RNSScreen — no overlay child here.
+  if (activeTab.tabMode === 'picker' && activeTab.picker) {
+    return (
+      <NoticeListPanel
+        sourceIds={pickerSelectedIds}
+        listHeader={
+          <>
+            <NoticesTabStrip />
+            <NoticeSelector
+              label={pickerSelectorLabel}
+              onPress={() => openPicker(activeTab.key)}
+            />
+          </>
+        }
+      />
+    );
+  }
+
+  // Fixed tab: NoticeListPanel directly = SectionList directly. NoticesTabStrip
+  // is hosted as the SectionList's ListHeaderComponent so the finder still
+  // reaches the scroll view in one step (subviews[0] = SectionList).
+  if (activeTab.tabMode === 'fixed' && activeTab.fixed) {
+    return (
+      <NoticeListPanel
+        sourceId={activeTab.fixed.sourceId}
+        listHeader={<NoticesTabStrip />}
+      />
+    );
+  }
+
+  return null;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: SdsColors.background,
-  },
-  panels: {
-    flex: 1,
-    backgroundColor: SdsColors.grey100,
-  },
-  panel: {
-    flex: 1,
-  },
-  hidden: {
-    display: 'none',
-  },
-});

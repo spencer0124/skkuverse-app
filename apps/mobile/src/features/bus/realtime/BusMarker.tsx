@@ -1,13 +1,16 @@
 /**
- * BusIcon marker — absolutely positioned on the station list.
+ * Bus marker — absolutely positioned on the station list.
  *
- * Position calc (from businfo_component.dart):
+ * Layout: row [LicensePlate | BusDot], spanning PLATE_GUTTER + LEFT_PADDING.
+ * Plate sits in the gutter (right-aligned), dot stays centered on timeline.
+ *
+ * Position calc (from businfo_component.dart, VERTICAL_CENTER bumped 26→45
+ * to compensate for column→row restructure so dot Y stays constant):
  *   top = stationIndex >= lastStationIndex
- *     ? 26 + 66 * stationIndex
+ *     ? 45 + 66 * stationIndex
  *     : elapsed > 200
- *       ? 26 + 66 * stationIndex + 40
- *       : 26 + 66 * stationIndex + elapsed / 5
- *   left = 0, width = LEFT_PADDING (centered on timeline)
+ *       ? 45 + 66 * stationIndex + 40
+ *       : 45 + 66 * stationIndex + elapsed / 5
  *
  * `elapsed` starts from `bus.estimatedTime`, incremented every 1s via setInterval.
  * Resets when `bus.estimatedTime` changes (new poll data).
@@ -21,9 +24,9 @@ import type { RealtimeBus } from '@skkuverse/shared';
 import { BusIcon } from 'phosphor-react-native';
 import { LicensePlate } from './LicensePlate';
 import { PulseAnimation } from './PulseAnimation';
-import { STATION_ROW_HEIGHT, LEFT_PADDING } from './StationRow';
+import { STATION_ROW_HEIGHT, LEFT_PADDING, PLATE_GUTTER } from './StationRow';
 
-const VERTICAL_CENTER = 26;
+const VERTICAL_CENTER = 45;
 const PULSE_SIZE = 28;
 
 interface BusMarkerProps {
@@ -70,8 +73,9 @@ export function BusMarker({ bus, lastStationIndex, color, pollGeneration }: BusM
         { top: baseTop + animationOffset },
       ]}
     >
-      <LicensePlate carNumber={bus.carNumber} color={color} />
-      <View style={styles.spacer} />
+      <View style={styles.plateColumn}>
+        <LicensePlate carNumber={bus.carNumber} color={color} />
+      </View>
       <View style={styles.pulseContainer}>
         <PulseAnimation color={color} size={PULSE_SIZE} />
         <View style={[styles.innerDot, { backgroundColor: color }]}>
@@ -86,11 +90,16 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     left: 0,
-    width: LEFT_PADDING,
+    // Reach from screen-left to dot's right edge: dot center is on the
+    // timeline at PLATE_GUTTER + LEFT_PADDING/2, plus dot's half-width.
+    width: PLATE_GUTTER + LEFT_PADDING / 2 + PULSE_SIZE / 2,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  spacer: {
-    height: 5,
+  plateColumn: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingRight: 6,
   },
   pulseContainer: {
     width: PULSE_SIZE,

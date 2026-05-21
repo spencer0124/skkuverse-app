@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { SparkleIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { logAiSummaryView } from '@/services/analytics';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 import type {
   NoticeDetailSummary,
@@ -10,8 +11,16 @@ import type {
   TranslationKey,
 } from '@skkuverse/shared';
 
+// Project deepgreen — same accent used by the onboarding pinned-card and
+// the unified notice pill palette (NoticeRow.tsx). HTML mock proposed
+// #00563F; we keep the existing palette to avoid re-fragmenting brand
+// green right after the consolidation in 7bd5ba0.
+const DEEPGREEN = '#1f3d2e';
+
 interface Props {
   summary: NoticeDetailSummary;
+  sourceId: string;
+  articleNo: number;
 }
 
 /**
@@ -19,8 +28,25 @@ interface Props {
  * on the notice detail screen. The two cards are visually separated:
  * card 1 = AI headline + text, card 2 = period/location/detail rows.
  */
-export function SummaryCard({ summary }: Props) {
+export function SummaryCard({ summary, sourceId, articleNo }: Props) {
   const { t } = useT();
+
+  // AI summary impression. Fires once per (notice, summary type) — refetch
+  // with unchanged classification is a no-op. Mount itself is gated by
+  // `data.summary != null` at the call site, so this always represents a
+  // real user-facing AI card render.
+  useEffect(() => {
+    logAiSummaryView({
+      sourceId,
+      articleNo,
+      summaryType: summary.type,
+      hasOneLiner: !!summary.oneLiner?.trim(),
+      hasPeriods: summary.periods.length > 0,
+      hasLocations: summary.locations.length > 0,
+      hasDetails: summary.details != null,
+      model: summary.model,
+    });
+  }, [sourceId, articleNo, summary.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const periodEntries = summary.periods
     .map((p) => {
@@ -59,21 +85,23 @@ export function SummaryCard({ summary }: Props) {
 
   return (
     <>
-      {/* Card 1: AI Summary */}
+      {/* Card 1: AI Summary — left-accent line, no surface fill */}
       {summary.text ? (
         <View style={styles.summaryCard}>
-          <View style={styles.aiHeader}>
-            <SparkleIcon
-              size={14}
-              color={SdsColors.grey600}
-              fill={SdsColors.grey600}
-              style={styles.aiHeaderIcon}
-            />
-            <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
-              {t('notices.aiSummaryLabel')}
-            </Txt>
-          </View>
-          <Txt typography="t6" color={SdsColors.grey700} style={styles.text}>
+          <Txt
+            typography="t7"
+            fontWeight="semiBold"
+            color={DEEPGREEN}
+            style={styles.aiLabel}
+          >
+            {t('notices.aiSummaryLabel')}
+          </Txt>
+          <Txt
+            typography="t6"
+            fontWeight="medium"
+            color={SdsColors.grey800}
+            style={styles.text}
+          >
             {summary.text}
           </Txt>
         </View>
@@ -157,19 +185,14 @@ function joinDateTime(date: string, time: string | null): string {
 const styles = StyleSheet.create({
   summaryCard: {
     marginTop: 12,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: SdsColors.grey50,
-    gap: 8,
-  },
-  aiHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingLeft: 12,
+    paddingVertical: 2,
+    borderLeftWidth: 2,
+    borderLeftColor: DEEPGREEN,
     gap: 6,
-    marginBottom: 4,
   },
-  aiHeaderIcon: {
-    opacity: 0.7,
+  aiLabel: {
+    letterSpacing: 0.2,
   },
   text: {
     lineHeight: 22,

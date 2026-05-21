@@ -146,7 +146,7 @@ export const BuildingDetailSheet = forwardRef<
     [],
   );
 
-  // CheckIcon if this building exists on the HSSC floor map
+  // Check if this building exists on the HSSC floor map
   const hsscMapName = useMemo(() => {
     if (!data) return null;
     const nameKo = getLocalizedText(data.building.name, 'ko');
@@ -402,6 +402,9 @@ const FADE_WIDTH = 48; // gradient fade region width
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
   },
   handleIndicator: {
     backgroundColor: SdsColors.grey300,

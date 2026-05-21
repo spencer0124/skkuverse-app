@@ -1,13 +1,21 @@
 /**
  * FixedBottomCTA — bottom CTA with keyboard avoiding behavior.
  *
- * Usage:
+ * Usage (static children):
  *   <FixedBottomCTA>
  *     <Button display="block">Submit</Button>
  *   </FixedBottomCTA>
+ *
+ * Usage (render-prop, react to keyboard state):
+ *   <FixedBottomCTA flushOnKeyboard>
+ *     {({ keyboardVisible }) => (
+ *       <Button display={keyboardVisible ? 'full' : 'block'}>Submit</Button>
+ *     )}
+ *   </FixedBottomCTA>
  */
-import React, { type ReactNode } from 'react';
+import React, { useEffect, useState, type ReactNode } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -16,62 +24,76 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SdsColors } from '@skkuverse/shared';
+
+export interface FixedBottomCTAContext {
+  keyboardVisible: boolean;
+}
 
 export interface FixedBottomCTAProps {
-  children: ReactNode;
+  children: ReactNode | ((ctx: FixedBottomCTAContext) => ReactNode);
   /** @default true */
   enableKeyboardAvoiding?: boolean;
+  /**
+   * Drop horizontal/top padding when keyboard is visible so the child can render
+   * as a full-width flush rectangle hugging the keyboard.
+   * @default false
+   */
+  flushOnKeyboard?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 export default function FixedBottomCTA({
   children,
   enableKeyboardAvoiding = true,
+  flushOnKeyboard = false,
   style,
 }: FixedBottomCTAProps) {
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvt, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const flush = flushOnKeyboard && keyboardVisible;
+  const paddingBottom = keyboardVisible ? 0 : Math.max(insets.bottom, 16);
+  const paddingHorizontal = flush ? 0 : 20;
+  const paddingTop = flush ? 0 : 12;
+
+  const renderedChildren =
+    typeof children === 'function' ? children({ keyboardVisible }) : children;
 
   const content = (
     <View
       style={[
         styles.container,
-        { paddingBottom: Math.max(insets.bottom, 16) },
+        { paddingBottom, paddingHorizontal, paddingTop },
         style,
       ]}
     >
-      {children}
+      {renderedChildren}
     </View>
   );
 
   if (!enableKeyboardAvoiding) return content;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.wrapper}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {content}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
   container: {
-    backgroundColor: SdsColors.background,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 8,
+    backgroundColor: '#FFFFFF',
   },
 });
 

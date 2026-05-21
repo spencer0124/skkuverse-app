@@ -70,4 +70,9 @@ export const SdsColors = {
   // ── Brand ──
   brand: '#1A8A5C',
   brandLight: '#E8F5EE',
+  // Deep brand green — same RGB as the `webviewColor: '003626'` string used
+  // for webview header backgrounds (sdui/defaults, action-handler default).
+  // Use this token for RGB contexts (text/border/bg in RN); webview prop
+  // contexts continue to pass the stripped string form.
+  brandDark: '#003626',
 } as const;

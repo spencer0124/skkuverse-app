@@ -1,43 +1,47 @@
 /**
  * Campus segment toggle — compact 인사캠/자과캠 tabs.
  *
- * Uses SDS SegmentedControl for visual consistency.
+ * Uses RN Community native UISegmentedControl. iOS 26+ auto-applies Liquid
+ * Glass at the system level (no per-component glass wrapping). iOS<26 / Android
+ * render the platform-default segmented control.
+ *
+ * Note: native UISegmentedControl does not emit on re-tap of the active
+ * segment, so the previous "tap-to-recenter map" behavior is dropped here.
+ * The user can pinch/pan the map; if recenter becomes a frequent need, add
+ * a separate locator button rather than overlaying hit-detection on the
+ * native control (would break accessibility).
  */
 
-import { SegmentedControl } from '@skkuverse/sds';
-import { useMapLayerStore, type CampusDef, SdsShadows } from '@skkuverse/shared';
+import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import { useMapLayerStore, type CampusDef } from '@skkuverse/shared';
 import { logCampusSwitch } from '@/services/analytics';
 
 interface CampusToggleProps {
   campuses: CampusDef[];
-  onReselect?: (campus: CampusDef) => void;
 }
 
-export function CampusToggle({ campuses, onReselect }: CampusToggleProps) {
+export function CampusToggle({ campuses }: CampusToggleProps) {
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
   const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
 
-  const handleValueChange = (value: string) => {
-    if (value === selectedCampus) {
-      const campus = campuses.find((c) => c.id === value);
-      if (campus) onReselect?.(campus);
-    } else {
-      setSelectedCampus(value);
-      logCampusSwitch(value);
-    }
-  };
+  const selectedIndex = Math.max(
+    0,
+    campuses.findIndex((c) => c.id === selectedCampus),
+  );
 
   return (
     <SegmentedControl
-      value={selectedCampus}
-      onValueChange={handleValueChange}
-      style={{ width: 140, flexShrink: 0, ...SdsShadows.elevated.legacy }}
-    >
-      {campuses.map((campus) => (
-        <SegmentedControl.Item key={campus.id} value={campus.id} typography="t7">
-          {campus.label}
-        </SegmentedControl.Item>
-      ))}
-    </SegmentedControl>
+      values={campuses.map((c) => c.label)}
+      selectedIndex={selectedIndex}
+      onChange={(event) => {
+        const idx = event.nativeEvent.selectedSegmentIndex;
+        const next = campuses[idx];
+        if (next && next.id !== selectedCampus) {
+          setSelectedCampus(next.id);
+          logCampusSwitch(next.id);
+        }
+      }}
+      style={{ alignSelf: 'stretch' }}
+    />
   );
 }

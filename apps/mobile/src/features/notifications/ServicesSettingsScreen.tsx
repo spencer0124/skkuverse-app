@@ -1,8 +1,6 @@
 import { useCallback } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ListHeader, ListRow, Switch } from '@skkuverse/sds';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { ListHeader, ListRow } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -13,11 +11,8 @@ import { setCategoryEnabled } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 import { AnonymousGate } from './components/AnonymousGate';
 import { HintBanner } from './components/HintBanner';
-import { ScreenHeader } from './components/ScreenHeader';
 
 export default function ServicesSettingsScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
@@ -42,8 +37,7 @@ export default function ServicesSettingsScreen() {
   if (!authReady) return <AnonymousGate />;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ScreenHeader title={t('notifications.services')} onBack={() => router.back()} />
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {!masterEnabled && <HintBanner message={t('notifications.masterOffHint')} />}
 
@@ -57,9 +51,10 @@ export default function ServicesSettingsScreen() {
           }
           right={
             <Switch
-              checked={checked}
-              onCheckedChange={handleToggle}
+              value={checked}
+              onValueChange={handleToggle}
               disabled={!masterEnabled}
+              trackColor={{ true: SdsColors.brand, false: undefined }}
             />
           }
         />

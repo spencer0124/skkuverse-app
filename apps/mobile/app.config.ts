@@ -11,7 +11,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.1",
+  runtimeVersion: "3.5.4",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -58,6 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.example.skkumap",
     supportsTablet: true,
     buildNumber: "69",
+    icon: "./assets/skkuverse-logo.icon",
     googleServicesFile: "./GoogleService-Info.plist",
     associatedDomains: ["applinks:skkuverse.com"],
     entitlements: {

@@ -10,7 +10,8 @@ import {
 
 interface Props {
   campus: Campus;
-  primaryDeptId: string;
+  // null when the user skipped via "내 학과가 없어요" on step 2.
+  primaryDeptId: string | null;
   interestDeptIds: string[];
   sources: TabSource[];
   loginError: string | null;
@@ -29,7 +30,9 @@ export function LoginStep({
     ? t('onboarding.hsscName')
     : t('onboarding.nscName');
 
-  const primaryName = sources.find((s) => s.id === primaryDeptId)?.name ?? '';
+  const primaryName = primaryDeptId
+    ? (sources.find((s) => s.id === primaryDeptId)?.name ?? '')
+    : t('onboarding.summaryPrimaryNone');
   const interestNames = interestDeptIds
     .map((id) => sources.find((s) => s.id === id)?.name)
     .filter(Boolean)
@@ -67,7 +70,12 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <Txt typography="t7" color={SdsColors.grey400} style={styles.summaryLabel}>
         {label}
       </Txt>
-      <Txt typography="t7" fontWeight="medium" color={SdsColors.grey900}>
+      <Txt
+        typography="t7"
+        fontWeight="medium"
+        color={SdsColors.grey900}
+        style={styles.summaryValue}
+      >
         {value}
       </Txt>
     </View>
@@ -94,9 +102,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     paddingVertical: 7,
+    alignItems: 'flex-start',
   },
   summaryLabel: {
     width: 72,
+  },
+  summaryValue: {
+    flex: 1,
+    flexShrink: 1,
   },
   spacer: {
     flex: 1,

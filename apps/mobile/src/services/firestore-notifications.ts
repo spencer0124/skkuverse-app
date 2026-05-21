@@ -149,6 +149,13 @@ export async function setPickerSelectionRemote(
  *
  * `subscribedTopics: []` — the CF onPreferencesWrite trigger fills it in
  * within 1~3s after this write lands.
+ *
+ * `onboardedAt: serverTimestamp()` — clock skew 방어. Canonical "user has
+ * onboarded on some device" signal — second-device sign-in uses
+ * `prefs.onboardedAt != null` to skip the wizard
+ * (useAppInit prefs listener + notices/index.tsx handleExistingAccountSignIn).
+ * Firestore Rules enforce "null → timestamp" one-way transition; repeated
+ * calls update path will be rejected if onboardedAt was already set.
  */
 export async function seedOnboardingPreferences(
   uid: string,
@@ -164,6 +171,7 @@ export async function seedOnboardingPreferences(
     pickerSelections,
     subscribedTopics: [],
     derivedAt: null,
+    onboardedAt: firestore.FieldValue.serverTimestamp() as unknown,
   };
   await prefsRef(uid).set(seed);
 }
@@ -260,6 +268,7 @@ export async function initializeFirestoreNotifications(
     pickerSelections: {},
     subscribedTopics: [],
     derivedAt: null,
+    onboardedAt: null,
   };
   if (!prefsDoc) {
     // Use full set with merge:false to create the doc with the v5 shape.

@@ -37,6 +37,13 @@ export interface PreferencesDocument {
   noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
 
+  /**
+   * Server timestamp at first onboarding completion. Client-writable on
+   * "null → timestamp" transition only (Rules enforce immutability after).
+   * See canonical doc in shared/types/notifications.ts.
+   */
+  onboardedAt: FirebaseFirestore.Timestamp | null;
+
   // Derived (CF only — Rules block client write)
   subscribedTopics: string[];
   derivedAt: FirebaseFirestore.Timestamp | null;

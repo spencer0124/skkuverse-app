@@ -79,7 +79,7 @@ export default function NumericSpinner({
 
   return (
     <View style={[styles.container, { opacity: disable ? 0.4 : 1 }, style]}>
-      {/* MinusIcon */}
+      {/* Minus */}
       <Pressable
         onPress={handleDecrement}
         style={[
@@ -113,7 +113,7 @@ export default function NumericSpinner({
         </Txt>
       </View>
 
-      {/* PlusIcon */}
+      {/* Plus */}
       <Pressable
         onPress={handleIncrement}
         style={[

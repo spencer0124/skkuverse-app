@@ -7,8 +7,10 @@ import {
   setAuthTokenProvider,
   getApiClient,
   authStore,
+  useEngagementStore,
   useSettingsStore,
   useNotificationStore,
+  useBookmarkStore,
   SUPPORTED_LANGUAGES,
   DEFAULT_LANGUAGE,
   t as translate,
@@ -33,6 +35,7 @@ import {
   onPreferencesChanged,
   updateUserLocale,
 } from '@/services/firestore-notifications';
+import { onBookmarksChanged } from '@/services/firestore-bookmarks';
 import { withRetry } from '@/utils/with-retry';
 
 // Verbose Firestore logging in dev builds so write-stream stalls become
@@ -105,8 +108,22 @@ export function useAppInit() {
     let unsubPrefs: (() => void) | undefined;
     let prefsListenerUid: string | null = null;
 
+    // Firestore users/{uid}/bookmarks/* onSnapshot listener — same uid-scoped
+    // lifecycle as unsubPrefs above. The Zustand bookmark store is not MMKV-
+    // persisted; the listener is the sole hydration path on the client. On
+    // sign-out we both detach the listener AND clearEntries() — without the
+    // explicit clear, the next anon user on a shared device would see the
+    // prior Google user's bookmarks for ~1s until the new listener attaches.
+    let unsubBookmarks: (() => void) | undefined;
+    let bookmarksListenerUid: string | null = null;
+
     async function init() {
       try {
+        // 0a. Engagement signals — one-shot first-launch stamp. Drives the
+        // 7-day grace window on the review-prompt gate; uninitialized (0)
+        // means the gate refuses to fire. Sync MMKV write, microsecond-scale.
+        useEngagementStore.getState().initFirstLaunchIfNeeded();
+
         // 0. Disable Analytics collection in dev builds
         await disableAnalyticsInDev();
 
@@ -227,9 +244,52 @@ export function useAppInit() {
               unsubPrefs?.();
               prefsListenerUid = user.uid;
               unsubPrefs = onPreferencesChanged(user.uid, (prefs) => {
-                if (prefs) {
-                  useNotificationStore.getState().setPreferences(prefs);
+                if (!prefs) return;
+                useNotificationStore.getState().setPreferences(prefs);
+
+                // Auto-restore onboarding state from Firestore SSOT
+                // (cold-start fallback). Primary path: notices/index.tsx
+                // handleExistingAccountSignIn calls restoreOnboardingFromRemote
+                // synchronously after sign-in for UX immediacy. This listener
+                // handles the OTHER path: cold-start where a returning user is
+                // already authed (no sign-in event fires) — e.g. app re-launch
+                // after install + initial sign-in, or session restore.
+                //
+                // Discriminator: prefs.onboardedAt != null. Set by
+                // seedOnboardingPreferences as serverTimestamp().
+                // initializeFirestoreNotifications's default doc has
+                // onboardedAt: null so anon/first-time installers don't trip.
+                //
+                // 'dept' tab key cross-link: this listener mirrors
+                // prefs.pickerSelections.dept to MMKV. Same hard-code in
+                // notices/index.tsx handler + server-side tabsContract.ts —
+                // coordinated rename required.
+                //
+                // Action overwrites unconditionally — safe because dual-write
+                // writes identical data (handler reads same prefs the listener
+                // observes). always-overwrite also self-heals account-switch
+                // (logout A → signin B leaves A's stale data in MMKV otherwise).
+                if (prefs.onboardedAt != null) {
+                  const restoredDeptIds = prefs.pickerSelections?.dept ?? [];
+                  // sentinel '' → null (primary 스킵 사용자). truthy면 그대로.
+                  const restoredPrimary = restoredDeptIds[0] || null;
+                  useSettingsStore.getState().restoreOnboardingFromRemote({
+                    primaryDeptId: restoredPrimary,
+                    interestDeptIds: restoredDeptIds.slice(1, 5),
+                  });
                 }
+              });
+            }
+
+            // Bookmarks listener — same uid-scoped lifecycle as unsubPrefs.
+            // Anon users hit this path too: their collection is empty and
+            // the snapshot fires with `{}`, which `setEntries` writes as
+            // an empty map (loaded=true).
+            if (bookmarksListenerUid !== user.uid) {
+              unsubBookmarks?.();
+              bookmarksListenerUid = user.uid;
+              unsubBookmarks = onBookmarksChanged(user.uid, (entries) => {
+                useBookmarkStore.getState().setEntries(entries);
               });
             }
           } else {
@@ -241,6 +301,14 @@ export function useAppInit() {
             unsubPrefs?.();
             unsubPrefs = undefined;
             prefsListenerUid = null;
+            // Bookmarks: detach listener + clearEntries. Without the
+            // explicit clear, the next anon user on a shared device would
+            // see the prior Google user's saved-list until the new listener
+            // attaches and overwrites — privacy regression.
+            unsubBookmarks?.();
+            unsubBookmarks = undefined;
+            bookmarksListenerUid = null;
+            useBookmarkStore.getState().clearEntries();
             // ⚠️ lastKnownUid is intentionally preserved through this branch.
             // The next onAuthStateChanged(user) fires with the new anon uid
             // after signInAnonymously, and we need prevUid != newUid to
@@ -250,60 +318,78 @@ export function useAppInit() {
 
         // 5. FCM registration + Firestore bootstrap (Phase 2)
         //
-        // Use requestPermission() here because it's idempotent on iOS — no
-        // dialog appears if permission is already granted/denied. This gives
-        // us correct behavior on first launch (prompt shows) without spurious
-        // prompts on subsequent launches. Phase 3 will add a richer permission
-        // UX via a master toggle, but the real OS-level dialog still flows
-        // through here.
+        // Channels and deviceId are unconditional — needed regardless of
+        // whether the user has granted notification permission yet (deviceId
+        // is just a UUID, channels are Android display config).
+        //
+        // requestPermission() itself is gated behind two conditions:
+        //   1. onboardingCompleted — user finished the wizard, so the
+        //      NotificationStep already handled the first-time prompt.
+        //   2. permissionStatus !== 'notDetermined' — if the user explicitly
+        //      tapped "다음에 할게요" (skip), the persisted MMKV value stays
+        //      'notDetermined'. Re-calling requestPermission() in that state
+        //      would surface the iOS system dialog at launch — exactly what
+        //      the wizard step was designed to prevent. The gate honors the
+        //      user's deferral.
+        //
+        // For users who responded once (authorized/denied), requestPermission
+        // is idempotent on iOS — returns the cached status without a dialog,
+        // which keeps the token sync flow alive.
         await setupNotificationChannels();
         const deviceId = getOrCreateDeviceId();
         useNotificationStore.getState().setDeviceId(deviceId);
 
-        const permStatus = await requestPermission();
-        useNotificationStore.getState().setPermissionStatus(permStatus);
+        const onboardingCompleted = useSettingsStore.getState().onboardingCompleted;
+        const persistedStatus = useNotificationStore.getState().permissionStatus;
+        const shouldQueryPermission =
+          onboardingCompleted && persistedStatus !== 'notDetermined';
 
-        if (permStatus === 'authorized' || permStatus === 'provisional') {
-          await ensureRegistered();
-          const fcmToken = await getDeviceToken();
-          if (__DEV__) console.log('[fcm] token:', fcmToken);
-          useNotificationStore.getState().setFcmToken(fcmToken);
+        if (shouldQueryPermission) {
+          const permStatus = await requestPermission();
+          useNotificationStore.getState().setPermissionStatus(permStatus);
 
-          // Fire-and-forget Firestore bootstrap.
-          // - Promise.all inside initializeFirestoreNotifications parallelizes reads
-          // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
-          // - logHandledError on exhaustion; app launch is NOT blocked on this path
-          //
-          // Task #12: uid is resolved lazily per retry attempt (inside the
-          // closure) rather than captured once. This way, a retry landing
-          // after a uid transition writes the current uid, not the stale
-          // one that was live at the initial call.
-          if (fcmToken) {
-            const bootstrapLang = resolveAppLanguage();
-            const osLocale = toNotificationLocale(bootstrapLang);
-            const appVersion = Constants.expoConfig?.version ?? '0.0.0';
-            const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+          if (permStatus === 'authorized' || permStatus === 'provisional') {
+            await ensureRegistered();
+            const fcmToken = await getDeviceToken();
+            if (__DEV__) console.log('[fcm] token:', fcmToken);
+            useNotificationStore.getState().setFcmToken(fcmToken);
 
-            withRetry(() => {
-              const currentUid = getAuth().currentUser?.uid;
-              if (!currentUid) {
-                throw new Error('no authenticated user');
-              }
-              return initializeFirestoreNotifications({
-                uid: currentUid,
-                deviceId,
-                token: fcmToken,
-                platform,
-                appVersion,
-                osLocale,
-              });
-            })
-              .then(() => {
-                useNotificationStore.getState().setIsTokenRegistered(true);
+            // Fire-and-forget Firestore bootstrap.
+            // - Promise.all inside initializeFirestoreNotifications parallelizes reads
+            // - withRetry absorbs transient failures (1s / 2s / 4s backoff)
+            // - logHandledError on exhaustion; app launch is NOT blocked on this path
+            //
+            // Task #12: uid is resolved lazily per retry attempt (inside the
+            // closure) rather than captured once. This way, a retry landing
+            // after a uid transition writes the current uid, not the stale
+            // one that was live at the initial call.
+            if (fcmToken) {
+              const bootstrapLang = resolveAppLanguage();
+              const osLocale = toNotificationLocale(bootstrapLang);
+              const appVersion = Constants.expoConfig?.version ?? '0.0.0';
+              const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
+
+              withRetry(() => {
+                const currentUid = getAuth().currentUser?.uid;
+                if (!currentUid) {
+                  throw new Error('no authenticated user');
+                }
+                return initializeFirestoreNotifications({
+                  uid: currentUid,
+                  deviceId,
+                  token: fcmToken,
+                  platform,
+                  appVersion,
+                  osLocale,
+                });
               })
-              .catch((err) => {
-                logHandledError('notifications/init', err);
-              });
+                .then(() => {
+                  useNotificationStore.getState().setIsTokenRegistered(true);
+                })
+                .catch((err) => {
+                  logHandledError('notifications/init', err);
+                });
+            }
           }
         }
 
@@ -395,6 +481,7 @@ export function useAppInit() {
       unsubscribe?.();
       unsubToken?.();
       unsubPrefs?.();
+      unsubBookmarks?.();
       unsubLocale();
       appStateSubscription.remove();
     };

@@ -49,6 +49,8 @@ export { useSettingsStore } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/settings';
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
+export { useEngagementStore } from './store/engagement';
+export type { EngagementStore, EngagementState, ReviewPromptOutcome } from './store/engagement';
 
 // ── Notifications ──
 export type {
@@ -67,6 +69,12 @@ export type {
   NotificationStore,
   PushPermissionStatus,
 } from './store/notifications';
+export { useBookmarkStore, bookmarkStore } from './store/bookmarks';
+export type { BookmarkStore } from './store/bookmarks';
+
+// ── Bookmark types ──
+export type { BookmarkEntry, BookmarkSummaryType } from './types/bookmarks';
+export { bookmarkKey, parseBookmarkKey } from './types/bookmarks';
 
 // ── SDUI types ──
 export type {
@@ -148,6 +156,7 @@ export { parseAppConfig } from './app/parser';
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
 export { resolveInitialTabRouteName } from './utils/resolveInitialTabRoute';
+export { normalizeIncomingPath } from './utils/normalizeIncomingPath';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
@@ -183,8 +192,15 @@ export {
   parseNoticeDetail,
   resolvePickerSelection,
   computeOnboardingPickerSeed,
+  highlightMatches,
+  classifyBookmarkToggleError,
+  filterPickerSources,
+  isUnsupportedSource,
+  recommendCollegeMates,
+  findCollegeUmbrella,
 } from './notices';
 export type {
+  ExcludeReasonKey,
   TabSource,
   PickerTabConfig,
   FixedTabConfig,
@@ -204,6 +220,9 @@ export type {
   NoticeLocation,
   NoticeAttachment,
   NoticeEditInfo,
+  HighlightSegment,
+  FilterPickerSourcesOptions,
+  CollegeMates,
 } from './notices';
 
 // ── Hooks ──
