@@ -166,8 +166,9 @@ export function OnboardingScreen() {
 
       // 알림 권한 이미 허용된 사용자는 step 5(권한 화면)를 스킵.
       // checkPermission()은 OS dialog 없는 조회. useAppInit의 권한 refresh가
-      // onboarding 진행 중인 사용자에겐 안 도므로(useAppInit onboardingCompleted
-      // gate) 여기서 명시 fetch.
+      // onboarding 진행 중인 사용자에겐 안 도므로 (useAppInit onboardingCompleted
+      // gate) 여기서 명시 fetch. denied 사용자는 step 5에 그대로 진입해서
+      // "허용하기" CTA → OS 설정 deep-link 경로를 따른다.
       const status = await checkPermission();
       useNotificationStore.getState().setPermissionStatus(status);
       const granted = status === 'authorized' || status === 'provisional';
