@@ -1,4 +1,5 @@
 import analytics from '@react-native-firebase/analytics';
+import type { NoticeSummaryType } from '@skkuverse/shared';
 
 /**
  * Centralized analytics service — fire-and-forget wrapper around Firebase Analytics.
@@ -175,6 +176,58 @@ export function logBookmarkUnsave(params: { sourceId: string; articleNo: number 
 
 export function logBookmarksListOpen() {
   logEvent('bookmarks_list_open', {});
+}
+
+// ── Notice Detail / AI Summary ─────────────────────────────────────
+
+/**
+ * 노티스 상세 진입 이벤트. 라우트 마운트당 1회 발화. `has_summary`는 백엔드
+ * AI 커버리지 모니터링용 — `notice_view` 대비 `notice_ai_summary_view`
+ * 비율로 derived metric을 얻기 위해 별도 이벤트(`logAiSummaryView`)도
+ * summary 존재 시 함께 발화한다.
+ */
+export function logNoticeView(params: {
+  sourceId: string;
+  articleNo: number;
+  tabKey?: string;
+  hasSummary: boolean;
+  summaryType?: NoticeSummaryType;
+}) {
+  logEvent('notice_view', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+    has_summary: params.hasSummary ? 'true' : 'false',
+    ...(params.tabKey && { tab_key: params.tabKey }),
+    ...(params.summaryType && { summary_type: params.summaryType }),
+  });
+}
+
+/**
+ * AI 요약 카드 실제 노출 impression. `<SummaryCard>` 마운트(=서버가 summary를
+ * 제공한 경우)에서만 발화. 백엔드가 추출한 필드 구성(`has_periods`,
+ * `has_locations`, `has_details`)도 함께 보내 어느 메타데이터가 가장 자주
+ * 채워지는지 트래킹.
+ */
+export function logAiSummaryView(params: {
+  sourceId: string;
+  articleNo: number;
+  summaryType: NoticeSummaryType;
+  hasOneLiner: boolean;
+  hasPeriods: boolean;
+  hasLocations: boolean;
+  hasDetails: boolean;
+  model?: string | null;
+}) {
+  logEvent('notice_ai_summary_view', {
+    source_id: params.sourceId,
+    article_no: params.articleNo,
+    summary_type: params.summaryType,
+    has_one_liner: params.hasOneLiner ? 'true' : 'false',
+    has_periods: params.hasPeriods ? 'true' : 'false',
+    has_locations: params.hasLocations ? 'true' : 'false',
+    has_details: params.hasDetails ? 'true' : 'false',
+    ...(params.model && { model: truncate(params.model) }),
+  });
 }
 
 // ── Screen View (manual) ───────────────────────────────────────────

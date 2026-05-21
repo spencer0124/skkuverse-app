@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { logAiSummaryView } from '@/services/analytics';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 import type {
   NoticeDetailSummary,
@@ -17,6 +19,8 @@ const DEEPGREEN = '#1f3d2e';
 
 interface Props {
   summary: NoticeDetailSummary;
+  sourceId: string;
+  articleNo: number;
 }
 
 /**
@@ -24,8 +28,25 @@ interface Props {
  * on the notice detail screen. The two cards are visually separated:
  * card 1 = AI headline + text, card 2 = period/location/detail rows.
  */
-export function SummaryCard({ summary }: Props) {
+export function SummaryCard({ summary, sourceId, articleNo }: Props) {
   const { t } = useT();
+
+  // AI summary impression. Fires once per (notice, summary type) — refetch
+  // with unchanged classification is a no-op. Mount itself is gated by
+  // `data.summary != null` at the call site, so this always represents a
+  // real user-facing AI card render.
+  useEffect(() => {
+    logAiSummaryView({
+      sourceId,
+      articleNo,
+      summaryType: summary.type,
+      hasOneLiner: !!summary.oneLiner?.trim(),
+      hasPeriods: summary.periods.length > 0,
+      hasLocations: summary.locations.length > 0,
+      hasDetails: summary.details != null,
+      model: summary.model,
+    });
+  }, [sourceId, articleNo, summary.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const periodEntries = summary.periods
     .map((p) => {

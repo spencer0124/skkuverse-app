@@ -12,6 +12,7 @@ import {
 } from '@skkuverse/shared';
 import { Toast, Txt } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
+import { logNoticeView } from '@/services/analytics';
 import { useBookmark } from './hooks/useBookmark';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
@@ -82,6 +83,20 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   useEffect(() => {
     if (data) void refreshSummaryIfNewlyAvailable(data);
   }, [data, refreshSummaryIfNewlyAvailable]);
+
+  // Notice-detail view event. Mirrors logBuildingView's "fire once per
+  // unique key" pattern. Dep narrowed to (id, summary.type) so React Query
+  // background refetches with structural-sharing breaks don't re-emit
+  // unless the server newly populated/changed the AI summary classification.
+  useEffect(() => {
+    if (!data) return;
+    logNoticeView({
+      sourceId,
+      articleNo,
+      hasSummary: data.summary != null,
+      summaryType: data.summary?.type,
+    });
+  }, [sourceId, articleNo, data?.summary?.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Latest `data` is captured in a ref so header callbacks can stay stable
   // across React Query background refetches (focusManager refetch on app
@@ -303,7 +318,13 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
           ) : null}
         </View>
 
-        {data.summary ? <SummaryCard summary={data.summary} /> : null}
+        {data.summary ? (
+          <SummaryCard
+            summary={data.summary}
+            sourceId={sourceId}
+            articleNo={articleNo}
+          />
+        ) : null}
 
         <NoticeMarkdownView
           markdown={data.contentMarkdown}
