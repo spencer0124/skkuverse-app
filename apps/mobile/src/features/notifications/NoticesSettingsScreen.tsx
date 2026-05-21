@@ -1,5 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Button, ListRow, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
@@ -13,8 +15,10 @@ import {
   setCategoryEnabled,
   setNoticeTabEnabled,
 } from '@/services/firestore-notifications';
+import { checkPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
 import { AnonymousGate } from './components/AnonymousGate';
+import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 import { HintBanner } from './components/HintBanner';
 
 // 9탭 key → Tossface 이모지 매핑.
@@ -38,6 +42,38 @@ export default function NoticesSettingsScreen() {
   const uid = useAuthStore((s) => s.uid);
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const preferences = useNotificationStore((s) => s.preferences);
+  const permissionStatus = useNotificationStore((s) => s.permissionStatus);
+  const setPermissionStatus = useNotificationStore((s) => s.setPermissionStatus);
+  const enableSheetDismissed = useNotificationStore(
+    (s) => s.enableSheetDismissedThisSession,
+  );
+
+  // NotificationSettingsScreen과 동일 패턴: focus 시 OS truth fetch → store mirror.
+  // 사용자가 OS 설정에서 권한 변경 후 돌아오면 fresh status 반영되어 self-heal.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void checkPermission().then((status) => {
+        if (!cancelled) setPermissionStatus(status);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [setPermissionStatus]),
+  );
+
+  // Auto-present enable sheet when permission isn't granted — 공지 탭 bell icon
+  // 으로 들어온 사용자도 NotificationSettingsScreen과 동일하게 권한 유도 받음.
+  // enableSheetDismissedThisSession은 store에서 session-scoped라 두 screen 간
+  // dismissal intent 공유 (한 번 닫으면 같은 세션엔 다른 screen에서도 안 뜸).
+  const enableSheetRef = useRef<BottomSheetModal>(null);
+  useEffect(() => {
+    const notGranted =
+      permissionStatus === 'denied' || permissionStatus === 'notDetermined';
+    if (notGranted && !enableSheetDismissed) {
+      enableSheetRef.current?.present();
+    }
+  }, [permissionStatus, enableSheetDismissed]);
 
   const {
     data: tabsConfig,
@@ -135,6 +171,8 @@ export default function NoticesSettingsScreen() {
           </View>
         )}
       </ScrollView>
+
+      <EnableNotificationsSheet ref={enableSheetRef} />
     </View>
   );
 }
