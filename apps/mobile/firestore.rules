@@ -101,6 +101,14 @@ service cloud.firestore {
       }
     }
 
+    // account_deletion_feedback/{docId} — anonymous survey collected by the
+    // `deleteAccount` Cloud Function when a user withdraws. Admin SDK writes
+    // only; never readable or writable from the client. Documents have no uid
+    // field by design (anonymity is the whole point — the user is leaving).
+    match /account_deletion_feedback/{docId} {
+      allow read, write: if false;
+    }
+
     // devices/{deviceId} — top-level so the Cloud Function can query by
     // (active, notificationsEnabled, subscribedTopics) without hopping per uid.
     //

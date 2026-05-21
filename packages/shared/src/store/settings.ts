@@ -52,6 +52,16 @@ interface SettingsActions {
     primaryDeptId: string | null;
     interestDeptIds: string[];
   }) => void;
+  /**
+   * Wipe user-scoped fields so the next sign-in (or anon fallback) starts
+   * from a clean slate. Used by the account-deletion flow.
+   *
+   * Preserves device-local fields (preferredCampus, appLanguage, lastTab)
+   * — those represent the device owner's UI choices, not the deleted user's
+   * data, and resetting them would force the user to re-pick campus/language
+   * on a device they still own.
+   */
+  resetUserScopedState: () => void;
 }
 
 export type SettingsStore = SettingsState & SettingsActions;
@@ -92,6 +102,12 @@ export const useSettingsStore = create<SettingsStore>()(
           primaryDeptId: data.primaryDeptId,
           interestDeptIds: data.interestDeptIds,
           onboardingCompleted: true,
+        }),
+      resetUserScopedState: () =>
+        set({
+          onboardingCompleted: false,
+          primaryDeptId: null,
+          interestDeptIds: [],
         }),
     }),
     {

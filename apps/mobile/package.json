@@ -21,6 +21,7 @@
     "@react-native-firebase/auth": "^23.8.8",
     "@react-native-firebase/crashlytics": "^23.8.8",
     "@react-native-firebase/firestore": "^23.8.8",
+    "@react-native-firebase/functions": "^23.8.8",
     "@react-native-firebase/messaging": "^23.8.8",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-native-segmented-control/segmented-control": "2.5.7",

@@ -1,10 +1,16 @@
-import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { UserIcon } from 'phosphor-react-native';
-import { Button, Dialog, Txt } from '@skkuverse/sds';
+import { Button, Dialog, TextButton, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
+import {
+  deleteAccount,
+  type DeleteAccountFeedback,
+} from '@/services/delete-account';
+import { DeleteAccountFeedbackSheet } from './components/DeleteAccountFeedbackSheet';
 
 const PHOTO_SIZE = 80;
 
@@ -20,11 +26,47 @@ export function AccountSettingsScreen() {
 
   const showProfile = !isAnonymous || isSigningOut;
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const feedbackSheetRef = useRef<BottomSheetModal>(null);
 
   const handleSignOut = async () => {
     setShowSignOutDialog(false);
     await signOutFromGoogle();
   };
+
+  const handleProceedToFeedback = useCallback(() => {
+    setShowDeleteDialog(false);
+    // BottomSheetModal mount + present must run after the dialog closes; one
+    // frame is enough because Dialog.Confirm unmounts synchronously when
+    // `open` flips false.
+    requestAnimationFrame(() => {
+      feedbackSheetRef.current?.present();
+    });
+  }, []);
+
+  const handleSubmitDeletion = useCallback(
+    async (feedback?: DeleteAccountFeedback) => {
+      setIsDeleting(true);
+      try {
+        await deleteAccount(feedback);
+        feedbackSheetRef.current?.dismiss();
+        // Send the user to the notices tab; the onboarding gate at
+        // notices/index will render because the anon re-sign-in flipped
+        // isAnonymous back to true and resetUserScopedState() cleared
+        // onboardingCompleted.
+        router.replace('/(tabs)/notices');
+      } catch {
+        Alert.alert(
+          t('auth.deleteAccountErrorTitle'),
+          t('auth.deleteAccountError'),
+        );
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [router, t],
+  );
 
   return (
     <View style={styles.container}>
@@ -59,6 +101,18 @@ export function AccountSettingsScreen() {
               >
                 {t('auth.signOut')}
               </Button>
+            </View>
+
+            <View style={styles.deleteSection}>
+              <TextButton
+                typography="t7"
+                variant="underline"
+                color={SdsColors.grey500}
+                disabled={isDeleting}
+                onPress={() => setShowDeleteDialog(true)}
+              >
+                {t('auth.deleteAccount')}
+              </TextButton>
             </View>
           </>
         ) : (
@@ -120,6 +174,40 @@ export function AccountSettingsScreen() {
           </Button>
         }
       />
+
+      <Dialog.Confirm
+        open={showDeleteDialog}
+        title={t('auth.deleteAccountConfirmTitle')}
+        description={t('auth.deleteAccountConfirmDescription')}
+        onClose={() => setShowDeleteDialog(false)}
+        leftButton={
+          <Button
+            type="dark"
+            style="weak"
+            size="medium"
+            display="block"
+            onPress={() => setShowDeleteDialog(false)}
+          >
+            {t('common.close')}
+          </Button>
+        }
+        rightButton={
+          <Button
+            type="danger"
+            size="medium"
+            display="block"
+            onPress={handleProceedToFeedback}
+          >
+            {t('auth.deleteAccountNext')}
+          </Button>
+        }
+      />
+
+      <DeleteAccountFeedbackSheet
+        ref={feedbackSheetRef}
+        isSubmitting={isDeleting}
+        onSubmit={handleSubmitDeletion}
+      />
     </View>
   );
 }
@@ -168,5 +256,9 @@ const styles = StyleSheet.create({
   },
   actionSection: {
     marginTop: 48,
+  },
+  deleteSection: {
+    marginTop: 32,
+    alignItems: 'center',
   },
 });

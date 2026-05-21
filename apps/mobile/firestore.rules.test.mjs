@@ -807,3 +807,40 @@ describe('users/{uid}/bookmarks/{key} rules — Phase 1', () => {
     );
   });
 });
+
+describe('account_deletion_feedback/{docId} rules — lockdown', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+
+  // Anonymous, intentionally — the user is leaving the app. Writes happen
+  // exclusively from the `deleteAccount` Cloud Function via Admin SDK
+  // (which bypasses rules). Nothing client-side should ever touch this
+  // collection.
+
+  test('authed Google user tries to create feedback doc → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      ctx
+        .firestore()
+        .collection('account_deletion_feedback')
+        .add({ reasons: ['not_used'], createdAt: new Date() }),
+    );
+  });
+
+  test('authed user tries to read feedback collection → deny', async () => {
+    // Seed a doc via admin (rules-bypassing) context so there is something
+    // present to attempt to read.
+    await testEnv.withSecurityRulesDisabled(async (admin) => {
+      await admin
+        .firestore()
+        .collection('account_deletion_feedback')
+        .doc('seed')
+        .set({ reasons: ['bugs'], createdAt: new Date() });
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      ctx.firestore().collection('account_deletion_feedback').doc('seed').get(),
+    );
+  });
+});
