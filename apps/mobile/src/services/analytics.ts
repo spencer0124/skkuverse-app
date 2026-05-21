@@ -267,8 +267,17 @@ export function logReviewPromptDismissed(params: { reason: string }) {
   logEvent('review_prompt_dismissed', { reason: params.reason });
 }
 
-export function logReviewNativeCalled(params: { reason: string }) {
-  logEvent('review_native_called', { reason: params.reason });
+/**
+ * `available: false` fires when StoreReview.isAvailableAsync() returns false
+ * (Android without Play Services, certain China builds). We log it as a
+ * separate signal so the funnel can distinguish "OS skipped the prompt"
+ * (silent on iOS quota) from "we never asked because the API was missing".
+ */
+export function logReviewNativeCalled(params: { reason: string; available: boolean }) {
+  logEvent('review_native_called', {
+    reason: params.reason,
+    available: params.available ? 'true' : 'false',
+  });
 }
 
 // ── Screen View (manual) ───────────────────────────────────────────

@@ -21,10 +21,13 @@ export async function requestNativeReview(reason: string): Promise<void> {
     if (!available) {
       // Some Android devices without Play Services land here. No fallback —
       // we choose silence over routing to a web rating page (which adds
-      // friction and dilutes positive intent).
+      // friction and dilutes positive intent). We DO emit a telemetry
+      // event with available: false so the funnel can attribute drop-off
+      // here vs. iOS-quota silence vs. user-initiated bail.
+      logReviewNativeCalled({ reason, available: false });
       return;
     }
-    logReviewNativeCalled({ reason });
+    logReviewNativeCalled({ reason, available: true });
     await StoreReview.requestReview();
   } catch (e) {
     // Never bubble — review prompt failure should not crash the screen the

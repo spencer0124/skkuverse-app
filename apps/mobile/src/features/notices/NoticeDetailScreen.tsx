@@ -118,18 +118,25 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
         text,
         noticeRef: { sourceId, articleNo },
       })
-        .then(() => {
+        .then((success) => {
+          if (!success) {
+            // Keep the sheet open so the user can retry. We deliberately do
+            // NOT set outcome or log analytics here — handleFeedbackDismiss
+            // records 'negative' if the user eventually gives up, so stage-1
+            // intent is preserved without inflating the submit funnel with
+            // events that never actually wrote a doc.
+            setToastText(t('notices.aiHelpful.retry'));
+            return;
+          }
           setEngagementOutcome('negative');
           logReviewPromptNegative({
             reason: REVIEW_PROMPT_REASON,
             hasText: text.length > 0,
           });
           setToastText(t('notices.aiHelpful.thanks'));
-        })
-        .finally(() => {
-          setIsFeedbackSubmitting(false);
           feedbackSheetRef.current?.dismiss();
-        });
+        })
+        .finally(() => setIsFeedbackSubmitting(false));
     },
     [sourceId, articleNo, setEngagementOutcome, t],
   );
