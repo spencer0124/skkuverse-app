@@ -130,9 +130,8 @@ export default function NoticesSettingsScreen() {
         <ListRow
           contents={
             <ListRow.Texts
-              type="2RowTypeA"
+              type="1RowTypeA"
               top={t('notifications.noticesDetailSwitchLabel')}
-              bottom={t('notifications.noticesDetailDesc')}
             />
           }
           right={
@@ -201,12 +200,14 @@ function TabToggleRow({ tab, checked, onChange, disabled }: TabToggleRowProps) {
           {tab.label}
         </Txt>
       </View>
-      <Switch
-        value={checked}
-        onValueChange={onChange}
-        disabled={disabled}
-        trackColor={{ true: SdsColors.brand, false: undefined }}
-      />
+      <View style={styles.switchWrap}>
+        <Switch
+          value={checked}
+          onValueChange={onChange}
+          disabled={disabled}
+          trackColor={{ true: SdsColors.brand, false: undefined }}
+        />
+      </View>
     </View>
   );
 }
@@ -241,15 +242,29 @@ const styles = StyleSheet.create({
   tabTitleWrap: {
     flex: 1,
     marginLeft: 16,
+    // Fixed envelope matching the badge (40) and switchWrap so all three
+    // share an identical vertical container under alignItems:'center'.
+    height: 40,
+    justifyContent: 'center',
   },
   tabTitleText: {
-    // RN iOS sinks the glyph toward the line-box bottom when lineHeight
-    // (25.5 from t5) exceeds fontSize (17). alignItems:'center' on the
-    // row centers layout boxes, not glyphs — leaving the Switch ~3-5px
-    // above the perceived text center. Collapsing lineHeight to match
-    // fontSize makes glyph center == line-box center == row center.
-    // Single-line label so the collapsed line spacing has zero visual cost.
-    lineHeight: 17,
+    // RN iOS Text+Switch baseline mismatch is structural: alignItems:'center'
+    // centers layout boxes, not glyphs. Direct lineHeight collapse triggers
+    // RN bug facebook/react-native#29507 (leading removed only from above
+    // when lineHeight <= fontSize), so we keep t5's default 25.5 lineHeight
+    // and instead let verticalAlign:'middle' (RN 0.74+) center the glyph
+    // within its line-box. Combined with the fixed-height tabTitleWrap +
+    // switchWrap envelopes, the row's alignItems:'center' lines up the
+    // glyph center with the Switch's visual center.
+    verticalAlign: 'middle',
+  },
+  switchWrap: {
+    // Mirrors tabTitleWrap's vertical envelope so the row's alignItems:
+    // 'center' lines up Switch and label at the same Y, removing the
+    // single-line baseline drift that 2-row master ListRow happens to
+    // avoid by accident (Switch sits between two text lines).
+    height: 40,
+    justifyContent: 'center',
   },
   retryBlock: {
     alignItems: 'center',
