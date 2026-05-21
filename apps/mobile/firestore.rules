@@ -81,12 +81,34 @@ service cloud.firestore {
       // the surface grows.
       match /feedback/{docId} {
         allow read: if request.auth != null && request.auth.uid == uid;
+        // createdAt == request.time: append-only + forensic-grade. Stricter
+        // than the sibling bookmarks/{key} rule which accepts `savedAt is
+        // timestamp` — bookmarks/savedAt is a display label, but feedback
+        // docs are evidence of historical sentiment and we don't want an
+        // authed client to backdate them. Client must use serverTimestamp().
+        //
+        // Optional noticeRef fields (sourceId, articleNo) are validated when
+        // present using the same anchored regex as bookmarks/{key} (^[a-z0-9-]+$).
+        // Absence is allowed — the helpful-sheet doesn't always know the
+        // notice context at submit time. The short-circuit pattern
+        // `!('field' in data) || (validation...)` makes the field optional
+        // without weakening validation when supplied.
         allow create: if request.auth != null
                       && request.auth.uid == uid
                       && request.resource.data.context in ['ai_summary_helpful_sheet']
                       && request.resource.data.text is string
                       && request.resource.data.text.size() <= 2000
-                      && request.resource.data.createdAt is timestamp;
+                      && request.resource.data.createdAt == request.time
+                      && (
+                        !('sourceId' in request.resource.data) ||
+                        (request.resource.data.sourceId is string
+                         && request.resource.data.sourceId.matches('^[a-z0-9-]+$'))
+                      )
+                      && (
+                        !('articleNo' in request.resource.data) ||
+                        (request.resource.data.articleNo is int
+                         && request.resource.data.articleNo > 0)
+                      );
         allow update, delete: if false;
       }
 

@@ -29,6 +29,8 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -857,7 +859,9 @@ describe('users/{uid}/feedback/{docId} rules', () => {
   const feedbackDoc = (overrides = {}) => ({
     context: 'ai_summary_helpful_sheet',
     text: 'AI summary missed the deadline',
-    createdAt: new Date(),
+    // serverTimestamp() so the rule check `createdAt == request.time`
+    // passes — emulator resolves the sentinel to its own clock at write.
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     ...overrides,
   });
 
@@ -893,6 +897,47 @@ describe('users/{uid}/feedback/{docId} rules', () => {
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertFails(
       feedbackCol(ctx, 'uid-1').add(feedbackDoc({ text: 'a'.repeat(2001) })),
+    );
+  });
+
+  test('client supplies non-server createdAt (backdate) → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').add(
+        feedbackDoc({ createdAt: new Date('2020-01-01T00:00:00Z') }),
+      ),
+    );
+  });
+
+  test('unauthenticated client tries to create feedback → deny', async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
+  });
+
+  test('valid noticeRef (sourceId + articleNo) → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      feedbackCol(ctx, 'uid-1').add(
+        feedbackDoc({ sourceId: 'portal-notice', articleNo: 12345 }),
+      ),
+    );
+  });
+
+  test('uppercase sourceId (anchor canary) → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').add(
+        feedbackDoc({ sourceId: 'Portal-Notice', articleNo: 1 }),
+      ),
+    );
+  });
+
+  test('negative articleNo → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').add(
+        feedbackDoc({ sourceId: 'portal', articleNo: -1 }),
+      ),
     );
   });
 
