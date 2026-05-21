@@ -7,6 +7,7 @@ import {
   setAuthTokenProvider,
   getApiClient,
   authStore,
+  useEngagementStore,
   useSettingsStore,
   useNotificationStore,
   useBookmarkStore,
@@ -118,6 +119,11 @@ export function useAppInit() {
 
     async function init() {
       try {
+        // 0a. Engagement signals — one-shot first-launch stamp. Drives the
+        // 7-day grace window on the review-prompt gate; uninitialized (0)
+        // means the gate refuses to fire. Sync MMKV write, microsecond-scale.
+        useEngagementStore.getState().initFirstLaunchIfNeeded();
+
         // 0. Disable Analytics collection in dev builds
         await disableAnalyticsInDev();
 

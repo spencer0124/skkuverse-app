@@ -8,7 +8,20 @@
 
 import { devLog } from '@/services/dev-log';
 
-type Pending = { sourceId: string; articleNo: string } | null;
+/**
+ * Source of the external entry — load-bearing for the review-prompt gate.
+ *   'push'           → FCM tap (server-curated → user-confirmed value)
+ *   'universal_link' → cold/warm deep link from web (less load-bearing)
+ *
+ * The review-prompt trigger requires source === 'push' specifically (see
+ * useReviewPromptGate). Anything that calls `set()` MUST classify itself
+ * explicitly — there's no default because every entry is one or the other.
+ */
+export type ExternalEntrySource = 'push' | 'universal_link';
+
+type Pending =
+  | { sourceId: string; articleNo: string; source: ExternalEntrySource }
+  | null;
 
 let pending: Pending = null;
 const listeners = new Set<() => void>();
@@ -21,6 +34,7 @@ export const pendingExternalNoticeLink = {
     devLog('pendingLink.set', {
       hasSourceId: !!p.sourceId,
       hasArticleNo: !!p.articleNo,
+      source: p.source,
       listenerCount: listeners.size,
     });
     listeners.forEach((cb) => {

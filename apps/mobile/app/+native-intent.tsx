@@ -52,6 +52,7 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
       pendingExternalNoticeLink.set({
         sourceId: noticeMatch[1],
         articleNo: noticeMatch[2],
+        source: 'universal_link',
       });
       return '/(tabs)/notices';
     }

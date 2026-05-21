@@ -844,3 +844,86 @@ describe('account_deletion_feedback/{docId} rules — lockdown', () => {
     );
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────
+// users/{uid}/feedback/{docId} rules — review-prompt stage 2b
+// ──────────────────────────────────────────────────────────────────────
+
+describe('users/{uid}/feedback/{docId} rules', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+
+  const feedbackDoc = (overrides = {}) => ({
+    context: 'ai_summary_helpful_sheet',
+    text: 'AI summary missed the deadline',
+    createdAt: new Date(),
+    ...overrides,
+  });
+
+  const feedbackCol = (ctx, uid) =>
+    ctx.firestore().collection('users').doc(uid).collection('feedback');
+
+  test('owner creates feedback with valid context+text+createdAt → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
+  });
+
+  test('owner reads their own feedback → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    const ref = await feedbackCol(ctx, 'uid-1').add(feedbackDoc());
+    await assertSucceeds(ref.get());
+  });
+
+  test('non-owner creates under another uid → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-2');
+    await assertFails(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
+  });
+
+  test('unknown context value → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').add(
+        feedbackDoc({ context: 'random_other_context' }),
+      ),
+    );
+  });
+
+  test('text > 2000 chars → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').add(feedbackDoc({ text: 'a'.repeat(2001) })),
+    );
+  });
+
+  test('owner tries to update existing feedback → deny (append-only)', async () => {
+    // Seed via admin so we have a doc to attempt to mutate.
+    await testEnv.withSecurityRulesDisabled(async (admin) => {
+      await admin
+        .firestore()
+        .collection('users')
+        .doc('uid-1')
+        .collection('feedback')
+        .doc('seed')
+        .set(feedbackDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx, 'uid-1').doc('seed').update({ text: 'tampered' }),
+    );
+  });
+
+  test('owner tries to delete existing feedback → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (admin) => {
+      await admin
+        .firestore()
+        .collection('users')
+        .doc('uid-1')
+        .collection('feedback')
+        .doc('seed')
+        .set(feedbackDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx, 'uid-1').doc('seed').delete());
+  });
+});

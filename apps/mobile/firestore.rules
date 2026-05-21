@@ -71,6 +71,25 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // users/{uid}/feedback/{docId} — user-submitted negative feedback
+      // collected by the review-prompt stage 2b sheet. Append-only:
+      // owner can create + read, never update/delete (preserve evidence
+      // of historical sentiment for product analysis).
+      //
+      // `context` is a fixed-vocabulary enum so unknown contexts can't be
+      // injected to fragment the analysis later. Add new contexts here as
+      // the surface grows.
+      match /feedback/{docId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.context in ['ai_summary_helpful_sheet']
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 2000
+                      && request.resource.data.createdAt is timestamp;
+        allow update, delete: if false;
+      }
+
       // users/{uid}/bookmarks/{key} — saved notices, Phase 1 Chunk A.
       //
       // Subcollection model (NOT a single doc with a map of entries):

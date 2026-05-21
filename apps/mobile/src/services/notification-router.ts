@@ -60,6 +60,7 @@ export function navigateFromNotification(data: NotificationData | undefined): bo
       pendingExternalNoticeLink.set({
         sourceId: data.sourceId,
         articleNo: data.articleNo,
+        source: 'push',
       });
       devLog('navigateFromNotification.exit', { result: true });
       return true;

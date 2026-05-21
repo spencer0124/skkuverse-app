@@ -230,6 +230,47 @@ export function logAiSummaryView(params: {
   });
 }
 
+// ── Store Review Prompt ────────────────────────────────────────────
+
+/**
+ * Review prompt funnel — instrumented at every stage so we can measure:
+ *   shown → positive → native_called    (the success path)
+ *   shown → negative                    (filtered out before native)
+ *   shown → dismissed                   (no engagement either way)
+ *
+ * `review_native_called` is logged at the moment we invoke
+ * `StoreReview.requestReview()`, NOT when the system prompt actually shows.
+ * iOS silently skips the prompt when over quota / in TestFlight, and there
+ * is no JS callback for that. Treat the funnel rate (positive → native_called)
+ * as the "we attempted to ask" rate, and compare against actual App Store
+ * Connect / Play Console rating velocity to infer real exposure.
+ */
+export function logReviewPromptShown(params: { reason: string; count: number }) {
+  logEvent('review_prompt_shown', {
+    reason: params.reason,
+    delighted_count: params.count,
+  });
+}
+
+export function logReviewPromptPositive(params: { reason: string }) {
+  logEvent('review_prompt_positive', { reason: params.reason });
+}
+
+export function logReviewPromptNegative(params: { reason: string; hasText: boolean }) {
+  logEvent('review_prompt_negative', {
+    reason: params.reason,
+    has_text: params.hasText ? 'true' : 'false',
+  });
+}
+
+export function logReviewPromptDismissed(params: { reason: string }) {
+  logEvent('review_prompt_dismissed', { reason: params.reason });
+}
+
+export function logReviewNativeCalled(params: { reason: string }) {
+  logEvent('review_native_called', { reason: params.reason });
+}
+
 // ── Screen View (manual) ───────────────────────────────────────────
 
 export function logScreenView(screenName: string) {

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import firestore from '@react-native-firebase/firestore';
 import {
   authStore,
@@ -15,6 +15,7 @@ import {
 } from '@/services/firestore-bookmarks';
 import { logBookmarkSave, logBookmarkUnsave } from '@/services/analytics';
 import { logHandledError } from '@/services/crashlytics';
+import { useReviewPromptGate } from './useReviewPromptGate';
 
 /**
  * Outcome of `toggle()`. The caller decides UX: auth-required → toast +
@@ -26,6 +27,25 @@ import { logHandledError } from '@/services/crashlytics';
  * that need UX are signaled, the rest are absorbed by the offline queue.
  */
 export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
+
+/**
+ * Optional inputs that drive the review-prompt gate from the bookmark save
+ * path. All fields are independently safe to omit; the gate only fires when
+ * entrySource === 'push' && hasAiSummary && onShowReviewPrompt is set.
+ *
+ * Read at fire-time via ref (not closure capture) so React Query background
+ * refetches that mutate `notice.summary` shape don't invalidate the toggle
+ * callback's memoization.
+ */
+export interface UseBookmarkOptions {
+  /** How the user arrived at this screen — see NoticeDetailScreen props. */
+  entrySource?: 'push' | 'universal_link';
+  /** Whether the detail's AI summary is currently rendered to the user. */
+  hasAiSummary?: boolean;
+  /** Imperative callback to open the stage 1 helpful sheet. The gate only
+   *  invokes this when all 5 trigger conditions pass. */
+  onShowReviewPrompt?: () => void;
+}
 
 /**
  * Per-notice bookmark hook. Reads the saved-state for one notice from the
@@ -40,10 +60,24 @@ export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
  *     trust SDK offline queue + listener convergence. Return outcome as if
  *     the write succeeded — the listener will correct if it didn't.
  */
-export function useBookmark(sourceId: string, articleNo: number) {
+export function useBookmark(
+  sourceId: string,
+  articleNo: number,
+  options?: UseBookmarkOptions,
+) {
   const key = bookmarkKey(sourceId, articleNo);
   const entry = useBookmarkStore((s) => s.entries[key] ?? null);
   const isSaved = entry !== null;
+
+  // Options are read at fire-time so React Query background refetches don't
+  // churn the toggle callback's `useCallback` memo every time `data.summary`
+  // gets a new structural-sharing reference.
+  const optsRef = useRef<UseBookmarkOptions | undefined>(options);
+  useEffect(() => {
+    optsRef.current = options;
+  }, [options]);
+
+  const reviewPromptGate = useReviewPromptGate();
   // In-flight guard for refreshSummaryIfNewlyAvailable. The detail screen
   // calls it from a useEffect on `notice` reference identity; React Query
   // background refetch (e.g. on app focus) yields a new reference even when
@@ -86,6 +120,7 @@ export function useBookmark(sourceId: string, articleNo: number) {
         try {
           await saveBookmark(uid, key, entry);
           logBookmarkSave({ sourceId, articleNo });
+          maybeFireReviewPrompt();
           return 'saved';
         } catch (err) {
           if (classifyBookmarkToggleError(err) === 'permanent') {
@@ -94,11 +129,32 @@ export function useBookmark(sourceId: string, articleNo: number) {
             logHandledError('bookmarks/save-permanent', err);
             return 'failed';
           }
+          // Transient: keep optimistic; still treat as delight (listener
+          // will reconcile if SDK queue eventually rejects).
+          maybeFireReviewPrompt();
           return 'saved';
         }
       }
+
+      /**
+       * Delight-signal check — fires only on a NEW save (not on
+       * remove/re-save). Reads opts via ref so the toggle callback's
+       * useCallback memo stays narrow. `requestAnimationFrame` defers
+       * past the optimistic icon-flip animation so the sheet doesn't
+       * overlap with the bookmark capsule transition (~16-32ms tail).
+       */
+      function maybeFireReviewPrompt() {
+        const opts = optsRef.current;
+        if (!opts?.entrySource || opts.entrySource !== 'push') return;
+        if (!opts.hasAiSummary) return;
+        if (!opts.onShowReviewPrompt) return;
+        const open = opts.onShowReviewPrompt;
+        requestAnimationFrame(() => {
+          reviewPromptGate('push_ai_bookmark', open);
+        });
+      }
     },
-    [key, sourceId, articleNo],
+    [key, sourceId, articleNo, reviewPromptGate],
   );
 
   /**

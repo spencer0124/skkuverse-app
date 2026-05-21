@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Share, View, ScrollView, Pressable, StyleSheet } from 'react-native';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { Stack, useRouter } from 'expo-router';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { BookmarkIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
@@ -7,19 +8,31 @@ import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import {
   SdsColors,
+  useEngagementStore,
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
 import { Toast, Txt } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
-import { logNoticeView } from '@/services/analytics';
+import {
+  logNoticeView,
+  logReviewPromptDismissed,
+  logReviewPromptNegative,
+  logReviewPromptPositive,
+} from '@/services/analytics';
+import { requestNativeReview } from '@/services/store-review';
+import { submitNegativeFeedback } from '@/services/feedback';
 import { useBookmark } from './hooks/useBookmark';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
 import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
+import { AISummaryHelpfulSheet } from './components/AISummaryHelpfulSheet';
+import { NegativeFeedbackSheet } from './components/NegativeFeedbackSheet';
 import { formatDisplayDate } from './utils/formatDisplayDate';
+
+const REVIEW_PROMPT_REASON = 'push_ai_bookmark';
 
 const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
 const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
@@ -28,14 +41,39 @@ const ICON_SHARE = require('../../../assets/header-icons/share-network.png');
 interface Props {
   sourceId: string;
   articleNo: number;
+  /**
+   * How the user arrived at this screen. Set by the [articleNo].tsx route
+   * file from `useLocalSearchParams().entrySource`, which itself is set by
+   * the PendingNoticeLinkConsumer when consuming a `pendingExternalNoticeLink`
+   * stashed by either +native-intent (universal_link) or notification-router
+   * (push). Undefined for in-app navigations. Load-bearing for the review-
+   * prompt gate — only 'push' counts toward delight signal.
+   */
+  entrySource?: 'push' | 'universal_link';
 }
 
-export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
+export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) {
   const { t, tpl } = useT();
   const router = useRouter();
   const { data, isLoading, isError, error, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
   const [isUnsaving, setIsUnsaving] = useState(false);
+  const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+  const helpfulSheetRef = useRef<BottomSheetModal>(null);
+  const feedbackSheetRef = useRef<BottomSheetModal>(null);
+  // Track which explicit choice (if any) the user made on the helpful sheet.
+  // Both sheets fire onDismiss for any close path; if the user chose 👍/👎
+  // explicitly, we record it here so the dismiss handler doesn't double-fire
+  // as 'dismissed' (which would corrupt the funnel + clobber the persisted
+  // outcome).
+  const explicitOutcomeRef = useRef<'positive' | 'negative' | null>(null);
+  const setEngagementOutcome = useEngagementStore((s) => s.setOutcome);
+
+  const handleShowReviewPrompt = useCallback(() => {
+    explicitOutcomeRef.current = null;
+    helpfulSheetRef.current?.present();
+  }, []);
+
   // Real bookmark state — synced via Firestore listener in useAppInit. The
   // optimistic toggle policy lives inside `useBookmark` (revert only on
   // permanent error). UX outcome handling stays here.
@@ -45,7 +83,68 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
     toggle: toggleBookmark,
     unsave: unsaveBookmark,
     refreshSummaryIfNewlyAvailable,
-  } = useBookmark(sourceId, articleNo);
+  } = useBookmark(sourceId, articleNo, {
+    entrySource,
+    hasAiSummary: data?.summary?.text != null,
+    onShowReviewPrompt: handleShowReviewPrompt,
+  });
+
+  const handleHelpfulPositive = useCallback(() => {
+    explicitOutcomeRef.current = 'positive';
+    setEngagementOutcome('positive');
+    logReviewPromptPositive({ reason: REVIEW_PROMPT_REASON });
+    void requestNativeReview(REVIEW_PROMPT_REASON);
+  }, [setEngagementOutcome]);
+
+  const handleHelpfulNegative = useCallback(() => {
+    explicitOutcomeRef.current = 'negative';
+    // Stage 2 sheet — feedback collection. We DO NOT record outcome
+    // 'negative' yet; that happens on actual submit/dismiss of stage 2 so
+    // the funnel cleanly distinguishes "👎 then bailed" from "👎 then sent".
+    feedbackSheetRef.current?.present();
+  }, []);
+
+  const handleHelpfulDismiss = useCallback(() => {
+    if (explicitOutcomeRef.current !== null) return; // already handled
+    setEngagementOutcome('dismissed');
+    logReviewPromptDismissed({ reason: REVIEW_PROMPT_REASON });
+  }, [setEngagementOutcome]);
+
+  const handleFeedbackSubmit = useCallback(
+    (text: string) => {
+      setIsFeedbackSubmitting(true);
+      void submitNegativeFeedback({
+        context: 'ai_summary_helpful_sheet',
+        text,
+        noticeRef: { sourceId, articleNo },
+      })
+        .then(() => {
+          setEngagementOutcome('negative');
+          logReviewPromptNegative({
+            reason: REVIEW_PROMPT_REASON,
+            hasText: text.length > 0,
+          });
+          setToastText(t('notices.aiHelpful.thanks'));
+        })
+        .finally(() => {
+          setIsFeedbackSubmitting(false);
+          feedbackSheetRef.current?.dismiss();
+        });
+    },
+    [sourceId, articleNo, setEngagementOutcome, t],
+  );
+
+  const handleFeedbackDismiss = useCallback(() => {
+    // Negative path final outcome: regardless of submit-vs-bail we already
+    // captured intent at stage 1 (explicitOutcomeRef='negative'). If
+    // outcome wasn't set by submit success, persist as 'negative' here so
+    // the 90d cooldown applies — bailing on stage 2 still counts as
+    // a negative signal.
+    if (useEngagementStore.getState().reviewPromptOutcome === null) {
+      setEngagementOutcome('negative');
+      logReviewPromptNegative({ reason: REVIEW_PROMPT_REASON, hasText: false });
+    }
+  }, [setEngagementOutcome]);
 
   // Tombstone gating: server returned 404 (notice deleted server-side per
   // crawler 3-strikes + isDeleted flag) AND we have a cached BookmarkEntry
@@ -392,6 +491,18 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
         text={toastText ?? ''}
         icon={<Toast.Icon type="check" />}
         onClose={() => setToastText(null)}
+      />
+      <AISummaryHelpfulSheet
+        ref={helpfulSheetRef}
+        onPositive={handleHelpfulPositive}
+        onNegative={handleHelpfulNegative}
+        onDismiss={handleHelpfulDismiss}
+      />
+      <NegativeFeedbackSheet
+        ref={feedbackSheetRef}
+        isSubmitting={isFeedbackSubmitting}
+        onSubmit={handleFeedbackSubmit}
+        onDismiss={handleFeedbackDismiss}
       />
     </View>
   );
