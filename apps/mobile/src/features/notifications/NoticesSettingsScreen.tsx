@@ -154,7 +154,12 @@ function TabToggleRow({ tab, checked, onChange, disabled }: TabToggleRowProps) {
         <Text style={styles.badgeEmoji}>{emoji}</Text>
       </View>
       <View style={styles.tabTitleWrap}>
-        <Txt typography="t5" fontWeight="regular" color={SdsColors.grey900}>
+        <Txt
+          typography="t5"
+          fontWeight="regular"
+          color={SdsColors.grey900}
+          style={styles.tabTitleText}
+        >
           {tab.label}
         </Txt>
       </View>
@@ -198,6 +203,15 @@ const styles = StyleSheet.create({
   tabTitleWrap: {
     flex: 1,
     marginLeft: 16,
+  },
+  tabTitleText: {
+    // RN iOS sinks the glyph toward the line-box bottom when lineHeight
+    // (25.5 from t5) exceeds fontSize (17). alignItems:'center' on the
+    // row centers layout boxes, not glyphs — leaving the Switch ~3-5px
+    // above the perceived text center. Collapsing lineHeight to match
+    // fontSize makes glyph center == line-box center == row center.
+    // Single-line label so the collapsed line spacing has zero visual cost.
+    lineHeight: 17,
   },
   retryBlock: {
     alignItems: 'center',
