@@ -43,7 +43,6 @@
 import { useMemo, useState } from 'react';
 import {
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   useWindowDimensions,
@@ -298,44 +297,44 @@ function NoticesPickerScreenInner() {
       </View>
 
       {/* Selected chips — solid deepgreen pill with white X for one-tap
-          removal. Hidden when nothing is selected. Horizontal-scrolls on
-          overflow so a 3-pick selection wraps cleanly on small phones. */}
+          removal. Hidden when nothing is selected. Wraps to multiple rows
+          on overflow. NOTE: this was previously a horizontal ScrollView,
+          but iOS UISheetPresentationController auto-binds its dismiss
+          gesture to the first UIScrollView discovered depth-first inside
+          the sheet — when the chips ScrollView existed, that binding
+          stole the vertical pan from the SectionList below, breaking list
+          scroll (react-native-screens issues #2693, #2424). Using a plain
+          View with flexWrap leaves the SectionList as the sole inner
+          UIScrollView so the system bound gesture goes where intended. */}
       {pending.length > 0 && (
-        <View style={styles.chipsWrap}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {pending.map((id) => {
-              const src = sourceById.get(id);
-              if (!src) return null;
-              return (
-                <Pressable
-                  key={id}
-                  onPress={() => handleToggle(id)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    { maxWidth: chipMaxWidth },
-                    pressed && styles.chipPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${src.name} 제거`}
+        <View style={[styles.chipsWrap, styles.chipsRow]}>
+          {pending.map((id) => {
+            const src = sourceById.get(id);
+            if (!src) return null;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => handleToggle(id)}
+                style={({ pressed }) => [
+                  styles.chip,
+                  { maxWidth: chipMaxWidth },
+                  pressed && styles.chipPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${src.name} 제거`}
+              >
+                <Txt
+                  typography="t7"
+                  fontWeight="semiBold"
+                  color="#FFFFFF"
+                  numberOfLines={1}
                 >
-                  <Txt
-                    typography="t7"
-                    fontWeight="semiBold"
-                    color="#FFFFFF"
-                    numberOfLines={1}
-                  >
-                    {src.name}
-                  </Txt>
-                  <XIcon size={12} color="#FFFFFF" weight="bold" />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                  {src.name}
+                </Txt>
+                <XIcon size={12} color="#FFFFFF" weight="bold" />
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
@@ -455,7 +454,9 @@ const styles = StyleSheet.create({
   chipsRow: {
     paddingHorizontal: 16,
     gap: 8,
+    rowGap: 8,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
   },
   chip: {
