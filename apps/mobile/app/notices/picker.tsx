@@ -97,7 +97,7 @@ const CAMPUS_HEADER_KEY: Record<Campus, TranslationKey> = {
 function NoticesPickerScreenInner() {
   const router = useRouter();
   const { tabKey } = useLocalSearchParams<{ tabKey: string }>();
-  const { t, tpl } = useT();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const chipMaxWidth = Math.min(Math.round(screenW * 0.6), 360);
@@ -244,12 +244,6 @@ function NoticesPickerScreenInner() {
 
   const handleClose = () => router.back();
 
-  const counterLabel = tpl(
-    'notices.picker.selectedHeader',
-    pending.length,
-    maxSelection,
-  );
-
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -271,7 +265,7 @@ function NoticesPickerScreenInner() {
         >
           <XIcon size={22} color={SdsColors.grey900} />
         </Pressable>
-        <View style={styles.titleWrap} pointerEvents="none">
+        <View style={[styles.titleWrap, styles.titleRow]} pointerEvents="none">
           <Txt
             typography="t5"
             fontWeight="bold"
@@ -280,8 +274,12 @@ function NoticesPickerScreenInner() {
           >
             {tab?.label ?? ''}
           </Txt>
-          <Txt typography="t7" color={SdsColors.grey500} style={styles.counter}>
-            {counterLabel}
+          <Txt
+            typography="t7"
+            color={SdsColors.grey500}
+            numberOfLines={1}
+          >
+            ({pending.length}/{maxSelection})
           </Txt>
         </View>
         <Pressable
@@ -443,8 +441,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  counter: {
-    marginTop: 2,
+  // Single-row inline layout for title + counter — `학과 (1/3)` density
+  // pack to save vertical space and keep the header compact.
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
   },
   doneBtn: {
     marginLeft: 'auto',
