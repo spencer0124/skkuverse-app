@@ -1,20 +1,26 @@
 /**
- * Notices source picker — native iOS form-sheet route for editing which
+ * Notices source picker — full-screen modal route for editing which
  * sources a picker tab subscribes to (학과 / 도서관 / 기숙사 / 일반).
  *
- * Why a route instead of a bottom sheet
- * ─────────────────────────────────────
- *   The previous gorhom BottomSheetModal was JS-rendered, fixed at 50%
- *   height, no search, and prevented unchecking the last selected item.
- *   This route uses `presentation: 'formSheet'` (registered in
- *   app/_layout.tsx) which on iOS 16+ maps to UISheetPresentationController
- *   — system blur, native swipe-down, peek detents [0.8, 1.0]. Android
- *   falls back to a regular full-screen modal (no native partial sheet).
+ * Why fullScreenModal (and not formSheet)
+ * ───────────────────────────────────────
+ *   Previously this used `presentation: 'formSheet'` to get an iOS
+ *   UISheetPresentationController with peek detents, but the inner
+ *   SectionList wouldn't scroll due to react-native-screens issue #2424
+ *   (PR #2436 unmerged) — RN view flattening breaks the sheet's linear
+ *   ScrollView discovery on Paper architecture. Three workaround
+ *   combinations were tried (single detent, chips ScrollView removal,
+ *   collapsable+multi-detent+nestedScroll combo) — none worked. Switched
+ *   to `presentation: 'fullScreenModal'` (UIModalPresentationFullScreen)
+ *   which uses standard UIKit modal and is bug-free. UX cost: lose corner
+ *   radius / grabber / swipe-down dismiss — explicit X button (header
+ *   left) is the sole dismiss affordance. Revisit when #2424 is fixed
+ *   upstream or after Fabric migration.
  *
  * Why per-screen SafeAreaProvider
  * ───────────────────────────────
- *   formSheet routes mount in a separate UIViewController. The root
- *   SafeAreaProvider measures the parent VC, not the sheet — first paint
+ *   The modal mounts in a separate UIViewController. The root
+ *   SafeAreaProvider measures the parent VC, not the modal — first paint
  *   loses top safe area without a per-modal wrap. See
  *   `docs/ios-modal-safe-area-provider.md`.
  *
@@ -25,8 +31,8 @@
  *   - User CAN uncheck the last item — no min-1 enforcement during editing.
  *     "완료" is disabled when `pending.length === 0` so an empty selection
  *     can't be committed (would break the picker UX with no sources to
- *     fetch). Dismiss via swipe-down / Close X / back simply doesn't write
- *     to Firestore → natural restore to originalIds.
+ *     fetch). Dismiss via Close X / back simply doesn't write to Firestore
+ *     → natural restore to originalIds.
  *
  * Grouping
  * ────────
@@ -298,14 +304,10 @@ function NoticesPickerScreenInner() {
 
       {/* Selected chips — solid deepgreen pill with white X for one-tap
           removal. Hidden when nothing is selected. Wraps to multiple rows
-          on overflow. NOTE: this was previously a horizontal ScrollView,
-          but iOS UISheetPresentationController auto-binds its dismiss
-          gesture to the first UIScrollView discovered depth-first inside
-          the sheet — when the chips ScrollView existed, that binding
-          stole the vertical pan from the SectionList below, breaking list
-          scroll (react-native-screens issues #2693, #2424). Using a plain
-          View with flexWrap leaves the SectionList as the sole inner
-          UIScrollView so the system bound gesture goes where intended. */}
+          on overflow. (Previously horizontal-scrolled but we moved off
+          ScrollView during the formSheet scroll-bug investigation; the
+          flexWrap design is kept since maxSelection is small and wrapping
+          to a second row is cleaner than horizontal scroll for 2–3 items.) */}
       {pending.length > 0 && (
         <View style={[styles.chipsWrap, styles.chipsRow]}>
           {pending.map((id) => {
@@ -353,61 +355,51 @@ function NoticesPickerScreenInner() {
         />
       </View>
 
-      {/* collapsable={false} on the wrapper defeats RN's native view
-          flattening so react-native-screens' formSheet sheet-controller
-          can find this ScrollView via its linear DOM walk (issue #2424,
-          maintainer-verified workaround). Without it, SectionList vertical
-          pan is silently swallowed by the sheet's pan gesture. Paired with
-          the multi-detent config in app/_layout.tsx for redundancy — same
-          known bug, two community workarounds that hit on different cases. */}
-      <View collapsable={false} style={styles.list}>
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            const isSelected = pending.includes(item.id);
-            const atMax = pending.length >= maxSelection;
-            return (
-              <DeptRow
-                name={item.name}
-                selected={isSelected}
-                disabled={atMax && !isSelected}
-                variant="checkbox"
-                onPress={() => handleToggle(item.id)}
-              />
-            );
-          }}
-          renderSectionHeader={({ section }) =>
-            section.title ? (
-              <Txt
-                typography="t7"
-                fontWeight="semiBold"
-                color={SdsColors.grey500}
-                style={styles.sectionHeader}
-              >
-                {section.title}
-              </Txt>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Txt typography="t7" color={SdsColors.grey400}>
-                {t('notices.picker.empty')}
-              </Txt>
-            </View>
-          }
-          stickySectionHeadersEnabled={false}
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: Math.max(insets.bottom, 24) },
-          ]}
-          showsVerticalScrollIndicator={false}
-          style={styles.list}
-        />
-      </View>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => {
+          const isSelected = pending.includes(item.id);
+          const atMax = pending.length >= maxSelection;
+          return (
+            <DeptRow
+              name={item.name}
+              selected={isSelected}
+              disabled={atMax && !isSelected}
+              variant="checkbox"
+              onPress={() => handleToggle(item.id)}
+            />
+          );
+        }}
+        renderSectionHeader={({ section }) =>
+          section.title ? (
+            <Txt
+              typography="t7"
+              fontWeight="semiBold"
+              color={SdsColors.grey500}
+              style={styles.sectionHeader}
+            >
+              {section.title}
+            </Txt>
+          ) : null
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <Txt typography="t7" color={SdsColors.grey400}>
+              {t('notices.picker.empty')}
+            </Txt>
+          </View>
+        }
+        stickySectionHeadersEnabled={false}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: Math.max(insets.bottom, 24) },
+        ]}
+        showsVerticalScrollIndicator={false}
+        style={styles.list}
+      />
     </View>
   );
 }

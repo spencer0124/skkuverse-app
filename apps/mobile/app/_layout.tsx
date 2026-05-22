@@ -266,32 +266,23 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
-                {/* Notices source picker — react-native-screens v4 + RN Paper
-                    architecture has a known unresolved bug (issue #2424,
-                    PR #2436 unmerged as of 2026-05) where the formSheet's
-                    inner ScrollView discovery breaks under view flattening,
-                    silently swallowing SectionList vertical pan. Two
-                    community-verified workarounds combined here:
-                    • Workaround B (this file): multi-detent + explicit
-                      sheetExpandsWhenScrolledToEdge:true to take the bridge's
-                      alternate gesture-coordination path. Single-detent
-                      doesn't work (maintainer-confirmed).
-                    • Workaround A (picker.tsx): collapsable={false} on the
-                      SectionList wrapper to defeat RN's native view
-                      flattening so the linear DOM walk finds the scroll.
-                    UX cost: user can now pull the grabber down to peek a
-                    50% detent (Files.app-style). Lands at 0.99 initially so
-                    visually still near-fullscreen. */}
+                {/* Notices source picker — fullScreenModal (UIModalPresentation
+                    FullScreen). We previously tried formSheet but hit
+                    react-native-screens issue #2424 (PR #2436 unmerged): on
+                    Paper architecture the inner SectionList's vertical pan
+                    is silently consumed by the sheet's pan gesture, no
+                    workaround combination tested fixed it. fullScreenModal
+                    uses standard UIKit modal presentation (no UISheet
+                    PresentationController), so the scroll bug is impossible
+                    here. UX cost: lose the corner radius / grabber / swipe-
+                    down dismiss — picker has an explicit X button so dismiss
+                    is still one tap. Revisit formSheet if RN-screens fixes
+                    #2424 or after Fabric migration. */}
                 <Stack.Screen
                   name="notices/picker"
                   options={{
                     headerShown: false,
-                    presentation: 'formSheet',
-                    sheetAllowedDetents: [0.5, 0.99],
-                    sheetInitialDetentIndex: 1,
-                    sheetExpandsWhenScrolledToEdge: true,
-                    sheetGrabberVisible: true,
-                    sheetCornerRadius: 16,
+                    presentation: 'fullScreenModal',
                     contentStyle: { backgroundColor: '#FFFFFF' },
                   }}
                 />
