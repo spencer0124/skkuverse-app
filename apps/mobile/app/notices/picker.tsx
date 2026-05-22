@@ -255,10 +255,13 @@ function NoticesPickerScreenInner() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Top bar — Close (left), title + counter (center), 완료 (right).
-          formSheet has a native grabber on iOS 16+, but Android has no
-          partial-sheet equivalent so we always show the explicit X to keep
-          the flow legible cross-platform. */}
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? 8 : 14 }]}>
+          fullScreenModal covers the status bar / Dynamic Island area, so
+          add `insets.top` to the base padding — sheet-era conditional
+          `insets.top > 0 ? 8 : 14` worked because formSheet auto-inset
+          the sheet below the status bar, leaving useSafeAreaInsets().top
+          ≈ 0 inside the sheet. fullScreenModal exposes the real status
+          bar height so we have to absorb it ourselves. */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           onPress={handleClose}
           hitSlop={10}
