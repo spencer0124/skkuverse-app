@@ -267,18 +267,21 @@ export default function RootLayout() {
                   }}
                 />
                 {/* Notices source picker — native iOS UISheetPresentationController
-                    on iOS 16+ via `presentation: 'formSheet'`. Detents [0.8, 1.0]
-                    give an 80% landing height with drag-to-full. Android falls
-                    back to a regular modal (no native partial sheet). */}
+                    on iOS 16+ via `presentation: 'formSheet'`. Single `.large`
+                    detent so the inner SectionList scrolls without competing
+                    with detent transitions (multi-detent makes iOS arbitrate
+                    each vertical pan between "scroll list" vs "change detent",
+                    which feels like the list isn't scrolling). Drag-down on
+                    the grabber dismisses. Android falls back to a regular
+                    full-screen modal (no native partial sheet). */}
                 <Stack.Screen
                   name="notices/picker"
                   options={{
                     headerShown: false,
                     presentation: 'formSheet',
-                    sheetAllowedDetents: [0.8, 1.0],
+                    sheetAllowedDetents: [1.0],
                     sheetGrabberVisible: true,
                     sheetCornerRadius: 16,
-                    sheetExpandsWhenScrolledToEdge: false,
                     contentStyle: { backgroundColor: '#FFFFFF' },
                   }}
                 />
