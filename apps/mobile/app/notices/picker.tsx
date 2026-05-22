@@ -265,22 +265,32 @@ function NoticesPickerScreenInner() {
         >
           <XIcon size={22} color={SdsColors.grey900} />
         </Pressable>
-        <View style={[styles.titleWrap, styles.titleRow]} pointerEvents="none">
-          <Txt
-            typography="t5"
-            fontWeight="bold"
-            color={SdsColors.grey900}
-            numberOfLines={1}
-          >
-            {tab?.label ?? ''}
-          </Txt>
-          <Txt
-            typography="t7"
-            color={SdsColors.grey500}
-            numberOfLines={1}
-          >
-            ({pending.length}/{maxSelection})
-          </Txt>
+        <View style={styles.titleWrap} pointerEvents="none">
+          {/* Nested row: titleWrap handles vertical+horizontal centering
+              within the absolute container (alignItems+justifyContent on
+              column flex), the inner row owns inline layout + baseline
+              alignment between the differently-sized title and counter.
+              Compose-on-same-View previously broke this — titleRow's
+              alignItems:baseline overrode titleWrap's alignItems:center,
+              dragging the title to the container top and overlapping
+              status bar / Dynamic Island. */}
+          <View style={styles.titleRow}>
+            <Txt
+              typography="t5"
+              fontWeight="bold"
+              color={SdsColors.grey900}
+              numberOfLines={1}
+            >
+              {tab?.label ?? ''}
+            </Txt>
+            <Txt
+              typography="t7"
+              color={SdsColors.grey500}
+              numberOfLines={1}
+            >
+              ({pending.length}/{maxSelection})
+            </Txt>
+          </View>
         </View>
         <Pressable
           onPress={handleConfirm}
