@@ -353,51 +353,61 @@ function NoticesPickerScreenInner() {
         />
       </View>
 
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => {
-          const isSelected = pending.includes(item.id);
-          const atMax = pending.length >= maxSelection;
-          return (
-            <DeptRow
-              name={item.name}
-              selected={isSelected}
-              disabled={atMax && !isSelected}
-              variant="checkbox"
-              onPress={() => handleToggle(item.id)}
-            />
-          );
-        }}
-        renderSectionHeader={({ section }) =>
-          section.title ? (
-            <Txt
-              typography="t7"
-              fontWeight="semiBold"
-              color={SdsColors.grey500}
-              style={styles.sectionHeader}
-            >
-              {section.title}
-            </Txt>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Txt typography="t7" color={SdsColors.grey400}>
-              {t('notices.picker.empty')}
-            </Txt>
-          </View>
-        }
-        stickySectionHeadersEnabled={false}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: Math.max(insets.bottom, 24) },
-        ]}
-        showsVerticalScrollIndicator={false}
-        style={styles.list}
-      />
+      {/* collapsable={false} on the wrapper defeats RN's native view
+          flattening so react-native-screens' formSheet sheet-controller
+          can find this ScrollView via its linear DOM walk (issue #2424,
+          maintainer-verified workaround). Without it, SectionList vertical
+          pan is silently swallowed by the sheet's pan gesture. Paired with
+          the multi-detent config in app/_layout.tsx for redundancy — same
+          known bug, two community workarounds that hit on different cases. */}
+      <View collapsable={false} style={styles.list}>
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => {
+            const isSelected = pending.includes(item.id);
+            const atMax = pending.length >= maxSelection;
+            return (
+              <DeptRow
+                name={item.name}
+                selected={isSelected}
+                disabled={atMax && !isSelected}
+                variant="checkbox"
+                onPress={() => handleToggle(item.id)}
+              />
+            );
+          }}
+          renderSectionHeader={({ section }) =>
+            section.title ? (
+              <Txt
+                typography="t7"
+                fontWeight="semiBold"
+                color={SdsColors.grey500}
+                style={styles.sectionHeader}
+              >
+                {section.title}
+              </Txt>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Txt typography="t7" color={SdsColors.grey400}>
+                {t('notices.picker.empty')}
+              </Txt>
+            </View>
+          }
+          stickySectionHeadersEnabled={false}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 24) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          style={styles.list}
+        />
+      </View>
     </View>
   );
 }

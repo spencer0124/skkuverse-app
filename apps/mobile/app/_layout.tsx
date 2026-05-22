@@ -266,20 +266,30 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
-                {/* Notices source picker — native iOS UISheetPresentationController
-                    on iOS 16+ via `presentation: 'formSheet'`. Single `.large`
-                    detent so the inner SectionList scrolls without competing
-                    with detent transitions (multi-detent makes iOS arbitrate
-                    each vertical pan between "scroll list" vs "change detent",
-                    which feels like the list isn't scrolling). Drag-down on
-                    the grabber dismisses. Android falls back to a regular
-                    full-screen modal (no native partial sheet). */}
+                {/* Notices source picker — react-native-screens v4 + RN Paper
+                    architecture has a known unresolved bug (issue #2424,
+                    PR #2436 unmerged as of 2026-05) where the formSheet's
+                    inner ScrollView discovery breaks under view flattening,
+                    silently swallowing SectionList vertical pan. Two
+                    community-verified workarounds combined here:
+                    • Workaround B (this file): multi-detent + explicit
+                      sheetExpandsWhenScrolledToEdge:true to take the bridge's
+                      alternate gesture-coordination path. Single-detent
+                      doesn't work (maintainer-confirmed).
+                    • Workaround A (picker.tsx): collapsable={false} on the
+                      SectionList wrapper to defeat RN's native view
+                      flattening so the linear DOM walk finds the scroll.
+                    UX cost: user can now pull the grabber down to peek a
+                    50% detent (Files.app-style). Lands at 0.99 initially so
+                    visually still near-fullscreen. */}
                 <Stack.Screen
                   name="notices/picker"
                   options={{
                     headerShown: false,
                     presentation: 'formSheet',
-                    sheetAllowedDetents: [1.0],
+                    sheetAllowedDetents: [0.5, 0.99],
+                    sheetInitialDetentIndex: 1,
+                    sheetExpandsWhenScrolledToEdge: true,
                     sheetGrabberVisible: true,
                     sheetCornerRadius: 16,
                     contentStyle: { backgroundColor: '#FFFFFF' },
