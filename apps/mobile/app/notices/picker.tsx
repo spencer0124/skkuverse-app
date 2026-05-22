@@ -333,6 +333,7 @@ function NoticesPickerScreenInner() {
                   fontWeight="semiBold"
                   color="#FFFFFF"
                   numberOfLines={1}
+                  style={styles.chipText}
                 >
                   {src.name}
                 </Txt>
@@ -473,6 +474,17 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 7,
     gap: 6,
+    // minWidth:0 releases RN's default content-driven minimum so the
+    // chip respects its maxWidth even when an inner long Korean dept
+    // name would otherwise force the pill wider than the row.
+    minWidth: 0,
+  },
+  chipText: {
+    // flexShrink:1 + minWidth:0 lets numberOfLines={1} actually truncate
+    // (otherwise the Text's intrinsic width wins over parent's maxWidth
+    // and the dept name overflows the pill / row).
+    flexShrink: 1,
+    minWidth: 0,
   },
   chipPressed: {
     opacity: 0.75,
