@@ -37,9 +37,9 @@ export function OnboardingLanding({
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.inner}>
         <View>
-          <Text style={styles.headline}>긴 공지도</Text>
-          <Text style={styles.headline}>30초면 끝</Text>
-          <Text style={styles.subtitle}>AI가 핵심만 뽑아서 정리해드려요</Text>
+          <Text style={styles.headline}>성균관대 공지,</Text>
+          <Text style={styles.headline}>찾지 말고 받아보세요</Text>
+          <Text style={styles.subtitle}>AI가 중요한 내용만 알려드려요</Text>
         </View>
 
         <View style={styles.cardWrapper}>

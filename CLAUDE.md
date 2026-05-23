@@ -101,7 +101,7 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 **Onboarding gate + 자동복원 (2026-04-28, v2 redesign 2026-05-01):** 공지 탭 진입 게이트는 `isAnonymous || !onboardingCompleted` (`apps/mobile/app/(tabs)/notices/index.tsx`). 둘 중 하나라도 true면 `OnboardingLanding` 표시. `@g.skku.edu` 도메인 필수.
 
-**v2 게이트 화면 (2026-05-01)**: 좌상단 정렬 hook 헤드라인 ("긴 공지도 / 30초면 끝", 32pt bold) + 가운데 mock 노티스 카드(복수전공 D-3 예시, 한국어 하드코딩 — i18n 미적용은 의도적 prototype 스코프) + 다크 그린 #1f3d2e CTA "시작하기" + 보조 "이미 가입한 적 있어요" (grey400 t6). CTA는 SDS Button variant에 없는 색이라 커스텀 Pressable로 인라인. 게이트 활성 시 화면을 가입 유도에 집중시키기 위해:
+**v2 게이트 화면 (2026-05-01)**: 좌상단 정렬 hook 헤드라인 ("성균관대 공지, / 찾지 말고 받아보세요", 32pt bold) + 가운데 mock 노티스 카드(복수전공 D-3 예시, 한국어 하드코딩 — i18n 미적용은 의도적 prototype 스코프) + 다크 그린 #1f3d2e CTA "시작하기" + 보조 "이미 가입한 적 있어요" (grey400 t6). CTA는 SDS Button variant에 없는 색이라 커스텀 Pressable로 인라인. 게이트 활성 시 화면을 가입 유도에 집중시키기 위해:
 - **상단 9탭 스트립 숨김**: `notices/index.tsx`의 게이트 분기에서 `<Stack.Screen options={{ headerShown: false }} />` 발화. 정상 분기는 그대로 `header: () => <NoticesHeader />`. native-stack header는 body의 sibling이 아니라 별도 계층 mount이라 body 안 absolute overlay로 못 덮음 → header 자체를 mount 안 하는 게 유일한 방법.
 - **하단 Search/Bookmarks/Filter 액세서리 바 숨김**: `(tabs)/_layout.tsx`에서 `showNoticesAccessory = isNoticesTab && !isAnonymous && onboardingCompleted` 게이트를 부모 `TabLayout`에 hoist해서 `bottomAccessory={showNoticesAccessory ? () => <NoticesBottomAccessoryGate /> : undefined}` 발화. 자식에서 `null` 리턴해도 빈 Liquid Glass capsule이 공간을 잡으므로 prop 자체를 `undefined`로 만들어야 `setBottomAccessory:nil animated:YES` 호출 → 진짜 unmount.
 
