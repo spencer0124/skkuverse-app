@@ -254,7 +254,8 @@ function NoticesPickerScreenInner() {
           `insets.top > 0 ? 8 : 14` worked because formSheet auto-inset
           the sheet below the status bar, leaving useSafeAreaInsets().top
           ≈ 0 inside the sheet. fullScreenModal exposes the real status
-          bar height so we have to absorb it ourselves. */}
+          bar height so we have to absorb it ourselves. Note: titleWrap
+          (absolute) mirrors this paddingTop inline — see its comment. */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           onPress={handleClose}
@@ -265,7 +266,10 @@ function NoticesPickerScreenInner() {
         >
           <XIcon size={22} color={SdsColors.grey900} />
         </Pressable>
-        <View style={styles.titleWrap} pointerEvents="none">
+        <View
+          style={[styles.titleWrap, { top: insets.top + 8, bottom: 10 }]}
+          pointerEvents="none"
+        >
           {/* Nested row: titleWrap handles vertical+horizontal centering
               within the absolute container (alignItems+justifyContent on
               column flex), the inner row owns inline layout + baseline
@@ -273,7 +277,12 @@ function NoticesPickerScreenInner() {
               Compose-on-same-View previously broke this — titleRow's
               alignItems:baseline overrode titleWrap's alignItems:center,
               dragging the title to the container top and overlapping
-              status bar / Dynamic Island. */}
+              status bar / Dynamic Island.
+              Inline top/bottom mirror the header's padding so the absolute
+              box spans only the content row, not the safe-area inset
+              region — otherwise Yoga anchors top:0 to the parent's outer
+              box edge (above paddingTop), centering the title ~23px above
+              the X/완료 row (which sit inside paddingTop). */}
           <View style={styles.titleRow}>
             <Txt
               typography="t5"
@@ -443,11 +452,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleWrap: {
+    // top/bottom are applied inline (insets.top + 8 / 10) so the absolute
+    // box mirrors the header's content row, not the safe-area inset region.
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 0,
-    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
