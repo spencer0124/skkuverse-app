@@ -6,7 +6,9 @@ import { SdsColors, SdsShadows } from '@skkuverse/shared';
 interface ActivityCardData {
   id: string;
   title: string;
-  meta: string;
+  /** Optional subtitle line below the title (e.g. "광고 · 과기정통부"). When
+   *  omitted the card renders title only — visual height shrinks accordingly. */
+  meta?: string;
 }
 
 // Mock data — replace with `useExternalActivities()` React Query hook
@@ -16,27 +18,25 @@ const MOCK_ACTIVITIES: ActivityCardData[] = [
   {
     id: 'mock-1',
     title: '2026 AI보안\n기술개발 교육과정',
-    meta: '광고 · 과기정통부',
   },
   {
     id: 'mock-2',
     title: 'LS드사클 22기\n대학생 멘토 모집',
-    meta: '광고 · ㈜LS · 초록우산',
   },
   {
     id: 'mock-3',
     title: '2026년\n궁동청소년 봉사',
-    meta: '궁동청소년문화의집',
   },
   {
     id: 'mock-4',
     title: '글로벌 인턴십\n프로그램 2026',
-    meta: '광고 · 교내',
   },
 ];
 
 const CARD_WIDTH = 156;
-const CARD_IMAGE_HEIGHT = 156;
+// Image area in portrait 3:4 (width:height) — taller-than-wide tile matches
+// the reference (에브리타임 대외활동) where photo dominates the card.
+const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 4) / 3; // 156 × 4/3 = 208
 
 export function ExternalActivitiesSection() {
   return (
@@ -48,22 +48,22 @@ export function ExternalActivitiesSection() {
           color={SdsColors.grey900}
           numberOfLines={1}
         >
-          대외활동
+          소식
         </Txt>
-        <Pressable
+        {/* <Pressable
           style={({ pressed }) => [
             styles.viewAllBtn,
             { opacity: pressed ? 0.6 : 1 },
           ]}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="대외활동 더보기"
+          accessibilityLabel="소식 더보기"
         >
           <Txt typography="t7" color={SdsColors.grey500}>
             더보기
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
-        </Pressable>
+        </Pressable> */}
       </View>
       <ScrollView
         horizontal
@@ -94,14 +94,16 @@ export function ExternalActivitiesSection() {
               >
                 {item.title}
               </Txt>
-              <Txt
-                typography="t7"
-                color={SdsColors.grey400}
-                numberOfLines={1}
-                style={styles.cardMeta}
-              >
-                {item.meta}
-              </Txt>
+              {item.meta ? (
+                <Txt
+                  typography="t7"
+                  color={SdsColors.grey400}
+                  numberOfLines={1}
+                  style={styles.cardMeta}
+                >
+                  {item.meta}
+                </Txt>
+              ) : null}
             </View>
           </Pressable>
         ))}

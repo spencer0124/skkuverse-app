@@ -23,7 +23,7 @@ import { handleSduiAction } from '@/sdui/action-handler';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
 import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
-// import { HeroBanner } from './HeroBanner';
+import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
   useT();
@@ -94,7 +94,7 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Hero Banner (auto-playing intro animation) ── */}
-        {/* <HeroBanner /> */}
+        <HeroBanner />
 
         {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
         <View style={styles.gridWrap}>
@@ -107,7 +107,7 @@ export function HomeScreen() {
         ) : (
           <>
             <DeptNoticesSection />
-            <ExternalActivitiesSection />
+            {/* <ExternalActivitiesSection /> */}
           </>
         )}
 
