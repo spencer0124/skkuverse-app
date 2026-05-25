@@ -13,9 +13,11 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { Platform, ScrollView, View, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { InfoIcon } from 'phosphor-react-native';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import NativeSegmentedControl from '@react-native-segmented-control/segmented-control';
 import {
   useBusConfig,
   useSmartSchedule,
@@ -40,6 +42,8 @@ import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { logBusRouteOpen, logBusServiceSwitch } from '@/services/analytics';
+
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
 /** Extract info feature URL from config features array */
 function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
@@ -174,20 +178,37 @@ export default function ScheduleScreen() {
       {/* Fixed header — toggle + day grid */}
       <SectionCard style={styles.headerSection}>
         {screenConfig && screenConfig.services.length > 1 && (
-          <SegmentedControl
-            value={currentService?.serviceId ?? ''}
-            onValueChange={(value) => {
-              if (groupId) logBusServiceSwitch(groupId, value);
-              const idx = screenConfig.services.findIndex((s) => s.serviceId === value);
-              if (idx >= 0) setSelectedServiceIndex(idx);
-            }}
-          >
-            {screenConfig.services.map((service) => (
-              <SegmentedControl.Item key={service.serviceId} value={service.serviceId} typography="t7" style={busToggleItemStyle}>
-                {service.label}
-              </SegmentedControl.Item>
-            ))}
-          </SegmentedControl>
+          Platform.OS === 'ios' && GLASS_AVAILABLE ? (
+            // iOS 26+ native UISegmentedControl (auto Liquid Glass at system level).
+            // Mirrors CampusToggle.tsx pattern; iOS<26 / Android fall back to SDS pill below.
+            <NativeSegmentedControl
+              values={screenConfig.services.map((s) => s.label)}
+              selectedIndex={selectedServiceIndex}
+              onChange={(e) => {
+                const idx = e.nativeEvent.selectedSegmentIndex;
+                const id = screenConfig.services[idx]?.serviceId;
+                if (!id) return;
+                if (groupId) logBusServiceSwitch(groupId, id);
+                setSelectedServiceIndex(idx);
+              }}
+              style={styles.nativeSegmented}
+            />
+          ) : (
+            <SegmentedControl
+              value={currentService?.serviceId ?? ''}
+              onValueChange={(value) => {
+                if (groupId) logBusServiceSwitch(groupId, value);
+                const idx = screenConfig.services.findIndex((s) => s.serviceId === value);
+                if (idx >= 0) setSelectedServiceIndex(idx);
+              }}
+            >
+              {screenConfig.services.map((service) => (
+                <SegmentedControl.Item key={service.serviceId} value={service.serviceId} typography="t7" style={busToggleItemStyle}>
+                  {service.label}
+                </SegmentedControl.Item>
+              ))}
+            </SegmentedControl>
+          )
         )}
 
         {schedule?.status === 'active' && currentWeek && (
@@ -296,5 +317,8 @@ const styles = StyleSheet.create({
   },
   timetableSection: {
     // Child components (HeroCard, ScheduleList) manage their own marginHorizontal
+  },
+  nativeSegmented: {
+    alignSelf: 'stretch',
   },
 });
