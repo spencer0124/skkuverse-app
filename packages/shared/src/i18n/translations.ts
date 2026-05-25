@@ -456,6 +456,28 @@ const ko = {
   'notifications.noticesDetailDesc': '구독 중인 학과·도서관·기숙사·일반 공지',
   'notifications.masterOffHint': '전체 알림이 꺼져 있어요. 알림을 받으려면 먼저 전체 알림을 켜주세요.',
   'notifications.noticesCategoryOffHint': '공지 카테고리가 꺼져 있어 알림이 오지 않아요.',
+
+  // ── Common UI labels ──
+  'common.back': '뒤로',
+  'common.viewAll': '더보기',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI공지',
+  'home.tile.campusMap': '캠퍼스맵',
+  'home.tile.buildingMap': '건물지도',
+  'home.tile.buildingCode': '건물코드',
+  'home.notices.deptTitle': '학과 공지',
+  'home.notices.deptTitleNamed': '{0} 공지',
+  'home.news.title': '소식',
+  'home.news.instagramOpen': '스꾸버스 인스타그램 열기',
+  'home.news.imageClose': '이미지 닫기',
+  'home.onboardingGate.headline': '성균관대 공지,\n찾지 말고 받아보세요',
+  'home.onboardingGate.subtitle': 'AI가 중요한 내용만 알려드려요',
+  'home.onboardingGate.ctaAccessibility': '공지 온보딩 시작하기',
+
+  // ── Settings — contact ──
+  'settings.contact.title': '문의하기',
+  'settings.contact.subtitle': '카카오톡 채널로 연결',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -852,6 +874,28 @@ const en: TranslationMap = {
     'All notifications are off. Turn on the master switch first to receive any alerts.',
   'notifications.noticesCategoryOffHint':
     'The notices category is off — no notice alerts will be delivered.',
+
+  // ── Common UI labels ──
+  'common.back': 'Back',
+  'common.viewAll': 'View all',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI Notices',
+  'home.tile.campusMap': 'Campus Map',
+  'home.tile.buildingMap': 'Building Map',
+  'home.tile.buildingCode': 'Building Code',
+  'home.notices.deptTitle': 'Department notices',
+  'home.notices.deptTitleNamed': '{0} notices',
+  'home.news.title': 'News',
+  'home.news.instagramOpen': 'Open SKKU Verse Instagram',
+  'home.news.imageClose': 'Close image',
+  'home.onboardingGate.headline': 'SKKU notices,\ndelivered to you',
+  'home.onboardingGate.subtitle': 'AI tells you what matters',
+  'home.onboardingGate.ctaAccessibility': 'Start notice onboarding',
+
+  // ── Settings — contact ──
+  'settings.contact.title': 'Contact us',
+  'settings.contact.subtitle': 'Connect via KakaoTalk channel',
 };
 
 const zh: TranslationMap = {
@@ -1237,6 +1281,28 @@ const zh: TranslationMap = {
   'notifications.noticesDetailDesc': '已订阅的院系·图书馆·宿舍·一般公告',
   'notifications.masterOffHint': '通知总开关已关闭。要接收通知，请先打开总开关。',
   'notifications.noticesCategoryOffHint': '公告分类已关闭，将不会收到任何公告通知。',
+
+  // ── Common UI labels ──
+  'common.back': '返回',
+  'common.viewAll': '查看更多',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI公告',
+  'home.tile.campusMap': '校园地图',
+  'home.tile.buildingMap': '建筑物地图',
+  'home.tile.buildingCode': '建筑物代码',
+  'home.notices.deptTitle': '学科公告',
+  'home.notices.deptTitleNamed': '{0}公告',
+  'home.news.title': '消息',
+  'home.news.instagramOpen': '打开SKKU Verse的Instagram',
+  'home.news.imageClose': '关闭图片',
+  'home.onboardingGate.headline': '成均馆大学公告，\n不用搜索，直接收到',
+  'home.onboardingGate.subtitle': 'AI只告诉您重要内容',
+  'home.onboardingGate.ctaAccessibility': '开始公告引导',
+
+  // ── Settings — contact ──
+  'settings.contact.title': '联系我们',
+  'settings.contact.subtitle': '通过KakaoTalk渠道连接',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

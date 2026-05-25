@@ -7,16 +7,17 @@
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SdsShadows } from '@skkuverse/shared';
+import { SdsShadows, useT } from '@skkuverse/shared';
 import { logHomeContentSelect } from '@/services/analytics';
 
 export function HomeOnboardingGateCard() {
   const router = useRouter();
+  const { t } = useT();
 
   return (
     <View style={styles.section}>
-      <Text style={styles.headline}>성균관대 공지,{'\n'}찾지 말고 받아보세요</Text>
-      <Text style={styles.subtitle}>AI가 중요한 내용만 알려드려요</Text>
+      <Text style={styles.headline}>{t('home.onboardingGate.headline')}</Text>
+      <Text style={styles.subtitle}>{t('home.onboardingGate.subtitle')}</Text>
       <Pressable
         onPress={() => {
           logHomeContentSelect({ content_type: 'onboarding_cta', item_id: 'start' });
@@ -24,9 +25,9 @@ export function HomeOnboardingGateCard() {
         }}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
         accessibilityRole="button"
-        accessibilityLabel="공지 온보딩 시작하기"
+        accessibilityLabel={t('home.onboardingGate.ctaAccessibility')}
       >
-        <Text style={styles.ctaText}>시작하기</Text>
+        <Text style={styles.ctaText}>{t('onboarding.landingCta')}</Text>
       </Pressable>
     </View>
   );

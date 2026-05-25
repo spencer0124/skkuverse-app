@@ -133,7 +133,7 @@ export default function NoticesSearchScreen() {
           hitSlop={8}
           style={styles.backBtn}
           accessibilityRole="button"
-          accessibilityLabel="뒤로"
+          accessibilityLabel={t('common.back')}
         >
           <CaretLeftIcon size={26} color={SdsColors.grey900} />
         </Pressable>

@@ -29,6 +29,7 @@ import {
   useMultiSourceNoticeList,
   useNoticeTabs,
   useNotificationStore,
+  useT,
 } from '@skkuverse/shared';
 import type { NoticeListItem } from '@skkuverse/shared';
 import { NoticeRow } from '@/features/notices/NoticeRow';
@@ -39,6 +40,7 @@ const PREVIEW_COUNT = 3;
 
 export function DeptNoticesSection() {
   const router = useRouter();
+  const { t, tpl } = useT();
   const { data: tabsConfig } = useNoticeTabs();
   const storedIds = useNotificationStore(
     (s) => s.preferences.pickerSelections?.dept,
@@ -71,9 +73,9 @@ export function DeptNoticesSection() {
   const headerLabel = (() => {
     if (isSingleDept) {
       const name = sources.find((s) => s.id === selectedIds[0])?.name ?? '';
-      return name ? `${name} 공지` : '학과 공지';
+      return name ? tpl('home.notices.deptTitleNamed', name) : t('home.notices.deptTitle');
     }
-    return '학과 공지';
+    return t('home.notices.deptTitle');
   })();
 
   const handleNoticePress = (n: NoticeListItem) => {
@@ -107,10 +109,10 @@ export function DeptNoticesSection() {
           ]}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`${headerLabel} 더보기`}
+          accessibilityLabel={`${headerLabel} ${t('common.viewAll')}`}
         >
           <Txt typography="t7" color={SdsColors.grey500}>
-            더보기
+            {t('common.viewAll')}
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
         </Pressable>

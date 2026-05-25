@@ -3,7 +3,7 @@ import { Image, Modal, Pressable, ScrollView, StyleSheet, View, type ImageSource
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretRightIcon, XIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
-import { SdsColors, SdsShadows } from '@skkuverse/shared';
+import { SdsColors, SdsShadows, useT } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { logHomeContentSelect } from '@/services/analytics';
 
@@ -44,6 +44,7 @@ const CARD_WIDTH = 140;
 const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 4) / 3; // 140 × 4/3 ≈ 187
 
 export function ExternalActivitiesSection() {
+  const { t } = useT();
   const [previewImage, setPreviewImage] = useState<ImageSourcePropType | null>(null);
   const lastPreviewIdRef = useRef<string>('');
   const insets = useSafeAreaInsets();
@@ -74,7 +75,7 @@ export function ExternalActivitiesSection() {
           color={SdsColors.grey900}
           numberOfLines={1}
         >
-          소식
+          {t('home.news.title')}
         </Txt>
         <Pressable
           style={({ pressed }) => [
@@ -90,10 +91,10 @@ export function ExternalActivitiesSection() {
             });
           }}
           accessibilityRole="link"
-          accessibilityLabel="스꾸버스 인스타그램 열기"
+          accessibilityLabel={t('home.news.instagramOpen')}
         >
           <Txt typography="t7" color={SdsColors.grey500}>
-            더보기
+            {t('common.viewAll')}
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
         </Pressable>
@@ -152,7 +153,7 @@ export function ExternalActivitiesSection() {
           style={styles.previewBackdrop}
           onPress={closePreview}
           accessibilityRole="button"
-          accessibilityLabel="이미지 닫기"
+          accessibilityLabel={t('home.news.imageClose')}
         >
           {previewImage ? (
             <Image
@@ -167,7 +168,7 @@ export function ExternalActivitiesSection() {
           onPress={closePreview}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="닫기"
+          accessibilityLabel={t('common.close')}
         >
           <XIcon size={24} color="#fff" weight="bold" />
         </Pressable>

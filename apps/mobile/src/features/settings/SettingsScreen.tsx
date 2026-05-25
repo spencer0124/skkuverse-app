@@ -39,8 +39,8 @@ export function SettingsScreen() {
         <BadgeNavRow
           badge="💬"
           tossface
-          title="문의하기"
-          subtitle="카카오톡 채널로 연결"
+          title={t('settings.contact.title')}
+          subtitle={t('settings.contact.subtitle')}
           onPress={() => {
             logSettingsContentSelect({ content_type: 'row_kakao', item_id: 'channel' });
             handleSduiAction({

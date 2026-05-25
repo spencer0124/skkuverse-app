@@ -27,7 +27,7 @@ import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
 import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
-  useT();
+  const { t } = useT();
   const router = useRouter();
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
@@ -43,7 +43,7 @@ export function HomeScreen() {
     () => [
       {
         id: 'notices',
-        title: 'AI공지',
+        title: t('home.tile.notices'),
         emoji: '\u{1F4E2}',
         isNew: true,
         onPress: () => {
@@ -53,7 +53,7 @@ export function HomeScreen() {
       },
       {
         id: 'campus_map',
-        title: '캠퍼스맵',
+        title: t('home.tile.campusMap'),
         emoji: '\u{1F9ED}',
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'campus_map' });
@@ -62,7 +62,7 @@ export function HomeScreen() {
       },
       {
         id: 'building_map',
-        title: '건물지도',
+        title: t('home.tile.buildingMap'),
         emoji: '\u{1F3E2}',
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'building_map' });
@@ -70,14 +70,14 @@ export function HomeScreen() {
           handleSduiAction({
             actionType: 'webview',
             actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
-            webviewTitle: '건물지도',
+            webviewTitle: t('home.tile.buildingMap'),
             webviewColor: '003626',
           });
         },
       },
       {
         id: 'building_code',
-        title: '건물코드',
+        title: t('home.tile.buildingCode'),
         emoji: '\u{1F522}',
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'building_code' });
@@ -89,7 +89,7 @@ export function HomeScreen() {
         },
       },
     ],
-    [router],
+    [router, t],
   );
 
   return (
