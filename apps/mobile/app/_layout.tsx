@@ -29,15 +29,46 @@ export const unstable_settings = {
 };
 
 // ── Screen View tracking ──────────────────────────────────────────
+// Existing names from initial rollout (campus_screen, bus_*_screen, etc.) kept
+// as-is to preserve dashboard continuity. New routes use shorter `<feature>_*`
+// names without `_screen` suffix.
 const SCREEN_NAMES: Record<string, string> = {
+  // Tabs
+  '/home': 'home',
   '/campus': 'campus_screen',
   '/transit': 'transit_screen',
+  '/notices': 'notices_tab',
+  // Notices sub-routes (static)
+  '/notices/picker': 'notices_picker',
+  '/notices/search': 'notices_search',
+  '/notices/saved': 'notices_bookmarks',
+  // Search
   '/search': 'search_screen',
+  // Bus
   '/bus/realtime': 'bus_realtime_screen',
   '/bus/schedule': 'bus_schedule_screen',
+  // Map
   '/map/hssc': 'map_hssc_screen',
   '/map/hssc-credit': 'map_hssc_credit_screen',
+  // Settings
+  '/settings': 'settings_root',
+  '/settings/account': 'settings_account',
+  '/settings/licenses': 'settings_licenses',
+  '/settings/licenses/oss': 'settings_licenses_oss',
+  '/settings/licenses/attributions': 'settings_licenses_attributions',
+  '/settings/licenses/tos': 'settings_licenses_tos',
+  '/settings/debug-logs': 'settings_debug_logs',
+  // Notifications
+  '/notifications/settings': 'notifications_settings',
+  '/notifications/essential': 'notifications_essential',
+  '/notifications/services': 'notifications_services',
+  '/notifications/notices': 'notifications_notices',
+  // Auth / onboarding
   '/login': 'login_screen',
+  '/onboarding': 'onboarding_root',
+  // Dev
+  '/sds-preview': 'dev_sds_preview',
+  '/debug-fcm': 'dev_debug_fcm',
 };
 
 function resolveScreenName(
@@ -48,6 +79,17 @@ function resolveScreenName(
     const title = typeof params.title === 'string' ? params.title : '';
     const slug = title.toLowerCase().replace(/\s+/g, '_');
     return slug ? `webview_${slug}_screen` : 'webview_screen';
+  }
+  // Dynamic notices routes: /notices/{sourceId} or /notices/{sourceId}/{articleNo}
+  if (pathname.startsWith('/notices/')) {
+    const segments = pathname.split('/').filter(Boolean); // ['notices', ...]
+    if (segments.length === 3) return 'notice_detail';
+    if (
+      segments.length === 2 &&
+      !['picker', 'search', 'saved'].includes(segments[1] ?? '')
+    ) {
+      return 'notices_list';
+    }
   }
   return SCREEN_NAMES[pathname] ?? null;
 }

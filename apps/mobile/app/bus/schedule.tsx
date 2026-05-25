@@ -41,7 +41,7 @@ import { groupDaysByWeek, findWeekAndDayIndex } from '@/features/bus/schedule/we
 import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
-import { logBusRouteOpen, logBusServiceSwitch } from '@/services/analytics';
+import { logBusContentSelect, logBusRouteOpen, logBusServiceSwitch } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
@@ -71,6 +71,7 @@ export default function ScheduleScreen() {
   const infoUrl = devRewriteInfoUrl(serverInfoUrl);
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
+    logBusContentSelect({ content_type: 'schedule_info', item_id: groupId ?? '' });
     router.push({
       pathname: '/webview',
       params: {
@@ -79,7 +80,7 @@ export default function ScheduleScreen() {
         url: infoUrl,
       },
     } as never);
-  }, [infoUrl, config, router]);
+  }, [infoUrl, config, router, groupId]);
 
   // ── Analytics: log route open ──
   useEffect(() => {

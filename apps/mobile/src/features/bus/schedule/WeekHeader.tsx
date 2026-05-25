@@ -8,6 +8,7 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { CaretLeftIcon, CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { logBusContentSelect } from '@/services/analytics';
 
 interface WeekHeaderProps {
   label: string;
@@ -25,7 +26,10 @@ export function WeekHeader({ label, canGoPrev, canGoNext, onPrev, onNext }: Week
       </Txt>
       <View style={styles.nav}>
         <Pressable
-          onPress={onPrev}
+          onPress={() => {
+            logBusContentSelect({ content_type: 'schedule_week_prev', item_id: label });
+            onPrev();
+          }}
           disabled={!canGoPrev}
           style={styles.button}
           hitSlop={4}
@@ -36,7 +40,10 @@ export function WeekHeader({ label, canGoPrev, canGoNext, onPrev, onNext }: Week
           />
         </Pressable>
         <Pressable
-          onPress={onNext}
+          onPress={() => {
+            logBusContentSelect({ content_type: 'schedule_week_next', item_id: label });
+            onNext();
+          }}
           disabled={!canGoNext}
           style={styles.button}
           hitSlop={4}

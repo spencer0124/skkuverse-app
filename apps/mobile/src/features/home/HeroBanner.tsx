@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
+import { logHomeContentSelect } from '@/services/analytics';
 import { handleSduiAction } from '@/sdui/action-handler';
 
 // Cycle: morph (~2.7s) → 5s idle hold → snap reset → loop.
@@ -213,12 +214,13 @@ export function HeroBanner() {
         styles.card,
         { opacity: pressed ? 0.85 : 1 },
       ]}
-      onPress={() =>
+      onPress={() => {
+        logHomeContentSelect({ content_type: 'hero', item_id: 'instagram' });
         handleSduiAction({
           actionType: 'external',
           actionValue: 'https://www.instagram.com/skkuverse.app',
-        })
-      }
+        });
+      }}
       accessibilityRole="link"
       accessibilityLabel="스꾸버스 인스타그램 열기"
     >

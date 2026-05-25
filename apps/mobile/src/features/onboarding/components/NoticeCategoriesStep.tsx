@@ -12,6 +12,7 @@ import {
 import { setNoticeTabEnabled } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 import { TabToggleRow } from '@/features/notifications/components/TabToggleRow';
+import { logNotificationTabToggle } from '@/services/analytics';
 
 /**
  * Step 6 — 카테고리 토글 페이지.
@@ -40,6 +41,7 @@ export function NoticeCategoriesStep() {
   const handleToggle = useCallback(
     async (tabKey: string, next: boolean) => {
       if (!uid) return;
+      logNotificationTabToggle({ tab_key: tabKey, enabled: next, source: 'onboarding' });
       try {
         await setNoticeTabEnabled(uid, tabKey, next);
       } catch (err) {

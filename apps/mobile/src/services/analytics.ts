@@ -288,3 +288,218 @@ export function logScreenView(screenName: string) {
     .logScreenView({ screen_name: screenName, screen_class: screenName })
     .catch(() => {});
 }
+
+// ── Home Content Selection (GA4 recommended select_content) ────────
+
+/**
+ * Home screen click tracking via GA4 recommended `select_content` event
+ * (prescribed params: content_type + item_id). content_type discriminates
+ * the interaction surface (hero / tile / notice_row / news_card / ...);
+ * item_id identifies the specific target within that surface.
+ */
+export type HomeContentType =
+  | 'profile'
+  | 'settings'
+  | 'hero'
+  | 'tile'
+  | 'notice_more'
+  | 'notice_row'
+  | 'news_more'
+  | 'news_card'
+  | 'news_modal_close'
+  | 'onboarding_cta';
+
+export function logHomeContentSelect(params: {
+  content_type: HomeContentType;
+  item_id: string;
+}) {
+  logEvent('select_content', {
+    content_type: params.content_type,
+    item_id: truncate(params.item_id),
+  });
+}
+
+// ── Per-feature select_content wrappers ────────────────────────────
+// All emit GA4 recommended `select_content` event; per-feature wrapper
+// exists for type safety + grep affordance, not for separate event names.
+
+function logSelectContent(content_type: string, item_id: string) {
+  logEvent('select_content', { content_type, item_id: truncate(item_id) });
+}
+
+export type NoticesContentType =
+  | 'tab_strip'
+  | 'list_row'
+  | 'header_bookmark'
+  | 'header_bell'
+  | 'accessory_search'
+  | 'picker_done'
+  | 'picker_close'
+  | 'picker_row'
+  | 'picker_chip_remove'
+  | 'search_back'
+  | 'detail_share'
+  | 'detail_open_original'
+  | 'detail_attachment_preview'
+  | 'detail_attachment_download'
+  | 'detail_markdown_link'
+  | 'detail_markdown_contact'
+  | 'onboarding_landing_cta'
+  | 'onboarding_landing_signin';
+export function logNoticesContentSelect(params: { content_type: NoticesContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+export type BusContentType =
+  | 'schedule_day'
+  | 'schedule_week_prev'
+  | 'schedule_week_next'
+  | 'schedule_info'
+  | 'realtime_info'
+  | 'realtime_refresh';
+export function logBusContentSelect(params: { content_type: BusContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+export type CampusContentType =
+  | 'filter_button'
+  | 'search_bar'
+  | 'quick_action_building_map'
+  | 'quick_action_building_code'
+  | 'quick_action_lost_found'
+  | 'filter_sheet_campus_pill'
+  | 'building_desc_expand';
+export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+export type SearchContentType =
+  | 'clear_button'
+  | 'section_buildings_toggle'
+  | 'section_spaces_toggle';
+export function logSearchContentSelect(params: { content_type: SearchContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+export type SettingsContentType =
+  | 'row_account'
+  | 'row_notifications'
+  | 'row_kakao'
+  | 'row_licenses'
+  | 'row_oss'
+  | 'row_attributions'
+  | 'row_tos'
+  | 'row_debug_logs'
+  | 'signin_from_account_anon';
+export function logSettingsContentSelect(params: { content_type: SettingsContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+export type SduiContentType = 'banner' | 'notice_widget' | 'button_grid_item';
+export function logSduiContentSelect(params: { content_type: SduiContentType; item_id: string }) {
+  logSelectContent(params.content_type, params.item_id);
+}
+
+// ── Custom typed wrappers (funnel / state change) ──────────────────
+
+/**
+ * Onboarding 7-step wizard funnel. step + action lets dashboard reconstruct
+ * drop-off rates per step and which action types preceded exit.
+ */
+export type OnboardingStepKey =
+  | 'campus'
+  | 'primary_dept'
+  | 'interest_dept'
+  | 'login'
+  | 'notification'
+  | 'notice_categories'
+  | 'completion';
+export type OnboardingAction =
+  | 'enter'
+  | 'advance'
+  | 'back'
+  | 'skip'
+  | 'exit_cancel'
+  | 'exit_leave'
+  | 'select_campus'
+  | 'select_primary_dept'
+  | 'open_unsupported_sheet'
+  | 'select_unsupported_umbrella'
+  | 'go_dept_survey'
+  | 'toggle_interest_dept'
+  | 'clear_interest_depts'
+  | 'signin_attempt'
+  | 'signin_success'
+  | 'signin_error'
+  | 'permission_grant'
+  | 'permission_deny'
+  | 'toggle_category'
+  | 'complete';
+export function logOnboardingStep(params: {
+  step: OnboardingStepKey;
+  action: OnboardingAction;
+  detail?: string;
+}) {
+  logEvent('onboarding_step', {
+    step: params.step,
+    action: params.action,
+    ...(params.detail && { detail: truncate(params.detail) }),
+  });
+}
+
+/** Notification tab toggle (settings or onboarding screen). */
+export function logNotificationTabToggle(params: {
+  tab_key: string;
+  enabled: boolean;
+  source: 'settings' | 'onboarding';
+}) {
+  logEvent('notification_tab_toggle', {
+    tab_key: params.tab_key,
+    enabled: params.enabled ? 'true' : 'false',
+    source: params.source,
+  });
+}
+
+/** Settings destructive / retention-sensitive actions. */
+export type SettingsActionKey =
+  | 'sign_out_prompt'
+  | 'sign_out_confirm'
+  | 'sign_out_cancel'
+  | 'delete_account_prompt'
+  | 'delete_account_confirm'
+  | 'delete_account_cancel'
+  | 'delete_feedback_submit'
+  | 'delete_feedback_skip';
+export function logSettingsAction(params: {
+  action: SettingsActionKey;
+  detail?: string;
+}) {
+  logEvent('settings_action', {
+    action: params.action,
+    ...(params.detail && { detail: truncate(params.detail) }),
+  });
+}
+
+/** Auth events from login / onboarding / account-settings / notices-landing. */
+export type AuthEvent =
+  | 'signin_attempt'
+  | 'signin_success'
+  | 'signin_cancel'
+  | 'signin_domain_rejected'
+  | 'signin_error';
+export type AuthSurface =
+  | 'login_screen'
+  | 'onboarding'
+  | 'account_settings'
+  | 'notices_landing';
+export function logAuthEvent(params: {
+  event: AuthEvent;
+  surface: AuthSurface;
+  detail?: string;
+}) {
+  logEvent('auth_event', {
+    event: params.event,
+    surface: params.surface,
+    ...(params.detail && { detail: truncate(params.detail) }),
+  });
+}

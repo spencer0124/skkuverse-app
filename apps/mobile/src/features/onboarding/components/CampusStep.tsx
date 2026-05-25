@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors, useT, type Campus } from '@skkuverse/shared';
 import { CampusCard } from './CampusCard';
+import { logOnboardingStep } from '@/services/analytics';
 
 interface Props {
   selected: Campus | null;
@@ -10,6 +11,10 @@ interface Props {
 
 export function CampusStep({ selected, onSelect }: Props) {
   const { t } = useT();
+  const handleSelect = (campus: Campus) => {
+    logOnboardingStep({ step: 'campus', action: 'select_campus', detail: campus });
+    onSelect(campus);
+  };
   return (
     <View style={styles.container}>
       <Txt typography="t2" fontWeight="bold" color={SdsColors.grey900} style={styles.title}>
@@ -22,13 +27,13 @@ export function CampusStep({ selected, onSelect }: Props) {
         name={t('onboarding.hsscName')}
         location={t('onboarding.hsscLocation')}
         selected={selected === 'hssc'}
-        onPress={() => onSelect('hssc')}
+        onPress={() => handleSelect('hssc')}
       />
       <CampusCard
         name={t('onboarding.nscName')}
         location={t('onboarding.nscLocation')}
         selected={selected === 'nsc'}
-        onPress={() => onSelect('nsc')}
+        onPress={() => handleSelect('nsc')}
       />
     </View>
   );

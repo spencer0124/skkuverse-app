@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SdsColors, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
+import { logSduiContentSelect } from '@/services/analytics';
 
 interface Props {
   section: ButtonGridType;
@@ -42,14 +43,15 @@ export function ButtonGrid({ section }: Props) {
         <Pressable
           key={item.id}
           style={[styles.button, { width: itemSize, height: itemSize }]}
-          onPress={() =>
+          onPress={() => {
+            logSduiContentSelect({ content_type: 'button_grid_item', item_id: item.id });
             handleSduiAction({
               actionType: item.actionType,
               actionValue: item.actionValue,
               webviewTitle: item.webviewTitle,
               webviewColor: item.webviewColor,
-            })
-          }
+            });
+          }}
         >
           <Text style={styles.emoji}>{item.emoji}</Text>
           <Text style={styles.title} numberOfLines={1}>

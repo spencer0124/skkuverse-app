@@ -34,6 +34,7 @@ import {
   logFloorExpand,
   logSpaceShowAll,
   logConnectionMapOpen,
+  logCampusContentSelect,
 } from '@/services/analytics';
 
 interface BuildingDetailSheetProps {
@@ -127,6 +128,12 @@ export const BuildingDetailSheet = forwardRef<
   }, [data, lang]);
 
   // ── Analytics: building view ──
+  // NOTE: deliberately NOT calling logScreenView here. Firebase Analytics
+  // treats screen_view as a stateful "current screen" — firing it from a
+  // sheet would leave GA4 stuck on `building_detail_sheet` after the sheet
+  // closes (the underlying /campus pathname doesn't change, so _layout's
+  // dedup never re-fires `campus_screen`). Sheet-as-screen events are
+  // captured via `building_view` (an action event), not screen_view.
   useEffect(() => {
     if (!data || skkuId == null) return;
     logBuildingView({
@@ -203,7 +210,10 @@ export const BuildingDetailSheet = forwardRef<
                         {description}
                       </Txt>
                       <Pressable
-                        onPress={() => setDescExpanded(false)}
+                        onPress={() => {
+                          logCampusContentSelect({ content_type: 'building_desc_expand', item_id: 'collapse' });
+                          setDescExpanded(false);
+                        }}
                         style={styles.descToggle}
                       >
                         <Txt
@@ -238,7 +248,10 @@ export const BuildingDetailSheet = forwardRef<
                       </Txt>
                       {descNeedsMore && (
                         <Pressable
-                          onPress={() => setDescExpanded(true)}
+                          onPress={() => {
+                            logCampusContentSelect({ content_type: 'building_desc_expand', item_id: 'expand' });
+                            setDescExpanded(true);
+                          }}
                           style={styles.inlineMoreOverlay}
                         >
                           <Gradient.Linear

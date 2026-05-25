@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { BadgeNavRow } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { logSettingsContentSelect } from '@/services/analytics';
 
 export function SettingsScreen() {
   const router = useRouter();
@@ -20,26 +21,33 @@ export function SettingsScreen() {
           tossface
           title={t('settings.account')}
           subtitle={t('settings.accountSubtitle')}
-          onPress={() => router.push('/settings/account' as never)}
+          onPress={() => {
+            logSettingsContentSelect({ content_type: 'row_account', item_id: 'account' });
+            router.push('/settings/account' as never);
+          }}
         />
         <BadgeNavRow
           badge="🔔"
           tossface
           title={t('settings.notifications')}
           subtitle={t('settings.notificationsSubtitle')}
-          onPress={() => router.push('/notifications/settings' as never)}
+          onPress={() => {
+            logSettingsContentSelect({ content_type: 'row_notifications', item_id: 'settings' });
+            router.push('/notifications/settings' as never);
+          }}
         />
         <BadgeNavRow
           badge="💬"
           tossface
           title="문의하기"
           subtitle="카카오톡 채널로 연결"
-          onPress={() =>
+          onPress={() => {
+            logSettingsContentSelect({ content_type: 'row_kakao', item_id: 'channel' });
             handleSduiAction({
               actionType: 'external',
               actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
-            })
-          }
+            });
+          }}
         />
       </ScrollView>
     </View>

@@ -16,6 +16,7 @@ import { Toast, Txt } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import {
   logNoticeView,
+  logNoticesContentSelect,
   logReviewPromptDismissed,
   logReviewPromptNegative,
   logReviewPromptPositive,
@@ -251,6 +252,10 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
   const handleSharePress = useCallback(() => {
     const current = dataRef.current;
     if (!current) return;
+    logNoticesContentSelect({
+      content_type: 'detail_share',
+      item_id: `${current.sourceId}/${current.articleNo}`,
+    });
     // Universal link: app-installed devices open detail screen directly
     // (AASA + +native-intent NOTICE_PATH_RE), app-missing devices fall
     // through to the Cloudflare Pages Function at the same path which
@@ -454,6 +459,10 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
                 <View style={styles.attachmentActions}>
                   <Pressable
                     onPress={() => {
+                      logNoticesContentSelect({
+                        content_type: 'detail_attachment_preview',
+                        item_id: a.name,
+                      });
                       if (canPreview(a.name)) {
                         openAttachment(a.url, 'inline', a.name);
                       } else {
@@ -468,7 +477,13 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
                     </Txt>
                   </Pressable>
                   <Pressable
-                    onPress={() => openAttachment(a.url, 'download', a.name)}
+                    onPress={() => {
+                      logNoticesContentSelect({
+                        content_type: 'detail_attachment_download',
+                        item_id: a.name,
+                      });
+                      openAttachment(a.url, 'download', a.name);
+                    }}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
                     <DownloadIcon size={14} color={SdsColors.blue500} />
@@ -483,7 +498,16 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
         ) : null}
 
         <Pressable
-          onPress={openOriginal}
+          onPress={() => {
+            const current = dataRef.current;
+            if (current) {
+              logNoticesContentSelect({
+                content_type: 'detail_open_original',
+                item_id: `${current.sourceId}/${current.articleNo}`,
+              });
+            }
+            openOriginal();
+          }}
           style={({ pressed }) => [styles.openOriginal, pressed && styles.pressed]}
         >
           <ArrowSquareOutIcon size={16} color={SdsColors.grey800} />

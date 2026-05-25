@@ -26,7 +26,11 @@ import {
   useEnableNotificationsFlow,
 } from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
-
+import {
+  logOnboardingStep,
+  logScreenView,
+  type OnboardingStepKey,
+} from '@/services/analytics';
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
 import { MAX_INTEREST_DEPTS } from './types';
 import { UNSUPPORTED_DEPT_SURVEY_URL } from './constants';
@@ -40,6 +44,16 @@ import { NoticeCategoriesStep } from './components/NoticeCategoriesStep';
 import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
 import { assembleOnboardingPickerSelections } from './utils/assemblePickerSelections';
+
+const STEP_KEYS: Record<number, OnboardingStepKey> = {
+  1: 'campus',
+  2: 'primary_dept',
+  3: 'interest_dept',
+  4: 'login',
+  5: 'notification',
+  6: 'notice_categories',
+  7: 'completion',
+};
 
 // ── Reducer ──
 
@@ -136,6 +150,16 @@ export function OnboardingScreen() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Per-step funnel: each step enter fires both screen_view + onboarding_step
+  // event. Reducer-driven so it auto-fires on advance/back/skip.
+  useEffect(() => {
+    const key = STEP_KEYS[state.step];
+    if (key) {
+      logScreenView(`onboarding_${key}`);
+      logOnboardingStep({ step: key, action: 'enter' });
+    }
+  }, [state.step]);
+
   // Server-driven dept list. Fetched once; dept picker lists are embedded in
   // /notices/tabs so we reuse the same hook the notices tab + settings use.
   const {
@@ -166,17 +190,22 @@ export function OnboardingScreen() {
 
   // ── Navigation helpers ──
   const handleBack = useCallback(() => {
+    const key = STEP_KEYS[state.step];
     if (state.step === 1) {
+      if (key) logOnboardingStep({ step: key, action: 'exit_cancel' });
       setShowExitDialog(true);
     } else {
+      if (key) logOnboardingStep({ step: key, action: 'back' });
       dispatch({ type: 'PREV' });
     }
   }, [state.step]);
 
   const handleLeave = useCallback(() => {
+    const key = STEP_KEYS[state.step];
+    if (key) logOnboardingStep({ step: key, action: 'exit_leave' });
     setShowExitDialog(false);
     router.back();
-  }, [router]);
+  }, [router, state.step]);
 
   // ── Google Sign-In (Step 4) ──
   // Wizard 강제 흐름 — classifyAndRestoreOnboarding은 의도적으로 호출하지 않음.
@@ -190,22 +219,28 @@ export function OnboardingScreen() {
   const handleSignIn = useCallback(async () => {
     setLoginLoading(true);
     setLoginError(null);
+    logOnboardingStep({ step: 'login', action: 'signin_attempt' });
     try {
       const user = await signInWithDeviceMigration('onboarding');
+      logOnboardingStep({ step: 'login', action: 'signin_success' });
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
       dispatch({ type: 'NEXT' });
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
           case 'DOMAIN_NOT_ALLOWED':
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'domain_not_allowed' });
             setLoginError(t('onboarding.oauthErrorTitle'));
             break;
           case 'CANCELLED':
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'cancelled' });
             break;
           default:
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: err.code });
             setLoginError(t('onboarding.oauthErrorRetry'));
         }
       } else {
+        logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'unknown' });
         setLoginError(t('onboarding.oauthErrorRetry'));
       }
     } finally {
@@ -261,6 +296,10 @@ export function OnboardingScreen() {
   // System dialog 거절한 경우도 granted=false라 DECLINE 분기와 통합.
   const { handleEnable } = useEnableNotificationsFlow({
     onResolved: ({ granted }) => {
+      logOnboardingStep({
+        step: 'notification',
+        action: granted ? 'permission_grant' : 'permission_deny',
+      });
       if (granted) {
         void prepareCategoryStep();
       } else {
@@ -281,6 +320,7 @@ export function OnboardingScreen() {
   // granted한 경우 cache를 못 따라가 토큰 미등록 회귀가 있었음.
   // checkPermission은 OS dialog 없는 read-only query라 declined intent를 침해 안 함.
   const handleSkipNotifications = useCallback(async () => {
+    logOnboardingStep({ step: 'notification', action: 'skip' });
     try {
       const status = await checkPermission();
       useNotificationStore.getState().setPermissionStatus(status);
@@ -308,6 +348,7 @@ export function OnboardingScreen() {
   // zustand `completeOnboarding`은 양쪽 모두 호출 — 로컬 게이트 해제.
   const handleComplete = useCallback(async () => {
     if (!state.campus) return;
+    logOnboardingStep({ step: 'completion', action: 'complete' });
     const campus: Campus = state.campus;
     useSettingsStore.getState().completeOnboarding({
       campus,
@@ -358,6 +399,7 @@ export function OnboardingScreen() {
 
   // ── Skip interests (Step 3) ──
   const handleSkipInterests = useCallback(() => {
+    logOnboardingStep({ step: 'interest_dept', action: 'clear_interest_depts' });
     dispatch({ type: 'CLEAR_INTEREST_DEPTS' });
     dispatch({ type: 'NEXT' });
   }, []);
@@ -367,6 +409,7 @@ export function OnboardingScreen() {
   // Result type (cancel/dismiss) is intentionally ignored — closing the
   // browser is itself the decision to skip and advance.
   const handleUnsupportedDept = useCallback(async () => {
+    logOnboardingStep({ step: 'primary_dept', action: 'go_dept_survey' });
     await WebBrowser.openBrowserAsync(UNSUPPORTED_DEPT_SURVEY_URL, {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
       controlsColor: '#1A8A5C',

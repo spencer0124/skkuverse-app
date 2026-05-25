@@ -49,6 +49,7 @@ import {
   logSearchPerform,
   logSearchResultTap,
   logSearchFilterChange,
+  logSearchContentSelect,
 } from '@/services/analytics';
 
 type CampusFilter = 'all' | 'hssc' | 'nsc';
@@ -195,6 +196,7 @@ export function SearchScreen() {
           {inputValue.length > 0 && (
             <Pressable
               onPress={() => {
+                logSearchContentSelect({ content_type: 'clear_button', item_id: 'x' });
                 setInputValue('');
                 setDebouncedQuery('');
               }}
@@ -295,7 +297,13 @@ export function SearchScreen() {
                     )}
                   </View>
                 }
-                onPress={() => setBuildingExpanded((prev) => !prev)}
+                onPress={() => {
+                  logSearchContentSelect({
+                    content_type: 'section_buildings_toggle',
+                    item_id: buildingExpanded ? 'collapse' : 'expand',
+                  });
+                  setBuildingExpanded((prev) => !prev);
+                }}
               />
               {buildingExpanded && (
                 <Animated.View
@@ -350,7 +358,13 @@ export function SearchScreen() {
                     )}
                   </View>
                 }
-                onPress={() => setSpaceExpanded((prev) => !prev)}
+                onPress={() => {
+                  logSearchContentSelect({
+                    content_type: 'section_spaces_toggle',
+                    item_id: spaceExpanded ? 'collapse' : 'expand',
+                  });
+                  setSpaceExpanded((prev) => !prev);
+                }}
               />
               {spaceExpanded && (
                 <Animated.View

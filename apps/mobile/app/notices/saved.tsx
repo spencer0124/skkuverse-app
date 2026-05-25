@@ -13,7 +13,7 @@ import { NoticeRow } from '@/features/notices/NoticeRow';
 import { NoticeEmptyState } from '@/features/notices/EmptyState';
 import { NoticeLoginGate } from '@/features/notices/components/NoticeLoginGate';
 import { useBookmarks } from '@/features/notices/hooks/useBookmarks';
-import { logBookmarksListOpen } from '@/services/analytics';
+import { logBookmarksListOpen, logNoticesContentSelect } from '@/services/analytics';
 
 /**
  * Saved notices list screen — `/notices/saved`.
@@ -66,9 +66,13 @@ export default function SavedNoticesScreen() {
         renderItem={({ item }) => (
           <NoticeRow
             item={item}
-            onPress={(n) =>
-              router.push(`/notices/${n.sourceId}/${n.articleNo}` as never)
-            }
+            onPress={(n) => {
+              logNoticesContentSelect({
+                content_type: 'list_row',
+                item_id: `${n.sourceId}/${n.articleNo}`,
+              });
+              router.push(`/notices/${n.sourceId}/${n.articleNo}` as never);
+            }}
             showDepartment
           />
         )}

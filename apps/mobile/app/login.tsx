@@ -10,6 +10,7 @@ import {
   classifyAndRestoreOnboarding,
 } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
+import { logAuthEvent } from '@/services/analytics';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -20,8 +21,10 @@ export default function LoginScreen() {
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMessage(null);
+    logAuthEvent({ event: 'signin_attempt', surface: 'login_screen' });
     try {
       const user = await signInWithDeviceMigration('login');
+      logAuthEvent({ event: 'signin_success', surface: 'login_screen' });
       const result = await classifyAndRestoreOnboarding(user.uid, 'login');
       switch (result.kind) {
         case 'restored':
@@ -41,17 +44,22 @@ export default function LoginScreen() {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
           case 'DOMAIN_NOT_ALLOWED':
+            logAuthEvent({ event: 'signin_domain_rejected', surface: 'login_screen' });
             setErrorMessage(t('auth.domainNotAllowed'));
             break;
           case 'CANCELLED':
+            logAuthEvent({ event: 'signin_cancel', surface: 'login_screen' });
             break;
           case 'PLAY_SERVICES_UNAVAILABLE':
+            logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: 'play_services' });
             setErrorMessage(t('auth.playServicesError'));
             break;
           default:
+            logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: err.code });
             setErrorMessage(t('auth.unknownError'));
         }
       } else {
+        logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: 'unknown' });
         setErrorMessage(t('auth.unknownError'));
       }
     } finally {

@@ -32,6 +32,7 @@ import {
 } from '@skkuverse/shared';
 import type { NoticeListItem } from '@skkuverse/shared';
 import { NoticeRow } from '@/features/notices/NoticeRow';
+import { logHomeContentSelect } from '@/services/analytics';
 
 const DEPT_TAB_KEY = 'dept';
 const PREVIEW_COUNT = 3;
@@ -76,6 +77,10 @@ export function DeptNoticesSection() {
   })();
 
   const handleNoticePress = (n: NoticeListItem) => {
+    logHomeContentSelect({
+      content_type: 'notice_row',
+      item_id: `${n.sourceId}/${n.articleNo}`,
+    });
     router.push(`/notices/${n.sourceId}/${n.articleNo}` as never);
   };
 
@@ -92,7 +97,10 @@ export function DeptNoticesSection() {
           {headerLabel}
         </Txt>
         <Pressable
-          onPress={() => router.navigate('/(tabs)/notices' as never)}
+          onPress={() => {
+            logHomeContentSelect({ content_type: 'notice_more', item_id: 'dept' });
+            router.navigate('/(tabs)/notices' as never);
+          }}
           style={({ pressed }) => [
             styles.viewAllBtn,
             { opacity: pressed ? 0.6 : 1 },

@@ -78,6 +78,7 @@ import { SearchField, Txt } from '@skkuverse/sds';
 import { DeptRow } from '@/features/onboarding/components/DeptRow';
 import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 interface PickerSection {
   title: string;
@@ -236,13 +237,23 @@ function NoticesPickerScreenInner() {
 
   const handleConfirm = () => {
     if (!canConfirm || !tab || !subscriptionUid) return;
+    logNoticesContentSelect({
+      content_type: 'picker_done',
+      item_id: `${tab.key}/${pending.length}`,
+    });
     setPickerSelectionRemote(subscriptionUid, tab.key, pending).catch((e) => {
       logHandledError('notifications/picker-set', e);
     });
     router.back();
   };
 
-  const handleClose = () => router.back();
+  const handleClose = () => {
+    logNoticesContentSelect({
+      content_type: 'picker_close',
+      item_id: tab?.key ?? 'unknown',
+    });
+    router.back();
+  };
 
   return (
     <View style={styles.container}>
@@ -336,7 +347,10 @@ function NoticesPickerScreenInner() {
             return (
               <Pressable
                 key={id}
-                onPress={() => handleToggle(id)}
+                onPress={() => {
+                  logNoticesContentSelect({ content_type: 'picker_chip_remove', item_id: id });
+                  handleToggle(id);
+                }}
                 style={({ pressed }) => [
                   styles.chip,
                   { maxWidth: chipMaxWidth },
@@ -388,7 +402,10 @@ function NoticesPickerScreenInner() {
               selected={isSelected}
               disabled={atMax && !isSelected}
               variant="checkbox"
-              onPress={() => handleToggle(item.id)}
+              onPress={() => {
+                logNoticesContentSelect({ content_type: 'picker_row', item_id: item.id });
+                handleToggle(item.id);
+              }}
             />
           );
         }}

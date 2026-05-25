@@ -4,6 +4,7 @@ import { SparkleIcon } from 'phosphor-react-native';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Button, Txt, TextButton } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 // iOS 26+ NativeTabs uses a floating Liquid Glass capsule that is NOT
 // included in safeAreaInsets (UITabBarController auto-inset path doesn't
@@ -75,7 +76,10 @@ export function OnboardingLanding({
             type="primary"
             size="big"
             display="block"
-            onPress={onStartPress}
+            onPress={() => {
+              logNoticesContentSelect({ content_type: 'onboarding_landing_cta', item_id: 'start' });
+              onStartPress();
+            }}
             disabled={loading}
           >
             {t('onboarding.landingCta')}
@@ -84,7 +88,10 @@ export function OnboardingLanding({
             typography="t6"
             color={SdsColors.grey400}
             fontWeight="medium"
-            onPress={onExistingAccountPress}
+            onPress={() => {
+              logNoticesContentSelect({ content_type: 'onboarding_landing_signin', item_id: 'existing' });
+              onExistingAccountPress();
+            }}
             disabled={loading}
             style={styles.existingAccountButton}
           >

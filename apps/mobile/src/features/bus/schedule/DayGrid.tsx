@@ -8,6 +8,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { SdsColors, useT, type DaySchedule , TranslationKey } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { logBusContentSelect } from '@/services/analytics';
 
 const DAY_KEYS: Record<number, TranslationKey> = {
   1: 'day.mon', 2: 'day.tue', 3: 'day.wed', 4: 'day.thu', 5: 'day.fri', 6: 'day.sat', 7: 'day.sun',
@@ -31,7 +32,12 @@ export function DayGrid({ days, selectedIndex, onSelect }: DayGridProps) {
           <Pressable
             key={day.date}
             style={[styles.cell, isSelected && styles.cellSelected]}
-            onPress={() => onSelect(index)}
+            onPress={() => {
+              if (!isSelected) {
+                logBusContentSelect({ content_type: 'schedule_day', item_id: day.date });
+              }
+              onSelect(index);
+            }}
           >
             <Txt
               typography="st10"

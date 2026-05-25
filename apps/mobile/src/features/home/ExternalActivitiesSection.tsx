@@ -1,8 +1,11 @@
-import { Image, Pressable, ScrollView, StyleSheet, View, type ImageSourcePropType } from 'react-native';
-import { CaretRightIcon } from 'phosphor-react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CaretRightIcon, XIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { logHomeContentSelect } from '@/services/analytics';
 
 const INSTAGRAM_URL = 'https://www.instagram.com/skkuverse.app';
 
@@ -20,7 +23,7 @@ interface ActivityCardData {
 const MOCK_ACTIVITIES: ActivityCardData[] = [
   {
     id: 'rebrand-name',
-    title: '스꾸 버스에서\n성균관 유니버스로',
+    title: '스꾸버스 →\n성균관 유니버스',
     image: require('../../../assets/images/news/bus-to-verse.png'),
   },
   {
@@ -41,6 +44,27 @@ const CARD_WIDTH = 140;
 const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 4) / 3; // 140 × 4/3 ≈ 187
 
 export function ExternalActivitiesSection() {
+  const [previewImage, setPreviewImage] = useState<ImageSourcePropType | null>(null);
+  const lastPreviewIdRef = useRef<string>('');
+  const insets = useSafeAreaInsets();
+
+  const openPreview = useCallback((item: ActivityCardData) => {
+    lastPreviewIdRef.current = item.id;
+    logHomeContentSelect({ content_type: 'news_card', item_id: item.id });
+    setPreviewImage(item.image);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    const id = lastPreviewIdRef.current;
+    if (id) {
+      logHomeContentSelect({ content_type: 'news_modal_close', item_id: id });
+      // Clear so duplicate close paths (X tap + backdrop tap + onRequestClose
+      // racing during fade) don't re-log the same id.
+      lastPreviewIdRef.current = '';
+    }
+    setPreviewImage(null);
+  }, []);
+
   return (
     <View style={styles.section}>
       <View style={styles.headerRow}>
@@ -58,12 +82,13 @@ export function ExternalActivitiesSection() {
             { opacity: pressed ? 0.6 : 1 },
           ]}
           hitSlop={8}
-          onPress={() =>
+          onPress={() => {
+            logHomeContentSelect({ content_type: 'news_more', item_id: 'instagram' });
             handleSduiAction({
               actionType: 'external',
               actionValue: INSTAGRAM_URL,
-            })
-          }
+            });
+          }}
           accessibilityRole="link"
           accessibilityLabel="스꾸버스 인스타그램 열기"
         >
@@ -86,6 +111,7 @@ export function ExternalActivitiesSection() {
               styles.card,
               { opacity: pressed ? 0.85 : 1 },
             ]}
+            onPress={() => openPreview(item)}
             accessibilityRole="button"
             accessibilityLabel={item.title.replace(/\n/g, ' ')}
           >
@@ -114,6 +140,38 @@ export function ExternalActivitiesSection() {
           </Pressable>
         ))}
       </ScrollView>
+
+      <Modal
+        visible={previewImage !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closePreview}
+      >
+        <Pressable
+          style={styles.previewBackdrop}
+          onPress={closePreview}
+          accessibilityRole="button"
+          accessibilityLabel="이미지 닫기"
+        >
+          {previewImage ? (
+            <Image
+              source={previewImage}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          ) : null}
+        </Pressable>
+        <Pressable
+          style={[styles.previewClose, { top: insets.top + 12 }]}
+          onPress={closePreview}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="닫기"
+        >
+          <XIcon size={24} color="#fff" weight="bold" />
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -166,5 +224,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     letterSpacing: -0.1,
+  },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewClose: {
+    position: 'absolute',
+    right: 16,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -10,6 +10,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SdsColors, SdsRadius, SdsTypo, type SduiNotice as NoticeType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
+import { logSduiContentSelect } from '@/services/analytics';
 
 interface Props {
   section: NoticeType;
@@ -19,12 +20,13 @@ export function Notice({ section }: Props) {
   return (
     <Pressable
       style={styles.container}
-      onPress={() =>
+      onPress={() => {
+        logSduiContentSelect({ content_type: 'notice_widget', item_id: section.actionValue });
         handleSduiAction({
           actionType: section.actionType,
           actionValue: section.actionValue,
-        })
-      }
+        });
+      }}
     >
       <Text style={styles.emoji}>{'\u{1F4E2}'}</Text>
       <View style={styles.spacer} />

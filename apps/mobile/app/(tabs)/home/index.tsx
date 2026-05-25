@@ -5,6 +5,7 @@ import { SdsColors, useT } from '@skkuverse/shared';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
+import { logHomeContentSelect } from '@/services/analytics';
 
 /**
  * Home tab — native Stack header with two right-side bar buttons:
@@ -46,8 +47,10 @@ export default function HomeTab() {
                     },
                     sharesBackground: false,
                     accessibilityLabel: t('settings.account'),
-                    onPress: () =>
-                      router.push('/settings/account' as never),
+                    onPress: () => {
+                      logHomeContentSelect({ content_type: 'profile', item_id: 'account' });
+                      router.push('/settings/account' as never);
+                    },
                   },
                   {
                     type: 'button' as const,
@@ -59,7 +62,10 @@ export default function HomeTab() {
                     },
                     sharesBackground: false,
                     accessibilityLabel: t('settings.title'),
-                    onPress: () => router.push('/settings' as never),
+                    onPress: () => {
+                      logHomeContentSelect({ content_type: 'settings', item_id: 'root' });
+                      router.push('/settings' as never);
+                    },
                   },
                 ],
               }
@@ -67,9 +73,10 @@ export default function HomeTab() {
                 headerRight: () => (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <HeaderIconButton
-                      onPress={() =>
-                        router.push('/settings/account' as never)
-                      }
+                      onPress={() => {
+                        logHomeContentSelect({ content_type: 'profile', item_id: 'account' });
+                        router.push('/settings/account' as never);
+                      }}
                       accessibilityLabel={t('settings.account')}
                     >
                       <UserCircleIcon
@@ -78,7 +85,10 @@ export default function HomeTab() {
                       />
                     </HeaderIconButton>
                     <HeaderIconButton
-                      onPress={() => router.push('/settings' as never)}
+                      onPress={() => {
+                        logHomeContentSelect({ content_type: 'settings', item_id: 'root' });
+                        router.push('/settings' as never);
+                      }}
                       accessibilityLabel={t('settings.title')}
                     >
                       <DotsThreeIcon

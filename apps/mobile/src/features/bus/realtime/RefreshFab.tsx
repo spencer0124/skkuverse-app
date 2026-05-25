@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsShadows } from '@skkuverse/shared';
+import { logBusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
@@ -35,6 +36,7 @@ export function RefreshFab({ color, onPress }: RefreshFabProps) {
   const lottieRef = useRef<LottieView>(null);
 
   const handlePress = () => {
+    logBusContentSelect({ content_type: 'realtime_refresh', item_id: 'fab' });
     lottieRef.current?.reset();
     lottieRef.current?.play();
     onPress();

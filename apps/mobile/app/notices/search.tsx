@@ -40,6 +40,7 @@ import { SearchField } from '@skkuverse/sds';
 import { NoticeListPanel } from '@/features/notices/NoticeListPanel';
 import { NoticeListSkeleton } from '@/features/notices/NoticeListSkeleton';
 import { NoticeEmptyState } from '@/features/notices/EmptyState';
+import { logNoticesContentSelect } from '@/services/analytics';
 import { useNoticesUiStore } from '@/features/notices/store/noticesUiStore';
 import { useNoticesSearchPlaceholder } from '@/features/notices/hooks/useNoticesSearchPlaceholder';
 
@@ -125,7 +126,10 @@ export default function NoticesSearchScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            logNoticesContentSelect({ content_type: 'search_back', item_id: 'back' });
+            router.back();
+          }}
           hitSlop={8}
           style={styles.backBtn}
           accessibilityRole="button"

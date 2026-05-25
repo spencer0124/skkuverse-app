@@ -4,6 +4,7 @@ import { BellIcon, BookmarkSimpleIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 // Notices tab uses the NATIVE iOS bar (UINavigationBar) for the top chrome
 // — same `unstable_headerRightItems` API as the home tab so the bookmark +
@@ -53,8 +54,10 @@ export default function NoticesTabStackLayout() {
                     },
                     sharesBackground: false,
                     accessibilityLabel: t('notices.accessory.bookmark'),
-                    onPress: () =>
-                      router.push('/notices/saved' as never),
+                    onPress: () => {
+                      logNoticesContentSelect({ content_type: 'header_bookmark', item_id: 'saved' });
+                      router.push('/notices/saved' as never);
+                    },
                   },
                   {
                     type: 'button' as const,
@@ -66,8 +69,10 @@ export default function NoticesTabStackLayout() {
                     },
                     sharesBackground: false,
                     accessibilityLabel: t('settings.notifications'),
-                    onPress: () =>
-                      router.push('/notifications/notices' as never),
+                    onPress: () => {
+                      logNoticesContentSelect({ content_type: 'header_bell', item_id: 'notifications' });
+                      router.push('/notifications/notices' as never);
+                    },
                   },
                 ],
               }
@@ -75,9 +80,10 @@ export default function NoticesTabStackLayout() {
                 headerRight: () => (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <HeaderIconButton
-                      onPress={() =>
-                        router.push('/notices/saved' as never)
-                      }
+                      onPress={() => {
+                        logNoticesContentSelect({ content_type: 'header_bookmark', item_id: 'saved' });
+                        router.push('/notices/saved' as never);
+                      }}
                       accessibilityLabel={t('notices.accessory.bookmark')}
                     >
                       <BookmarkSimpleIcon
@@ -86,9 +92,10 @@ export default function NoticesTabStackLayout() {
                       />
                     </HeaderIconButton>
                     <HeaderIconButton
-                      onPress={() =>
-                        router.push('/notifications/notices' as never)
-                      }
+                      onPress={() => {
+                        logNoticesContentSelect({ content_type: 'header_bell', item_id: 'notifications' });
+                        router.push('/notifications/notices' as never);
+                      }}
                       accessibilityLabel={t('settings.notifications')}
                     >
                       <BellIcon size={22} color={SdsColors.grey700} />

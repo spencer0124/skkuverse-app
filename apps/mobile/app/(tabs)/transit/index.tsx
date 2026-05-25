@@ -57,6 +57,8 @@ export default function TransitScreen() {
               key={item.groupId}
               item={item}
               onPress={() => {
+                // bus_route_open fires from bus/schedule.tsx / bus/realtime.tsx
+                // on mount — do NOT duplicate here.
                 const route = item.action.route === '/bus/schedule'
                   ? '/bus/schedule'
                   : '/bus/realtime';

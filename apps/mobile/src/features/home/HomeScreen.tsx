@@ -20,6 +20,7 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
 import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
@@ -45,19 +46,26 @@ export function HomeScreen() {
         title: 'AI공지',
         emoji: '\u{1F4E2}',
         isNew: true,
-        onPress: () => router.navigate('/(tabs)/notices' as never),
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'notices' });
+          router.navigate('/(tabs)/notices' as never);
+        },
       },
       {
         id: 'campus_map',
         title: '캠퍼스맵',
         emoji: '\u{1F9ED}',
-        onPress: () => router.navigate('/(tabs)/campus' as never),
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'campus_map' });
+          router.navigate('/(tabs)/campus' as never);
+        },
       },
       {
         id: 'building_map',
         title: '건물지도',
         emoji: '\u{1F3E2}',
         onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'building_map' });
           router.navigate('/(tabs)/campus' as never);
           handleSduiAction({
             actionType: 'webview',
@@ -72,6 +80,7 @@ export function HomeScreen() {
         title: '건물코드',
         emoji: '\u{1F522}',
         onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'building_code' });
           router.navigate('/(tabs)/campus' as never);
           handleSduiAction({
             actionType: 'route',

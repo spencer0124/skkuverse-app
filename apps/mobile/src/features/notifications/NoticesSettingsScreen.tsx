@@ -16,6 +16,7 @@ import {
 } from '@/services/firestore-notifications';
 import { checkPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
+import { logNotificationTabToggle } from '@/services/analytics';
 import { AnonymousGate } from './components/AnonymousGate';
 import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 import { HintBanner } from './components/HintBanner';
@@ -85,6 +86,7 @@ export default function NoticesSettingsScreen() {
   const handleToggleNoticeTab = useCallback(
     async (tabKey: string, next: boolean) => {
       if (!uid) return;
+      logNotificationTabToggle({ tab_key: tabKey, enabled: next, source: 'settings' });
       try {
         await setNoticeTabEnabled(uid, tabKey, next);
       } catch (err) {

@@ -11,6 +11,7 @@ import { Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { type SduiBanner as BannerType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
+import { logSduiContentSelect } from '@/services/analytics';
 
 interface Props {
   section: BannerType;
@@ -20,12 +21,13 @@ export function Banner({ section }: Props) {
   return (
     <Pressable
       style={styles.container}
-      onPress={() =>
+      onPress={() => {
+        logSduiContentSelect({ content_type: 'banner', item_id: section.actionValue });
         handleSduiAction({
           actionType: section.actionType,
           actionValue: section.actionValue,
-        })
-      }
+        });
+      }}
     >
       <Image
         source={section.imageUrl}
