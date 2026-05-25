@@ -138,42 +138,91 @@ export async function setPickerSelectionRemote(
 }
 
 /**
- * Onboarding completion seed (Phase E).
+ * Onboarding seed / finalize (Phase E + 2026-05-25 redesign).
  *
- * Replaces the doc with explicit intent defaults: master ON, essential +
- * notices ON, services OFF. The caller assembles `pickerSelections` per tab
- * — typically dept (user picks) + library/dorm (common + campus defaults
- * via `computeOnboardingPickerSeed`). Tabs intentionally without defaults
- * (e.g. general) should be omitted entirely so derive() emits 0 topics for
- * them rather than an explicit empty-list intent.
+ * Two-phase flow:
+ *   - Step 6 진입 시점: opts={enabled:true, finalize:false} 호출 →
+ *     onboardedAt:null 로 시드, 이후 NoticeCategoriesStep에서 setNoticeTabEnabled로
+ *     라이브 토글 가능. Step 7 finalize에서 finalizeOnboardingAccepted로 null→timestamp 전환.
+ *   - "안 받을게요" 경로: opts={enabled:false, finalize:true} 호출 →
+ *     master OFF + categoryEnabled.notices=false + onboardedAt=timestamp 한 번에.
  *
- * `subscribedTopics: []` — the CF onPreferencesWrite trigger fills it in
- * within 1~3s after this write lands.
+ * CRITICAL: doc 존재 분기 — `.set()` 직접 사용 시 update path로 평가되며
+ * CF가 채운 subscribedTopics와 diff → rules의 affectedKeys().hasAny(['subscribedTopics'])
+ * 에 걸려 PERMISSION_DENIED 회귀. 따라서 항상 doc 존재 확인 후:
+ *   - 없음: .set() 으로 전체 seed (essential 항상 true — rules invariant)
+ *   - 있음: dot-path update 로 변경할 필드만 (subscribedTopics 미접촉)
  *
- * `onboardedAt: serverTimestamp()` — clock skew 방어. Canonical "user has
- * onboarded on some device" signal — second-device sign-in uses
- * `prefs.onboardedAt != null` to skip the wizard
- * (useAppInit prefs listener + notices/index.tsx handleExistingAccountSignIn).
- * Firestore Rules enforce "null → timestamp" one-way transition; repeated
- * calls update path will be rejected if onboardedAt was already set.
+ * onboardedAt invariant (firestore.rules:65-69):
+ *   resource.data.onboardedAt == request.resource.data.onboardedAt
+ *   || (resource.data.onboardedAt == null && request.resource.data.onboardedAt is timestamp)
+ * — 이미 timestamp인 경우 onboardedAt을 update payload에서 누락하면 unchanged로 통과.
  */
 export async function seedOnboardingPreferences(
   uid: string,
   pickerSelections: Record<string, string[]>,
+  opts: { enabled?: boolean; finalize?: boolean } = { enabled: true, finalize: true },
 ): Promise<void> {
+  const enabled = opts.enabled ?? true;
+  const finalize = opts.finalize ?? true;
   await primeAppCheck();
-  const seed: PreferencesDocument = {
-    enabled: true,
-    categoryEnabled: { essential: true, services: false, notices: true },
-    // Empty record = all 9 notice tabs default-on per derive() contract.
-    // User can selectively turn off in Settings later.
+
+  const existing = await getPreferences(uid);
+
+  if (!existing) {
+    const seed: PreferencesDocument = {
+      enabled,
+      // essential은 rules invariant로 항상 true. notices는 master와 동기화
+      // — enabled=false면 명시적으로 false 시드 (declined intent를 SSOT에 기록).
+      categoryEnabled: { essential: true, services: false, notices: enabled },
+      // Empty record = all 9 notice tabs default-on per derive() contract.
+      noticeTabEnabled: {},
+      pickerSelections,
+      subscribedTopics: [],
+      derivedAt: null,
+      onboardedAt: finalize
+        ? (firestore.FieldValue.serverTimestamp() as unknown)
+        : null,
+    };
+    await prefsRef(uid).set(seed);
+    return;
+  }
+
+  // doc 있음 — dot-path update만. subscribedTopics/derivedAt 미접촉으로 rules 통과.
+  // noticeTabEnabled: {} 로 map 전체 재설정 (wizard 재진입 = 새 시드 의도).
+  // 이전 settings에서 사용자가 토글한 OFF 값이 stale로 남으면 step 6 UX 혼란
+  // (사용자가 이 세션에 끄지 않은 탭이 OFF로 보임). Firestore update 시
+  // map 필드에 빈 객체를 지정하면 sub-key 전부 삭제됨.
+  const updates: Record<string, unknown> = {
+    enabled,
+    'categoryEnabled.notices': enabled,
     noticeTabEnabled: {},
-    pickerSelections,
-    subscribedTopics: [],
-    derivedAt: null,
-    onboardedAt: firestore.FieldValue.serverTimestamp() as unknown,
   };
-  await prefsRef(uid).set(seed);
+  for (const [tabKey, ids] of Object.entries(pickerSelections)) {
+    updates[`pickerSelections.${tabKey}`] = ids;
+  }
+  // onboardedAt은 finalize=true 이고 기존이 null 일 때만 포함 (null→timestamp 한 방향).
+  // 이미 timestamp 이면 unchanged로 통과시키기 위해 payload에서 누락.
+  if (finalize && existing.onboardedAt == null) {
+    updates.onboardedAt = firestore.FieldValue.serverTimestamp();
+  }
+  await prefsRef(uid).update(updates);
+}
+
+/**
+ * Step 7 ACCEPT 경로의 finalize.
+ *
+ * prepareCategoryStep에서 doc이 이미 seed됨 (보장). 여기서는 onboardedAt만
+ * null→serverTimestamp() 단일 dot-path update로 전환.
+ *
+ * 만약 doc이 없거나(이론상 불가) onboardedAt이 이미 timestamp(중복 호출)면
+ * rules가 reject할 수 있음 — 호출 측에서 try/catch로 non-fatal 처리.
+ */
+export async function finalizeOnboardingAccepted(uid: string): Promise<void> {
+  await primeAppCheck();
+  await prefsRef(uid).update({
+    onboardedAt: firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 export async function registerDevice(
