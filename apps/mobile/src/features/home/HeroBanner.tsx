@@ -11,7 +11,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { CaretRightIcon } from 'phosphor-react-native';
-import { SdsColors, SdsShadows } from '@skkuverse/shared';
+import { SdsColors } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
 
 // Cycle: morph (~2.7s) → 5s idle hold → snap reset → loop.
@@ -304,14 +304,12 @@ const styles = StyleSheet.create({
   card: {
     height: 96,
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     borderRadius: 16,
     backgroundColor: SdsColors.brandLight,
     paddingHorizontal: 20,
     justifyContent: 'center',
     overflow: 'hidden',
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
   },
   subhead: {
     fontFamily: 'WantedSans',

@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet } from 'react-native';
-import { SdsColors, SdsShadows, highlightMatches, useSettingsStore } from '@skkuverse/shared';
+import { SdsColors, highlightMatches, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import { PaperclipIcon } from 'phosphor-react-native';
@@ -16,10 +16,10 @@ interface Props {
    *  original casing preserved). Empty / undefined renders the title
    *  verbatim. */
   highlightQuery?: string;
-  /** Visual variant. `'card'` renders the row as a standalone elevated
-   *  card (used in home preview's letter-stack layout) — white bg, subtle
-   *  shadow, 16px inner padding, rounded corners. Default (undefined)
-   *  renders as a flat row that blends into its parent list. */
+  /** Visual variant. `'card'` renders the row as a standalone card
+   *  (used in home preview's letter-stack layout) — white bg, 16px inner
+   *  padding, rounded corners. Default (undefined) renders as a flat row
+   *  that blends into its parent list. */
   variant?: 'card';
 }
 
@@ -145,10 +145,10 @@ export function NoticeRow({
             typography="t5"
             fontWeight="semiBold"
             color={SdsColors.grey900}
-            numberOfLines={2}
+            numberOfLines={isCard ? 1 : 2}
             lineBreakStrategyIOS="hangul-word"
             textBreakStrategy="highQuality"
-            style={[styles.title, fixedBadge && styles.titleWithBadge]}
+            style={[styles.title, isCard && styles.titleCard, fixedBadge && styles.titleWithBadge]}
           >
             {renderTitleWithHighlight(item.title, highlightQuery)}
           </Txt>
@@ -180,13 +180,11 @@ const styles = StyleSheet.create({
   row: {
     backgroundColor: '#FFFFFF',
   },
-  // Card variant — standalone elevated card. `overflow: 'hidden'` clips
+  // Card variant — standalone card. `overflow: 'hidden'` clips
   // the ListRow press underlay flash at the rounded corners.
   rowCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
   },
   container: {
     paddingVertical: 16,
@@ -213,6 +211,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     lineHeight: 23,
+    letterSpacing: -0.3,
+  },
+  titleCard: {
+    fontSize: 14,
+    lineHeight: 20,
     letterSpacing: -0.3,
   },
   titleWithBadge: {

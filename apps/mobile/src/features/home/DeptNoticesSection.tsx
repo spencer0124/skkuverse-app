@@ -123,7 +123,7 @@ export function DeptNoticesSection() {
 const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 36,
     gap: 8,
   },
   headerRow: {

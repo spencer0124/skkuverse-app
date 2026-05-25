@@ -1,7 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CaretRightIcon, ImageIcon } from 'phosphor-react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View, type ImageSourcePropType } from 'react-native';
+import { CaretRightIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
+import { handleSduiAction } from '@/sdui/action-handler';
+
+const INSTAGRAM_URL = 'https://www.instagram.com/skkuverse.app';
 
 interface ActivityCardData {
   id: string;
@@ -9,34 +12,33 @@ interface ActivityCardData {
   /** Optional subtitle line below the title (e.g. "광고 · 과기정통부"). When
    *  omitted the card renders title only — visual height shrinks accordingly. */
   meta?: string;
+  image: ImageSourcePropType;
 }
 
-// Mock data — replace with `useExternalActivities()` React Query hook
-// once the backend endpoint exists. Card visual is decoupled from data
-// source so the swap is a one-line change.
+// Launch story — 3 cards introducing the SKKU Verse rebrand. Replace with
+// `useExternalActivities()` React Query hook once the backend endpoint exists.
 const MOCK_ACTIVITIES: ActivityCardData[] = [
   {
-    id: 'mock-1',
-    title: '2026 AI보안\n기술개발 교육과정',
+    id: 'rebrand-name',
+    title: '스꾸 버스에서\n성균관 유니버스로',
+    image: require('../../../assets/images/news/bus-to-verse.png'),
   },
   {
-    id: 'mock-2',
-    title: 'LS드사클 22기\n대학생 멘토 모집',
+    id: 'rebrand-logo',
+    title: '은행잎을 담은\n새로운 로고',
+    image: require('../../../assets/images/news/ginkgo-logo.png'),
   },
   {
-    id: 'mock-3',
-    title: '2026년\n궁동청소년 봉사',
-  },
-  {
-    id: 'mock-4',
-    title: '글로벌 인턴십\n프로그램 2026',
+    id: 'rebrand-meaning',
+    title: 'Universe,\n그 이상의 의미',
+    image: require('../../../assets/images/news/universe-meaning.png'),
   },
 ];
 
-const CARD_WIDTH = 156;
+const CARD_WIDTH = 140;
 // Image area in portrait 3:4 (width:height) — taller-than-wide tile matches
 // the reference (에브리타임 대외활동) where photo dominates the card.
-const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 4) / 3; // 156 × 4/3 = 208
+const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 4) / 3; // 140 × 4/3 ≈ 187
 
 export function ExternalActivitiesSection() {
   return (
@@ -50,20 +52,26 @@ export function ExternalActivitiesSection() {
         >
           소식
         </Txt>
-        {/* <Pressable
+        <Pressable
           style={({ pressed }) => [
             styles.viewAllBtn,
             { opacity: pressed ? 0.6 : 1 },
           ]}
           hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="소식 더보기"
+          onPress={() =>
+            handleSduiAction({
+              actionType: 'external',
+              actionValue: INSTAGRAM_URL,
+            })
+          }
+          accessibilityRole="link"
+          accessibilityLabel="스꾸버스 인스타그램 열기"
         >
           <Txt typography="t7" color={SdsColors.grey500}>
             더보기
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
-        </Pressable> */}
+        </Pressable>
       </View>
       <ScrollView
         horizontal
@@ -81,9 +89,7 @@ export function ExternalActivitiesSection() {
             accessibilityRole="button"
             accessibilityLabel={item.title.replace(/\n/g, ' ')}
           >
-            <View style={styles.imagePlaceholder}>
-              <ImageIcon size={32} color={SdsColors.grey300} weight="regular" />
-            </View>
+            <Image source={item.image} style={styles.cardImage} resizeMode="cover" />
             <View style={styles.cardBody}>
               <Txt
                 typography="t5"
@@ -140,23 +146,21 @@ const styles = StyleSheet.create({
     boxShadow: SdsShadows.card.boxShadow,
     ...SdsShadows.card.legacy,
   },
-  imagePlaceholder: {
+  cardImage: {
     width: '100%',
     height: CARD_IMAGE_HEIGHT,
     backgroundColor: '#f5f5f5',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   cardBody: {
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 14,
+    gap: 8,
   },
   cardTitle: {
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 17,
     letterSpacing: -0.2,
-    marginBottom: 8,
   },
   cardMeta: {
     fontSize: 12,

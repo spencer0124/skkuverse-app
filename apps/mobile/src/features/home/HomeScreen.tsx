@@ -89,7 +89,7 @@ export function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 8 },
+          { paddingTop: headerHeight + 16 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -107,7 +107,7 @@ export function HomeScreen() {
         ) : (
           <>
             <DeptNoticesSection />
-            {/* <ExternalActivitiesSection /> */}
+            <ExternalActivitiesSection />
           </>
         )}
 
@@ -135,7 +135,7 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fbfbfb',
+    backgroundColor: '#f5f5f5',
   },
   scroll: {
     flex: 1,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
 
   /* ── Grid wrap ── */
   gridWrap: {
-    marginBottom: 20,
+    marginBottom: 36,
   },
 
   /* ── Bottom Banner ── */
