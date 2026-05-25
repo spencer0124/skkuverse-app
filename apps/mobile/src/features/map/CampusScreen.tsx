@@ -72,6 +72,18 @@ const CAMPUS_GRID_ITEMS: readonly TossfaceGridItem[] = [
         actionValue: '/search',
       }),
   },
+  {
+    id: 'lost_found',
+    title: '분실물',
+    emoji: '\u{1F9F3}',
+    onPress: () =>
+      handleSduiAction({
+        actionType: 'webview',
+        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+        webviewTitle: '분실물',
+        webviewColor: '003626',
+      }),
+  },
 ];
 
 export function CampusScreen() {

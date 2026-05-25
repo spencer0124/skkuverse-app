@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet } from 'react-native';
-import { SdsColors, highlightMatches, useSettingsStore } from '@skkuverse/shared';
+import { SdsColors, SdsShadows, highlightMatches, useSettingsStore } from '@skkuverse/shared';
 import { ListRow, Txt } from '@skkuverse/sds';
 import type { AppLanguage, NoticeListItem } from '@skkuverse/shared';
 import { PaperclipIcon } from 'phosphor-react-native';
@@ -16,9 +16,11 @@ interface Props {
    *  original casing preserved). Empty / undefined renders the title
    *  verbatim. */
   highlightQuery?: string;
-  /** Compact preview (e.g. home tab): renders title + one-liner only.
-   *  Hides meta row (date · dept · paperclip) and deadline badges. */
-  compact?: boolean;
+  /** Visual variant. `'card'` renders the row as a standalone elevated
+   *  card (used in home preview's letter-stack layout) — white bg, subtle
+   *  shadow, 16px inner padding, rounded corners. Default (undefined)
+   *  renders as a flat row that blends into its parent list. */
+  variant?: 'card';
 }
 
 // Plain RN <Text> (not SDS <Txt>) so the matched segment inherits the
@@ -83,22 +85,25 @@ export function NoticeRow({
   onPress,
   showDepartment,
   highlightQuery,
-  compact,
+  variant,
 }: Props) {
+  const isCard = variant === 'card';
   const oneLiner = item.summary?.oneLiner?.trim() ?? '';
-  const deadline = compact ? null : formatDeadlineBadge(item.summary ?? null);
+  // Card variant (home preview) shows only title + one-liner. Meta row
+  // (date · dept · paperclip) and deadline pills are intentionally hidden
+  // to keep the card compact — full info is available on the detail screen.
+  const deadline = isCard ? null : formatDeadlineBadge(item.summary ?? null);
   const fixedBadge = deadline && isFixedBadge(deadline) ? deadline : null;
   const belowBadge  = deadline && !isFixedBadge(deadline) ? deadline : null;
   const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
-  const relativeDate = compact ? '' : formatRelativeDate(item.date, lang);
-  const deptLabel = !compact && showDepartment ? item.department : undefined;
+  const relativeDate = isCard ? '' : formatRelativeDate(item.date, lang);
+  const deptLabel = !isCard && showDepartment ? item.department : undefined;
 
   return (
     <ListRow
       onPress={() => onPress(item)}
-      style={[styles.row, compact && styles.rowCompact]}
-      containerStyle={[styles.container, compact && styles.containerCompact]}
-      horizontalPadding={compact ? 0 : undefined}
+      style={[styles.row, isCard && styles.rowCard]}
+      containerStyle={[styles.container, isCard && styles.containerCard]}
       contents={
         <View style={styles.contents}>
           {(relativeDate || deptLabel) ? (
@@ -140,7 +145,7 @@ export function NoticeRow({
             typography="t5"
             fontWeight="semiBold"
             color={SdsColors.grey900}
-            numberOfLines={compact ? 1 : 2}
+            numberOfLines={2}
             lineBreakStrategyIOS="hangul-word"
             textBreakStrategy="highQuality"
             style={[styles.title, fixedBadge && styles.titleWithBadge]}
@@ -175,17 +180,19 @@ const styles = StyleSheet.create({
   row: {
     backgroundColor: '#FFFFFF',
   },
-  // Compact (home preview) — transparent so the row blends into the page
-  // background instead of looking like a floating white chit when used
-  // outside a wrapping card.
-  rowCompact: {
-    backgroundColor: 'transparent',
+  // Card variant — standalone elevated card. `overflow: 'hidden'` clips
+  // the ListRow press underlay flash at the rounded corners.
+  rowCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    boxShadow: SdsShadows.card.boxShadow,
+    ...SdsShadows.card.legacy,
   },
   container: {
     paddingVertical: 16,
   },
-  containerCompact: {
-    paddingVertical: 12,
+  containerCard: {
+    paddingVertical: 14,
   },
   contents: {
     gap: 4,

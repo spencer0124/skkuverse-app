@@ -21,6 +21,7 @@ import {
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { DeptNoticesSection } from './DeptNoticesSection';
+import { ExternalActivitiesSection } from './ExternalActivitiesSection';
 import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
 // import { HeroBanner } from './HeroBanner';
 
@@ -41,8 +42,9 @@ export function HomeScreen() {
     () => [
       {
         id: 'notices',
-        title: '공지',
+        title: 'AI공지',
         emoji: '\u{1F4E2}',
+        isNew: true,
         onPress: () => router.navigate('/(tabs)/notices' as never),
       },
       {
@@ -77,62 +79,6 @@ export function HomeScreen() {
           });
         },
       },
-      {
-        id: 'hssc_shuttle',
-        title: '인사캠 셔틀',
-        emoji: '\u{1F68C}',
-        onPress: () => {
-          // Switch to transit tab first so the back button from the realtime
-          // screen returns to the transit list (matches the "이동 탭 가서
-          // 인사캠 셔틀" mental model). groupId 'hssc' is the SSOT id from
-          // skkuverse-server/features/bus/bus-config.data.js (screenType:
-          // 'realtime', visibility: always).
-          router.navigate('/(tabs)/transit' as never);
-          router.push({
-            pathname: '/bus/realtime',
-            params: { groupId: 'hssc' },
-          } as never);
-        },
-      },
-      {
-        id: 'inja_shuttle',
-        title: '인자셔틀',
-        emoji: '\u{1F690}',
-        onPress: () => {
-          // 인자셔틀 (INJA Shuttle, 인사캠↔자과캠) — groupId 'campus',
-          // screenType 'schedule' (timetable-based, no live tracking). SSOT:
-          // skkuverse-server/lib/i18n.js (busconfig.label.campus → 인자셔틀)
-          // + bus-config.data.js. Same navigate-then-push pattern as HSSC so
-          // back returns to the transit list.
-          router.navigate('/(tabs)/transit' as never);
-          router.push({
-            pathname: '/bus/schedule',
-            params: { groupId: 'campus' },
-          } as never);
-        },
-      },
-      {
-        id: 'lost_found',
-        title: '분실물',
-        emoji: '\u{1F9F3}',
-        onPress: () =>
-          handleSduiAction({
-            actionType: 'webview',
-            actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
-            webviewTitle: '분실물',
-            webviewColor: '003626',
-          }),
-      },
-      {
-        id: 'inquiry',
-        title: '문의하기',
-        emoji: '\u{1F4AC}',
-        onPress: () =>
-          handleSduiAction({
-            actionType: 'external',
-            actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
-          }),
-      },
     ],
     [router],
   );
@@ -155,8 +101,15 @@ export function HomeScreen() {
           <TossfaceButtonGrid items={gridItems} />
         </View>
 
-        {/* ── Dept latest notices (top 3) — gated for non-onboarded users ── */}
-        {showOnboardingGate ? <HomeOnboardingGateCard /> : <DeptNoticesSection />}
+        {/* ── Dept latest notices (top 3) + 대외활동 — gated for non-onboarded users ── */}
+        {showOnboardingGate ? (
+          <HomeOnboardingGateCard />
+        ) : (
+          <>
+            <DeptNoticesSection />
+            <ExternalActivitiesSection />
+          </>
+        )}
 
         {/* ── Bottom Banner ── (temporarily disabled — restore with CaretRightIcon import above)
         <Pressable style={styles.bottomBanner}>

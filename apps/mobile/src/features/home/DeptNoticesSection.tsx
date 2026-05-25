@@ -25,7 +25,6 @@ import { CaretRightIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import {
   SdsColors,
-  SdsShadows,
   resolvePickerSelection,
   useMultiSourceNoticeList,
   useNoticeTabs,
@@ -100,10 +99,10 @@ export function DeptNoticesSection() {
           ]}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`${headerLabel} 전체보기`}
+          accessibilityLabel={`${headerLabel} 더보기`}
         >
           <Txt typography="t7" color={SdsColors.grey500}>
-            전체보기
+            더보기
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
         </Pressable>
@@ -114,7 +113,7 @@ export function DeptNoticesSection() {
           item={item}
           onPress={handleNoticePress}
           showDepartment={!isSingleDept}
-          compact
+          variant="card"
         />
       ))}
     </View>
@@ -125,23 +124,13 @@ const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingTop: 20,
-    // 8 + row's own paddingVertical (12) = 20px effective bottom — matches
-    // paddingTop visually without double-padding the last row.
-    paddingBottom: 8,
-    paddingHorizontal: 20,
-    // Clips ListRow press underlay flash at rounded corners.
-    overflow: 'hidden',
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
+    gap: 8,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   title: {
     flex: 1,

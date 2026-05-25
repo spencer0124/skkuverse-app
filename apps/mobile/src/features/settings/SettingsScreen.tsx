@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BadgeNavRow } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
+import { handleSduiAction } from '@/sdui/action-handler';
 
 export function SettingsScreen() {
   const router = useRouter();
@@ -27,6 +28,18 @@ export function SettingsScreen() {
           title={t('settings.notifications')}
           subtitle={t('settings.notificationsSubtitle')}
           onPress={() => router.push('/notifications/settings' as never)}
+        />
+        <BadgeNavRow
+          badge="💬"
+          tossface
+          title="문의하기"
+          subtitle="카카오톡 채널로 연결"
+          onPress={() =>
+            handleSduiAction({
+              actionType: 'external',
+              actionValue: 'https://pf.kakao.com/_cjxexdG/chat',
+            })
+          }
         />
       </ScrollView>
     </View>

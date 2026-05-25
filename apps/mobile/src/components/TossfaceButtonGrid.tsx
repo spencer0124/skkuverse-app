@@ -13,6 +13,8 @@ export interface TossfaceGridItem {
   title: string;
   emoji: string;
   onPress: () => void;
+  /** When true, renders a small red "N" badge at the top-right of the tile. */
+  isNew?: boolean;
 }
 
 interface Props {
@@ -45,6 +47,11 @@ export function TossfaceButtonGrid({ items }: Props) {
           <Text style={styles.title} numberOfLines={1}>
             {item.title}
           </Text>
+          {item.isNew ? (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>N</Text>
+            </View>
+          ) : null}
         </Pressable>
       ))}
     </View>
@@ -77,5 +84,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: SdsColors.grey800,
+  },
+  newBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F04452',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: 12,
+    letterSpacing: -0.2,
   },
 });
