@@ -23,14 +23,15 @@ import { logHandledError } from '@/services/crashlytics';
 const ALLOWED_DOMAIN = '@g.skku.edu';
 
 export function configureGoogleSignIn() {
+  const wcid = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  console.log('[google-auth][DIAG] configureGoogleSignIn() called');
+  console.log('[google-auth][DIAG] webClientId present:', !!wcid, 'length:', wcid?.length ?? 0);
+  console.log('[google-auth][DIAG] webClientId prefix:', wcid?.slice(0, 50));
   GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
-    // [DIAG] hostedDomain은 모든 Android 기기에서 DEVELOPER_ERROR(12500)
-    // 유발 가설 검증 중. 라이브러리 v16 + G Suite 도메인 + AccountManager
-    // 흐름의 조합 이슈로 의심. 보안은 line 119-122의 email.endsWith
-    // 검사가 동일하게 보장하므로 제거해도 무영향.
-    // hostedDomain: 'g.skku.edu',
+    webClientId: wcid!,
+    // [DIAG] hostedDomain 제거 후에도 12500 발생 — 가설 기각. raw err dump으로 진단 중.
   });
+  console.log('[google-auth][DIAG] GoogleSignin.configure() completed');
 }
 
 // ── Typed error ──────────────────────────────────────────────────────
@@ -106,17 +107,32 @@ export async function syncProfileFromProviderData(
 // ── Sign-in ──────────────────────────────────────────────────────────
 
 export async function signInWithGoogle() {
+  console.log('[google-auth][DIAG] ========== signInWithGoogle() START ==========');
   try {
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log('[google-auth][DIAG] step 1: calling hasPlayServices...');
+    const playServicesOK = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log('[google-auth][DIAG] step 1 OK — hasPlayServices result:', playServicesOK);
+
+    console.log('[google-auth][DIAG] step 2: calling GoogleSignin.signIn()...');
     const response = await GoogleSignin.signIn();
+    console.log('[google-auth][DIAG] step 2 returned. response.type =', (response as any)?.type);
+    console.log('[google-auth][DIAG] step 2 response keys:', response ? Object.keys(response).join(',') : 'null');
+    try {
+      console.log('[google-auth][DIAG] step 2 response full:', JSON.stringify(response, null, 2));
+    } catch (jsonErr) {
+      console.log('[google-auth][DIAG] step 2 response JSON.stringify failed:', String(jsonErr));
+    }
 
     if (!isSuccessResponse(response)) {
+      console.warn('[google-auth][DIAG] response is NOT success — throwing CANCELLED');
       throw new GoogleAuthError('CANCELLED');
     }
 
     const { idToken, user: googleProfile } = response.data;
+    console.log('[google-auth][DIAG] step 3: extracted from response.data — idToken.length:', idToken?.length, 'email:', googleProfile?.email);
 
     if (!idToken) {
+      console.warn('[google-auth][DIAG] idToken missing in success response — throwing UNKNOWN');
       throw new GoogleAuthError('UNKNOWN');
     }
 
@@ -156,24 +172,59 @@ export async function signInWithGoogle() {
 
     return result;
   } catch (err) {
-    if (err instanceof GoogleAuthError) throw err;
-    console.error('[google-auth] Unexpected error:', err);
+    if (err instanceof GoogleAuthError) {
+      console.warn('[google-auth][DIAG][CATCH] re-throwing GoogleAuthError, code:', err.code);
+      throw err;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // [DIAG] RAW NATIVE ERROR DUMP — 12500 진단용. 절대 prod에서 영구화 X.
+    // logcat 필터: `adb logcat | grep "google-auth\\[DIAG\\]"`
+    // ═══════════════════════════════════════════════════════════════════════
+    const e = err as any;
+    console.error('[google-auth][DIAG][CATCH] ===== RAW ERROR DUMP START =====');
+    console.error('[google-auth][DIAG][CATCH] typeof err:', typeof err);
+    console.error('[google-auth][DIAG][CATCH] err.constructor.name:', e?.constructor?.name);
+    console.error('[google-auth][DIAG][CATCH] err.name:', e?.name);
+    console.error('[google-auth][DIAG][CATCH] err.message:', e?.message);
+    console.error('[google-auth][DIAG][CATCH] err.code:', JSON.stringify(e?.code));
+    console.error('[google-auth][DIAG][CATCH] err.nativeErrorCode:', JSON.stringify(e?.nativeErrorCode));
+    console.error('[google-auth][DIAG][CATCH] err.domain:', JSON.stringify(e?.domain));
+    console.error('[google-auth][DIAG][CATCH] err.userInfo:', JSON.stringify(e?.userInfo));
+    console.error('[google-auth][DIAG][CATCH] err.nativeStackAndroid first 1KB:', e?.nativeStackAndroid?.slice?.(0, 1024));
+    console.error('[google-auth][DIAG][CATCH] err.nativeStackIOS:', JSON.stringify(e?.nativeStackIOS));
+    console.error('[google-auth][DIAG][CATCH] isErrorWithCode(err):', isErrorWithCode(err));
+    console.error('[google-auth][DIAG][CATCH] Object.getOwnPropertyNames(err):', e ? Object.getOwnPropertyNames(e).join(',') : '(null)');
+    console.error('[google-auth][DIAG][CATCH] String(err):', String(err));
+    try {
+      const allProps = e ? Object.getOwnPropertyNames(e) : [];
+      const fullJson = JSON.stringify(err, allProps, 2);
+      console.error('[google-auth][DIAG][CATCH] full JSON (own props):', fullJson);
+    } catch (jsonErr) {
+      console.error('[google-auth][DIAG][CATCH] JSON.stringify failed:', String(jsonErr));
+    }
+    console.error('[google-auth][DIAG][CATCH] err.stack first 2KB:', e?.stack?.slice?.(0, 2048));
+    console.error('[google-auth][DIAG][CATCH] available statusCodes constants:', JSON.stringify(statusCodes));
+    console.error('[google-auth][DIAG][CATCH] ===== RAW ERROR DUMP END =====');
+    // ═══════════════════════════════════════════════════════════════════════
+
     if (isErrorWithCode(err)) {
+      console.warn('[google-auth][DIAG] err matches isErrorWithCode — switching on err.code:', err.code);
       switch (err.code) {
         case statusCodes.SIGN_IN_CANCELLED:
           throw new GoogleAuthError('CANCELLED');
         case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
           throw new GoogleAuthError('PLAY_SERVICES_UNAVAILABLE');
       }
+      console.warn('[google-auth][DIAG] err.code did not match any statusCodes constant; falling through to UNKNOWN');
+    } else {
+      console.warn('[google-auth][DIAG] err does NOT match isErrorWithCode — no code/message structure');
     }
-    // Android DEVELOPER_ERROR(SHA-1 ↔ Firebase OAuth client 매칭 실패; Play
-    // App Signing 이면 App signing key SHA-1이 google-services.json에 등록돼
-    // 있어야 함)는 library v16의 Credential Manager 이행 후 statusCodes에
-    // 상수 노출되지 않고 native code/message로만 식별 가능. logHandledError로
-    // err 원본을 Crashlytics에 흘려서 라벨('google-auth/signin-unexpected')과
-    // 함께 native code를 stack에 보존 — 다음 사용자 보고 때 진단 단서.
+
     logHandledError('google-auth/signin-unexpected', err);
     throw new GoogleAuthError('UNKNOWN');
+  } finally {
+    console.log('[google-auth][DIAG] ========== signInWithGoogle() END ==========');
   }
 }
 
