@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Alert, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useAuthStore, useSettingsStore, useT } from '@skkuverse/shared';
@@ -46,6 +47,13 @@ export default function NoticesTab() {
   // tab key가 hardcoded — 셋 다 함께 수정 필요한 cross-cutting hard-code.
   async function handleExistingAccountSignIn() {
     if (signingIn) return;
+    if (Platform.OS === 'android') {
+      Alert.alert(
+        t('onboarding.androidSignupBlockedTitle'),
+        t('onboarding.androidSignupBlockedMessage'),
+      );
+      return;
+    }
     setSigningIn(true);
     setSignInError(null);
     try {
@@ -100,7 +108,16 @@ export default function NoticesTab() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <OnboardingLanding
-          onStartPress={() => router.push('/onboarding')}
+          onStartPress={() => {
+            if (Platform.OS === 'android') {
+              Alert.alert(
+                t('onboarding.androidSignupBlockedTitle'),
+                t('onboarding.androidSignupBlockedMessage'),
+              );
+              return;
+            }
+            router.push('/onboarding');
+          }}
           onExistingAccountPress={handleExistingAccountSignIn}
           loading={signingIn}
           signInError={signInError}

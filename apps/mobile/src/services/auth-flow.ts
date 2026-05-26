@@ -48,8 +48,10 @@ export type AuthFlowScope = 'login' | 'notices' | 'onboarding';
  *  - Phase B failure → throw GoogleAuthError (signInWithGoogle propagates).
  *    Caller catches and maps `err.code` to scope-specific i18n key
  *    (login/notices use `auth.*`, onboarding uses `onboarding.oauth*`).
- *    google-auth.signInWithGoogle already console.errors before throwing
- *    so no additional logging here.
+ *    google-auth.signInWithGoogle already console.errors AND calls
+ *    logHandledError for DEVELOPER_ERROR / UNKNOWN paths before throwing,
+ *    so no additional Crashlytics logging here — would cause duplicate
+ *    recordError entries.
  *  - Phase C failure → log + swallow (sign-in already succeeded; FCM
  *    re-register is best-effort — useAppInit cold-start migration retries).
  *

@@ -162,6 +162,13 @@ export async function signInWithGoogle() {
           throw new GoogleAuthError('PLAY_SERVICES_UNAVAILABLE');
       }
     }
+    // Android DEVELOPER_ERROR(SHA-1 ↔ Firebase OAuth client 매칭 실패; Play
+    // App Signing 이면 App signing key SHA-1이 google-services.json에 등록돼
+    // 있어야 함)는 library v16의 Credential Manager 이행 후 statusCodes에
+    // 상수 노출되지 않고 native code/message로만 식별 가능. logHandledError로
+    // err 원본을 Crashlytics에 흘려서 라벨('google-auth/signin-unexpected')과
+    // 함께 native code를 stack에 보존 — 다음 사용자 보고 때 진단 단서.
+    logHandledError('google-auth/signin-unexpected', err);
     throw new GoogleAuthError('UNKNOWN');
   }
 }

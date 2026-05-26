@@ -5,7 +5,7 @@
  * 홈의 좁은 카드 자리(DeptNoticesSection 슬롯)에 축약한 형태. 진입점은 같이
  * `/onboarding` 모달이라 NoticesTab과 흐름이 일치한다.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SdsShadows, useT } from '@skkuverse/shared';
 import { logHomeContentSelect } from '@/services/analytics';
@@ -21,6 +21,13 @@ export function HomeOnboardingGateCard() {
       <Pressable
         onPress={() => {
           logHomeContentSelect({ content_type: 'onboarding_cta', item_id: 'start' });
+          if (Platform.OS === 'android') {
+            Alert.alert(
+              t('onboarding.androidSignupBlockedTitle'),
+              t('onboarding.androidSignupBlockedMessage'),
+            );
+            return;
+          }
           router.push('/onboarding');
         }}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}

@@ -380,6 +380,9 @@ const ko = {
   'onboarding.oauthErrorTitle': '성균관대 계정이 아니에요',
   'onboarding.oauthErrorDescription': '성대생 전용이라\n@g.skku.edu 계정이 필요해요',
   'onboarding.oauthErrorRetry': '다시 해보기',
+  // 안드로이드 가입 일시 차단 — 라이브러리 deprecation 회피용 OTA 패치
+  'onboarding.androidSignupBlockedTitle': '지금은 가입할 수 없어요',
+  'onboarding.androidSignupBlockedMessage': '사용자가 너무 많아 잠시 가입이 어려워요. 내일 다시 시도해 주세요.',
   // 미지원 학과 안내 + 같은 단과대학 추천
   'onboarding.unsupportedDept.title': '이 학과는 아직 지원하지 않아요',
   'onboarding.unsupportedDept.alternative': '대신 소속 단과대학 {0}을(를) 선택할까요?',
@@ -793,6 +796,9 @@ const en: TranslationMap = {
   'onboarding.oauthErrorTitle': 'Not an SKKU account',
   'onboarding.oauthErrorDescription': 'SKKU students only\nAn @g.skku.edu account is required',
   'onboarding.oauthErrorRetry': 'Try again',
+  // Android sign-up temporarily blocked — OTA patch dodging library deprecation
+  'onboarding.androidSignupBlockedTitle': 'Sign-up unavailable',
+  'onboarding.androidSignupBlockedMessage': 'Too many users right now. Please try again tomorrow.',
   // Unsupported-dept notice + same-college recommendation
   'onboarding.unsupportedDept.title': "This department isn't supported yet",
   'onboarding.unsupportedDept.alternative': 'Pick the parent college {0} instead?',
@@ -1206,6 +1212,9 @@ const zh: TranslationMap = {
   'onboarding.oauthErrorTitle': '不是成均馆大学账号',
   'onboarding.oauthErrorDescription': '仅限成大学生\n需要 @g.skku.edu 账号',
   'onboarding.oauthErrorRetry': '重试',
+  // 安卓注册临时拦截 — 规避库 deprecation 的 OTA 补丁
+  'onboarding.androidSignupBlockedTitle': '暂时无法注册',
+  'onboarding.androidSignupBlockedMessage': '用户过多，暂时无法注册。请明天再试。',
   // 暂不支持的学科提示 + 同学院推荐
   'onboarding.unsupportedDept.title': '此学科暂不支持',
   'onboarding.unsupportedDept.alternative': '改选所属学院 {0} 怎么样?',
