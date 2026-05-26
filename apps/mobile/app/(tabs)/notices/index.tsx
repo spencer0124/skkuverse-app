@@ -32,6 +32,7 @@ export default function NoticesTab() {
   const { t } = useT();
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
+  const developerMode = useSettingsStore((s) => s.developerMode);
 
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function NoticesTab() {
   // tab key가 hardcoded — 셋 다 함께 수정 필요한 cross-cutting hard-code.
   async function handleExistingAccountSignIn() {
     if (signingIn) return;
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'android' && !developerMode) {
       Alert.alert(
         t('onboarding.androidSignupBlockedTitle'),
         t('onboarding.androidSignupBlockedMessage'),
@@ -109,7 +110,7 @@ export default function NoticesTab() {
         <Stack.Screen options={{ headerShown: false }} />
         <OnboardingLanding
           onStartPress={() => {
-            if (Platform.OS === 'android') {
+            if (Platform.OS === 'android' && !developerMode) {
               Alert.alert(
                 t('onboarding.androidSignupBlockedTitle'),
                 t('onboarding.androidSignupBlockedMessage'),

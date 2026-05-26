@@ -25,7 +25,11 @@ const ALLOWED_DOMAIN = '@g.skku.edu';
 export function configureGoogleSignIn() {
   GoogleSignin.configure({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
-    hostedDomain: 'g.skku.edu',
+    // [DIAG] hostedDomain은 모든 Android 기기에서 DEVELOPER_ERROR(12500)
+    // 유발 가설 검증 중. 라이브러리 v16 + G Suite 도메인 + AccountManager
+    // 흐름의 조합 이슈로 의심. 보안은 line 119-122의 email.endsWith
+    // 검사가 동일하게 보장하므로 제거해도 무영향.
+    // hostedDomain: 'g.skku.edu',
   });
 }
 

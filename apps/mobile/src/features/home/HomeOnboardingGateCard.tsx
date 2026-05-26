@@ -7,12 +7,13 @@
  */
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SdsShadows, useT } from '@skkuverse/shared';
+import { SdsShadows, useSettingsStore, useT } from '@skkuverse/shared';
 import { logHomeContentSelect } from '@/services/analytics';
 
 export function HomeOnboardingGateCard() {
   const router = useRouter();
   const { t } = useT();
+  const developerMode = useSettingsStore((s) => s.developerMode);
 
   return (
     <View style={styles.section}>
@@ -21,7 +22,7 @@ export function HomeOnboardingGateCard() {
       <Pressable
         onPress={() => {
           logHomeContentSelect({ content_type: 'onboarding_cta', item_id: 'start' });
-          if (Platform.OS === 'android') {
+          if (Platform.OS === 'android' && !developerMode) {
             Alert.alert(
               t('onboarding.androidSignupBlockedTitle'),
               t('onboarding.androidSignupBlockedMessage'),

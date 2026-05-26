@@ -19,6 +19,15 @@ export interface SettingsState {
   primaryDeptId: string | null;
   /** Interest departments chosen during onboarding, max 3 (temporary — promotes to Firestore preferences on completion). */
   interestDeptIds: string[];
+  /**
+   * Developer mode toggle. When true, the Android-only "signup blocked"
+   * Alert (shown before invoking Google Sign-In) is bypassed so the
+   * actual sign-in attempt proceeds and any native error (12500 etc.)
+   * surfaces for diagnosis. **Does not bypass the notices gate itself**
+   * — anonymous users still see OnboardingLanding until a sign-in
+   * succeeds normally. Device-local only (not synced).
+   */
+  developerMode: boolean;
 }
 
 interface SettingsActions {
@@ -52,6 +61,7 @@ interface SettingsActions {
     primaryDeptId: string | null;
     interestDeptIds: string[];
   }) => void;
+  setDeveloperMode: (enabled: boolean) => void;
   /**
    * Wipe user-scoped fields so the next sign-in (or anon fallback) starts
    * from a clean slate. Used by the account-deletion flow.
@@ -86,10 +96,12 @@ export const useSettingsStore = create<SettingsStore>()(
       onboardingCompleted: false,
       primaryDeptId: null,
       interestDeptIds: [],
+      developerMode: false,
 
       setPreferredCampus: (campus) => set({ preferredCampus: campus }),
       setAppLanguage: (language) => set({ appLanguage: language }),
       setLastTab: (tab) => set({ lastTab: tab }),
+      setDeveloperMode: (enabled) => set({ developerMode: enabled }),
       completeOnboarding: (data) =>
         set({
           preferredCampus: data.campus,
