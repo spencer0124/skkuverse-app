@@ -22,6 +22,10 @@ import { logHandledError } from '@/services/crashlytics';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
 
+// [DIAG] OTA bundle sentinel — forces hash change so eoas re-publishes after
+// ota-{release,beta}.sh now-sources-.env fix. Remove with the DIAG logging cleanup.
+console.log('[google-auth][DIAG] module loaded — sentinel build: 2026-05-26T1850-env-fix-verify');
+
 export function configureGoogleSignIn() {
   const wcid = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
   console.log('[google-auth][DIAG] configureGoogleSignIn() called');
