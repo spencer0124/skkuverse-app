@@ -390,7 +390,6 @@ export type SettingsContentType =
   | 'row_attributions'
   | 'row_tos'
   | 'row_debug_logs'
-  | 'row_developer_mode'
   | 'signin_from_account_anon';
 export function logSettingsContentSelect(params: { content_type: SettingsContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
