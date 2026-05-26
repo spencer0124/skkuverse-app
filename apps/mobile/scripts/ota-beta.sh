@@ -20,7 +20,12 @@ COMMIT_SHA="$(git rev-parse HEAD)"
 COMMIT_SHORT="$(git rev-parse --short HEAD)"
 
 # ── stage 2: load env + publish ──
+# .env first (EXPO_PUBLIC_* build constants — metro inlines these at bundle
+# time), then .env.ota.local (EXPO_TOKEN for eoas auth). Mirror of
+# ota-release.sh — both scripts must source .env or EXPO_PUBLIC_* values
+# will be inlined as undefined.
 set -a
+source .env
 source .env.ota.local
 set +a
 RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
