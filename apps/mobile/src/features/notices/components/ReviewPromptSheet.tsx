@@ -1,15 +1,16 @@
 import { forwardRef, useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
-import { SparkleIcon } from 'phosphor-react-native';
+import { BookmarkSimpleIcon } from 'phosphor-react-native';
 import { Button, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 
 /**
- * Stage 1 sheet — the "Toss-style soft gate" that filters review prompts
- * before they reach the OS quota. User taps 👍 → parent invokes native
- * StoreReview. User taps 👎 → parent opens NegativeFeedbackSheet. User
- * dismisses (swipe / backdrop) → onDismiss fires with no explicit choice.
+ * Review-prompt sheet — the "Toss-style soft gate" that filters review
+ * prompts before they reach the OS quota. Shown on the user's 2nd+ bookmark.
+ * User taps 👍 → parent invokes native StoreReview. User taps 👎 → parent
+ * opens NegativeFeedbackSheet. User dismisses (swipe / backdrop) → onDismiss
+ * fires with no explicit choice.
  *
  * The component does NOT call any analytics itself — the parent
  * (NoticeDetailScreen) owns the funnel logging so dismiss vs explicit
@@ -24,8 +25,8 @@ type Props = {
   onDismiss: () => void;
 };
 
-export const AISummaryHelpfulSheet = forwardRef<BottomSheetModal, Props>(
-  function AISummaryHelpfulSheet(
+export const ReviewPromptSheet = forwardRef<BottomSheetModal, Props>(
+  function ReviewPromptSheet(
     { onPositive, onNegative, onDismiss },
     parentRef,
   ) {
@@ -59,7 +60,7 @@ export const AISummaryHelpfulSheet = forwardRef<BottomSheetModal, Props>(
       >
         <BottomSheetView style={styles.content}>
           <View style={styles.iconCircle}>
-            <SparkleIcon size={32} color="#1f3d2e" weight="fill" />
+            <BookmarkSimpleIcon size={32} color="#1f3d2e" weight="fill" />
           </View>
           <Txt
             typography="t2"
@@ -67,27 +68,30 @@ export const AISummaryHelpfulSheet = forwardRef<BottomSheetModal, Props>(
             color={SdsColors.grey900}
             style={styles.title}
           >
-            {t('notices.aiHelpful.title')}
+            {t('notices.reviewPrompt.title')}
           </Txt>
           <View style={styles.actions}>
-            <Button
-              type="primary"
-              size="big"
-              display="block"
-              onPress={handlePositive}
-            >
-              {t('notices.aiHelpful.positiveCta')}
-            </Button>
-            <View style={{ height: 8 }} />
-            <Button
-              type="dark"
-              style="weak"
-              size="big"
-              display="block"
-              onPress={handleNegative}
-            >
-              {t('notices.aiHelpful.negativeCta')}
-            </Button>
+            <View style={styles.actionItem}>
+              <Button
+                type="dark"
+                style="weak"
+                size="big"
+                display="block"
+                onPress={handleNegative}
+              >
+                {t('notices.reviewPrompt.negativeCta')}
+              </Button>
+            </View>
+            <View style={styles.actionItem}>
+              <Button
+                type="primary"
+                size="big"
+                display="block"
+                onPress={handlePositive}
+              >
+                {t('notices.reviewPrompt.positiveCta')}
+              </Button>
+            </View>
           </View>
         </BottomSheetView>
       </BottomSheetModal>
@@ -120,5 +124,10 @@ const styles = StyleSheet.create({
   },
   actions: {
     width: '100%',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionItem: {
+    flex: 1,
   },
 });

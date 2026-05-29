@@ -1,31 +1,24 @@
 /**
  * Notification settings — main entry (v5 SSOT, Firestore-driven).
  *
- * Master toggle + 3 카테고리 BadgeNavRow (drill-in). 각 카테고리 detail 페이지에서
- * 세부 토글을 수행. 필수 카테고리는 항상 ON (UI lock + CF derive override + Rules block).
+ * 공지 카테고리 drill-in 한 줄만 노출. 마스터 kill-switch 토글은 제거됨 —
+ * 현재 사용자 노출 카테고리가 공지 하나뿐이라 마스터 ON/OFF가 공지 단위
+ * 토글과 의미상 중복이었기 때문. 데이터 필드 `preferences.enabled`는 SSOT
+ * 계약상 그대로 유지하되, 진입 시 false면 silently true로 복구해 레거시
+ * `false` 상태 유저가 알림을 영영 못 받는 일을 막는다. 권한 grant 경로는
+ * EnableNotificationsSheet가 이미 master=true로 플립하므로 그쪽과는 idempotent.
  *
  * 두 entry points:
  *   1. Settings 탭 → 알림
- *   2. NoticesTabScreen → bell icon (deeplink, deeper detail은 자체적으로 router.push)
+ *   2. NoticesTabScreen → bell icon (deeplink)
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Switch,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
-import {
-  BadgeNavRow,
-  Button,
-  Dialog,
-  ListRow,
-  Txt,
-} from '@skkuverse/sds';
+import { BadgeNavRow, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -34,9 +27,8 @@ import {
   useT,
 } from '@skkuverse/shared';
 import { setMasterEnabled } from '@/services/firestore-notifications';
-import { checkPermission, requestPermission } from '@/services/messaging';
+import { checkPermission } from '@/services/messaging';
 import { logHandledError } from '@/services/crashlytics';
-import { openOsSettings } from '@/lib/openOsSettings';
 import { AnonymousGate } from './components/AnonymousGate';
 import { EnableNotificationsSheet } from './components/EnableNotificationsSheet';
 
@@ -65,6 +57,19 @@ export default function NotificationSettingsScreen() {
     }, [setPermissionStatus]),
   );
 
+  // Auto-restore: 마스터 토글 UI가 제거됐으므로 `enabled=false` 상태로
+  // 남은 레거시 유저는 sheet 경로(권한 grant 시 자동 true)로도 닿지 않는
+  // "권한 OK + enabled false" 사각지대에 빠진다. 진입 시 한 번 true로
+  // 끌어올린다. 이미 true면 no-op이라 idempotent.
+  useEffect(() => {
+    if (!uid) return;
+    if (preferences.enabled === false) {
+      setMasterEnabled(uid, true).catch((err) => {
+        logHandledError('notifications/auto-restore-master', err);
+      });
+    }
+  }, [uid, preferences.enabled]);
+
   // Proactively prompt users who could be receiving notifications but aren't.
   // Re-runs when permissionStatus refreshes (via useFocusEffect's checkPermission)
   // so externally-revoked permissions surface the sheet on the next status pull.
@@ -77,30 +82,6 @@ export default function NotificationSettingsScreen() {
       enableSheetRef.current?.present();
     }
   }, [permissionStatus, enableSheetDismissed]);
-
-  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
-
-  const handleToggleMaster = useCallback(
-    async (next: boolean) => {
-      if (!uid) return;
-      if (next) {
-        const status = await requestPermission();
-        setPermissionStatus(status);
-        if (status !== 'authorized' && status !== 'provisional') {
-          setShowPermissionDialog(true);
-          return;
-        }
-      }
-      try {
-        await setMasterEnabled(uid, next);
-      } catch (err) {
-        logHandledError('notifications/set-master', err);
-      }
-    },
-    [uid, setPermissionStatus],
-  );
-
-  const masterEnabled = preferences.enabled;
 
   const authReady = !!uid && !isAnonymous;
   if (!authReady) return <AnonymousGate />;
@@ -116,23 +97,6 @@ export default function NotificationSettingsScreen() {
           </View>
         )}
 
-        <ListRow
-          contents={
-            <ListRow.Texts
-              type="2RowTypeA"
-              top={t('notifications.master')}
-              bottom={t('notifications.masterDesc')}
-            />
-          }
-          right={
-            <Switch
-              value={masterEnabled}
-              onValueChange={handleToggleMaster}
-              trackColor={{ true: SdsColors.brand, false: undefined }}
-            />
-          }
-        />
-
         <View style={styles.categories}>
           <BadgeNavRow
             badge="📢"
@@ -140,46 +104,11 @@ export default function NotificationSettingsScreen() {
             title={t('notifications.notices')}
             subtitle={t('notifications.noticesSubtitle')}
             onPress={() => router.push('/notifications/notices')}
-            disabled={!masterEnabled}
           />
         </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
-      <Dialog.Confirm
-        open={showPermissionDialog}
-        description={
-          permissionStatus === 'denied'
-            ? t('notifications.permissionDeniedDesc')
-            : t('notifications.permissionDenied')
-        }
-        onClose={() => setShowPermissionDialog(false)}
-        leftButton={
-          <Button
-            type="dark"
-            style="weak"
-            size="medium"
-            display="block"
-            onPress={() => setShowPermissionDialog(false)}
-          >
-            {t('notifications.cancel')}
-          </Button>
-        }
-        rightButton={
-          <Button
-            type="dark"
-            size="medium"
-            display="block"
-            onPress={() => {
-              setShowPermissionDialog(false);
-              void openOsSettings();
-            }}
-          >
-            {t('notifications.openSettings')}
-          </Button>
-        }
-      />
 
       <EnableNotificationsSheet ref={enableSheetRef} />
     </View>

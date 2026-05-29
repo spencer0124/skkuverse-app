@@ -1,20 +1,26 @@
 /**
- * Notices source picker — native iOS form-sheet route for editing which
+ * Notices source picker — full-screen modal route for editing which
  * sources a picker tab subscribes to (학과 / 도서관 / 기숙사 / 일반).
  *
- * Why a route instead of a bottom sheet
- * ─────────────────────────────────────
- *   The previous gorhom BottomSheetModal was JS-rendered, fixed at 50%
- *   height, no search, and prevented unchecking the last selected item.
- *   This route uses `presentation: 'formSheet'` (registered in
- *   app/_layout.tsx) which on iOS 16+ maps to UISheetPresentationController
- *   — system blur, native swipe-down, peek detents [0.8, 1.0]. Android
- *   falls back to a regular full-screen modal (no native partial sheet).
+ * Why fullScreenModal (and not formSheet)
+ * ───────────────────────────────────────
+ *   Previously this used `presentation: 'formSheet'` to get an iOS
+ *   UISheetPresentationController with peek detents, but the inner
+ *   SectionList wouldn't scroll due to react-native-screens issue #2424
+ *   (PR #2436 unmerged) — RN view flattening breaks the sheet's linear
+ *   ScrollView discovery on Paper architecture. Three workaround
+ *   combinations were tried (single detent, chips ScrollView removal,
+ *   collapsable+multi-detent+nestedScroll combo) — none worked. Switched
+ *   to `presentation: 'fullScreenModal'` (UIModalPresentationFullScreen)
+ *   which uses standard UIKit modal and is bug-free. UX cost: lose corner
+ *   radius / grabber / swipe-down dismiss — explicit X button (header
+ *   left) is the sole dismiss affordance. Revisit when #2424 is fixed
+ *   upstream or after Fabric migration.
  *
  * Why per-screen SafeAreaProvider
  * ───────────────────────────────
- *   formSheet routes mount in a separate UIViewController. The root
- *   SafeAreaProvider measures the parent VC, not the sheet — first paint
+ *   The modal mounts in a separate UIViewController. The root
+ *   SafeAreaProvider measures the parent VC, not the modal — first paint
  *   loses top safe area without a per-modal wrap. See
  *   `docs/ios-modal-safe-area-provider.md`.
  *
@@ -25,8 +31,8 @@
  *   - User CAN uncheck the last item — no min-1 enforcement during editing.
  *     "완료" is disabled when `pending.length === 0` so an empty selection
  *     can't be committed (would break the picker UX with no sources to
- *     fetch). Dismiss via swipe-down / Close X / back simply doesn't write
- *     to Firestore → natural restore to originalIds.
+ *     fetch). Dismiss via Close X / back simply doesn't write to Firestore
+ *     → natural restore to originalIds.
  *
  * Grouping
  * ────────
@@ -43,7 +49,6 @@
 import { useMemo, useState } from 'react';
 import {
   Pressable,
-  ScrollView,
   SectionList,
   StyleSheet,
   useWindowDimensions,
@@ -73,6 +78,7 @@ import { SearchField, Txt } from '@skkuverse/sds';
 import { DeptRow } from '@/features/onboarding/components/DeptRow';
 import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 interface PickerSection {
   title: string;
@@ -92,7 +98,7 @@ const CAMPUS_HEADER_KEY: Record<Campus, TranslationKey> = {
 function NoticesPickerScreenInner() {
   const router = useRouter();
   const { tabKey } = useLocalSearchParams<{ tabKey: string }>();
-  const { t, tpl } = useT();
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
   const chipMaxWidth = Math.min(Math.round(screenW * 0.6), 360);
@@ -231,29 +237,37 @@ function NoticesPickerScreenInner() {
 
   const handleConfirm = () => {
     if (!canConfirm || !tab || !subscriptionUid) return;
+    logNoticesContentSelect({
+      content_type: 'picker_done',
+      item_id: `${tab.key}/${pending.length}`,
+    });
     setPickerSelectionRemote(subscriptionUid, tab.key, pending).catch((e) => {
       logHandledError('notifications/picker-set', e);
     });
     router.back();
   };
 
-  const handleClose = () => router.back();
-
-  const counterLabel = tpl(
-    'notices.picker.selectedHeader',
-    pending.length,
-    maxSelection,
-  );
+  const handleClose = () => {
+    logNoticesContentSelect({
+      content_type: 'picker_close',
+      item_id: tab?.key ?? 'unknown',
+    });
+    router.back();
+  };
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Top bar — Close (left), title + counter (center), 완료 (right).
-          formSheet has a native grabber on iOS 16+, but Android has no
-          partial-sheet equivalent so we always show the explicit X to keep
-          the flow legible cross-platform. */}
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? 8 : 14 }]}>
+          fullScreenModal covers the status bar / Dynamic Island area, so
+          add `insets.top` to the base padding — sheet-era conditional
+          `insets.top > 0 ? 8 : 14` worked because formSheet auto-inset
+          the sheet below the status bar, leaving useSafeAreaInsets().top
+          ≈ 0 inside the sheet. fullScreenModal exposes the real status
+          bar height so we have to absorb it ourselves. Note: titleWrap
+          (absolute) mirrors this paddingTop inline — see its comment. */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           onPress={handleClose}
           hitSlop={10}
@@ -263,18 +277,40 @@ function NoticesPickerScreenInner() {
         >
           <XIcon size={22} color={SdsColors.grey900} />
         </Pressable>
-        <View style={styles.titleWrap} pointerEvents="none">
-          <Txt
-            typography="t5"
-            fontWeight="bold"
-            color={SdsColors.grey900}
-            numberOfLines={1}
-          >
-            {tab?.label ?? ''}
-          </Txt>
-          <Txt typography="t7" color={SdsColors.grey500} style={styles.counter}>
-            {counterLabel}
-          </Txt>
+        <View
+          style={[styles.titleWrap, { top: insets.top + 8, bottom: 10 }]}
+          pointerEvents="none"
+        >
+          {/* Nested row: titleWrap handles vertical+horizontal centering
+              within the absolute container (alignItems+justifyContent on
+              column flex), the inner row owns inline layout + baseline
+              alignment between the differently-sized title and counter.
+              Compose-on-same-View previously broke this — titleRow's
+              alignItems:baseline overrode titleWrap's alignItems:center,
+              dragging the title to the container top and overlapping
+              status bar / Dynamic Island.
+              Inline top/bottom mirror the header's padding so the absolute
+              box spans only the content row, not the safe-area inset
+              region — otherwise Yoga anchors top:0 to the parent's outer
+              box edge (above paddingTop), centering the title ~23px above
+              the X/완료 row (which sit inside paddingTop). */}
+          <View style={styles.titleRow}>
+            <Txt
+              typography="t5"
+              fontWeight="bold"
+              color={SdsColors.grey900}
+              numberOfLines={1}
+            >
+              {tab?.label ?? ''}
+            </Txt>
+            <Txt
+              typography="t7"
+              color={SdsColors.grey500}
+              numberOfLines={1}
+            >
+              ({pending.length}/{maxSelection})
+            </Txt>
+          </View>
         </View>
         <Pressable
           onPress={handleConfirm}
@@ -298,44 +334,44 @@ function NoticesPickerScreenInner() {
       </View>
 
       {/* Selected chips — solid deepgreen pill with white X for one-tap
-          removal. Hidden when nothing is selected. Horizontal-scrolls on
-          overflow so a 3-pick selection wraps cleanly on small phones. */}
+          removal. Hidden when nothing is selected. Wraps to multiple rows
+          on overflow. (Previously horizontal-scrolled but we moved off
+          ScrollView during the formSheet scroll-bug investigation; the
+          flexWrap design is kept since maxSelection is small and wrapping
+          to a second row is cleaner than horizontal scroll for 2–3 items.) */}
       {pending.length > 0 && (
-        <View style={styles.chipsWrap}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-            keyboardShouldPersistTaps="handled"
-          >
-            {pending.map((id) => {
-              const src = sourceById.get(id);
-              if (!src) return null;
-              return (
-                <Pressable
-                  key={id}
-                  onPress={() => handleToggle(id)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    { maxWidth: chipMaxWidth },
-                    pressed && styles.chipPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${src.name} 제거`}
+        <View style={[styles.chipsWrap, styles.chipsRow]}>
+          {pending.map((id) => {
+            const src = sourceById.get(id);
+            if (!src) return null;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => {
+                  logNoticesContentSelect({ content_type: 'picker_chip_remove', item_id: id });
+                  handleToggle(id);
+                }}
+                style={({ pressed }) => [
+                  styles.chip,
+                  { maxWidth: chipMaxWidth },
+                  pressed && styles.chipPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${src.name} 제거`}
+              >
+                <Txt
+                  typography="t7"
+                  fontWeight="semiBold"
+                  color="#FFFFFF"
+                  numberOfLines={1}
+                  style={styles.chipText}
                 >
-                  <Txt
-                    typography="t7"
-                    fontWeight="semiBold"
-                    color="#FFFFFF"
-                    numberOfLines={1}
-                  >
-                    {src.name}
-                  </Txt>
-                  <XIcon size={12} color="#FFFFFF" weight="bold" />
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                  {src.name}
+                </Txt>
+                <XIcon size={12} color="#FFFFFF" weight="bold" />
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
@@ -366,7 +402,10 @@ function NoticesPickerScreenInner() {
               selected={isSelected}
               disabled={atMax && !isSelected}
               variant="checkbox"
-              onPress={() => handleToggle(item.id)}
+              onPress={() => {
+                logNoticesContentSelect({ content_type: 'picker_row', item_id: item.id });
+                handleToggle(item.id);
+              }}
             />
           );
         }}
@@ -430,16 +469,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleWrap: {
+    // top/bottom are applied inline (insets.top + 8 / 10) so the absolute
+    // box mirrors the header's content row, not the safe-area inset region.
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 0,
-    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  counter: {
-    marginTop: 2,
+  // Single-row inline layout for title + counter — `학과 (1/3)` density
+  // pack to save vertical space and keep the header compact.
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
   },
   doneBtn: {
     marginLeft: 'auto',
@@ -455,7 +498,9 @@ const styles = StyleSheet.create({
   chipsRow: {
     paddingHorizontal: 16,
     gap: 8,
+    rowGap: 8,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
   },
   chip: {
@@ -467,6 +512,17 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 7,
     gap: 6,
+    // minWidth:0 releases RN's default content-driven minimum so the
+    // chip respects its maxWidth even when an inner long Korean dept
+    // name would otherwise force the pill wider than the row.
+    minWidth: 0,
+  },
+  chipText: {
+    // flexShrink:1 + minWidth:0 lets numberOfLines={1} actually truncate
+    // (otherwise the Text's intrinsic width wins over parent's maxWidth
+    // and the dept name overflows the pill / row).
+    flexShrink: 1,
+    minWidth: 0,
   },
   chipPressed: {
     opacity: 0.75,

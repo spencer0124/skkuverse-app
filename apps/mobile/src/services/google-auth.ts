@@ -153,7 +153,6 @@ export async function signInWithGoogle() {
     return result;
   } catch (err) {
     if (err instanceof GoogleAuthError) throw err;
-    console.error('[google-auth] Unexpected error:', err);
     if (isErrorWithCode(err)) {
       switch (err.code) {
         case statusCodes.SIGN_IN_CANCELLED:
@@ -162,6 +161,7 @@ export async function signInWithGoogle() {
           throw new GoogleAuthError('PLAY_SERVICES_UNAVAILABLE');
       }
     }
+    logHandledError('google-auth/signin-unexpected', err);
     throw new GoogleAuthError('UNKNOWN');
   }
 }

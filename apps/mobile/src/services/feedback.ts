@@ -4,13 +4,14 @@ import { authStore } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
 
 /**
- * Firestore feedback collection — user-submitted negative-side feedback from
- * the review-prompt stage 2b sheet. Path: `users/{uid}/feedback/{autoId}`.
+ * Firestore feedback — review-prompt 아쉬워요 feedback written to the unified
+ * top-level `feedback/{autoId}` collection with `type: 'review_prompt'`. Shares
+ * the collection with account-deletion feedback (written server-side by the
+ * deleteAccount CF with `type: 'account_deletion'`).
  *
- * Why a per-user subcollection (vs. anonymous top-level):
- *   - We need ownership-based Rules (only the user can read their feedback).
- *   - Anonymous would force a separate "deletion" flow on account deletion;
- *     subcollection inherits the user document's deletion cascade.
+ * Anonymous by design — no uid is stored (Rules + the account-deletion side are
+ * both uid-less; see firestore.rules `feedback/{docId}`). The client is still
+ * gated to signed-in users, but the document carries no identity.
  *
  * Why mirror firestore-bookmarks.ts pattern (primeAppCheck before write):
  *   On iOS Simulator + sometimes on Android, App Check tokens can become
@@ -18,10 +19,7 @@ import { logHandledError } from '@/services/crashlytics';
  *   PERMISSION_DENIED from server while local cache happily accepts.
  */
 
-export type FeedbackContext = 'ai_summary_helpful_sheet';
-
 export interface FeedbackSubmission {
-  context: FeedbackContext;
   text: string;
   /** Optional notice the user was looking at when they gave feedback. */
   noticeRef?: { sourceId: string; articleNo: number };
@@ -52,11 +50,9 @@ export async function submitNegativeFeedback(
 
   try {
     await firestore()
-      .collection('users')
-      .doc(auth.uid)
       .collection('feedback')
       .add({
-        context: payload.context,
+        type: 'review_prompt',
         text: payload.text.slice(0, 2000),
         ...(payload.noticeRef && {
           sourceId: payload.noticeRef.sourceId,

@@ -11,6 +11,7 @@ import {
 } from '@skkuverse/shared';
 import { MAX_INTEREST_DEPTS } from '../types';
 import { DeptRow } from './DeptRow';
+import { logOnboardingStep } from '@/services/analytics';
 
 interface Props {
   campus: Campus;
@@ -72,6 +73,11 @@ export function InterestDeptStep({
       setToastText(t('onboarding.unsupportedDept.toast'));
       return;
     }
+    logOnboardingStep({
+      step: 'interest_dept',
+      action: 'toggle_interest_dept',
+      detail: item.id,
+    });
     onToggle(item.id);
   };
 

@@ -47,30 +47,48 @@ import { FilterSheet } from './components/FilterSheet';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useSearchResultStore } from '@/features/search/store';
-import { logMarkerTap, logConnectionTap } from '@/services/analytics';
+import { logMarkerTap, logConnectionTap, logCampusContentSelect } from '@/services/analytics';
 
 const CAMPUS_GRID_ITEMS: readonly TossfaceGridItem[] = [
   {
     id: 'building_map',
     title: '건물지도',
     emoji: '\u{1F3E2}',
-    onPress: () =>
+    onPress: () => {
+      logCampusContentSelect({ content_type: 'quick_action_building_map', item_id: 'hssc' });
       handleSduiAction({
         actionType: 'webview',
         actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
         webviewTitle: '건물지도',
         webviewColor: '003626',
-      }),
+      });
+    },
   },
   {
     id: 'building_code',
     title: '건물코드',
     emoji: '\u{1F522}',
-    onPress: () =>
+    onPress: () => {
+      logCampusContentSelect({ content_type: 'quick_action_building_code', item_id: 'search' });
       handleSduiAction({
         actionType: 'route',
         actionValue: '/search',
-      }),
+      });
+    },
+  },
+  {
+    id: 'lost_found',
+    title: '분실물',
+    emoji: '\u{1F9F3}',
+    onPress: () => {
+      logCampusContentSelect({ content_type: 'quick_action_lost_found', item_id: 'skku' });
+      handleSduiAction({
+        actionType: 'webview',
+        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+        webviewTitle: '분실물',
+        webviewColor: '003626',
+      });
+    },
   },
 ];
 

@@ -11,6 +11,7 @@ import {
 } from '@skkuverse/shared';
 import { DeptRow } from './DeptRow';
 import { UnsupportedDeptSheet } from './UnsupportedDeptSheet';
+import { logOnboardingStep } from '@/services/analytics';
 
 interface Props {
   campus: Campus;
@@ -45,9 +46,19 @@ export function PrimaryDeptStep({
 
   const handleRowPress = (item: TabSource) => {
     if (isUnsupportedSource(item)) {
+      logOnboardingStep({
+        step: 'primary_dept',
+        action: 'open_unsupported_sheet',
+        detail: item.id,
+      });
       setUnsupportedTapped(item);
       return;
     }
+    logOnboardingStep({
+      step: 'primary_dept',
+      action: 'select_primary_dept',
+      detail: item.id,
+    });
     onSelect(item.id);
   };
 

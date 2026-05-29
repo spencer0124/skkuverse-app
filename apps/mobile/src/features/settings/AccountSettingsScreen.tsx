@@ -6,6 +6,7 @@ import { UserIcon } from 'phosphor-react-native';
 import { Button, Dialog, TextButton, Txt } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
+import { logSettingsAction, logSettingsContentSelect } from '@/services/analytics';
 import {
   deleteAccount,
   type DeleteAccountFeedback,
@@ -97,7 +98,10 @@ export function AccountSettingsScreen() {
                 style="weak"
                 size="medium"
                 display="block"
-                onPress={() => setShowSignOutDialog(true)}
+                onPress={() => {
+                  logSettingsAction({ action: 'sign_out_prompt' });
+                  setShowSignOutDialog(true);
+                }}
               >
                 {t('auth.signOut')}
               </Button>
@@ -109,7 +113,10 @@ export function AccountSettingsScreen() {
                 variant="underline"
                 color={SdsColors.grey500}
                 disabled={isDeleting}
-                onPress={() => setShowDeleteDialog(true)}
+                onPress={() => {
+                  logSettingsAction({ action: 'delete_account_prompt' });
+                  setShowDeleteDialog(true);
+                }}
               >
                 {t('auth.deleteAccount')}
               </TextButton>
@@ -139,7 +146,10 @@ export function AccountSettingsScreen() {
                 type="dark"
                 size="medium"
                 display="block"
-                onPress={() => router.push('/login')}
+                onPress={() => {
+                  logSettingsContentSelect({ content_type: 'signin_from_account_anon', item_id: 'login' });
+                  router.push('/login');
+                }}
               >
                 {t('auth.googleSignIn')}
               </Button>
@@ -158,7 +168,10 @@ export function AccountSettingsScreen() {
             style="weak"
             size="medium"
             display="block"
-            onPress={() => setShowSignOutDialog(false)}
+            onPress={() => {
+              logSettingsAction({ action: 'sign_out_cancel' });
+              setShowSignOutDialog(false);
+            }}
           >
             {t('common.close')}
           </Button>
@@ -168,7 +181,10 @@ export function AccountSettingsScreen() {
             type="danger"
             size="medium"
             display="block"
-            onPress={handleSignOut}
+            onPress={() => {
+              logSettingsAction({ action: 'sign_out_confirm' });
+              handleSignOut();
+            }}
           >
             {t('auth.signOut')}
           </Button>
@@ -186,7 +202,10 @@ export function AccountSettingsScreen() {
             style="weak"
             size="medium"
             display="block"
-            onPress={() => setShowDeleteDialog(false)}
+            onPress={() => {
+              logSettingsAction({ action: 'delete_account_cancel' });
+              setShowDeleteDialog(false);
+            }}
           >
             {t('common.close')}
           </Button>
@@ -196,7 +215,10 @@ export function AccountSettingsScreen() {
             type="danger"
             size="medium"
             display="block"
-            onPress={handleProceedToFeedback}
+            onPress={() => {
+              logSettingsAction({ action: 'delete_account_confirm' });
+              handleProceedToFeedback();
+            }}
           >
             {t('auth.deleteAccountNext')}
           </Button>

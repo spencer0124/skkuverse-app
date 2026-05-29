@@ -30,7 +30,7 @@ import { devRewriteInfoUrl } from '@/utils/dev-webview';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
-import { logBusRouteOpen } from '@/services/analytics';
+import { logBusContentSelect, logBusRouteOpen } from '@/services/analytics';
 
 /** Extract info feature URL from config features array */
 function getInfoUrl(features: Record<string, unknown>[]): string | undefined {
@@ -92,6 +92,7 @@ export default function RealtimeScreen() {
 
   const handleInfoPress = useCallback(() => {
     if (!infoUrl || !config) return;
+    logBusContentSelect({ content_type: 'realtime_info', item_id: groupId ?? '' });
     router.push({
       pathname: '/webview',
       params: {
@@ -100,7 +101,7 @@ export default function RealtimeScreen() {
         url: infoUrl,
       },
     } as never);
-  }, [infoUrl, config, router]);
+  }, [infoUrl, config, router, groupId]);
 
   if (configLoading || !config) {
     return (

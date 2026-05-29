@@ -25,20 +25,22 @@ import { CaretRightIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import {
   SdsColors,
-  SdsShadows,
   resolvePickerSelection,
   useMultiSourceNoticeList,
   useNoticeTabs,
   useNotificationStore,
+  useT,
 } from '@skkuverse/shared';
 import type { NoticeListItem } from '@skkuverse/shared';
 import { NoticeRow } from '@/features/notices/NoticeRow';
+import { logHomeContentSelect } from '@/services/analytics';
 
 const DEPT_TAB_KEY = 'dept';
 const PREVIEW_COUNT = 3;
 
 export function DeptNoticesSection() {
   const router = useRouter();
+  const { t, tpl } = useT();
   const { data: tabsConfig } = useNoticeTabs();
   const storedIds = useNotificationStore(
     (s) => s.preferences.pickerSelections?.dept,
@@ -71,12 +73,16 @@ export function DeptNoticesSection() {
   const headerLabel = (() => {
     if (isSingleDept) {
       const name = sources.find((s) => s.id === selectedIds[0])?.name ?? '';
-      return name ? `${name} 공지` : '학과 공지';
+      return name ? tpl('home.notices.deptTitleNamed', name) : t('home.notices.deptTitle');
     }
-    return '학과 공지';
+    return t('home.notices.deptTitle');
   })();
 
   const handleNoticePress = (n: NoticeListItem) => {
+    logHomeContentSelect({
+      content_type: 'notice_row',
+      item_id: `${n.sourceId}/${n.articleNo}`,
+    });
     router.push(`/notices/${n.sourceId}/${n.articleNo}` as never);
   };
 
@@ -93,17 +99,20 @@ export function DeptNoticesSection() {
           {headerLabel}
         </Txt>
         <Pressable
-          onPress={() => router.navigate('/(tabs)/notices' as never)}
+          onPress={() => {
+            logHomeContentSelect({ content_type: 'notice_more', item_id: 'dept' });
+            router.navigate('/(tabs)/notices' as never);
+          }}
           style={({ pressed }) => [
             styles.viewAllBtn,
             { opacity: pressed ? 0.6 : 1 },
           ]}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`${headerLabel} 전체보기`}
+          accessibilityLabel={`${headerLabel} ${t('common.viewAll')}`}
         >
           <Txt typography="t7" color={SdsColors.grey500}>
-            전체보기
+            {t('common.viewAll')}
           </Txt>
           <CaretRightIcon size={12} color={SdsColors.grey400} />
         </Pressable>
@@ -114,7 +123,7 @@ export function DeptNoticesSection() {
           item={item}
           onPress={handleNoticePress}
           showDepartment={!isSingleDept}
-          compact
+          variant="card"
         />
       ))}
     </View>
@@ -124,24 +133,14 @@ export function DeptNoticesSection() {
 const styles = StyleSheet.create({
   section: {
     marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingTop: 20,
-    // 8 + row's own paddingVertical (12) = 20px effective bottom — matches
-    // paddingTop visually without double-padding the last row.
-    paddingBottom: 8,
-    paddingHorizontal: 20,
-    // Clips ListRow press underlay flash at rounded corners.
-    overflow: 'hidden',
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
+    marginBottom: 36,
+    gap: 8,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingHorizontal: 4,
   },
   title: {
     flex: 1,

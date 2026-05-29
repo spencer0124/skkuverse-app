@@ -13,8 +13,12 @@ interface UseEnableNotificationsFlowOptions {
    * Always called after the flow resolves — `dispatch(NEXT)` for the onboarding
    * step, `sheetRef.dismiss()` for the settings sheet. Wrapped in a ref so the
    * AppState listener doesn't re-attach when the caller passes an inline arrow.
+   *
+   * `outcome.granted` 은 permission 이 authorized|provisional 인지 여부.
+   * Onboarding 은 granted true → 카테고리 page 진입, false → 카테고리 page 스킵
+   * 분기에 사용. settings sheet 처럼 단순 dismiss 만 하는 호출자는 param 무시 가능.
    */
-  onResolved: () => void;
+  onResolved: (outcome: { granted: boolean }) => void;
   /**
    * Optional extra work after permission is granted (e.g. `setMasterEnabled(uid, true)`
    * for the settings sheet — onboarding does NOT need this because
@@ -109,10 +113,11 @@ export function useEnableNotificationsFlow({
     }
     const status = await requestPermission();
     useNotificationStore.getState().setPermissionStatus(status);
-    if (status === 'authorized' || status === 'provisional') {
+    const granted = status === 'authorized' || status === 'provisional';
+    if (granted) {
       await runGrantedSideEffects();
     }
-    onResolvedRef.current();
+    onResolvedRef.current({ granted });
   }, [runGrantedSideEffects]);
 
   useEffect(() => {
@@ -121,10 +126,11 @@ export function useEnableNotificationsFlow({
       sentToSettingsRef.current = false;
       const status = await requestPermission();
       useNotificationStore.getState().setPermissionStatus(status);
-      if (status === 'authorized' || status === 'provisional') {
+      const granted = status === 'authorized' || status === 'provisional';
+      if (granted) {
         await runGrantedSideEffects();
       }
-      onResolvedRef.current();
+      onResolvedRef.current({ granted });
     });
     return () => sub.remove();
   }, [runGrantedSideEffects]);

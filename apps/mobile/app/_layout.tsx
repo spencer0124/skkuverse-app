@@ -29,15 +29,46 @@ export const unstable_settings = {
 };
 
 // ── Screen View tracking ──────────────────────────────────────────
+// Existing names from initial rollout (campus_screen, bus_*_screen, etc.) kept
+// as-is to preserve dashboard continuity. New routes use shorter `<feature>_*`
+// names without `_screen` suffix.
 const SCREEN_NAMES: Record<string, string> = {
+  // Tabs
+  '/home': 'home',
   '/campus': 'campus_screen',
   '/transit': 'transit_screen',
+  '/notices': 'notices_tab',
+  // Notices sub-routes (static)
+  '/notices/picker': 'notices_picker',
+  '/notices/search': 'notices_search',
+  '/notices/saved': 'notices_bookmarks',
+  // Search
   '/search': 'search_screen',
+  // Bus
   '/bus/realtime': 'bus_realtime_screen',
   '/bus/schedule': 'bus_schedule_screen',
+  // Map
   '/map/hssc': 'map_hssc_screen',
   '/map/hssc-credit': 'map_hssc_credit_screen',
+  // Settings
+  '/settings': 'settings_root',
+  '/settings/account': 'settings_account',
+  '/settings/licenses': 'settings_licenses',
+  '/settings/licenses/oss': 'settings_licenses_oss',
+  '/settings/licenses/attributions': 'settings_licenses_attributions',
+  '/settings/licenses/tos': 'settings_licenses_tos',
+  '/settings/debug-logs': 'settings_debug_logs',
+  // Notifications
+  '/notifications/settings': 'notifications_settings',
+  '/notifications/essential': 'notifications_essential',
+  '/notifications/services': 'notifications_services',
+  '/notifications/notices': 'notifications_notices',
+  // Auth / onboarding
   '/login': 'login_screen',
+  '/onboarding': 'onboarding_root',
+  // Dev
+  '/sds-preview': 'dev_sds_preview',
+  '/debug-fcm': 'dev_debug_fcm',
 };
 
 function resolveScreenName(
@@ -48,6 +79,17 @@ function resolveScreenName(
     const title = typeof params.title === 'string' ? params.title : '';
     const slug = title.toLowerCase().replace(/\s+/g, '_');
     return slug ? `webview_${slug}_screen` : 'webview_screen';
+  }
+  // Dynamic notices routes: /notices/{sourceId} or /notices/{sourceId}/{articleNo}
+  if (pathname.startsWith('/notices/')) {
+    const segments = pathname.split('/').filter(Boolean); // ['notices', ...]
+    if (segments.length === 3) return 'notice_detail';
+    if (
+      segments.length === 2 &&
+      !['picker', 'search', 'saved'].includes(segments[1] ?? '')
+    ) {
+      return 'notices_list';
+    }
   }
   return SCREEN_NAMES[pathname] ?? null;
 }
@@ -89,16 +131,11 @@ function PendingNoticeLinkConsumer() {
       // caller commits before we push detail. Same-tick push risks RNScreens
       // dedupe coalescing the two transitions.
       requestAnimationFrame(() => {
-        // entrySource travels as a route param so detail-screen logic
-        // (useBookmark → review prompt gate) can distinguish push-driven
-        // entries from universal-link entries from in-app navigations
-        // (the latter never lands here, so no param means in-app).
         router.push({
           pathname: '/notices/[sourceId]/[articleNo]',
           params: {
             sourceId: p.sourceId,
             articleNo: p.articleNo,
-            entrySource: p.source,
           },
         });
       });
@@ -266,19 +303,23 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
-                {/* Notices source picker — native iOS UISheetPresentationController
-                    on iOS 16+ via `presentation: 'formSheet'`. Detents [0.8, 1.0]
-                    give an 80% landing height with drag-to-full. Android falls
-                    back to a regular modal (no native partial sheet). */}
+                {/* Notices source picker — fullScreenModal (UIModalPresentation
+                    FullScreen). We previously tried formSheet but hit
+                    react-native-screens issue #2424 (PR #2436 unmerged): on
+                    Paper architecture the inner SectionList's vertical pan
+                    is silently consumed by the sheet's pan gesture, no
+                    workaround combination tested fixed it. fullScreenModal
+                    uses standard UIKit modal presentation (no UISheet
+                    PresentationController), so the scroll bug is impossible
+                    here. UX cost: lose the corner radius / grabber / swipe-
+                    down dismiss — picker has an explicit X button so dismiss
+                    is still one tap. Revisit formSheet if RN-screens fixes
+                    #2424 or after Fabric migration. */}
                 <Stack.Screen
                   name="notices/picker"
                   options={{
                     headerShown: false,
-                    presentation: 'formSheet',
-                    sheetAllowedDetents: [0.8, 1.0],
-                    sheetGrabberVisible: true,
-                    sheetCornerRadius: 16,
-                    sheetExpandsWhenScrolledToEdge: false,
+                    presentation: 'fullScreenModal',
                     contentStyle: { backgroundColor: '#FFFFFF' },
                   }}
                 />

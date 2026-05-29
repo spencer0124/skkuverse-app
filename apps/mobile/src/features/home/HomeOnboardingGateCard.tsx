@@ -1,28 +1,33 @@
 /**
  * HomeOnboardingGateCard — 홈 화면의 미니 온보딩 게이트.
  *
- * 공지 탭의 풀스크린 OnboardingLanding과 동일한 hook 카피("긴 공지도 30초면 끝")를
+ * 공지 탭의 풀스크린 OnboardingLanding과 동일한 hook 카피("성균관대 공지, 찾지 말고 받아보세요")를
  * 홈의 좁은 카드 자리(DeptNoticesSection 슬롯)에 축약한 형태. 진입점은 같이
  * `/onboarding` 모달이라 NoticesTab과 흐름이 일치한다.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SdsShadows } from '@skkuverse/shared';
+import { SdsShadows, useT } from '@skkuverse/shared';
+import { logHomeContentSelect } from '@/services/analytics';
 
 export function HomeOnboardingGateCard() {
   const router = useRouter();
+  const { t } = useT();
 
   return (
     <View style={styles.section}>
-      <Text style={styles.headline}>긴 공지도{'\n'}30초면 끝</Text>
-      <Text style={styles.subtitle}>AI가 핵심만 뽑아서 정리해드려요</Text>
+      <Text style={styles.headline}>{t('home.onboardingGate.headline')}</Text>
+      <Text style={styles.subtitle}>{t('home.onboardingGate.subtitle')}</Text>
       <Pressable
-        onPress={() => router.push('/onboarding')}
+        onPress={() => {
+          logHomeContentSelect({ content_type: 'onboarding_cta', item_id: 'start' });
+          router.push('/onboarding');
+        }}
         style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
         accessibilityRole="button"
-        accessibilityLabel="공지 온보딩 시작하기"
+        accessibilityLabel={t('home.onboardingGate.ctaAccessibility')}
       >
-        <Text style={styles.ctaText}>시작하기</Text>
+        <Text style={styles.ctaText}>{t('onboarding.landingCta')}</Text>
       </Pressable>
     </View>
   );

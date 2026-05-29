@@ -71,47 +71,6 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // users/{uid}/feedback/{docId} — user-submitted negative feedback
-      // collected by the review-prompt stage 2b sheet. Append-only:
-      // owner can create + read, never update/delete (preserve evidence
-      // of historical sentiment for product analysis).
-      //
-      // `context` is a fixed-vocabulary enum so unknown contexts can't be
-      // injected to fragment the analysis later. Add new contexts here as
-      // the surface grows.
-      match /feedback/{docId} {
-        allow read: if request.auth != null && request.auth.uid == uid;
-        // createdAt == request.time: append-only + forensic-grade. Stricter
-        // than the sibling bookmarks/{key} rule which accepts `savedAt is
-        // timestamp` — bookmarks/savedAt is a display label, but feedback
-        // docs are evidence of historical sentiment and we don't want an
-        // authed client to backdate them. Client must use serverTimestamp().
-        //
-        // Optional noticeRef fields (sourceId, articleNo) are validated when
-        // present using the same anchored regex as bookmarks/{key} (^[a-z0-9-]+$).
-        // Absence is allowed — the helpful-sheet doesn't always know the
-        // notice context at submit time. The short-circuit pattern
-        // `!('field' in data) || (validation...)` makes the field optional
-        // without weakening validation when supplied.
-        allow create: if request.auth != null
-                      && request.auth.uid == uid
-                      && request.resource.data.context in ['ai_summary_helpful_sheet']
-                      && request.resource.data.text is string
-                      && request.resource.data.text.size() <= 2000
-                      && request.resource.data.createdAt == request.time
-                      && (
-                        !('sourceId' in request.resource.data) ||
-                        (request.resource.data.sourceId is string
-                         && request.resource.data.sourceId.matches('^[a-z0-9-]+$'))
-                      )
-                      && (
-                        !('articleNo' in request.resource.data) ||
-                        (request.resource.data.articleNo is int
-                         && request.resource.data.articleNo > 0)
-                      );
-        allow update, delete: if false;
-      }
-
       // users/{uid}/bookmarks/{key} — saved notices, Phase 1 Chunk A.
       //
       // Subcollection model (NOT a single doc with a map of entries):
@@ -142,12 +101,43 @@ service cloud.firestore {
       }
     }
 
-    // account_deletion_feedback/{docId} — anonymous survey collected by the
-    // `deleteAccount` Cloud Function when a user withdraws. Admin SDK writes
-    // only; never readable or writable from the client. Documents have no uid
-    // field by design (anonymity is the whole point — the user is leaving).
-    match /account_deletion_feedback/{docId} {
-      allow read, write: if false;
+    // feedback/{docId} — unified feedback collection. Two doc shapes keyed by
+    // `type`:
+    //   'review_prompt'    → client-created from the review-prompt 아쉬워요 sheet
+    //   'account_deletion' → Admin SDK only, via the deleteAccount CF
+    //
+    // Anonymous by design (no uid field on either type). Append-only and never
+    // client-readable — these are evidence of historical sentiment for product
+    // analysis, not user-owned data.
+    //
+    // Clients may ONLY create well-formed 'review_prompt' docs. 'account_deletion'
+    // docs are written by the Admin SDK (rules-bypassing), so no client path can
+    // forge them — the create rule pins type to 'review_prompt'.
+    //
+    // `keys().hasOnly([...])` locks the field set so an authed client can't
+    // smuggle extra fields (e.g. a uid) into the anonymous collection; optional
+    // sourceId/articleNo absence is fine (hasOnly allows subsets). createdAt ==
+    // request.time keeps writes forensic-grade (no client backdating). Anchored
+    // regex `^[a-z0-9-]+$` — CEL matches() is partial by default (see the
+    // bookmarks/{key} anchor-canary note).
+    match /feedback/{docId} {
+      allow read, update, delete: if false;
+      allow create: if request.auth != null
+                    && request.resource.data.type == 'review_prompt'
+                    && request.resource.data.keys().hasOnly(['type', 'text', 'sourceId', 'articleNo', 'createdAt'])
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 2000
+                    && request.resource.data.createdAt == request.time
+                    && (
+                      !('sourceId' in request.resource.data) ||
+                      (request.resource.data.sourceId is string
+                       && request.resource.data.sourceId.matches('^[a-z0-9-]+$'))
+                    )
+                    && (
+                      !('articleNo' in request.resource.data) ||
+                      (request.resource.data.articleNo is int
+                       && request.resource.data.articleNo > 0)
+                    );
     }
 
     // devices/{deviceId} — top-level so the Cloud Function can query by

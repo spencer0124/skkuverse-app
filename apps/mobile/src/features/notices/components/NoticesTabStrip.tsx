@@ -28,6 +28,7 @@ import { StyleSheet, View } from 'react-native';
 import { SdsColors, useNoticeTabs } from '@skkuverse/shared';
 import { Tab } from '@skkuverse/sds';
 import { useNoticesUiStore } from '../store/noticesUiStore';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 export function NoticesTabStrip() {
   const { data: tabsConfig } = useNoticeTabs();
@@ -35,10 +36,17 @@ export function NoticesTabStrip() {
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
   const setActiveTabKey = useNoticesUiStore((s) => s.setActiveTabKey);
 
+  const handleTabChange = (key: string) => {
+    if (key !== activeTabKey) {
+      logNoticesContentSelect({ content_type: 'tab_strip', item_id: key });
+    }
+    setActiveTabKey(key);
+  };
+
   return (
     <View style={styles.container}>
       {tabs.length > 0 ? (
-        <Tab value={activeTabKey} onChange={setActiveTabKey} size="small" fluid>
+        <Tab value={activeTabKey} onChange={handleTabChange} size="small" fluid>
           {tabs.map((tab) => (
             <Tab.Item key={tab.key} value={tab.key}>
               {tab.label}

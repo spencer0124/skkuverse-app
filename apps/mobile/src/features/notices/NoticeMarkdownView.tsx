@@ -35,6 +35,7 @@ import {
 } from 'react-native-marked';
 import { SdsColors } from '@skkuverse/shared';
 import { Skeleton, Txt } from '@skkuverse/sds';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 interface Props {
   markdown: string | null;
@@ -227,7 +228,10 @@ class NoticeRenderer extends Renderer implements RendererInterface {
           selectable
           accessibilityRole="link"
           key={this.getKey()}
-          onPress={() => void WebBrowser.openBrowserAsync(href, inAppBrowserOptions)}
+          onPress={() => {
+            logNoticesContentSelect({ content_type: 'detail_markdown_link', item_id: href });
+            void WebBrowser.openBrowserAsync(href, inAppBrowserOptions);
+          }}
           style={styles}
         >
           {children}
@@ -241,12 +245,16 @@ class NoticeRenderer extends Renderer implements RendererInterface {
       : href.startsWith('tel:')
         ? href.slice(4)
         : href;
+    const kind = href.startsWith('mailto:') ? 'mailto' : href.startsWith('tel:') ? 'tel' : 'other';
 
     return (
       <Text
         selectable
         key={this.getKey()}
-        onPress={() => this.onCopyText(value)}
+        onPress={() => {
+          logNoticesContentSelect({ content_type: 'detail_markdown_contact', item_id: kind });
+          this.onCopyText(value);
+        }}
         style={styles}
       >
         {children}

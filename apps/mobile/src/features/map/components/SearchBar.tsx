@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
+import { logCampusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
 
@@ -19,7 +20,10 @@ export function SearchBar() {
   const router = useRouter();
   const { t } = useT();
 
-  const handlePress = () => router.push('/search');
+  const handlePress = () => {
+    logCampusContentSelect({ content_type: 'search_bar', item_id: 'open' });
+    router.push('/search');
+  };
 
   if (GLASS_AVAILABLE) {
     return (

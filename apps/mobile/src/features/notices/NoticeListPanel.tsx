@@ -69,6 +69,7 @@ import { NoticeRow } from './NoticeRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { groupNoticesByDate } from './utils/groupNotices';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 type Props = (
   | { sourceId: string; sourceIds?: never }
@@ -151,6 +152,10 @@ export function NoticeListPanel(props: Props) {
   const navSourceId = multi ? undefined : props.sourceId;
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
+      logNoticesContentSelect({
+        content_type: 'list_row',
+        item_id: `${navSourceId ?? n.sourceId}/${n.articleNo}`,
+      });
       router.push(`/notices/${navSourceId ?? n.sourceId}/${n.articleNo}` as never);
     },
     [router, navSourceId],

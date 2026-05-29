@@ -167,6 +167,15 @@ export default function TabLayout() {
         // swallow). SDK 55+ migration → switch to <NativeTabs.BottomAccessory>
         // wrapper + delete both patches. See NoticesAccessoryBar.tsx docstring.
         //
+        // FOOTGUN: if the accessory silently disappears after a `yarn
+        // install` / `expo prebuild --clean`, patch-package likely didn't
+        // run (e.g. `--ignore-scripts`). Verify with:
+        //   grep -c "bottomAccessory={props?.bottomAccessory}" \
+        //     node_modules/expo-router/build/native-tabs/NativeBottomTabs/NativeTabsView.js
+        // Expect 1; if 0, rerun `yarn install` (or `npx patch-package`)
+        // from the repo root. The JS patch reaches users via OTA; the .mm
+        // patch needs a native rebuild to land.
+        //
         // Conditional pass: when not on the notices tab, prop is undefined →
         // BottomTabs.tsx skips rendering <BottomTabsAccessory> →
         // RNSBottomTabsHostComponentView.mm:213 calls setBottomAccessory:nil

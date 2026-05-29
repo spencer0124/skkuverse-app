@@ -300,13 +300,13 @@ const ko = {
   'notices.period': '기간',
   'notices.periodRange': '{0} ~ {1}',
   'notices.aiSummaryLabel': 'AI 요약',
-  'notices.aiHelpful.title': 'AI 요약, 도움이 되셨어요?',
-  'notices.aiHelpful.positiveCta': '도움됐어요',
-  'notices.aiHelpful.negativeCta': '아쉬워요',
-  'notices.aiHelpful.negativePlaceholder': '어떤 부분이 아쉬웠는지 알려주세요',
-  'notices.aiHelpful.negativeSubmit': '보내기',
-  'notices.aiHelpful.thanks': '감사해요',
-  'notices.aiHelpful.retry': '보내지 못했어요',
+  'notices.reviewPrompt.title': '챙겨두고 싶은 공지를 찾으셨네요!\n스꾸버스, 잘 쓰고 계신가요?',
+  'notices.reviewPrompt.positiveCta': '좋아요',
+  'notices.reviewPrompt.negativeCta': '아쉬워요',
+  'notices.reviewPrompt.negativePlaceholder': '어떤 부분이 아쉬웠는지 알려주세요',
+  'notices.reviewPrompt.negativeSubmit': '보내기',
+  'notices.reviewPrompt.thanks': '소중한 의견 감사합니다',
+  'notices.reviewPrompt.retry': '보내지 못했어요',
   'notices.copied': '복사했어요',
   'notices.endOfList': '더 이상 공지가 없어요',
   'notices.sectionToday': '오늘',
@@ -366,6 +366,10 @@ const ko = {
   'onboarding.notificationDescription': '중요한 학사·장학 공지를 알림으로 받을 수 있어요',
   'onboarding.notificationCta': '알림 켜기',
   'onboarding.notificationSkip': '다음에 할게요',
+  'onboarding.categoriesTitle': '어떤 공지를 받을까요?',
+  'onboarding.categoriesSubtitle': '언제든 설정에서 바꿀 수 있어요',
+  'onboarding.seedErrorTitle': '잠시 후 다시 시도해주세요',
+  'onboarding.seedErrorMessage': '알림 설정을 저장하지 못했어요. 네트워크 확인 후 다시 눌러주세요.',
   'onboarding.completionTitle': '{0}님, 준비됐어요',
   'onboarding.completionSubtitle': '새 공지부터 챙겨드릴게요',
   'onboarding.completionCta': '공지 보러가기',
@@ -376,6 +380,9 @@ const ko = {
   'onboarding.oauthErrorTitle': '성균관대 계정이 아니에요',
   'onboarding.oauthErrorDescription': '성대생 전용이라\n@g.skku.edu 계정이 필요해요',
   'onboarding.oauthErrorRetry': '다시 해보기',
+  // 안드로이드 가입 일시 차단 — 라이브러리 deprecation 회피용 OTA 패치
+  'onboarding.androidSignupBlockedTitle': '지금은 가입할 수 없어요',
+  'onboarding.androidSignupBlockedMessage': '사용자가 너무 많아 잠시 가입이 어려워요. 내일 다시 시도해 주세요.',
   // 미지원 학과 안내 + 같은 단과대학 추천
   'onboarding.unsupportedDept.title': '이 학과는 아직 지원하지 않아요',
   'onboarding.unsupportedDept.alternative': '대신 소속 단과대학 {0}을(를) 선택할까요?',
@@ -452,6 +459,28 @@ const ko = {
   'notifications.noticesDetailDesc': '구독 중인 학과·도서관·기숙사·일반 공지',
   'notifications.masterOffHint': '전체 알림이 꺼져 있어요. 알림을 받으려면 먼저 전체 알림을 켜주세요.',
   'notifications.noticesCategoryOffHint': '공지 카테고리가 꺼져 있어 알림이 오지 않아요.',
+
+  // ── Common UI labels ──
+  'common.back': '뒤로',
+  'common.viewAll': '더보기',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI공지',
+  'home.tile.campusMap': '캠퍼스맵',
+  'home.tile.buildingMap': '건물지도',
+  'home.tile.buildingCode': '건물코드',
+  'home.notices.deptTitle': '학과 공지',
+  'home.notices.deptTitleNamed': '{0} 공지',
+  'home.news.title': '소식',
+  'home.news.instagramOpen': '스꾸버스 인스타그램 열기',
+  'home.news.imageClose': '이미지 닫기',
+  'home.onboardingGate.headline': '성균관대 공지,\n찾지 말고 받아보세요',
+  'home.onboardingGate.subtitle': 'AI가 중요한 내용만 알려드려요',
+  'home.onboardingGate.ctaAccessibility': '공지 온보딩 시작하기',
+
+  // ── Settings — contact ──
+  'settings.contact.title': '문의하기',
+  'settings.contact.subtitle': '카카오톡 채널로 연결',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -687,13 +716,13 @@ const en: TranslationMap = {
   'notices.period': 'Period',
   'notices.periodRange': '{0} ~ {1}',
   'notices.aiSummaryLabel': 'AI summary',
-  'notices.aiHelpful.title': 'Was the AI summary helpful?',
-  'notices.aiHelpful.positiveCta': 'Yes, helpful',
-  'notices.aiHelpful.negativeCta': 'Could be better',
-  'notices.aiHelpful.negativePlaceholder': 'Tell us what could be better',
-  'notices.aiHelpful.negativeSubmit': 'Send',
-  'notices.aiHelpful.thanks': 'Thanks',
-  'notices.aiHelpful.retry': "Couldn't send",
+  'notices.reviewPrompt.title': 'Found a notice worth keeping!\nEnjoying Skkuverse so far?',
+  'notices.reviewPrompt.positiveCta': 'Love it',
+  'notices.reviewPrompt.negativeCta': 'Could be better',
+  'notices.reviewPrompt.negativePlaceholder': 'Tell us what could be better',
+  'notices.reviewPrompt.negativeSubmit': 'Send',
+  'notices.reviewPrompt.thanks': 'Thanks for your feedback',
+  'notices.reviewPrompt.retry': "Couldn't send",
   'notices.copied': 'Copied',
   'notices.endOfList': "That's all for now",
   'notices.sectionToday': 'Today',
@@ -753,6 +782,10 @@ const en: TranslationMap = {
   'onboarding.notificationDescription': 'Get notified about important academic and scholarship updates',
   'onboarding.notificationCta': 'Turn on notifications',
   'onboarding.notificationSkip': 'Maybe later',
+  'onboarding.categoriesTitle': 'Which notices would you like?',
+  'onboarding.categoriesSubtitle': 'You can change this anytime in Settings',
+  'onboarding.seedErrorTitle': 'Please try again',
+  'onboarding.seedErrorMessage': "We couldn't save your notification settings. Check your connection and tap again.",
   'onboarding.completionTitle': "{0}, you're all set!",
   'onboarding.completionSubtitle': "We'll keep you updated on new notices",
   'onboarding.completionCta': 'View notices',
@@ -763,6 +796,9 @@ const en: TranslationMap = {
   'onboarding.oauthErrorTitle': 'Not an SKKU account',
   'onboarding.oauthErrorDescription': 'SKKU students only\nAn @g.skku.edu account is required',
   'onboarding.oauthErrorRetry': 'Try again',
+  // Android sign-up temporarily blocked — OTA patch dodging library deprecation
+  'onboarding.androidSignupBlockedTitle': 'Sign-up unavailable',
+  'onboarding.androidSignupBlockedMessage': 'Too many users right now. Please try again tomorrow.',
   // Unsupported-dept notice + same-college recommendation
   'onboarding.unsupportedDept.title': "This department isn't supported yet",
   'onboarding.unsupportedDept.alternative': 'Pick the parent college {0} instead?',
@@ -844,6 +880,28 @@ const en: TranslationMap = {
     'All notifications are off. Turn on the master switch first to receive any alerts.',
   'notifications.noticesCategoryOffHint':
     'The notices category is off — no notice alerts will be delivered.',
+
+  // ── Common UI labels ──
+  'common.back': 'Back',
+  'common.viewAll': 'View all',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI Notices',
+  'home.tile.campusMap': 'Campus Map',
+  'home.tile.buildingMap': 'Building Map',
+  'home.tile.buildingCode': 'Building Code',
+  'home.notices.deptTitle': 'Department notices',
+  'home.notices.deptTitleNamed': '{0} notices',
+  'home.news.title': 'News',
+  'home.news.instagramOpen': 'Open SKKU Verse Instagram',
+  'home.news.imageClose': 'Close image',
+  'home.onboardingGate.headline': 'SKKU notices,\ndelivered to you',
+  'home.onboardingGate.subtitle': 'AI tells you what matters',
+  'home.onboardingGate.ctaAccessibility': 'Start notice onboarding',
+
+  // ── Settings — contact ──
+  'settings.contact.title': 'Contact us',
+  'settings.contact.subtitle': 'Connect via KakaoTalk channel',
 };
 
 const zh: TranslationMap = {
@@ -1074,13 +1132,13 @@ const zh: TranslationMap = {
   'notices.period': '期间',
   'notices.periodRange': '{0} ~ {1}',
   'notices.aiSummaryLabel': 'AI 摘要',
-  'notices.aiHelpful.title': 'AI 摘要有帮助吗?',
-  'notices.aiHelpful.positiveCta': '有帮助',
-  'notices.aiHelpful.negativeCta': '可以改进',
-  'notices.aiHelpful.negativePlaceholder': '请告诉我们哪里可以改进',
-  'notices.aiHelpful.negativeSubmit': '发送',
-  'notices.aiHelpful.thanks': '谢谢',
-  'notices.aiHelpful.retry': '发送失败',
+  'notices.reviewPrompt.title': '找到想收藏的公告了!\nSkkuverse 用得还顺手吗?',
+  'notices.reviewPrompt.positiveCta': '喜欢',
+  'notices.reviewPrompt.negativeCta': '可以改进',
+  'notices.reviewPrompt.negativePlaceholder': '请告诉我们哪里可以改进',
+  'notices.reviewPrompt.negativeSubmit': '发送',
+  'notices.reviewPrompt.thanks': '感谢您的宝贵意见',
+  'notices.reviewPrompt.retry': '发送失败',
   'notices.copied': '已复制',
   'notices.endOfList': '没有更多公告了',
   'notices.sectionToday': '今天',
@@ -1140,6 +1198,10 @@ const zh: TranslationMap = {
   'onboarding.notificationDescription': '通过通知接收重要的学业和奖学金公告',
   'onboarding.notificationCta': '开启通知',
   'onboarding.notificationSkip': '稍后再说',
+  'onboarding.categoriesTitle': '您想接收哪些公告？',
+  'onboarding.categoriesSubtitle': '您可以随时在设置中更改',
+  'onboarding.seedErrorTitle': '请稍后再试',
+  'onboarding.seedErrorMessage': '无法保存通知设置。请检查网络后重试。',
   'onboarding.completionTitle': '{0}，准备好了！',
   'onboarding.completionSubtitle': '会第一时间通知您新公告',
   'onboarding.completionCta': '查看公告',
@@ -1150,6 +1212,9 @@ const zh: TranslationMap = {
   'onboarding.oauthErrorTitle': '不是成均馆大学账号',
   'onboarding.oauthErrorDescription': '仅限成大学生\n需要 @g.skku.edu 账号',
   'onboarding.oauthErrorRetry': '重试',
+  // 安卓注册临时拦截 — 规避库 deprecation 的 OTA 补丁
+  'onboarding.androidSignupBlockedTitle': '暂时无法注册',
+  'onboarding.androidSignupBlockedMessage': '用户过多，暂时无法注册。请明天再试。',
   // 暂不支持的学科提示 + 同学院推荐
   'onboarding.unsupportedDept.title': '此学科暂不支持',
   'onboarding.unsupportedDept.alternative': '改选所属学院 {0} 怎么样?',
@@ -1225,6 +1290,28 @@ const zh: TranslationMap = {
   'notifications.noticesDetailDesc': '已订阅的院系·图书馆·宿舍·一般公告',
   'notifications.masterOffHint': '通知总开关已关闭。要接收通知，请先打开总开关。',
   'notifications.noticesCategoryOffHint': '公告分类已关闭，将不会收到任何公告通知。',
+
+  // ── Common UI labels ──
+  'common.back': '返回',
+  'common.viewAll': '查看更多',
+
+  // ── Home tab ──
+  'home.tile.notices': 'AI公告',
+  'home.tile.campusMap': '校园地图',
+  'home.tile.buildingMap': '建筑物地图',
+  'home.tile.buildingCode': '建筑物代码',
+  'home.notices.deptTitle': '学科公告',
+  'home.notices.deptTitleNamed': '{0}公告',
+  'home.news.title': '消息',
+  'home.news.instagramOpen': '打开SKKU Verse的Instagram',
+  'home.news.imageClose': '关闭图片',
+  'home.onboardingGate.headline': '成均馆大学公告，\n不用搜索，直接收到',
+  'home.onboardingGate.subtitle': 'AI只告诉您重要内容',
+  'home.onboardingGate.ctaAccessibility': '开始公告引导',
+
+  // ── Settings — contact ──
+  'settings.contact.title': '联系我们',
+  'settings.contact.subtitle': '通过KakaoTalk渠道连接',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

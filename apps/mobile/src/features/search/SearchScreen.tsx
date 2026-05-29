@@ -10,6 +10,7 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import {
+  Platform,
   View,
   TextInput,
   ScrollView,
@@ -19,6 +20,8 @@ import {
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import NativeSegmentedControl from '@react-native-segmented-control/segmented-control';
 import {
   XCircleIcon,
   MagnifyingGlassIcon,
@@ -46,6 +49,7 @@ import {
   logSearchPerform,
   logSearchResultTap,
   logSearchFilterChange,
+  logSearchContentSelect,
 } from '@/services/analytics';
 
 type CampusFilter = 'all' | 'hssc' | 'nsc';
@@ -54,6 +58,9 @@ type CampusFilter = 'all' | 'hssc' | 'nsc';
 type FlatSpaceItem = SearchSpaceItem & { group: SpaceGroup };
 
 const DEBOUNCE_MS = 500;
+
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
+const CAMPUS_FILTER_IDS: CampusFilter[] = ['all', 'hssc', 'nsc'];
 
 export function SearchScreen() {
   const { t, tpl } = useT();
@@ -159,6 +166,18 @@ export function SearchScreen() {
   const noQuery = debouncedQuery.length === 0;
   const noResults = !noQuery && data && !hasBuildings && !hasSpaces;
 
+  const segmentedLabels = useMemo(() => {
+    const showCount = !!(countData && debouncedQuery);
+    const total = countData ? countData.counts.building.total + countData.counts.space.total : 0;
+    const hssc = countData ? countData.counts.building.hssc + countData.counts.space.hssc : 0;
+    const nsc = countData ? countData.counts.building.nsc + countData.counts.space.nsc : 0;
+    return [
+      showCount ? `${t('common.total')} ${total}` : t('common.total'),
+      showCount ? `${t('campus.hssc')} ${hssc}` : t('campus.hssc'),
+      showCount ? `${t('campus.nsc')} ${nsc}` : t('campus.nsc'),
+    ];
+  }, [countData, debouncedQuery, t]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Search field */}
@@ -177,6 +196,7 @@ export function SearchScreen() {
           {inputValue.length > 0 && (
             <Pressable
               onPress={() => {
+                logSearchContentSelect({ content_type: 'clear_button', item_id: 'x' });
                 setInputValue('');
                 setDebouncedQuery('');
               }}
@@ -190,30 +210,41 @@ export function SearchScreen() {
 
       {/* Campus tab bar */}
       <View style={styles.segmentedWrapper}>
-        <SegmentedControl
-          value={campusFilter}
-          onValueChange={(v) => {
-            const filter = v as CampusFilter;
-            logSearchFilterChange(filter);
-            setCampusFilter(filter);
-          }}
-        >
-          <SegmentedControl.Item value="all" typography="t7" style={styles.segmentedItem}>
-            {countData && debouncedQuery
-              ? `${t('common.total')} ${countData.counts.building.total + countData.counts.space.total}`
-              : t('common.total')}
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="hssc" typography="t7" style={styles.segmentedItem}>
-            {countData && debouncedQuery
-              ? `${t('campus.hssc')} ${countData.counts.building.hssc + countData.counts.space.hssc}`
-              : t('campus.hssc')}
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="nsc" typography="t7" style={styles.segmentedItem}>
-            {countData && debouncedQuery
-              ? `${t('campus.nsc')} ${countData.counts.building.nsc + countData.counts.space.nsc}`
-              : t('campus.nsc')}
-          </SegmentedControl.Item>
-        </SegmentedControl>
+        {Platform.OS === 'ios' && GLASS_AVAILABLE ? (
+          // iOS 26+ native UISegmentedControl (auto Liquid Glass at system level).
+          // Mirrors bus/schedule.tsx + CampusToggle.tsx pattern.
+          <NativeSegmentedControl
+            values={segmentedLabels}
+            selectedIndex={Math.max(0, CAMPUS_FILTER_IDS.indexOf(campusFilter))}
+            onChange={(e) => {
+              const idx = e.nativeEvent.selectedSegmentIndex;
+              const filter = CAMPUS_FILTER_IDS[idx];
+              if (!filter) return;
+              logSearchFilterChange(filter);
+              setCampusFilter(filter);
+            }}
+            style={styles.nativeSegmented}
+          />
+        ) : (
+          <SegmentedControl
+            value={campusFilter}
+            onValueChange={(v) => {
+              const filter = v as CampusFilter;
+              logSearchFilterChange(filter);
+              setCampusFilter(filter);
+            }}
+          >
+            <SegmentedControl.Item value="all" typography="t7" style={styles.segmentedItem}>
+              {segmentedLabels[0]}
+            </SegmentedControl.Item>
+            <SegmentedControl.Item value="hssc" typography="t7" style={styles.segmentedItem}>
+              {segmentedLabels[1]}
+            </SegmentedControl.Item>
+            <SegmentedControl.Item value="nsc" typography="t7" style={styles.segmentedItem}>
+              {segmentedLabels[2]}
+            </SegmentedControl.Item>
+          </SegmentedControl>
+        )}
       </View>
 
       {/* Empty states */}
@@ -266,7 +297,13 @@ export function SearchScreen() {
                     )}
                   </View>
                 }
-                onPress={() => setBuildingExpanded((prev) => !prev)}
+                onPress={() => {
+                  logSearchContentSelect({
+                    content_type: 'section_buildings_toggle',
+                    item_id: buildingExpanded ? 'collapse' : 'expand',
+                  });
+                  setBuildingExpanded((prev) => !prev);
+                }}
               />
               {buildingExpanded && (
                 <Animated.View
@@ -321,7 +358,13 @@ export function SearchScreen() {
                     )}
                   </View>
                 }
-                onPress={() => setSpaceExpanded((prev) => !prev)}
+                onPress={() => {
+                  logSearchContentSelect({
+                    content_type: 'section_spaces_toggle',
+                    item_id: spaceExpanded ? 'collapse' : 'expand',
+                  });
+                  setSpaceExpanded((prev) => !prev);
+                }}
               />
               {spaceExpanded && (
                 <Animated.View
@@ -407,6 +450,9 @@ const styles = StyleSheet.create({
   },
   segmentedItem: {
     paddingVertical: 5,
+  },
+  nativeSegmented: {
+    alignSelf: 'stretch',
   },
   list: {
     paddingBottom: 40,

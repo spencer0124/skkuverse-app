@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, BackHandler, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Button, Txt } from '@skkuverse/sds';
 import {
   SdsColors,
-  computeOnboardingPickerSeed,
   useNoticeTabs,
   useNotificationStore,
   useSettingsStore,
@@ -17,14 +16,21 @@ import { GoogleAuthError } from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
-import { seedOnboardingPreferences } from '@/services/firestore-notifications';
+import {
+  finalizeOnboardingAccepted,
+  seedOnboardingPreferences,
+} from '@/services/firestore-notifications';
 import { checkPermission } from '@/services/messaging';
 import {
   registerCurrentDeviceForNotifications,
   useEnableNotificationsFlow,
 } from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
-
+import {
+  logOnboardingStep,
+  logScreenView,
+  type OnboardingStepKey,
+} from '@/services/analytics';
 import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
 import { MAX_INTEREST_DEPTS } from './types';
 import { UNSUPPORTED_DEPT_SURVEY_URL } from './constants';
@@ -34,8 +40,20 @@ import { PrimaryDeptStep } from './components/PrimaryDeptStep';
 import { InterestDeptStep } from './components/InterestDeptStep';
 import { LoginStep } from './components/LoginStep';
 import { NotificationStep } from './components/NotificationStep';
+import { NoticeCategoriesStep } from './components/NoticeCategoriesStep';
 import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
+import { assembleOnboardingPickerSelections } from './utils/assemblePickerSelections';
+
+const STEP_KEYS: Record<number, OnboardingStepKey> = {
+  1: 'campus',
+  2: 'primary_dept',
+  3: 'interest_dept',
+  4: 'login',
+  5: 'notification',
+  6: 'notice_categories',
+  7: 'completion',
+};
 
 // ── Reducer ──
 
@@ -45,6 +63,8 @@ const initialState: OnboardingState = {
   primaryDeptId: null,
   interestDeptIds: [],
   userName: null,
+  notificationsAccepted: null,
+  seededPickerSelections: null,
 };
 
 function reducer(state: OnboardingState, action: OnboardingAction): OnboardingState {
@@ -58,12 +78,15 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
         primaryDeptId: action.deptId,
         // Remove new primary from interest list if present
         interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
+        // Invalidate cached picker (J1) — user edited dept after ACCEPT, finalize
+        // must reassemble from fresh state to avoid Firestore↔local drift.
+        seededPickerSelections: null,
       };
 
     case 'SKIP_PRIMARY_DEPT':
       // User tapped "내 학과가 없어요" → opened survey webview → dismissed.
       // primary null로 마킹. interest는 보존 (이후 step에서 picking 가능).
-      return { ...state, primaryDeptId: null };
+      return { ...state, primaryDeptId: null, seededPickerSelections: null };
 
     case 'TOGGLE_INTEREST_DEPT': {
       const exists = state.interestDeptIds.includes(action.deptId);
@@ -71,27 +94,45 @@ function reducer(state: OnboardingState, action: OnboardingAction): OnboardingSt
         return {
           ...state,
           interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
+          seededPickerSelections: null,
         };
       }
       if (state.interestDeptIds.length >= MAX_INTEREST_DEPTS) return state;
       return {
         ...state,
         interestDeptIds: [...state.interestDeptIds, action.deptId],
+        seededPickerSelections: null,
       };
     }
 
     case 'CLEAR_INTEREST_DEPTS':
-      return { ...state, interestDeptIds: [] };
+      return { ...state, interestDeptIds: [], seededPickerSelections: null };
 
     case 'SET_USER':
       return { ...state, userName: action.name };
 
+    case 'ACCEPT_NOTIFICATIONS':
+      return {
+        ...state,
+        notificationsAccepted: true,
+        seededPickerSelections: action.pickerSelections,
+      };
+
+    case 'DECLINE_NOTIFICATIONS':
+      return { ...state, notificationsAccepted: false };
+
     case 'NEXT':
-      if (state.step >= 6) return state;
+      if (state.step >= 7) return state;
       return { ...state, step: (state.step + 1) as OnboardingStep };
 
     case 'PREV':
       if (state.step <= 1) return state;
+      // Declined 경로는 step 7에서 PREV 시 step 6를 스킵하고 step 5로 점프.
+      // 카테고리 페이지(step 6)는 ACCEPT 경로에서만 의미가 있고, declined 상태로
+      // 진입하면 seed가 안 됐으므로 토글이 silent fail.
+      if (state.step === 7 && state.notificationsAccepted === false) {
+        return { ...state, step: 5 };
+      }
       return { ...state, step: (state.step - 1) as OnboardingStep };
 
     default:
@@ -109,6 +150,16 @@ export function OnboardingScreen() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Per-step funnel: each step enter fires both screen_view + onboarding_step
+  // event. Reducer-driven so it auto-fires on advance/back/skip.
+  useEffect(() => {
+    const key = STEP_KEYS[state.step];
+    if (key) {
+      logScreenView(`onboarding_${key}`);
+      logOnboardingStep({ step: key, action: 'enter' });
+    }
+  }, [state.step]);
+
   // Server-driven dept list. Fetched once; dept picker lists are embedded in
   // /notices/tabs so we reuse the same hook the notices tab + settings use.
   const {
@@ -123,9 +174,10 @@ export function OnboardingScreen() {
   }, [tabsConfig]);
 
   // ── Android back handler ──
+  // step 7 (completion)에서만 back 차단. step 6 (카테고리)는 정상 PREV 허용.
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (state.step === 6) return true; // Block back on completion
+      if (state.step === 7) return true; // Block back on completion
       if (state.step === 1) {
         setShowExitDialog(true);
         return true;
@@ -138,62 +190,57 @@ export function OnboardingScreen() {
 
   // ── Navigation helpers ──
   const handleBack = useCallback(() => {
+    const key = STEP_KEYS[state.step];
     if (state.step === 1) {
+      if (key) logOnboardingStep({ step: key, action: 'exit_cancel' });
       setShowExitDialog(true);
     } else {
+      if (key) logOnboardingStep({ step: key, action: 'back' });
       dispatch({ type: 'PREV' });
     }
   }, [state.step]);
 
   const handleLeave = useCallback(() => {
+    const key = STEP_KEYS[state.step];
+    if (key) logOnboardingStep({ step: key, action: 'exit_leave' });
     setShowExitDialog(false);
     router.back();
-  }, [router]);
+  }, [router, state.step]);
 
   // ── Google Sign-In (Step 4) ──
   // Wizard 강제 흐름 — classifyAndRestoreOnboarding은 의도적으로 호출하지 않음.
-  // 신규 가입자는 step 5에서 seedOnboardingPreferences로 새 시드를 쓰고,
-  // 이미 onboarded된 사용자가 wizard로 들어와도 step 5 완료 시 동일하게
-  // 시드를 덮어쓴다 (의도적 — wizard 진입 자체가 사용자가 다시 wizard
-  // 통과하기로 한 결정). 자동복원이 필요한 returning user는 다른 진입점
+  // 신규 가입자는 step 5에서 권한 선택, step 7에서 seedOnboardingPreferences로
+  // 새 시드를 쓰고, 이미 onboarded된 사용자가 wizard로 들어와도 동일하게 시드를
+  // 덮어쓴다 (의도적). 자동복원이 필요한 returning user는 다른 진입점
   // (notices landing의 "이미 가입한 적 있어요" 또는 login.tsx)을 사용.
+  //
+  // 2026-05-25: step 5 auto-skip 제거. 권한 상태와 무관하게 항상 "받을까요?"
+  // 페이지를 노출하여 명시적 선택을 유도. checkPermission 호출도 불필요.
   const handleSignIn = useCallback(async () => {
     setLoginLoading(true);
     setLoginError(null);
+    logOnboardingStep({ step: 'login', action: 'signin_attempt' });
     try {
       const user = await signInWithDeviceMigration('onboarding');
+      logOnboardingStep({ step: 'login', action: 'signin_success' });
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
-
-      // 알림 권한 이미 허용된 사용자는 step 5(권한 화면)를 스킵.
-      // checkPermission()은 OS dialog 없는 조회. useAppInit의 권한 refresh가
-      // onboarding 진행 중인 사용자에겐 안 도므로 (useAppInit onboardingCompleted
-      // gate) 여기서 명시 fetch. denied 사용자는 step 5에 그대로 진입해서
-      // "허용하기" CTA → OS 설정 deep-link 경로를 따른다.
-      const status = await checkPermission();
-      useNotificationStore.getState().setPermissionStatus(status);
-      const granted = status === 'authorized' || status === 'provisional';
-
       dispatch({ type: 'NEXT' });
-      if (granted) {
-        dispatch({ type: 'NEXT' });
-        // step 5의 handleEnable이 했을 토큰 등록을 fire-and-forget.
-        // 빼면 cold restart 전까지 FCM 토큰 미등록 회귀.
-        void registerCurrentDeviceForNotifications().catch((err) =>
-          logHandledError('onboarding/register-skip-path', err),
-        );
-      }
     } catch (err) {
       if (err instanceof GoogleAuthError) {
         switch (err.code) {
           case 'DOMAIN_NOT_ALLOWED':
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'domain_not_allowed' });
             setLoginError(t('onboarding.oauthErrorTitle'));
             break;
           case 'CANCELLED':
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'cancelled' });
             break;
           default:
+            logOnboardingStep({ step: 'login', action: 'signin_error', detail: err.code });
             setLoginError(t('onboarding.oauthErrorRetry'));
         }
       } else {
+        logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'unknown' });
         setLoginError(t('onboarding.oauthErrorRetry'));
       }
     } finally {
@@ -201,25 +248,109 @@ export function OnboardingScreen() {
     }
   }, [t]);
 
-  // ── Completion (Step 5) ──
-  // Seeds Firestore preferences/main with intent: master ON, notices ON.
-  // pickerSelections per tab:
-  //   - dept: user picks (primary + interests, deduped, capped by server's
-  //     dept.picker.maxSelection — no client magic number).
-  //   - library / dorm: common defaults + campus-specific defaults derived
-  //     from the server's defaultIds + campusDefaultIds (computed via
-  //     computeOnboardingPickerSeed). User can uncheck in Settings later
-  //     (soft default — no UI lock).
-  //   - general (and any other picker tab without defaults): key omitted →
-  //     derive() emits 0 topics rather than an explicit empty-list intent.
-  // The CF onPreferencesWrite trigger derives subscribedTopics within ~1-3s.
-  // zustand `completeOnboarding` continues to track the local "did this user
-  // finish onboarding?" flag.
+  // ── ACCEPT 경로 — Step 6 카테고리 페이지 진입 준비 ──
+  // doc seed (onboardedAt:null) → setNoticeTabEnabled가 dot-path update로 동작
+  // 가능한 상태로 만들어두고 step 6 진입.
+  //
+  // 핵심 규칙: seed 성공한 경우에만 advance. seed 실패 시 step 5 유지 + alert
+  // 표시하여 사용자가 retry 할 수 있게 함. 옛 버전은 catch 후에도 NEXT 했지만
+  // 그 경로는 step 6 토글 silent fail + step 7 finalize NOT_FOUND → 영구
+  // broken state 였음 (code-review A1). 또한 inFlightRef 가드로 double-tap
+  // 시 두 번째 NEXT 가 step 6를 건너뛰는 race 차단 (G1).
+  const prepareCategoryStepInFlight = useRef(false);
+  const prepareCategoryStep = useCallback(async () => {
+    if (prepareCategoryStepInFlight.current) return;
+    prepareCategoryStepInFlight.current = true;
+    try {
+      const uid = authStore.getState().uid;
+      if (!uid || !state.campus || !tabsConfig) return;
+      const picker = assembleOnboardingPickerSelections({
+        campus: state.campus,
+        primaryDeptId: state.primaryDeptId,
+        interestDeptIds: state.interestDeptIds,
+        tabsConfig,
+      });
+      try {
+        await seedOnboardingPreferences(uid, picker, {
+          enabled: true,
+          finalize: false,
+        });
+      } catch (err) {
+        logHandledError('onboarding/seed-intent', err);
+        Alert.alert(t('onboarding.seedErrorTitle'), t('onboarding.seedErrorMessage'));
+        return; // 핵심: NEXT 안 함 — 사용자가 step 5에서 retry 가능
+      }
+      dispatch({ type: 'ACCEPT_NOTIFICATIONS', pickerSelections: picker });
+      dispatch({ type: 'NEXT' }); // 5 → 6
+    } finally {
+      prepareCategoryStepInFlight.current = false;
+    }
+  }, [state.campus, state.primaryDeptId, state.interestDeptIds, tabsConfig, t]);
+
+  // ── Notification permission (Step 5) ──
+  // handleEnable 내부의 3분기 (denied → openOsSettings, notDetermined →
+  // requestPermission, authorized → idempotent) 는 hook이 캡슐화.
+  // onResolved({granted}) 결과로 ACCEPT/DECLINE 분기:
+  //   - granted true  → prepareCategoryStep (seed + step 6 진입)
+  //   - granted false → DECLINE + step 7로 점프 (step 6 스킵)
+  // System dialog 거절한 경우도 granted=false라 DECLINE 분기와 통합.
+  const { handleEnable } = useEnableNotificationsFlow({
+    onResolved: ({ granted }) => {
+      logOnboardingStep({
+        step: 'notification',
+        action: granted ? 'permission_grant' : 'permission_deny',
+      });
+      if (granted) {
+        void prepareCategoryStep();
+      } else {
+        dispatch({ type: 'DECLINE_NOTIFICATIONS' });
+        dispatch({ type: 'NEXT' });
+        dispatch({ type: 'NEXT' }); // 5 → 7
+      }
+    },
+  });
+
+  // ── "안 받을게요" (Step 5 보조 액션) ──
+  // OS 권한이 이미 granted면 토큰은 등록 (master OFF라 실제 전송은 안 됨,
+  // 추후 master ON 전환 시 cold start 없이 즉시 전송 가능).
+  //
+  // 권한 status는 OS truth로 fresh fetch (cached값은 stale 가능 — C1 fix).
+  // useAppInit의 refresh path는 onboardingCompleted gate 때문에 wizard 중엔
+  // 안 돌아서, MMKV cache가 'denied' 인 채로 사용자가 OS 설정에서 외부로
+  // granted한 경우 cache를 못 따라가 토큰 미등록 회귀가 있었음.
+  // checkPermission은 OS dialog 없는 read-only query라 declined intent를 침해 안 함.
+  const handleSkipNotifications = useCallback(async () => {
+    logOnboardingStep({ step: 'notification', action: 'skip' });
+    try {
+      const status = await checkPermission();
+      useNotificationStore.getState().setPermissionStatus(status);
+      if (status === 'authorized' || status === 'provisional') {
+        void registerCurrentDeviceForNotifications().catch((err) =>
+          logHandledError('onboarding/register-decline-path', err),
+        );
+      }
+    } catch (err) {
+      // checkPermission 실패는 non-fatal — 토큰 등록만 건너뜀.
+      logHandledError('onboarding/skip-check-permission', err);
+    }
+    dispatch({ type: 'DECLINE_NOTIFICATIONS' });
+    dispatch({ type: 'NEXT' });
+    dispatch({ type: 'NEXT' }); // 5 → 7
+  }, []);
+
+  // ── Completion (Step 7) ──
+  // 분기:
+  //   - ACCEPT: prepareCategoryStep에서 doc seed됨 → finalizeOnboardingAccepted
+  //     (onboardedAt null→timestamp 단일 update).
+  //   - DECLINE: doc 미존재 가능 → seedOnboardingPreferences가 doc 존재 분기로
+  //     처리 (없으면 .set(), 있으면 dot-path update). enabled:false +
+  //     categoryEnabled.notices:false 명시 — master OFF intent를 SSOT에 기록.
+  // zustand `completeOnboarding`은 양쪽 모두 호출 — 로컬 게이트 해제.
   const handleComplete = useCallback(async () => {
     if (!state.campus) return;
+    logOnboardingStep({ step: 'completion', action: 'complete' });
     const campus: Campus = state.campus;
-    const settingsStore = useSettingsStore.getState();
-    settingsStore.completeOnboarding({
+    useSettingsStore.getState().completeOnboarding({
       campus,
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
@@ -227,53 +358,39 @@ export function OnboardingScreen() {
 
     const uid = authStore.getState().uid;
     if (uid) {
-      // dept: user picks (deduped + capped). Primary 스킵 시 sentinel '' 사용.
-      // dept[0] === '' 컨벤션 — derive가 falsy id 필터링.
-      const combined: string[] = [];
-      const seen = new Set<string>();
-      if (state.primaryDeptId === null) {
-        combined.push('');
-      } else {
-        combined.push(state.primaryDeptId);
-        seen.add(state.primaryDeptId);
-      }
-      for (const id of state.interestDeptIds) {
-        if (!seen.has(id)) {
-          seen.add(id);
-          combined.push(id);
-        }
-      }
-      const deptTab = tabsConfig?.tabs.find((tab) => tab.key === 'dept');
-      const maxPicks = deptTab?.picker?.maxSelection ?? combined.length;
-      const seedDeptIds = combined.slice(0, maxPicks);
-
-      const pickerSelections: Record<string, string[]> = { dept: seedDeptIds };
-
-      // library / dorm get campus-aware seeds. Other picker tabs (general)
-      // currently have no defaults configured server-side — omit so the CF
-      // derive trigger emits 0 topics for them rather than persisting an
-      // explicit empty-list intent that would later look like "user opted
-      // out" in the settings UI.
-      for (const seedKey of ['library', 'dorm']) {
-        const tab = tabsConfig?.tabs.find((t) => t.key === seedKey);
-        if (tab) {
-          const seed = computeOnboardingPickerSeed(tab, campus);
-          if (seed.length > 0) {
-            pickerSelections[seedKey] = seed;
-          }
-        }
-      }
-
       try {
-        await seedOnboardingPreferences(uid, pickerSelections);
+        if (state.notificationsAccepted === true) {
+          await finalizeOnboardingAccepted(uid);
+        } else {
+          const picker =
+            state.seededPickerSelections ??
+            assembleOnboardingPickerSelections({
+              campus,
+              primaryDeptId: state.primaryDeptId,
+              interestDeptIds: state.interestDeptIds,
+              tabsConfig,
+            });
+          await seedOnboardingPreferences(uid, picker, {
+            enabled: false,
+            finalize: true,
+          });
+        }
       } catch (err) {
-        // Non-fatal: user can re-toggle in Settings if the write fails.
-        logHandledError('onboarding/seed-prefs', err);
+        // Non-fatal: 사용자는 설정 화면에서 재토글 가능.
+        logHandledError('onboarding/finalize', err);
       }
     }
 
     router.dismissAll();
-  }, [state.campus, state.primaryDeptId, state.interestDeptIds, router, tabsConfig]);
+  }, [
+    state.campus,
+    state.primaryDeptId,
+    state.interestDeptIds,
+    state.notificationsAccepted,
+    state.seededPickerSelections,
+    router,
+    tabsConfig,
+  ]);
 
   // ── Next step ──
   const handleNext = useCallback(() => {
@@ -282,6 +399,7 @@ export function OnboardingScreen() {
 
   // ── Skip interests (Step 3) ──
   const handleSkipInterests = useCallback(() => {
+    logOnboardingStep({ step: 'interest_dept', action: 'clear_interest_depts' });
     dispatch({ type: 'CLEAR_INTEREST_DEPTS' });
     dispatch({ type: 'NEXT' });
   }, []);
@@ -291,6 +409,7 @@ export function OnboardingScreen() {
   // Result type (cancel/dismiss) is intentionally ignored — closing the
   // browser is itself the decision to skip and advance.
   const handleUnsupportedDept = useCallback(async () => {
+    logOnboardingStep({ step: 'primary_dept', action: 'go_dept_survey' });
     await WebBrowser.openBrowserAsync(UNSUPPORTED_DEPT_SURVEY_URL, {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
       controlsColor: '#1A8A5C',
@@ -300,19 +419,6 @@ export function OnboardingScreen() {
       enableBarCollapsing: true,
     });
     dispatch({ type: 'SKIP_PRIMARY_DEPT' });
-    dispatch({ type: 'NEXT' });
-  }, []);
-
-  // ── Notification permission (Step 5) ──
-  // All branching (denied→openOsSettings, else→requestPermission), AppState
-  // settings-return handling, and token registration live inside the hook.
-  // Onboarding has nothing extra to do on grant — step 6's
-  // seedOnboardingPreferences already writes `enabled: true` master intent.
-  const { handleEnable } = useEnableNotificationsFlow({
-    onResolved: () => dispatch({ type: 'NEXT' }),
-  });
-
-  const handleSkipNotifications = useCallback(() => {
     dispatch({ type: 'NEXT' });
   }, []);
 
@@ -329,7 +435,7 @@ export function OnboardingScreen() {
   const ctaLabel = (() => {
     switch (state.step) {
       case 5: return t('onboarding.notificationCta');
-      case 6: return t('onboarding.completionCta');
+      case 7: return t('onboarding.completionCta');
       default: return t('onboarding.next');
     }
   })();
@@ -338,7 +444,7 @@ export function OnboardingScreen() {
     switch (state.step) {
       case 4: return handleSignIn;
       case 5: return handleEnable;
-      case 6: return handleComplete;
+      case 7: return handleComplete;
       default: return handleNext;
     }
   })();
@@ -414,6 +520,8 @@ export function OnboardingScreen() {
       case 5:
         return <NotificationStep />;
       case 6:
+        return <NoticeCategoriesStep />;
+      case 7:
         return <CompletionStep userName={state.userName ?? ''} />;
     }
   };
@@ -425,7 +533,7 @@ export function OnboardingScreen() {
         ctaLabel={ctaLabel}
         ctaDisabled={ctaDisabled}
         onCtaPress={onCtaPress}
-        minimal={state.step === 6}
+        minimal={state.step === 7}
         ctaContent={
           state.step === 4
             ? (

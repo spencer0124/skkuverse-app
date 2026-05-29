@@ -12,10 +12,11 @@ import {
   useNoticeDetail,
   useT,
 } from '@skkuverse/shared';
-import { Toast, Txt } from '@skkuverse/sds';
+import { Dialog, Toast, Txt } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import {
   logNoticeView,
+  logNoticesContentSelect,
   logReviewPromptDismissed,
   logReviewPromptNegative,
   logReviewPromptPositive,
@@ -28,11 +29,11 @@ import { NoticeEmptyState } from './EmptyState';
 import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
 import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
-import { AISummaryHelpfulSheet } from './components/AISummaryHelpfulSheet';
+import { ReviewPromptSheet } from './components/ReviewPromptSheet';
 import { NegativeFeedbackSheet } from './components/NegativeFeedbackSheet';
 import { formatDisplayDate } from './utils/formatDisplayDate';
 
-const REVIEW_PROMPT_REASON = 'push_ai_bookmark';
+const REVIEW_PROMPT_REASON = 'second_bookmark';
 
 const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
 const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
@@ -41,24 +42,16 @@ const ICON_SHARE = require('../../../assets/header-icons/share-network.png');
 interface Props {
   sourceId: string;
   articleNo: number;
-  /**
-   * How the user arrived at this screen. Set by the [articleNo].tsx route
-   * file from `useLocalSearchParams().entrySource`, which itself is set by
-   * the PendingNoticeLinkConsumer when consuming a `pendingExternalNoticeLink`
-   * stashed by either +native-intent (universal_link) or notification-router
-   * (push). Undefined for in-app navigations. Load-bearing for the review-
-   * prompt gate — only 'push' counts toward delight signal.
-   */
-  entrySource?: 'push' | 'universal_link';
 }
 
-export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) {
+export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const { t, tpl } = useT();
   const router = useRouter();
   const { data, isLoading, isError, error, refetch } = useNoticeDetail(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
   const [isUnsaving, setIsUnsaving] = useState(false);
   const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+  const [showThanks, setShowThanks] = useState(false);
   const helpfulSheetRef = useRef<BottomSheetModal>(null);
   const feedbackSheetRef = useRef<BottomSheetModal>(null);
   // Track which explicit choice (if any) the user made on the helpful sheet.
@@ -84,8 +77,6 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
     unsave: unsaveBookmark,
     refreshSummaryIfNewlyAvailable,
   } = useBookmark(sourceId, articleNo, {
-    entrySource,
-    hasAiSummary: data?.summary?.text != null,
     onShowReviewPrompt: handleShowReviewPrompt,
   });
 
@@ -114,7 +105,6 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
     (text: string) => {
       setIsFeedbackSubmitting(true);
       void submitNegativeFeedback({
-        context: 'ai_summary_helpful_sheet',
         text,
         noticeRef: { sourceId, articleNo },
       })
@@ -125,7 +115,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
             // records 'negative' if the user eventually gives up, so stage-1
             // intent is preserved without inflating the submit funnel with
             // events that never actually wrote a doc.
-            setToastText(t('notices.aiHelpful.retry'));
+            setToastText(t('notices.reviewPrompt.retry'));
             return;
           }
           setEngagementOutcome('negative');
@@ -133,8 +123,8 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
             reason: REVIEW_PROMPT_REASON,
             hasText: text.length > 0,
           });
-          setToastText(t('notices.aiHelpful.thanks'));
           feedbackSheetRef.current?.dismiss();
+          setShowThanks(true);
         })
         .finally(() => setIsFeedbackSubmitting(false));
     },
@@ -251,6 +241,10 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
   const handleSharePress = useCallback(() => {
     const current = dataRef.current;
     if (!current) return;
+    logNoticesContentSelect({
+      content_type: 'detail_share',
+      item_id: `${current.sourceId}/${current.articleNo}`,
+    });
     // Universal link: app-installed devices open detail screen directly
     // (AASA + +native-intent NOTICE_PATH_RE), app-missing devices fall
     // through to the Cloudflare Pages Function at the same path which
@@ -454,6 +448,10 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
                 <View style={styles.attachmentActions}>
                   <Pressable
                     onPress={() => {
+                      logNoticesContentSelect({
+                        content_type: 'detail_attachment_preview',
+                        item_id: a.name,
+                      });
                       if (canPreview(a.name)) {
                         openAttachment(a.url, 'inline', a.name);
                       } else {
@@ -468,7 +466,13 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
                     </Txt>
                   </Pressable>
                   <Pressable
-                    onPress={() => openAttachment(a.url, 'download', a.name)}
+                    onPress={() => {
+                      logNoticesContentSelect({
+                        content_type: 'detail_attachment_download',
+                        item_id: a.name,
+                      });
+                      openAttachment(a.url, 'download', a.name);
+                    }}
                     style={({ pressed }) => [styles.attachmentBtn, pressed && styles.pressed]}
                   >
                     <DownloadIcon size={14} color={SdsColors.blue500} />
@@ -483,7 +487,16 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
         ) : null}
 
         <Pressable
-          onPress={openOriginal}
+          onPress={() => {
+            const current = dataRef.current;
+            if (current) {
+              logNoticesContentSelect({
+                content_type: 'detail_open_original',
+                item_id: `${current.sourceId}/${current.articleNo}`,
+              });
+            }
+            openOriginal();
+          }}
           style={({ pressed }) => [styles.openOriginal, pressed && styles.pressed]}
         >
           <ArrowSquareOutIcon size={16} color={SdsColors.grey800} />
@@ -499,7 +512,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
         icon={<Toast.Icon type="check" />}
         onClose={() => setToastText(null)}
       />
-      <AISummaryHelpfulSheet
+      <ReviewPromptSheet
         ref={helpfulSheetRef}
         onPositive={handleHelpfulPositive}
         onNegative={handleHelpfulNegative}
@@ -510,6 +523,12 @@ export function NoticeDetailScreen({ sourceId, articleNo, entrySource }: Props) 
         isSubmitting={isFeedbackSubmitting}
         onSubmit={handleFeedbackSubmit}
         onDismiss={handleFeedbackDismiss}
+      />
+      <Dialog.Alert
+        open={showThanks}
+        title={t('notices.reviewPrompt.thanks')}
+        buttonText={t('common.close')}
+        onClose={() => setShowThanks(false)}
       />
     </View>
   );

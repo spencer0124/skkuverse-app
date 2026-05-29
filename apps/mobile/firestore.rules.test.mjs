@@ -810,54 +810,22 @@ describe('users/{uid}/bookmarks/{key} rules — Phase 1', () => {
   });
 });
 
-describe('account_deletion_feedback/{docId} rules — lockdown', () => {
+// ──────────────────────────────────────────────────────────────────────
+// feedback/{docId} rules — unified feedback collection
+// ──────────────────────────────────────────────────────────────────────
+
+describe('feedback/{docId} rules — unified collection', () => {
   beforeEach(async () => {
     await testEnv.clearFirestore();
   });
 
-  // Anonymous, intentionally — the user is leaving the app. Writes happen
-  // exclusively from the `deleteAccount` Cloud Function via Admin SDK
-  // (which bypasses rules). Nothing client-side should ever touch this
-  // collection.
+  // Anonymous by design — no uid on either type. Clients may only create
+  // 'review_prompt' docs (review-prompt 아쉬워요 sheet); 'account_deletion'
+  // docs come from the deleteAccount CF via Admin SDK (rules-bypassing).
+  // Append-only, never client-readable.
 
-  test('authed Google user tries to create feedback doc → deny', async () => {
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      ctx
-        .firestore()
-        .collection('account_deletion_feedback')
-        .add({ reasons: ['not_used'], createdAt: new Date() }),
-    );
-  });
-
-  test('authed user tries to read feedback collection → deny', async () => {
-    // Seed a doc via admin (rules-bypassing) context so there is something
-    // present to attempt to read.
-    await testEnv.withSecurityRulesDisabled(async (admin) => {
-      await admin
-        .firestore()
-        .collection('account_deletion_feedback')
-        .doc('seed')
-        .set({ reasons: ['bugs'], createdAt: new Date() });
-    });
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      ctx.firestore().collection('account_deletion_feedback').doc('seed').get(),
-    );
-  });
-});
-
-// ──────────────────────────────────────────────────────────────────────
-// users/{uid}/feedback/{docId} rules — review-prompt stage 2b
-// ──────────────────────────────────────────────────────────────────────
-
-describe('users/{uid}/feedback/{docId} rules', () => {
-  beforeEach(async () => {
-    await testEnv.clearFirestore();
-  });
-
-  const feedbackDoc = (overrides = {}) => ({
-    context: 'ai_summary_helpful_sheet',
+  const reviewDoc = (overrides = {}) => ({
+    type: 'review_prompt',
     text: 'AI summary missed the deadline',
     // serverTimestamp() so the rule check `createdAt == request.time`
     // passes — emulator resolves the sentinel to its own clock at write.
@@ -865,110 +833,106 @@ describe('users/{uid}/feedback/{docId} rules', () => {
     ...overrides,
   });
 
-  const feedbackCol = (ctx, uid) =>
-    ctx.firestore().collection('users').doc(uid).collection('feedback');
+  const feedbackCol = (ctx) => ctx.firestore().collection('feedback');
 
-  test('owner creates feedback with valid context+text+createdAt → allow', async () => {
+  test('authed user creates valid review_prompt doc → allow', async () => {
     const ctx = testEnv.authenticatedContext('uid-1');
-    await assertSucceeds(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
-  });
-
-  test('owner reads their own feedback → allow', async () => {
-    const ctx = testEnv.authenticatedContext('uid-1');
-    const ref = await feedbackCol(ctx, 'uid-1').add(feedbackDoc());
-    await assertSucceeds(ref.get());
-  });
-
-  test('non-owner creates under another uid → deny', async () => {
-    const ctx = testEnv.authenticatedContext('uid-2');
-    await assertFails(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
-  });
-
-  test('unknown context value → deny', async () => {
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      feedbackCol(ctx, 'uid-1').add(
-        feedbackDoc({ context: 'random_other_context' }),
-      ),
-    );
-  });
-
-  test('text > 2000 chars → deny', async () => {
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      feedbackCol(ctx, 'uid-1').add(feedbackDoc({ text: 'a'.repeat(2001) })),
-    );
-  });
-
-  test('client supplies non-server createdAt (backdate) → deny', async () => {
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      feedbackCol(ctx, 'uid-1').add(
-        feedbackDoc({ createdAt: new Date('2020-01-01T00:00:00Z') }),
-      ),
-    );
-  });
-
-  test('unauthenticated client tries to create feedback → deny', async () => {
-    const ctx = testEnv.unauthenticatedContext();
-    await assertFails(feedbackCol(ctx, 'uid-1').add(feedbackDoc()));
+    await assertSucceeds(feedbackCol(ctx).add(reviewDoc()));
   });
 
   test('valid noticeRef (sourceId + articleNo) → allow', async () => {
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertSucceeds(
-      feedbackCol(ctx, 'uid-1').add(
-        feedbackDoc({ sourceId: 'portal-notice', articleNo: 12345 }),
-      ),
+      feedbackCol(ctx).add(reviewDoc({ sourceId: 'portal-notice', articleNo: 12345 })),
+    );
+  });
+
+  test('client tries to create account_deletion doc → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx).add({
+        type: 'account_deletion',
+        reasons: ['too_many_notifs'],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }),
+    );
+  });
+
+  test('unknown type value → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).add(reviewDoc({ type: 'random_other' })));
+  });
+
+  test('extra field (uid smuggling) → deny (hasOnly)', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).add(reviewDoc({ uid: 'uid-1' })));
+  });
+
+  test('text > 2000 chars → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).add(reviewDoc({ text: 'a'.repeat(2001) })));
+  });
+
+  test('client supplies non-server createdAt (backdate) → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(
+      feedbackCol(ctx).add(reviewDoc({ createdAt: new Date('2020-01-01T00:00:00Z') })),
     );
   });
 
   test('uppercase sourceId (anchor canary) → deny', async () => {
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertFails(
-      feedbackCol(ctx, 'uid-1').add(
-        feedbackDoc({ sourceId: 'Portal-Notice', articleNo: 1 }),
-      ),
+      feedbackCol(ctx).add(reviewDoc({ sourceId: 'Portal-Notice', articleNo: 1 })),
     );
   });
 
   test('negative articleNo → deny', async () => {
     const ctx = testEnv.authenticatedContext('uid-1');
     await assertFails(
-      feedbackCol(ctx, 'uid-1').add(
-        feedbackDoc({ sourceId: 'portal', articleNo: -1 }),
-      ),
+      feedbackCol(ctx).add(reviewDoc({ sourceId: 'portal', articleNo: -1 })),
     );
   });
 
-  test('owner tries to update existing feedback → deny (append-only)', async () => {
-    // Seed via admin so we have a doc to attempt to mutate.
-    await testEnv.withSecurityRulesDisabled(async (admin) => {
-      await admin
-        .firestore()
-        .collection('users')
-        .doc('uid-1')
-        .collection('feedback')
-        .doc('seed')
-        .set(feedbackDoc());
-    });
-    const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(
-      feedbackCol(ctx, 'uid-1').doc('seed').update({ text: 'tampered' }),
-    );
+  test('unauthenticated client tries to create → deny', async () => {
+    const ctx = testEnv.unauthenticatedContext();
+    await assertFails(feedbackCol(ctx).add(reviewDoc()));
   });
 
-  test('owner tries to delete existing feedback → deny', async () => {
+  test('authed client tries to read feedback → deny', async () => {
+    // Seed via admin (rules-bypassing) so there's a doc to attempt to read.
+    await testEnv.withSecurityRulesDisabled(async (admin) => {
+      await admin.firestore().collection('feedback').doc('seed').set({
+        type: 'account_deletion',
+        reasons: ['bugs'],
+        createdAt: new Date(),
+      });
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).doc('seed').get());
+  });
+
+  test('client tries to update existing feedback → deny (append-only)', async () => {
     await testEnv.withSecurityRulesDisabled(async (admin) => {
       await admin
         .firestore()
-        .collection('users')
-        .doc('uid-1')
         .collection('feedback')
         .doc('seed')
-        .set(feedbackDoc());
+        .set({ type: 'review_prompt', text: 'x', createdAt: new Date() });
     });
     const ctx = testEnv.authenticatedContext('uid-1');
-    await assertFails(feedbackCol(ctx, 'uid-1').doc('seed').delete());
+    await assertFails(feedbackCol(ctx).doc('seed').update({ text: 'tampered' }));
+  });
+
+  test('client tries to delete existing feedback → deny', async () => {
+    await testEnv.withSecurityRulesDisabled(async (admin) => {
+      await admin
+        .firestore()
+        .collection('feedback')
+        .doc('seed')
+        .set({ type: 'review_prompt', text: 'x', createdAt: new Date() });
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).doc('seed').delete());
   });
 });

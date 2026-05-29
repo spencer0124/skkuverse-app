@@ -63,6 +63,7 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticesSearchPlaceholder } from '../hooks/useNoticesSearchPlaceholder';
+import { logNoticesContentSelect } from '@/services/analytics';
 
 const ICON_SIZE = 20;
 
@@ -71,7 +72,10 @@ export function NoticesAccessoryBar() {
   const placeholder = useNoticesSearchPlaceholder();
   return (
     <Pressable
-      onPress={() => router.push('/notices/search')}
+      onPress={() => {
+        logNoticesContentSelect({ content_type: 'accessory_search', item_id: 'pill' });
+        router.push('/notices/search');
+      }}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
       accessibilityLabel={placeholder}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Pressable, View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -10,7 +10,10 @@ import Animated, {
   interpolate,
   Easing,
 } from 'react-native-reanimated';
-import { SdsColors, SdsShadows } from '@skkuverse/shared';
+import { CaretRightIcon } from 'phosphor-react-native';
+import { SdsColors } from '@skkuverse/shared';
+import { logHomeContentSelect } from '@/services/analytics';
+import { handleSduiAction } from '@/sdui/action-handler';
 
 // Cycle: morph (~2.7s) → 5s idle hold → snap reset → loop.
 const ACTIVE_DURATION = 2700;
@@ -64,8 +67,9 @@ function easedPhase(
 }
 
 // Web has subhead and wordmark at the same fontSize (104px desktop). Match
-// that here for visual symmetry — banner uses 28dp for both.
-const HEADING_FONT = 28;
+// that here for visual symmetry — banner uses 18dp for both (slim layout
+// targeting ~AI공지 grid tile height).
+const HEADING_FONT = 18;
 const SLOT_HEIGHT = HEADING_FONT;
 // One space character width at fontSize 28 bold WantedSans.
 const SLOT_GAP = HEADING_FONT * 0.28;
@@ -99,13 +103,15 @@ type EmojiSpec = {
   delay: number;
 };
 
+// Right-zone emoji cluster — organic scatter around 📢 anchor (the largest,
+// focal). Sizes graduated (28→16) so the eye reads anchor first then drifts
+// to peripherals; rotations spread ±20° for "tossed in" feel instead of
+// uniform corners.
 const EMOJIS: readonly EmojiSpec[] = [
-  { ch: '\u{1F4E2}', left: '42%', top: '60%', size: 36, rot: -8, delay: 0 },
-  { ch: '\u{1F68C}', left: '66%', top: '52%', size: 28, rot: 6, delay: 800 },
-  { ch: '\u{1F4DA}', left: '24%', top: '54%', size: 24, rot: -12, delay: 1400 },
-  { ch: '\u{1F5FA}', left: '20%', top: '80%', size: 26, rot: -5, delay: 2000 },
-  { ch: '\u{23F0}', left: '70%', top: '80%', size: 24, rot: 5, delay: 2600 },
-  { ch: '\u{1F514}', left: '52%', top: '82%', size: 20, rot: 10, delay: 3200 },
+  { ch: '\u{1F4E2}', left: '56%', top: '28%', size: 28, rot: -12, delay: 0 },
+  { ch: '\u{1F68C}', left: '78%', top: '8%', size: 20, rot: 16, delay: 800 },
+  { ch: '\u{1F5FA}', left: '70%', top: '60%', size: 18, rot: -22, delay: 1400 },
+  { ch: '\u{23F0}', left: '87%', top: '50%', size: 16, rot: 10, delay: 2000 },
 ];
 
 export function HeroBanner() {
@@ -203,7 +209,21 @@ export function HeroBanner() {
   });
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        { opacity: pressed ? 0.85 : 1 },
+      ]}
+      onPress={() => {
+        logHomeContentSelect({ content_type: 'hero', item_id: 'instagram' });
+        handleSduiAction({
+          actionType: 'external',
+          actionValue: 'https://www.instagram.com/skkuverse.app',
+        });
+      }}
+      accessibilityRole="link"
+      accessibilityLabel="스꾸버스 인스타그램 열기"
+    >
       <Text style={styles.subhead}>내 손 안에, 성균관대</Text>
 
       <View style={styles.wordmarkRow}>
@@ -232,9 +252,11 @@ export function HeroBanner() {
       <FloatingEmoji spec={EMOJIS[1]} />
       <FloatingEmoji spec={EMOJIS[2]} />
       <FloatingEmoji spec={EMOJIS[3]} />
-      <FloatingEmoji spec={EMOJIS[4]} />
-      <FloatingEmoji spec={EMOJIS[5]} />
-    </View>
+
+      <View style={styles.chevronWrap} pointerEvents="none">
+        <CaretRightIcon size={18} color={SdsColors.grey500} weight="bold" />
+      </View>
+    </Pressable>
   );
 }
 
@@ -282,16 +304,14 @@ function FloatingEmoji({ spec }: { spec: EmojiSpec }) {
 
 const styles = StyleSheet.create({
   card: {
-    height: 240,
+    height: 96,
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     borderRadius: 16,
     backgroundColor: SdsColors.brandLight,
-    paddingHorizontal: 24,
-    paddingTop: 28,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
     overflow: 'hidden',
-    boxShadow: SdsShadows.card.boxShadow,
-    ...SdsShadows.card.legacy,
   },
   subhead: {
     fontFamily: 'WantedSans',
@@ -300,13 +320,13 @@ const styles = StyleSheet.create({
     lineHeight: HEADING_FONT * 1.2,
     color: SdsColors.grey900,
     letterSpacing: -HEADING_FONT * 0.03,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   wordmarkRow: {
-    marginTop: 6,
+    marginTop: 4,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   leftSlot: {
     width: LEFT_LONG_WIDTH,
@@ -341,5 +361,12 @@ const styles = StyleSheet.create({
   emoji: {
     position: 'absolute',
     fontFamily: 'TossFaceFontMac',
+  },
+  chevronWrap: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
   },
 });
