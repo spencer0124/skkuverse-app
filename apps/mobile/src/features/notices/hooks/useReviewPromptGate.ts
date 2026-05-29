@@ -3,36 +3,39 @@ import { useEngagementStore, type EngagementState } from '@skkuverse/shared';
 import { logReviewPromptShown } from '@/services/analytics';
 
 /**
- * Review-prompt gate — encodes the 5-axis trigger policy:
+ * Review-prompt gate — encodes the time/outcome trigger policy:
  *
- *   1. delightedBookmarkCount >= 2  (single delight could be coincidence)
- *   2. firstLaunchAt + 7d <= now    (skip onboarding fatigue window)
+ *   1. firstLaunchAt initialized            (set by useAppInit on boot)
+ *   2. firstLaunchAt + 3d <= now            (skip onboarding fatigue window)
  *   3. lastReviewPromptAt + 90d <= now OR never  (respect cooldown)
  *   4. reviewPromptOutcome !== 'positive'   (don't re-ask happy users)
- *   5. firstLaunchAt initialized            (set by useAppInit on boot)
  *
- * iOS SKStoreReviewController has a hard 365d/3-prompt quota; 90d cooldown
- * keeps us inside the math (~4 chances/year worst case, but we'll spend
- * fewer in practice because positive-outcome cuts off future asks).
+ * The "2nd+ bookmark" eligibility is checked at the call site (useBookmark) —
+ * this gate owns only the time/outcome throttling. iOS SKStoreReviewController
+ * has a hard 365d/3-prompt quota; the 90d cooldown keeps us inside the math,
+ * and the positive-outcome cutoff spends fewer in practice.
  */
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-const DELIGHT_COUNT_THRESHOLD = 2;
+
+/**
+ * In dev builds, show the review prompt on EVERY bookmark save, bypassing the
+ * 2nd-bookmark threshold AND the time/outcome gate — makes the sheet trivial
+ * to QA. `__DEV__` is false in TestFlight/production, so shipped builds always
+ * use the real gate. Nothing to revert before shipping.
+ */
+export const DEV_ALWAYS_SHOW = __DEV__;
 
 export function shouldShowReviewPrompt(
   state: Pick<
     EngagementState,
-    | 'firstLaunchAt'
-    | 'delightedBookmarkCount'
-    | 'lastReviewPromptAt'
-    | 'reviewPromptOutcome'
+    'firstLaunchAt' | 'lastReviewPromptAt' | 'reviewPromptOutcome'
   >,
   now: number,
 ): boolean {
   if (state.firstLaunchAt === 0) return false;
-  if (state.delightedBookmarkCount < DELIGHT_COUNT_THRESHOLD) return false;
-  if (now - state.firstLaunchAt < SEVEN_DAYS_MS) return false;
+  if (now - state.firstLaunchAt < THREE_DAYS_MS) return false;
   if (
     state.lastReviewPromptAt !== null &&
     now - state.lastReviewPromptAt < NINETY_DAYS_MS
@@ -44,25 +47,23 @@ export function shouldShowReviewPrompt(
 }
 
 /**
- * Imperative trigger — call after a delight signal (push + AI summary +
- * bookmark). Pass a callback that opens the stage 1 sheet; we'll invoke it
- * only if all conditions pass. Internally:
- *   1. records the delight (counter++)
- *   2. checks the gate against the NEW counter value
- *   3. if pass: marks lastPromptAt + logs analytics + opens sheet
+ * Imperative trigger — call after the 2nd+ bookmark save. Pass the current
+ * bookmark count (for funnel analytics) and a callback that opens the prompt
+ * sheet; we invoke it only if all gate conditions pass. On pass:
+ *   1. marks lastReviewPromptAt (starts the 90-day cooldown)
+ *   2. logs analytics
+ *   3. opens the sheet
  *
  * Reason string flows into analytics — keep stable across versions for
  * funnel readability.
  */
 export function useReviewPromptGate() {
   return useCallback(
-    (reason: string, openSheet: () => void) => {
+    (reason: string, count: number, openSheet: () => void) => {
       const store = useEngagementStore.getState();
-      store.recordDelightedBookmark();
-      const after = useEngagementStore.getState();
-      if (!shouldShowReviewPrompt(after, Date.now())) return;
+      if (!DEV_ALWAYS_SHOW && !shouldShowReviewPrompt(store, Date.now())) return;
       store.markPromptShown();
-      logReviewPromptShown({ reason, count: after.delightedBookmarkCount });
+      logReviewPromptShown({ reason, count });
       openSheet();
     },
     [],

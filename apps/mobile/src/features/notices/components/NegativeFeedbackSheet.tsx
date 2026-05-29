@@ -72,12 +72,12 @@ export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
               color={SdsColors.grey900}
               style={styles.title}
             >
-              {t('notices.aiHelpful.negativePlaceholder')}
+              {t('notices.reviewPrompt.negativePlaceholder')}
             </Txt>
             <View style={styles.inputWrap}>
               <TextField
                 variant="box"
-                label={t('notices.aiHelpful.negativePlaceholder')}
+                label={t('notices.reviewPrompt.negativePlaceholder')}
                 value={text}
                 onChangeText={(next) => setText(next.slice(0, FEEDBACK_TEXT_MAX))}
                 multiline
@@ -95,7 +95,7 @@ export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
                 {isSubmitting ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  t('notices.aiHelpful.negativeSubmit')
+                  t('notices.reviewPrompt.negativeSubmit')
                 )}
               </Button>
             </View>

@@ -248,7 +248,7 @@ export function logAiSummaryView(params: {
 export function logReviewPromptShown(params: { reason: string; count: number }) {
   logEvent('review_prompt_shown', {
     reason: params.reason,
-    delighted_count: params.count,
+    bookmark_count: params.count,
   });
 }
 

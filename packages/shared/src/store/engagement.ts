@@ -16,19 +16,13 @@ export interface EngagementState {
   /**
    * Wall-clock ms timestamp of the first time `init()` ran on this install.
    * Initialized once by useAppInit; never updated thereafter. Used by the
-   * review-prompt gate to enforce a 7-day grace period after install.
+   * review-prompt gate to enforce a 3-day grace period after install.
    * 0 sentinel = uninitialized.
    */
   firstLaunchAt: number;
   /**
-   * Count of "delight moments" — user opened a notice via push tap, the
-   * notice had an AI summary, and the user bookmarked it. We require 2
-   * before showing the review sheet (1 is coincidence, 2 is a pattern).
-   */
-  delightedBookmarkCount: number;
-  /**
-   * Wall-clock ms of last time the stage 1 sheet was shown. Used for the
-   * 90-day cooldown. null = never shown.
+   * Wall-clock ms of last time the review-prompt sheet was shown. Used for
+   * the 90-day cooldown. null = never shown.
    */
   lastReviewPromptAt: number | null;
   reviewPromptOutcome: ReviewPromptOutcome | null;
@@ -37,7 +31,6 @@ export interface EngagementState {
 interface EngagementActions {
   /** One-shot first-launch stamp. No-op if already set. */
   initFirstLaunchIfNeeded: () => void;
-  recordDelightedBookmark: () => void;
   markPromptShown: () => void;
   setOutcome: (outcome: ReviewPromptOutcome) => void;
 }
@@ -58,7 +51,6 @@ export const useEngagementStore = create<EngagementStore>()(
   persist(
     (set, get) => ({
       firstLaunchAt: 0,
-      delightedBookmarkCount: 0,
       lastReviewPromptAt: null,
       reviewPromptOutcome: null,
 
@@ -67,14 +59,23 @@ export const useEngagementStore = create<EngagementStore>()(
           set({ firstLaunchAt: Date.now() });
         }
       },
-      recordDelightedBookmark: () =>
-        set((s) => ({ delightedBookmarkCount: s.delightedBookmarkCount + 1 })),
       markPromptShown: () => set({ lastReviewPromptAt: Date.now() }),
       setOutcome: (outcome) => set({ reviewPromptOutcome: outcome }),
     }),
     {
       name: 'engagement',
-      version: 1,
+      version: 2,
+      // v1→v2 dropped delightedBookmarkCount: the review-prompt trigger now
+      // reads the live bookmark count instead of a dedicated counter. Strip
+      // the stale key so it doesn't linger as an untyped property post-hydrate.
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === 'object') {
+          const next = { ...(persisted as Record<string, unknown>) };
+          delete next.delightedBookmarkCount;
+          return next as unknown as EngagementStore;
+        }
+        return persisted as EngagementStore;
+      },
       storage: createJSONStorage(() => mmkvStateStorage),
     },
   ),

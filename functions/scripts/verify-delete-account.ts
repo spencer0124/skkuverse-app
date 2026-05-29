@@ -216,9 +216,10 @@ async function scenario1WithFeedback(): Promise<void> {
 
   await assertCleaned(uid);
 
-  const feedback = await db.collection('account_deletion_feedback').get();
+  const feedback = await db.collection('feedback').get();
   assert.equal(feedback.size, 1, 'feedback doc should be recorded');
   const fbData = feedback.docs[0].data();
+  assert.equal(fbData.type, 'account_deletion', 'type discriminator set');
   assert.deepEqual(
     [...fbData.reasons].sort(),
     ['bugs', 'too_many_notifs'].sort(),
@@ -244,7 +245,7 @@ async function scenario2NoFeedback(): Promise<void> {
 
   await assertCleaned(uid);
 
-  const feedback = await db.collection('account_deletion_feedback').get();
+  const feedback = await db.collection('feedback').get();
   assert.equal(
     feedback.size,
     0,

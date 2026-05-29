@@ -131,16 +131,11 @@ function PendingNoticeLinkConsumer() {
       // caller commits before we push detail. Same-tick push risks RNScreens
       // dedupe coalescing the two transitions.
       requestAnimationFrame(() => {
-        // entrySource travels as a route param so detail-screen logic
-        // (useBookmark → review prompt gate) can distinguish push-driven
-        // entries from universal-link entries from in-app navigations
-        // (the latter never lands here, so no param means in-app).
         router.push({
           pathname: '/notices/[sourceId]/[articleNo]',
           params: {
             sourceId: p.sourceId,
             articleNo: p.articleNo,
-            entrySource: p.source,
           },
         });
       });

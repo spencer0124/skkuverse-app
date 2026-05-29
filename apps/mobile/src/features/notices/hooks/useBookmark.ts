@@ -15,7 +15,7 @@ import {
 } from '@/services/firestore-bookmarks';
 import { logBookmarkSave, logBookmarkUnsave } from '@/services/analytics';
 import { logHandledError } from '@/services/crashlytics';
-import { useReviewPromptGate } from './useReviewPromptGate';
+import { useReviewPromptGate, DEV_ALWAYS_SHOW } from './useReviewPromptGate';
 
 /**
  * Outcome of `toggle()`. The caller decides UX: auth-required → toast +
@@ -29,21 +29,14 @@ import { useReviewPromptGate } from './useReviewPromptGate';
 export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
 
 /**
- * Optional inputs that drive the review-prompt gate from the bookmark save
- * path. All fields are independently safe to omit; the gate only fires when
- * entrySource === 'push' && hasAiSummary && onShowReviewPrompt is set.
- *
- * Read at fire-time via ref (not closure capture) so React Query background
- * refetches that mutate `notice.summary` shape don't invalidate the toggle
- * callback's memoization.
+ * Optional inputs for the review-prompt gate. Read at fire-time via ref (not
+ * closure capture) so React Query background refetches that mutate
+ * `notice.summary` shape don't invalidate the toggle callback's memoization.
  */
 export interface UseBookmarkOptions {
-  /** How the user arrived at this screen — see NoticeDetailScreen props. */
-  entrySource?: 'push' | 'universal_link';
-  /** Whether the detail's AI summary is currently rendered to the user. */
-  hasAiSummary?: boolean;
-  /** Imperative callback to open the stage 1 helpful sheet. The gate only
-   *  invokes this when all 5 trigger conditions pass. */
+  /** Imperative callback to open the review-prompt sheet. The gate only
+   *  invokes this on the user's 2nd+ bookmark and when the time/outcome
+   *  conditions pass. */
   onShowReviewPrompt?: () => void;
 }
 
@@ -137,20 +130,21 @@ export function useBookmark(
       }
 
       /**
-       * Delight-signal check — fires only on a NEW save (not on
-       * remove/re-save). Reads opts via ref so the toggle callback's
-       * useCallback memo stays narrow. `requestAnimationFrame` defers
-       * past the optimistic icon-flip animation so the sheet doesn't
+       * Review-prompt trigger — fires only on a NEW save (not on
+       * remove/re-save), and only when this is the user's 2nd+ bookmark.
+       * The just-saved entry is already in the store via the optimistic
+       * applyLocal above, so it's included in the count. `requestAnimationFrame`
+       * defers past the optimistic icon-flip animation so the sheet doesn't
        * overlap with the bookmark capsule transition (~16-32ms tail).
        */
       function maybeFireReviewPrompt() {
         const opts = optsRef.current;
-        if (!opts?.entrySource || opts.entrySource !== 'push') return;
-        if (!opts.hasAiSummary) return;
-        if (!opts.onShowReviewPrompt) return;
+        if (!opts?.onShowReviewPrompt) return;
+        const count = Object.keys(useBookmarkStore.getState().entries).length;
+        if (!DEV_ALWAYS_SHOW && count < 2) return;
         const open = opts.onShowReviewPrompt;
         requestAnimationFrame(() => {
-          reviewPromptGate('push_ai_bookmark', open);
+          reviewPromptGate('second_bookmark', count, open);
         });
       }
     },

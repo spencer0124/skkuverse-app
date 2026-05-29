@@ -80,7 +80,8 @@ export const deleteAccount = onCall(
     // 1) Record feedback anonymously (no uid, no IP). Done first so a CF
     //    timeout mid-Firestore-cleanup still preserves the survey signal.
     if (feedback) {
-      await db.collection('account_deletion_feedback').add({
+      await db.collection('feedback').add({
+        type: 'account_deletion',
         reasons: feedback.reasons,
         otherText: feedback.otherText,
         createdAt: FieldValue.serverTimestamp(),
