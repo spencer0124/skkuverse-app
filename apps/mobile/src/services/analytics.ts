@@ -248,7 +248,10 @@ export function logAiSummaryView(params: {
 export function logReviewPromptShown(params: { reason: string; count: number }) {
   logEvent('review_prompt_shown', {
     reason: params.reason,
-    bookmark_count: params.count,
+    // Generic 'trigger_count' (was 'bookmark_count') — covers both bookmark
+    // and shuttle surfaces. Existing GA4 dimension renamed; data before this
+    // change used the old key but funnel is queryable via `reason` split.
+    trigger_count: params.count,
   });
 }
 

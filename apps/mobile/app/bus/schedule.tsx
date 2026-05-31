@@ -22,6 +22,7 @@ import {
   useBusConfig,
   useSmartSchedule,
   useCampusEta,
+  useEngagementStore,
   useT,
   SdsColors,
 } from '@skkuverse/shared';
@@ -87,6 +88,14 @@ export default function ScheduleScreen() {
     if (!config || !groupId) return;
     logBusRouteOpen({ routeId: groupId, routeLabel: config.label, screenType: 'schedule' });
   }, [config?.label, groupId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Shuttle review-prompt: increment visit count on every schedule mount ──
+  // Fired unconditionally for all schedule groups — the transit tab handles
+  // the threshold check (3+ visits) and gate conditions on re-focus.
+  // Armed flag signals "came from shuttle" vs unrelated tab focus.
+  useEffect(() => {
+    useEngagementStore.getState().incrementInjaShuttleVisit();
+  }, []);
 
   // Service state — default to config's defaultServiceId
   const defaultIndex = useMemo(() => {

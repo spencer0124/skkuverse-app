@@ -50,7 +50,7 @@ export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/setti
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
 export { useEngagementStore } from './store/engagement';
-export type { EngagementStore, EngagementState, ReviewPromptOutcome } from './store/engagement';
+export type { EngagementStore, EngagementState, ReviewPromptOutcome, ReviewPromptHistoryEntry } from './store/engagement';
 
 // ── Notifications ──
 export type {
