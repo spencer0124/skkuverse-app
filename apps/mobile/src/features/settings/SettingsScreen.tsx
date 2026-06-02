@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BadgeNavRow } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
@@ -49,10 +49,29 @@ export function SettingsScreen() {
             });
           }}
         />
+        {/* TODO: Remove — temporary food classification eval */}
+        <TouchableOpacity
+          style={devStyles.devButton}
+          onPress={() => router.push('/debug-food-eval' as never)}
+        >
+          <Text style={devStyles.devButtonText}>🍔 Food Eval (dev only)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
+
+const devStyles = StyleSheet.create({
+  devButton: {
+    marginTop: 24,
+    marginHorizontal: 16,
+    backgroundColor: '#1a3a1a',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  devButtonText: { color: '#4caf50', fontSize: 14, fontWeight: '600' },
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -303,6 +303,13 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                {/* TODO: Remove — temporary food classification eval screen */}
+                <Stack.Screen
+                  name="debug-food-eval"
+                  options={{
+                    presentation: 'modal',
+                  }}
+                />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation
                     FullScreen). We previously tried formSheet but hit
                     react-native-screens issue #2424 (PR #2436 unmerged): on

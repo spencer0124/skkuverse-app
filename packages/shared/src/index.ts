@@ -225,6 +225,22 @@ export type {
   CollegeMates,
 } from './notices';
 
+// ── Food classification ──
+export type {
+  EmbedFn,
+  FoodSplit,
+  LabeledPost,
+  LabelPrototype,
+  ClassifierResult,
+  ClassMetrics,
+  EvalReport,
+} from './foodclass';
+export { l2normalize, cosineSim } from './foodclass';
+export { buildPrototypes, classify, evaluate } from './foodclass';
+export { CUISINE_LABELS, CATEGORY_LABELS } from './foodclass';
+export type { CuisineLabel, CategoryLabel } from './foodclass';
+export { FOOD_POSTS } from './foodclass';
+
 // ── Hooks ──
 export {
   useCampusSections,
