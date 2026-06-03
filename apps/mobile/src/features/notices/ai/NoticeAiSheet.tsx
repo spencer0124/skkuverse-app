@@ -1,10 +1,10 @@
 /**
- * 공지 상세 "SKKU AI" 질문 바텀시트 (80%).
+ * 공지 상세 "SKKU AI" 질문 시트 — 전체화면, 비드래그.
  *
  * 레이아웃:
  *   ┌───────────────────────────────┐
- *   │   ✨ SKKU AI        (헤더)     │
- *   │   [📄 공지제목]      (고정 chip)│
+ *   │  ✨ SKKU AI               ✕   │  헤더 (✕로만 닫힘)
+ *   │  [📄 공지제목]                 │  고정 chip
  *   ├───────────────────────────────┤
  *   │  (준비 중)  진행률 / 스피너      │
  *   │  (ready)    Q-A turn 스크롤      │
@@ -12,31 +12,39 @@
  *   │  [입력창...............] [전송] │
  *   └───────────────────────────────┘
  *
- * 입력은 모델 ready 전 비활성. 준비 상태는 시트 본문에 진행 표시(사용자 확정).
- * 단발 Q&A이지만 turns로 누적 렌더 — 멀티턴 확장 여지. (useNoticeAi)
+ * 비드래그 전체화면: snapPoints ['100%'] + index 0, pan/handle 제스처 전부 비활성,
+ * handleComponent=null. 드래그로 못 닫으므로 헤더에 ✕ 닫기 버튼.
  *
- * NegativeFeedbackSheet 패턴 미러: BottomSheetModal + keyboardBehavior="interactive".
+ * ⚠️ 한글 자모 분리 회피: @gorhom의 `BottomSheetTextInput`은 내부적으로
+ * react-native-gesture-handler의 TextInput을 렌더하는데, 이게 iOS에서 한글 IME
+ * 조합(marked text)을 깨뜨린다. 그래서 RN 기본 `TextInput`을 사용한다(앱의 다른
+ * 시트 입력이 정상인 것과 동일 이유). 대신 BottomSheetTextInput이 해주던 키보드
+ * 추적이 빠지므로, reanimated `useAnimatedKeyboard`로 입력창을 키보드 위로 올린다.
  */
 
-import { forwardRef, useCallback, useRef, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetTextInput,
-} from '@gorhom/bottom-sheet';
-import type { BottomSheetScrollViewMethods } from '@gorhom/bottom-sheet';
+import Animated, {
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   SparkleIcon,
   FileTextIcon,
   PaperPlaneRightIcon,
   StopIcon,
+  XIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticeAi, type NoticeForAi } from './useNoticeAi';
@@ -46,10 +54,32 @@ interface Props {
 }
 
 export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
-  function NoticeAiSheet({ notice }, ref) {
+  function NoticeAiSheet({ notice }, parentRef) {
     const { status, turns, isGenerating, ask, stop } = useNoticeAi(notice);
     const [input, setInput] = useState('');
-    const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+    const insets = useSafeAreaInsets();
+    const scrollRef = useRef<ScrollView>(null);
+
+    // 닫기 버튼용 내부 ref + 부모 ref 병합 (NegativeFeedbackSheet 패턴).
+    const sheetRef = useRef<BottomSheetModal>(null);
+    const setRefs = useCallback(
+      (node: BottomSheetModal | null) => {
+        sheetRef.current = node;
+        if (typeof parentRef === 'function') parentRef(node);
+        else if (parentRef) parentRef.current = node;
+      },
+      [parentRef],
+    );
+    const close = useCallback(() => sheetRef.current?.dismiss(), []);
+
+    const snapPoints = useMemo(() => ['100%'], []);
+
+    // 키보드 높이만큼 루트 하단 패딩 → 입력창이 키보드 위로 올라옴.
+    // iOS만 적용(Android는 adjustResize가 창을 리사이즈하므로 중복 방지).
+    const keyboard = useAnimatedKeyboard();
+    const keyboardStyle = useAnimatedStyle(() => ({
+      paddingBottom: Platform.OS === 'ios' ? keyboard.height.value : 0,
+    }));
 
     const ready = status.phase === 'ready';
     const canSend = ready && !isGenerating && input.trim().length > 0;
@@ -58,25 +88,39 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
       if (!canSend) return;
       void ask(input);
       setInput('');
-      // 새 turn이 추가되면 하단으로 스크롤
-      requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: true }),
+      );
     }, [canSend, ask, input]);
 
     return (
       <BottomSheetModal
-        ref={ref}
-        snapPoints={SNAP_POINTS}
+        ref={setRefs}
+        index={0}
+        snapPoints={snapPoints}
+        topInset={insets.top}
         enableDynamicSizing={false}
-        keyboardBehavior="interactive"
-        android_keyboardInputMode="adjustResize"
+        enablePanDownToClose={false}
+        enableContentPanningGesture={false}
+        enableHandlePanningGesture={false}
+        handleComponent={null}
       >
-        <View style={styles.root}>
+        <Animated.View style={[styles.root, keyboardStyle]}>
           {/* 헤더 */}
           <View style={styles.header}>
             <View style={styles.brandRow}>
               <SparkleIcon size={18} color={SdsColors.brand} weight="fill" />
               <Text style={styles.brand}>SKKU AI</Text>
             </View>
+            <Pressable
+              onPress={close}
+              style={styles.closeBtn}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+            >
+              <XIcon size={22} color={SdsColors.grey600} />
+            </Pressable>
             <View style={styles.chip}>
               <FileTextIcon size={14} color={SdsColors.grey600} />
               <Text style={styles.chipLabel} numberOfLines={1}>
@@ -89,10 +133,12 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
           {!ready ? (
             <PreparingView phase={status.phase} downloadPct={status.downloadPct} />
           ) : (
-            <BottomSheetScrollView
+            <ScrollView
               ref={scrollRef}
+              style={styles.scroll}
               contentContainerStyle={styles.body}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
             >
               {turns.length === 0 ? (
                 <Text style={styles.hint}>이 공지에 대해 궁금한 점을 물어보세요.</Text>
@@ -110,12 +156,12 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
                   </View>
                 ))
               )}
-            </BottomSheetScrollView>
+            </ScrollView>
           )}
 
           {/* 입력 푸터 */}
-          <View style={styles.footer}>
-            <BottomSheetTextInput
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+            <TextInput
               style={styles.input}
               value={input}
               onChangeText={setInput}
@@ -123,7 +169,6 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
               placeholderTextColor={SdsColors.grey400}
               editable={ready && !isGenerating}
               multiline
-              onSubmitEditing={handleSend}
             />
             {isGenerating ? (
               <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
@@ -139,13 +184,11 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
               </Pressable>
             )}
           </View>
-        </View>
+        </Animated.View>
       </BottomSheetModal>
     );
   },
 );
-
-const SNAP_POINTS = ['80%'];
 
 // ──────────────────────────────────────────────────────────────
 // 준비 중 (다운로드/로딩) 뷰
@@ -190,6 +233,9 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
+    // 드래그 핸들을 없앴고(handleComponent=null), 시트 top은 topInset(=safe top)에서
+    // 시작한다. 헤더가 시트 최상단에 바로 붙으므로 충분한 상단 여백을 둔다.
+    paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SdsColors.grey200,
@@ -205,6 +251,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: SdsColors.grey900,
+  },
+  closeBtn: {
+    position: 'absolute',
+    right: 16,
+    top: 12,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chip: {
     flexDirection: 'row',
@@ -224,6 +279,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
+  scroll: {
+    flex: 1,
+  },
   body: {
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -301,7 +359,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: SdsColors.grey200,
   },
