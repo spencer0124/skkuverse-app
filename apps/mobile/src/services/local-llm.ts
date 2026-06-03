@@ -65,12 +65,15 @@ export const DEFAULT_GENERATE_OPTIONS: Required<Omit<GenerateOptions, 'signal'>>
  *
  * n_gpu_layers: 99 → Metal GPU 최대 사용 (iOS 실기기).
  * n_ctx: 2048 → 프롬프트 + 생성 합산 컨텍스트 창.
- * use_mlock: 모델을 메모리에 잠가 페이지아웃 방지.
+ *
+ * use_mlock는 의도적으로 끈다(미설정 → false). mlock은 모델 페이지를 RAM에 잠가
+ * OS가 메모리 압박 시 evict하지 못하게 해, 모바일에서 1.5GB 상주 + jetsam kill을
+ * 유발한다. 기본 mmap을 유지하면 커널이 압박 시 페이지를 evict해 프로세스 kill을
+ * 피한다(llama.cpp 모바일 권장). 백그라운드 unload는 매니저(local-llm-manager)가 담당.
  */
 export const DEFAULT_CONTEXT_PARAMS: Partial<ContextParams> = {
   n_ctx: 2048,
   n_gpu_layers: 99,
-  use_mlock: true,
 };
 
 // ──────────────────────────────────────────────────────────────

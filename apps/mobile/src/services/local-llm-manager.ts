@@ -19,6 +19,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { AppState, Platform } from 'react-native';
 import type { LlamaLanguageModel, ContextParams } from '@react-native-ai/llama';
 import type { StreamChatFn } from '@skkuverse/shared';
 import {
@@ -79,6 +80,10 @@ let model: LlamaLanguageModel | null = null;
 let loadPromise: Promise<LlamaLanguageModel> | null = null;
 let refCount = 0;
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+// 백그라운드 메모리 해제용: model 객체는 유지하되 native context만 unload한 상태.
+// full teardown(doRelease, model=null)과 구분된다. suspended면 loadModel이 재준비한다.
+let suspended = false;
+let appStateWired = false;
 
 let status: LlmStatus = {
   phase: 'idle',
@@ -121,10 +126,21 @@ export function useLocalLlmStatus(): LlmStatus {
  * 모델을 cold load. 동시 호출은 loadPromise를 공유해 중복 다운로드/init 방지.
  */
 function loadModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
-  if (model) return Promise.resolve(model);
+  // 이미 로드 + 활성(context 살아있음)
+  if (model && !suspended) return Promise.resolve(model);
   if (loadPromise) return loadPromise;
 
   loadPromise = (async () => {
+    // suspended 재준비 경로 — 재다운로드/initModel 없이 context만 다시 올린다.
+    if (model && suspended) {
+      setStatus({ phase: 'loading', downloadPct: 100 });
+      await model.prepare();
+      suspended = false;
+      setStatus({ phase: 'ready' });
+      return model;
+    }
+
+    // cold load
     setStatus({ phase: 'downloading', downloadPct: 0, error: undefined });
 
     // 1. 다운로드 (캐시 히트 시 즉시 100%)
@@ -138,6 +154,7 @@ function loadModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
     const loaded = await initModel(modelPath, opts?.contextParams);
 
     model = loaded;
+    suspended = false;
     setStatus({ phase: 'ready' });
     return loaded;
   })();
@@ -159,6 +176,8 @@ function loadModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
  * 반환 핸들의 release()를 반드시 호출(화면 unmount cleanup 등).
  */
 export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle> {
+  ensureAppStateListener();
+
   // pending idle release 취소 — 재획득은 해제를 무효화
   if (releaseTimer) {
     clearTimeout(releaseTimer);
@@ -216,6 +235,7 @@ function scheduleIdleRelease(): void {
 async function doRelease(): Promise<void> {
   const m = model;
   model = null;
+  suspended = false;
   setStatus({ phase: 'idle', downloadPct: 0, error: undefined });
   if (m) {
     try {
@@ -237,5 +257,68 @@ export async function forceUnloadLocalLlm(): Promise<void> {
     releaseTimer = null;
   }
   refCount = 0;
+  suspended = false;
   await doRelease();
+}
+
+// ──────────────────────────────────────────────────────────────
+// 백그라운드 메모리 관리 (suspend / resume)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * native context를 unload해 RAM(~1.5GB)을 반납하되 model 객체와 refCount는 유지.
+ * 기존 핸들은 makeStreamChatFn의 `getContext() ?? prepare()` 덕에 다음 사용 시 자동
+ * 재준비된다. 백그라운드 전환 / iOS memoryWarning 시 호출.
+ *
+ * 생성 중일 수 있으므로 unload 전에 stopCompletion을 best-effort로 호출(리스너 순서와
+ * 무관하게 native completion을 먼저 정지 → release 안전).
+ */
+async function suspendModel(): Promise<void> {
+  if (!model || suspended) return; // model은 cold load 성공 후에만 non-null
+  suspended = true;
+  try {
+    const ctx = model.getContext();
+    if (ctx) {
+      try {
+        await ctx.stopCompletion();
+      } catch {
+        /* 진행 중 생성 없을 수 있음 */
+      }
+    }
+    await model.unload();
+  } catch (e) {
+    console.warn('[local-llm-manager] suspend(unload) failed', e);
+  }
+  setStatus({ phase: 'idle', downloadPct: 0 });
+}
+
+/**
+ * suspend된 모델을 다시 준비. 아직 점유 중인 소비자가 있으면(refCount>0) eager로
+ * 재준비해 복귀 즉시 사용 가능하게. refCount==0이면 lazy(다음 acquire/streamChat가 복구).
+ */
+async function resumeModel(): Promise<void> {
+  if (!suspended || refCount <= 0) return;
+  try {
+    await loadModel(); // suspended 분기에서 model.prepare() 재준비 + suspended 해제
+  } catch (e) {
+    console.warn('[local-llm-manager] resume(prepare) failed', e);
+  }
+}
+
+/**
+ * AppState 리스너 1회 설치(싱글톤 수명, 제거 안 함).
+ * - background: 즉시 suspend (iOS는 직후 JS 서스펜드 → 유예 setTimeout 불가).
+ * - memoryWarning(iOS): 압박 즉시 반납.
+ * - active: 복귀 시 재준비.
+ */
+function ensureAppStateListener(): void {
+  if (appStateWired) return;
+  appStateWired = true;
+  AppState.addEventListener('change', (s) => {
+    if (s === 'background') void suspendModel();
+    else if (s === 'active') void resumeModel();
+  });
+  if (Platform.OS === 'ios') {
+    AppState.addEventListener('memoryWarning', () => void suspendModel());
+  }
 }
