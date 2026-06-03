@@ -127,6 +127,9 @@ export default function DebugFoodEvalScreen() {
           {`데이터: ${FOOD_POSTS.filter((p: LabeledPost) => p.split === 'seed').length}개 seed · ` +
            `${FOOD_POSTS.filter((p: LabeledPost) => p.split === 'test').length}개 test`}
         </Text>
+        <Text style={styles.simulatorWarning}>
+          ⚠️ iOS Simulator 불가 — NLContextualEmbedding 에셋 컴파일 실패 (Apple FB22699606). 실기기 전용.
+        </Text>
 
         {/* 에셋 정보 */}
         {state.info && (
@@ -330,7 +333,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   content: { padding: 16, paddingBottom: 60 },
   title: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  subtitle: { color: '#999', fontSize: 13, marginBottom: 20, lineHeight: 18 },
+  subtitle: { color: '#999', fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  simulatorWarning: { color: '#ff9800', fontSize: 12, marginBottom: 16, lineHeight: 17 },
   durationLabel: { color: '#4caf50', fontSize: 13, marginBottom: 8 },
   phaseLabel: { color: '#aaa', fontSize: 13, textAlign: 'center', marginVertical: 8 },
   errorText: { color: '#ff6b6b', fontSize: 13, lineHeight: 18 },
