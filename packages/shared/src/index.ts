@@ -226,7 +226,7 @@ export type {
 } from './notices';
 
 // ── Local LLM ──
-export type { ChatRole, ChatMessage, GenerateResult, StreamChatFn } from './localllm';
+export type { ChatRole, ChatMessage, GenerateResult, GenerateOptions, StreamChatFn } from './localllm';
 
 // ── Food classification ──
 export type {

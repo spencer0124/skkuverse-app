@@ -25,8 +25,8 @@ import {
   LlamaLanguageModel,
   llama,
 } from '@react-native-ai/llama';
-import type { DownloadProgress } from '@react-native-ai/llama';
-import type { StreamChatFn, GenerateResult } from '@skkuverse/shared';
+import type { DownloadProgress, ContextParams } from '@react-native-ai/llama';
+import type { StreamChatFn, GenerateResult, GenerateOptions } from '@skkuverse/shared';
 
 // ──────────────────────────────────────────────────────────────
 // 모델 상수
@@ -41,6 +41,37 @@ export const KANANA_MODEL_ID =
 
 /** 예상 파일 크기(bytes). 캐시 히트 여부 표시용 참고값. */
 export const KANANA_Q4_KM_SIZE_BYTES = 1_630_000_000; // ~1.52 GB
+
+// ──────────────────────────────────────────────────────────────
+// 파라미터 기본값 (호출부에서 override 가능)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * per-call 생성 파라미터 기본값.
+ * makeStreamChatFn이 호출 시점 options와 병합 (options 우선).
+ * 화면별 개인화는 streamChat(msgs, onToken, { temperature, ... })로 override.
+ */
+export const DEFAULT_GENERATE_OPTIONS: Required<Omit<GenerateOptions, 'signal'>> = {
+  nPredict: 512,
+  temperature: 0.7,
+  topP: 0.95,
+  stop: ['<|end|>', '<|eot_id|>', '<|im_end|>'],
+};
+
+/**
+ * 모델 load-time 컨텍스트 파라미터 기본값.
+ * 싱글톤 매니저(local-llm-manager.ts)에서 첫 cold load 시에만 적용 — 런타임 값이라
+ * 변경해도 prebuild 불필요(JS-only).
+ *
+ * n_gpu_layers: 99 → Metal GPU 최대 사용 (iOS 실기기).
+ * n_ctx: 2048 → 프롬프트 + 생성 합산 컨텍스트 창.
+ * use_mlock: 모델을 메모리에 잠가 페이지아웃 방지.
+ */
+export const DEFAULT_CONTEXT_PARAMS: Partial<ContextParams> = {
+  n_ctx: 2048,
+  n_gpu_layers: 99,
+  use_mlock: true,
+};
 
 // ──────────────────────────────────────────────────────────────
 // 모델 다운로드 / 캐시
@@ -75,16 +106,15 @@ export async function ensureModel(
  * 다운로드된 GGUF 파일 경로를 받아 LlamaLanguageModel 인스턴스 반환.
  * prepare()까지 완료 → context가 메모리에 올라온 상태.
  *
- * n_gpu_layers: 99 → Metal GPU 최대 사용 (iOS 실기기).
- * n_ctx: 2048 → 프롬프트 + 생성 합산 컨텍스트 창.
+ * @param contextParams DEFAULT_CONTEXT_PARAMS에 얕게 병합되는 override
+ *                      (싱글톤 매니저가 첫 cold load 시에만 전달).
  */
-export async function initModel(modelPath: string): Promise<LlamaLanguageModel> {
+export async function initModel(
+  modelPath: string,
+  contextParams?: Partial<ContextParams>,
+): Promise<LlamaLanguageModel> {
   const model = llama.languageModel(modelPath, {
-    contextParams: {
-      n_ctx: 2048,
-      n_gpu_layers: 99,
-      use_mlock: true,
-    },
+    contextParams: { ...DEFAULT_CONTEXT_PARAMS, ...contextParams },
   });
   await model.prepare();
   return model;
@@ -111,9 +141,16 @@ export function makeStreamChatFn(model: LlamaLanguageModel): StreamChatFn {
   return async (
     messages,
     onToken,
-    signal,
+    options,
   ): Promise<GenerateResult> => {
     const context = model.getContext() ?? await model.prepare();
+
+    // per-call options를 기본값과 병합 (options 우선).
+    const { nPredict, temperature, topP, stop } = {
+      ...DEFAULT_GENERATE_OPTIONS,
+      ...options,
+    };
+    const signal = options?.signal;
 
     const t0 = Date.now();
     let firstTokenMs = -1;
@@ -122,9 +159,10 @@ export function makeStreamChatFn(model: LlamaLanguageModel): StreamChatFn {
     const result = await context.completion(
       {
         messages,
-        n_predict: 512,
-        temperature: 0.7,
-        stop: ['<|end|>', '<|eot_id|>', '<|im_end|>'],
+        n_predict: nPredict,
+        temperature,
+        top_p: topP,
+        stop,
       },
       (data) => {
         if (signal?.aborted) return;

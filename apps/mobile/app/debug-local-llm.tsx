@@ -1,11 +1,13 @@
 /**
  * 로컬 LLM eval 화면 — Kanana 1.5 2.1B Q4_K_M on-device 생성 성능 측정.
  *
- * 상태 머신:
- *   idle → downloading → loading → ready → generating → ready
+ * 모델 수명은 전역 싱글톤 매니저(local-llm-manager.ts)가 소유한다.
+ * 이 화면은 소비자: acquireLocalLlm()로 핸들을 얻고 unmount 시 release().
+ * 로드 phase·다운로드 진행률은 useLocalLlmStatus()로 매니저에서 파생,
+ * 'generating'은 이 화면의 로컬 상태.
  *
  * 진입: Settings 화면 하단 "🦙 Local LLM" 버튼 또는 /debug-local-llm 직접 push.
- * TODO: 평가 완료 후 진입 버튼·이 화면 제거.
+ * TODO: 평가 완료 후 진입 버튼·이 화면 제거 (단, 매니저/local-llm.ts는 유지 — 승격 경로).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,19 +23,19 @@ import {
   View,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import type { LlamaLanguageModel } from '@react-native-ai/llama';
 import {
-  ensureModel,
-  initModel,
-  makeStreamChatFn,
-  releaseModel,
   KANANA_MODEL_ID,
   KANANA_Q4_KM_SIZE_BYTES,
 } from '@/services/local-llm';
+import {
+  acquireLocalLlm,
+  useLocalLlmStatus,
+  type LlmHandle,
+} from '@/services/local-llm-manager';
 import type { GenerateResult } from '@skkuverse/shared';
 
 // ──────────────────────────────────────────────────────────────
-// 상태 타입
+// 화면 표시용 phase (매니저 load phase + 로컬 generating 병합)
 // ──────────────────────────────────────────────────────────────
 
 type Phase =
@@ -44,14 +46,6 @@ type Phase =
   | 'generating'
   | 'error';
 
-interface LlmState {
-  phase: Phase;
-  downloadPct: number;      // 0~100
-  error?: string;
-  streamedText: string;
-  lastResult?: GenerateResult;
-}
-
 // ──────────────────────────────────────────────────────────────
 // 메인 화면
 // ──────────────────────────────────────────────────────────────
@@ -60,58 +54,44 @@ const SYSTEM_PROMPT = '당신은 성균관대학교 캠퍼스 생활을 돕는 A
 const DEFAULT_USER_PROMPT = '학교 도서관 이용 시간을 알려줘';
 
 export default function DebugLocalLlmScreen() {
-  const [state, setState] = useState<LlmState>({
-    phase: 'idle',
-    downloadPct: 0,
-    streamedText: '',
-  });
-  const [userPrompt, setUserPrompt] = useState(DEFAULT_USER_PROMPT);
+  const status = useLocalLlmStatus();
 
-  const modelRef = useRef<LlamaLanguageModel | null>(null);
+  const [userPrompt, setUserPrompt] = useState(DEFAULT_USER_PROMPT);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [streamedText, setStreamedText] = useState('');
+  const [lastResult, setLastResult] = useState<GenerateResult | undefined>();
+  const [localError, setLocalError] = useState<string | undefined>();
+  // 이 화면이 핸들을 보유 중인지 — re-render 트리거용 (handleRef는 ref라 리렌더 안 함)
+  const [hasHandle, setHasHandle] = useState(false);
+
+  const handleRef = useRef<LlmHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  function set(patch: Partial<LlmState>) {
-    setState(prev => ({ ...prev, ...patch }));
-  }
-
-  // 화면 종료 시 모델 메모리 해제
+  // 화면 종료 시 점유 해제 (매니저가 grace 후 실제 메모리 해제)
   useEffect(() => {
     return () => {
-      if (modelRef.current) {
-        releaseModel(modelRef.current).catch(console.warn);
-        modelRef.current = null;
-      }
+      abortRef.current?.abort();
+      handleRef.current?.release();
+      handleRef.current = null;
     };
   }, []);
 
   // ──────────────────────────────────────────────────────────
-  // 모델 로드 핸들러
+  // 모델 로드 핸들러 — 매니저에서 점유 획득
   // ──────────────────────────────────────────────────────────
 
   const handleLoadModel = useCallback(async () => {
-    if (modelRef.current) {
-      // 이미 로드됨
-      set({ phase: 'ready' });
-      return;
-    }
-
-    set({ phase: 'downloading', downloadPct: 0, error: undefined });
+    if (handleRef.current) return; // 이미 보유
+    setLocalError(undefined);
 
     try {
-      // 1. 다운로드 (캐시 히트 시 즉시 100%)
-      const modelPath = await ensureModel((pct) => {
-        set({ downloadPct: pct });
-      });
-
-      // 2. initLlama + prepare (Metal 로딩 — 수 초 소요)
-      set({ phase: 'loading', downloadPct: 100 });
-      const model = await initModel(modelPath);
-      modelRef.current = model;
-
-      set({ phase: 'ready' });
+      // 다운로드/로딩 진행률은 useLocalLlmStatus()가 반응형으로 표시.
+      const handle = await acquireLocalLlm();
+      handleRef.current = handle;
+      setHasHandle(true);
     } catch (e) {
       const msg = String(e);
-      set({ phase: 'error', error: msg });
+      setLocalError(msg);
       Alert.alert('모델 로드 실패', msg);
     }
   }, []);
@@ -121,64 +101,81 @@ export default function DebugLocalLlmScreen() {
   // ──────────────────────────────────────────────────────────
 
   const handleGenerate = useCallback(async () => {
-    if (!modelRef.current) return;
+    const handle = handleRef.current;
+    if (!handle) return;
     if (!userPrompt.trim()) return;
 
     abortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
 
-    set({ phase: 'generating', streamedText: '', lastResult: undefined, error: undefined });
-
-    const streamChat = makeStreamChatFn(modelRef.current);
+    setIsGenerating(true);
+    setStreamedText('');
+    setLastResult(undefined);
+    setLocalError(undefined);
 
     try {
-      const result = await streamChat(
+      const result = await handle.streamChat(
         [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt.trim() },
         ],
         (token) => {
           if (abort.signal.aborted) return;
-          setState(prev => ({ ...prev, streamedText: prev.streamedText + token }));
+          setStreamedText(prev => prev + token);
         },
-        abort.signal,
+        { signal: abort.signal },
       );
 
       if (!abort.signal.aborted) {
-        set({ phase: 'ready', lastResult: result });
+        setLastResult(result);
       }
     } catch (e) {
-      if (abort.signal.aborted) {
-        set({ phase: 'ready' });
-        return;
-      }
+      if (abort.signal.aborted) return;
       const msg = String(e);
-      set({ phase: 'error', error: msg });
+      setLocalError(msg);
       Alert.alert('생성 실패', msg);
+    } finally {
+      setIsGenerating(false);
     }
   }, [userPrompt]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
-    set({ phase: 'ready' });
+    setIsGenerating(false);
   }, []);
 
-  const handleUnload = useCallback(async () => {
-    if (!modelRef.current) return;
-    await releaseModel(modelRef.current);
-    modelRef.current = null;
-    set({ phase: 'idle', streamedText: '', lastResult: undefined });
+  const handleUnload = useCallback(() => {
+    handleRef.current?.release();
+    handleRef.current = null;
+    setHasHandle(false);
+    setStreamedText('');
+    setLastResult(undefined);
+    setLocalError(undefined);
   }, []);
 
   // ──────────────────────────────────────────────────────────
-  // 렌더
+  // 렌더 — 매니저 status + 로컬 상태로 표시 phase 도출
   // ──────────────────────────────────────────────────────────
 
-  const { phase, downloadPct, error, streamedText, lastResult } = state;
+  const downloadPct = status.downloadPct;
+  const error = localError ?? (status.phase === 'error' ? status.error : undefined);
+  const modelLoaded = hasHandle;
+
+  const phase: Phase = isGenerating
+    ? 'generating'
+    : status.phase === 'downloading'
+      ? 'downloading'
+      : status.phase === 'loading'
+        ? 'loading'
+        : error
+          ? 'error'
+          : modelLoaded
+            ? 'ready'
+            : 'idle';
+
   const isBusy = phase === 'downloading' || phase === 'loading' || phase === 'generating';
   const isReady = phase === 'ready';
-  const modelLoaded = modelRef.current !== null;
 
   return (
     <>

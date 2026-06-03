@@ -1,1 +1,1 @@
-export type { ChatRole, ChatMessage, GenerateResult, StreamChatFn } from './types';
+export type { ChatRole, ChatMessage, GenerateResult, GenerateOptions, StreamChatFn } from './types';
