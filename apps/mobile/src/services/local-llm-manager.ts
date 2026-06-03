@@ -77,13 +77,44 @@ export interface LlmHandle {
 // ──────────────────────────────────────────────────────────────
 
 let model: LlamaLanguageModel | null = null;
-let loadPromise: Promise<LlamaLanguageModel> | null = null;
 let refCount = 0;
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 // 백그라운드 메모리 해제용: model 객체는 유지하되 native context만 unload한 상태.
-// full teardown(doRelease, model=null)과 구분된다. suspended면 loadModel이 재준비한다.
+// full teardown(doRelease, model=null)과 구분된다. suspended면 prepareModel이 재준비한다.
 let suspended = false;
 let appStateWired = false;
+
+// ──────────────────────────────────────────────────────────────
+// 라이프사이클 직렬화
+// ──────────────────────────────────────────────────────────────
+// suspend(unload)와 prepare(load/re-prepare)가 같은 native context에 겹치면 hang/abort
+// (iPhone은 백그라운드에서 GPU 접근이 끊기고 in-flight Metal 작업이 abort될 수 있음 —
+// Apple 권고: 백그라운드 전 GPU 작업 완료 보장). 모든 무거운 op를 단일 체인으로 직렬화해
+// 절대 겹치지 않게 한다.
+let opChain: Promise<unknown> = Promise.resolve();
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const next = opChain.then(fn, fn); // 이전 op 성공/실패와 무관하게 이어서 실행
+  opChain = next.catch(() => {}); // 체인은 항상 resolve 유지
+  return next;
+}
+
+/** native prepare/init 가 드물게 영영 안 끝나는 경우(웹 보고된 init hang) 방지용 타임아웃. */
+const PREPARE_TIMEOUT_MS = 25_000;
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 let status: LlmStatus = {
   phase: 'idle',
@@ -123,18 +154,23 @@ export function useLocalLlmStatus(): LlmStatus {
 // ──────────────────────────────────────────────────────────────
 
 /**
- * 모델을 cold load. 동시 호출은 loadPromise를 공유해 중복 다운로드/init 방지.
+ * 모델을 준비(ready)로 만든다. 직렬화되어 suspend(unload)와 절대 겹치지 않는다.
+ * - 이미 활성 → 즉시 반환(idempotent)
+ * - suspended → 재준비(재다운로드/initModel 없이 context만 다시)
+ * - 미로드 → cold load(다운로드 + initModel)
+ *
+ * 항상 ready 또는 error로 수렴한다. 실패/타임아웃 시 phase='error'(무한 'loading' 방지).
+ * Metal 로딩(prepare/init)만 타임아웃으로 감싼다 — 다운로드(ensureModel)는 분 단위라 제외.
  */
-function loadModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
-  // 이미 로드 + 활성(context 살아있음)
-  if (model && !suspended) return Promise.resolve(model);
-  if (loadPromise) return loadPromise;
+function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
+  return serialize(async () => {
+    // 이미 로드 + 활성(context 살아있음)
+    if (model && !suspended) return model;
 
-  loadPromise = (async () => {
-    // suspended 재준비 경로 — 재다운로드/initModel 없이 context만 다시 올린다.
+    // suspended 재준비 경로
     if (model && suspended) {
-      setStatus({ phase: 'loading', downloadPct: 100 });
-      await model.prepare();
+      setStatus({ phase: 'loading', downloadPct: 100, error: undefined });
+      await withTimeout(model.prepare(), PREPARE_TIMEOUT_MS, 're-prepare');
       suspended = false;
       setStatus({ phase: 'ready' });
       return model;
@@ -142,29 +178,25 @@ function loadModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
 
     // cold load
     setStatus({ phase: 'downloading', downloadPct: 0, error: undefined });
-
-    // 1. 다운로드 (캐시 히트 시 즉시 100%)
     const modelPath = await ensureModel((pct) => {
       opts?.onProgress?.(pct);
       setStatus({ downloadPct: pct });
     });
-
-    // 2. initLlama + prepare (Metal 로딩)
     setStatus({ phase: 'loading', downloadPct: 100 });
-    const loaded = await initModel(modelPath, opts?.contextParams);
-
+    const loaded = await withTimeout(
+      initModel(modelPath, opts?.contextParams),
+      PREPARE_TIMEOUT_MS,
+      'init',
+    );
     model = loaded;
     suspended = false;
     setStatus({ phase: 'ready' });
     return loaded;
-  })();
-
-  // 성공/실패와 무관하게 in-flight 플래그 정리
-  loadPromise.finally(() => {
-    loadPromise = null;
+  }).catch((e) => {
+    // 항상 error로 수렴 — 'loading' 영구 고정 방지. suspended는 유지(재시도 가능).
+    setStatus({ phase: 'error', error: String(e) });
+    throw e;
   });
-
-  return loadPromise;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -184,9 +216,9 @@ export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle>
     releaseTimer = null;
   }
 
-  if (opts?.contextParams && (model || loadPromise)) {
+  if (opts?.contextParams && model) {
     console.warn(
-      '[local-llm-manager] contextParams ignored — model already loaded/loading (singleton)',
+      '[local-llm-manager] contextParams ignored — model already loaded (singleton)',
     );
   }
 
@@ -194,12 +226,11 @@ export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle>
   setStatus({}); // refCount 반영
 
   try {
-    const loaded = await loadModel(opts);
+    const loaded = await prepareModel(opts);
     return makeHandle(loaded);
   } catch (e) {
-    // 로드 실패 시 이 acquire의 참조를 되돌린다 (누수 방지)
+    // 로드 실패 시 이 acquire의 참조를 되돌린다 (누수 방지). status는 prepareModel이 error로 설정.
     refCount = Math.max(0, refCount - 1);
-    setStatus({ phase: 'error', error: String(e) });
     throw e;
   }
 }
@@ -225,9 +256,9 @@ function scheduleIdleRelease(): void {
   if (releaseTimer) clearTimeout(releaseTimer);
   releaseTimer = setTimeout(() => {
     releaseTimer = null;
-    // 타이머 발화 시점에도 여전히 0일 때만 해제
+    // 타이머 발화 시점에도 여전히 0일 때만 해제 (prepare와 안 겹치게 직렬화)
     if (refCount === 0 && model) {
-      void doRelease();
+      void serialize(() => doRelease());
     }
   }, IDLE_RELEASE_MS);
 }
@@ -257,8 +288,10 @@ export async function forceUnloadLocalLlm(): Promise<void> {
     releaseTimer = null;
   }
   refCount = 0;
-  suspended = false;
-  await doRelease();
+  await serialize(async () => {
+    suspended = false;
+    await doRelease();
+  });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -273,36 +306,48 @@ export async function forceUnloadLocalLlm(): Promise<void> {
  * 생성 중일 수 있으므로 unload 전에 stopCompletion을 best-effort로 호출(리스너 순서와
  * 무관하게 native completion을 먼저 정지 → release 안전).
  */
-async function suspendModel(): Promise<void> {
-  if (!model || suspended) return; // model은 cold load 성공 후에만 non-null
-  suspended = true;
-  try {
-    const ctx = model.getContext();
-    if (ctx) {
-      try {
-        await ctx.stopCompletion();
-      } catch {
-        /* 진행 중 생성 없을 수 있음 */
+function suspendModel(): Promise<void> {
+  return serialize(async () => {
+    if (!model || suspended) return; // model은 cold load 성공 후에만 non-null
+    suspended = true;
+    try {
+      const ctx = model.getContext();
+      if (ctx) {
+        try {
+          await ctx.stopCompletion();
+        } catch {
+          /* 진행 중 생성 없을 수 있음 */
+        }
       }
+      await model.unload();
+    } catch (e) {
+      console.warn('[local-llm-manager] suspend(unload) failed', e);
     }
-    await model.unload();
-  } catch (e) {
-    console.warn('[local-llm-manager] suspend(unload) failed', e);
-  }
-  setStatus({ phase: 'idle', downloadPct: 0 });
+    setStatus({ phase: 'idle', downloadPct: 0 });
+  });
 }
 
 /**
- * suspend된 모델을 다시 준비. 아직 점유 중인 소비자가 있으면(refCount>0) eager로
- * 재준비해 복귀 즉시 사용 가능하게. refCount==0이면 lazy(다음 acquire/streamChat가 복구).
+ * suspend된 모델을 다시 준비. 점유 중 소비자가 있으면(refCount>0) eager로 재준비해 복귀 즉시
+ * 사용 가능하게. refCount==0이면 lazy(다음 acquire/streamChat가 복구). prepareModel이 직렬화 +
+ * idempotent라, 진행 중 suspend의 unload가 끝난 뒤에만 prepare가 돌고(레이스 제거), 이미 ready면
+ * 즉시 반환한다.
  */
-async function resumeModel(): Promise<void> {
-  if (!suspended || refCount <= 0) return;
-  try {
-    await loadModel(); // suspended 분기에서 model.prepare() 재준비 + suspended 해제
-  } catch (e) {
-    console.warn('[local-llm-manager] resume(prepare) failed', e);
-  }
+function resumeModel(): Promise<void> {
+  if (refCount <= 0) return Promise.resolve();
+  return prepareModel().then(
+    () => {},
+    () => {}, // 실패는 status='error'로 표면화됨 (시트 재시도)
+  );
+}
+
+/** 시트의 "다시 시도" 버튼 등에서 호출 — 직렬화된 재준비. */
+export function retryPrepare(): Promise<void> {
+  if (refCount <= 0) return Promise.resolve();
+  return prepareModel().then(
+    () => {},
+    () => {},
+  );
 }
 
 /**

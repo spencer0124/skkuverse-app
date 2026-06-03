@@ -71,6 +71,7 @@ import {
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticeAi, type NoticeForAi } from './useNoticeAi';
+import { retryPrepare } from '@/services/local-llm-manager';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
 const LOGO = require('../../../../assets/images/icon.png');
@@ -177,7 +178,11 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
 
           {/* 본문 */}
           {!ready ? (
-            <PreparingView phase={status.phase} downloadPct={status.downloadPct} />
+            <PreparingView
+              phase={status.phase}
+              downloadPct={status.downloadPct}
+              onRetry={() => void retryPrepare()}
+            />
           ) : (
             <ScrollView
               ref={scrollRef}
@@ -385,10 +390,23 @@ const NOOP = () => undefined;
 function PreparingView({
   phase,
   downloadPct,
+  onRetry,
 }: {
   phase: string;
   downloadPct: number;
+  onRetry: () => void;
 }) {
+  if (phase === 'error') {
+    return (
+      <View style={styles.preparing}>
+        <Text style={styles.preparingTitle}>AI를 준비하지 못했어요</Text>
+        <Text style={styles.preparingSub}>잠시 후 다시 시도해 주세요.</Text>
+        <Pressable style={styles.retryBtn} onPress={onRetry}>
+          <Text style={styles.retryBtnText}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
   const downloading = phase === 'downloading';
   return (
     <View style={styles.preparing}>
@@ -602,6 +620,18 @@ const styles = StyleSheet.create({
   preparingPct: {
     fontSize: 13,
     color: SdsColors.brand,
+    fontWeight: '600',
+  },
+  retryBtn: {
+    marginTop: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: BRAND_DEEP_GREEN,
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
   progressTrack: {
