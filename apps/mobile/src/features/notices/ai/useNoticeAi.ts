@@ -8,6 +8,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import type { AppStateStatus } from 'react-native';
 import type { ChatMessage } from '@skkuverse/shared';
 import {
   acquireLocalLlm,
@@ -20,6 +22,8 @@ export interface AiTurn {
   id: number;
   question: string;
   answer: string;
+  /** 생성 중 백그라운드 전환 등으로 중단된 turn. 부분 답변은 유지. */
+  interrupted?: boolean;
 }
 
 export interface NoticeForAi {
@@ -39,9 +43,30 @@ export function useNoticeAi(notice: NoticeForAi) {
   const handleRef = useRef<LlmHandle | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const turnIdRef = useRef(0);
+  // AppState 콜백 stale 클로저 회피용 — 진행 상태/활성 turn을 ref로도 추적.
+  const isGeneratingRef = useRef(false);
+  const activeTurnIdRef = useRef<number | null>(null);
 
   const [turns, setTurns] = useState<AiTurn[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // 진행 중 생성을 중단 처리(부분 답변 유지 + interrupted 마킹). 백그라운드 전환 /
+  // 복귀 방어 정리에서 공용으로 호출. abort → §makeStreamChatFn이 네이티브
+  // stopCompletion까지 수행해 context를 해제한다(후속 질문 정상화의 핵심).
+  const interruptActive = useCallback(() => {
+    if (!isGeneratingRef.current) return;
+    abortRef.current?.abort();
+    isGeneratingRef.current = false;
+    setIsGenerating(false);
+    const activeId = activeTurnIdRef.current;
+    if (activeId != null) {
+      setTurns((prev) =>
+        prev.map((tn) =>
+          tn.id === activeId ? { ...tn, interrupted: true } : tn,
+        ),
+      );
+    }
+  }, []);
 
   // 핸들 acquire/release — 화면 수명과 일치.
   useEffect(() => {
@@ -62,6 +87,20 @@ export function useNoticeAi(notice: NoticeForAi) {
     };
   }, []);
 
+  // 백그라운드 전환 시 진행 중 생성 중단. 실제 GPU 서스펜드는 'background'에서만
+  // 일어나므로 'inactive'(전화 배너/제어센터 등 transient)는 제외. 복귀('active')
+  // 시에는 백그라운드 핸들러가 끝까지 못 돈 edge를 위해 방어적으로 한 번 더 정리
+  // (interruptActive는 isGeneratingRef로 가드되어 idempotent).
+  useEffect(() => {
+    const onChange = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'active') {
+        interruptActive();
+      }
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => sub.remove();
+  }, [interruptActive]);
+
   const ask = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim();
@@ -74,7 +113,9 @@ export function useNoticeAi(notice: NoticeForAi) {
       abortRef.current = abort;
 
       const id = ++turnIdRef.current;
+      activeTurnIdRef.current = id;
       setTurns((prev) => [...prev, { id, question, answer: '' }]);
+      isGeneratingRef.current = true;
       setIsGenerating(true);
 
       const context = buildNoticeContext(
@@ -111,7 +152,11 @@ export function useNoticeAi(notice: NoticeForAi) {
           );
         }
       } finally {
-        if (!abort.signal.aborted) setIsGenerating(false);
+        if (!abort.signal.aborted) {
+          isGeneratingRef.current = false;
+          activeTurnIdRef.current = null;
+          setIsGenerating(false);
+        }
       }
     },
     [notice.title, notice.contentMarkdown, notice.summary, status.phase],
@@ -119,6 +164,8 @@ export function useNoticeAi(notice: NoticeForAi) {
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
+    isGeneratingRef.current = false;
+    activeTurnIdRef.current = null;
     setIsGenerating(false);
   }, []);
 

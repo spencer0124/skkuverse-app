@@ -152,6 +152,9 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
                       <Text style={styles.aText}>
                         {tn.answer || (isGenerating ? '…' : '')}
                       </Text>
+                      {tn.interrupted ? (
+                        <Text style={styles.interruptedNote}>· 백그라운드로 중단됨</Text>
+                      ) : null}
                     </View>
                   </View>
                 ))
@@ -317,6 +320,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: SdsColors.grey800,
     lineHeight: 22,
+  },
+  interruptedNote: {
+    marginTop: 6,
+    fontSize: 12,
+    color: SdsColors.grey400,
   },
 
   preparing: {

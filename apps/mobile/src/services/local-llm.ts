@@ -152,28 +152,46 @@ export function makeStreamChatFn(model: LlamaLanguageModel): StreamChatFn {
     };
     const signal = options?.signal;
 
+    // abort 시 네이티브 생성을 실제로 멈춘다(stopCompletion). 이게 없으면 JS 토큰만
+    // 무시되고 네이티브 completion이 context를 계속 점유 → llama.rn은 context당
+    // 동시 completion 1개라 다음 질문이 막히고, 백그라운드 서스펜드 시 Promise가
+    // 영영 resolve되지 않는다. stopCompletion 호출 시 completion은 부분 결과로
+    // resolve되어 finally까지 정상 진행된다.
+    const onAbort = () => {
+      void context.stopCompletion().catch(() => {});
+    };
+    if (signal) {
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    }
+
     const t0 = Date.now();
     let firstTokenMs = -1;
     let accText = '';
 
-    const result = await context.completion(
-      {
-        messages,
-        n_predict: nPredict,
-        temperature,
-        top_p: topP,
-        stop,
-      },
-      (data) => {
-        if (signal?.aborted) return;
-        const { token } = data;
-        if (firstTokenMs < 0) {
-          firstTokenMs = Date.now() - t0;
-        }
-        accText += token;
-        onToken(token);
-      },
-    );
+    let result;
+    try {
+      result = await context.completion(
+        {
+          messages,
+          n_predict: nPredict,
+          temperature,
+          top_p: topP,
+          stop,
+        },
+        (data) => {
+          if (signal?.aborted) return;
+          const { token } = data;
+          if (firstTokenMs < 0) {
+            firstTokenMs = Date.now() - t0;
+          }
+          accText += token;
+          onToken(token);
+        },
+      );
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+    }
 
     const outputTokens = result.timings?.predicted_n ?? accText.split(/\s+/).length;
     const inputTokens = result.timings?.prompt_n ?? 0;
