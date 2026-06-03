@@ -53,18 +53,16 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   FileTextIcon,
-  PaperPlaneRightIcon,
+  ArrowUpIcon,
   StopIcon,
   XIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticeAi, type NoticeForAi } from './useNoticeAi';
 
-const GLASS_AVAILABLE = isLiquidGlassAvailable();
 const LOGO = require('../../../../assets/images/icon.png');
 
 interface Props {
@@ -145,10 +143,10 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
         onChange={(i) => setSheetOpen(i >= 0)}
       >
         <Animated.View style={[styles.root, keyboardStyle]}>
-          {/* 헤더 */}
+          {/* 헤더 — 로고 + 살짝 겹친 이름칸(글래스) */}
           <View style={styles.header}>
             <LogoBadge />
-            <Text style={styles.brand}>SKKU AI</Text>
+            <NamePill />
             <Pressable
               onPress={close}
               style={styles.closeBtn}
@@ -199,33 +197,33 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
             </ScrollView>
           )}
 
-          {/* 입력 푸터 — glass 입력박스(2줄) + 전송 */}
+          {/* 입력 푸터 — 전체너비 입력(배경 없음) + 한 줄 아래 전송 버튼 */}
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <InputBox>
-              <TextInput
-                ref={inputRef}
-                style={styles.input}
-                defaultValue=""
-                onChangeText={onChangeText}
-                placeholder={ready ? '무엇이든 물어보세요…' : 'AI 준비 중…'}
-                placeholderTextColor={SdsColors.grey400}
-                editable={ready && !isGenerating}
-                multiline
-              />
-            </InputBox>
-            {isGenerating ? (
-              <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
-                <StopIcon size={18} color="#fff" weight="fill" />
-              </Pressable>
-            ) : (
-              <Pressable
-                style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-                onPress={handleSend}
-                disabled={!canSend}
-              >
-                <PaperPlaneRightIcon size={18} color="#fff" weight="fill" />
-              </Pressable>
-            )}
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              defaultValue=""
+              onChangeText={onChangeText}
+              placeholder={ready ? '무엇이든 물어보세요…' : 'AI 준비 중…'}
+              placeholderTextColor={SdsColors.grey400}
+              editable={ready && !isGenerating}
+              multiline
+            />
+            <View style={styles.actionRow}>
+              {isGenerating ? (
+                <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
+                  <StopIcon size={18} color="#fff" weight="fill" />
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+                  onPress={handleSend}
+                  disabled={!canSend}
+                >
+                  <ArrowUpIcon size={20} color="#fff" weight="bold" />
+                </Pressable>
+              )}
+            </View>
           </View>
         </Animated.View>
       </BottomSheetModal>
@@ -238,30 +236,26 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
 // ──────────────────────────────────────────────────────────────
 
 function LogoBadge() {
-  const logo = <Image source={LOGO} style={styles.logoImg} resizeMode="contain" />;
-  if (GLASS_AVAILABLE) {
-    return (
-      <GlassView style={styles.logoBadge} glassEffectStyle="regular">
-        {logo}
-      </GlassView>
-    );
-  }
-  return <View style={[styles.logoBadge, styles.logoBadgeFallback]}>{logo}</View>;
+  // 흰 원형 + 살짝 그림자 (Notion 로고 스타일). 그림자가 보이도록 overflow 미사용,
+  // 로고 이미지 자체를 원형(borderRadius)으로 클립.
+  return (
+    <View style={styles.logoBadge}>
+      <Image source={LOGO} style={styles.logoImg} resizeMode="cover" />
+    </View>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────
-// 입력 박스 — glass(iOS26) / 흰 박스 fallback, 2줄 높이
+// 이름칸 — 로고와 살짝 겹친 글래스 pill (iOS26) / 흰 pill fallback
 // ──────────────────────────────────────────────────────────────
 
-function InputBox({ children }: { children: React.ReactNode }) {
-  if (GLASS_AVAILABLE) {
-    return (
-      <GlassView style={styles.inputBox} glassEffectStyle="regular" isInteractive>
-        {children}
-      </GlassView>
-    );
-  }
-  return <View style={[styles.inputBox, styles.inputBoxFallback]}>{children}</View>;
+function NamePill() {
+  // glass 제거 — 흰 pill + 살짝 그림자. 로고가 위(앞)로 겹친다.
+  return (
+    <View style={styles.namePill}>
+      <Text style={styles.brand}>SKKU AI</Text>
+    </View>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -301,8 +295,7 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
-const INPUT_BOX_HEIGHT = 64; // 약 2줄
-const LOGO_BADGE = 56;
+const LOGO_BADGE = 58;
 
 const styles = StyleSheet.create({
   root: {
@@ -310,33 +303,50 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 6,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SdsColors.grey200,
     alignItems: 'center',
-    gap: 8,
   },
   logoBadge: {
     width: LOGO_BADGE,
     height: LOGO_BADGE,
     borderRadius: LOGO_BADGE / 2,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  logoBadgeFallback: {
-    backgroundColor: '#FFFFFF',
+    // 로고가 이름칸 앞(위)으로 오도록 더 높은 zIndex
+    zIndex: 2,
+    // 뒤에 살짝 그림자 (overflow 미사용 — 그림자 클립 방지)
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
   },
   logoImg: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+    // 배지를 꽉 채워 흰 테두리(링) 제거. 원형 클립.
+    width: LOGO_BADGE,
+    height: LOGO_BADGE,
+    borderRadius: LOGO_BADGE / 2,
+  },
+  // 로고와 살짝만 겹치게(겹침 폭 축소). 로고가 더 높은 zIndex라 로고가 앞.
+  namePill: {
+    marginTop: -6,
+    zIndex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   brand: {
     fontSize: 16,
@@ -351,6 +361,7 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 3,
   },
   chip: {
     flexDirection: 'row',
@@ -362,7 +373,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: SdsColors.grey100,
     maxWidth: '100%',
-    marginTop: 2,
+    marginTop: 10,
   },
   chipLabel: {
     fontSize: 13,
@@ -450,45 +461,35 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.brand,
   },
 
+  // 전체너비 입력 + 한 줄 아래 전송. 입력은 배경 없음.
   footer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: SdsColors.grey200,
   },
-  inputBox: {
-    flex: 1,
-    minHeight: INPUT_BOX_HEIGHT,
-    borderRadius: 18,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  inputBoxFallback: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
-  },
   input: {
-    minHeight: INPUT_BOX_HEIGHT,
+    width: '100%',
+    minHeight: 28,
     maxHeight: 120,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    fontSize: 15,
-    lineHeight: 21,
+    paddingHorizontal: 0,
+    paddingTop: 4,
+    paddingBottom: 0,
+    fontSize: 16,
+    lineHeight: 22,
     color: SdsColors.grey900,
     textAlignVertical: 'top',
   },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+  },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: SdsColors.brand,
     alignItems: 'center',
     justifyContent: 'center',
