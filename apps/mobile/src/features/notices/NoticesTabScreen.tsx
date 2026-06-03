@@ -58,6 +58,7 @@ import { NoticesTabStrip } from './components/NoticesTabStrip';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { useNoticesUiStore } from './store/noticesUiStore';
+import { acquireLocalLlm, type LlmHandle } from '@/services/local-llm-manager';
 
 export function NoticesTabScreen() {
   const { t } = useT();
@@ -72,6 +73,27 @@ export function NoticesTabScreen() {
       useNotificationStore.getState().resetUnread();
     }, []),
   );
+
+  // 공지 탭 진입 시 온디바이스 LLM을 백그라운드로 warm-load — 공지 상세에서
+  // 'AI에게 질문하기'를 즉시 응답하기 위함. 이 컴포넌트는 온보딩 게이트 통과
+  // 후에만 마운트되므로 익명/미온보딩 사용자에겐 로드되지 않는다(의도). 핸들은
+  // 참조 유지용일 뿐 — 매니저 ref-count가 상세 화면의 acquire와 합산되고,
+  // unmount 시 release하면 grace 후 해제된다. effect는 뷰를 만들지 않으므로
+  // iOS 26 NativeTabs chain-root 규칙(outer View 금지)에 영향 없음.
+  useEffect(() => {
+    let cancelled = false;
+    let handle: LlmHandle | null = null;
+    acquireLocalLlm()
+      .then((h) => {
+        if (cancelled) h.release();
+        else handle = h;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      handle?.release();
+    };
+  }, []);
 
   // ── Active tab state (hoisted to store so the custom header can drive it) ──
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);
