@@ -76,19 +76,8 @@ export default function DebugFoodEvalScreen() {
       const info = await getEmbedInfo('ko');
       set({ info });
 
-      if (!info.hasAssets) {
-        set({
-          phase: 'error',
-          error: `한국어(ko) 임베딩 에셋이 기기에 없습니다.\n` +
-            `iOS Settings → General → Language & Region 에서 한국어를 추가하거나,\n` +
-            `NLContextualEmbedding 에셋 다운로드를 허용해 주세요.\n\n` +
-            `Model ID: ${info.modelId}\n` +
-            `Available languages: ${info.languages.join(', ')}`,
-        });
-        return;
-      }
-
-      // 2. 에셋 준비(warm-up)
+      // 2. 에셋 준비 — hasAssets: false라도 requestAssets()로 다운로드 가능
+      //    prepare() 내부에서 notAvailable이면 throw됨
       set({ phase: 'preparing' });
       await prepareEmbed('ko');
 
@@ -194,7 +183,7 @@ export default function DebugFoodEvalScreen() {
 
 const PHASE_LABELS: Partial<Record<Phase, string>> = {
   checking: '⏳ 에셋 정보 조회 중...',
-  preparing: '⏳ 모델 워밍업 중...',
+  preparing: '⏳ 에셋 다운로드/준비 중... (첫 실행 시 수십 초 소요)',
   building_cuisine: '⏳ Cuisine 프로토타입 빌드 중...',
   evaluating_cuisine: '⏳ Cuisine 평가 중...',
   building_category: '⏳ Category 프로토타입 빌드 중...',
