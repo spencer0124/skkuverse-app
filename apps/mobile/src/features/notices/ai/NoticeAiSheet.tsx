@@ -3,28 +3,43 @@
  *
  * 레이아웃:
  *   ┌───────────────────────────────┐
- *   │  ✨ SKKU AI               ✕   │  헤더 (✕로만 닫힘)
+ *   │            (✨ 로고 배지)   ✕  │  로고(글래스 배지) + ✕ 닫기
+ *   │            SKKU AI            │
  *   │  [📄 공지제목]                 │  고정 chip
  *   ├───────────────────────────────┤
- *   │  (준비 중)  진행률 / 스피너      │
- *   │  (ready)    Q-A turn 스크롤      │
+ *   │  (준비 중) 진행률 / 스피너       │
+ *   │  (ready)  Q-A turn 스크롤        │
  *   ├───────────────────────────────┤
- *   │  [입력창...............] [전송] │
+ *   │  ┌ glass 입력박스(2줄) ┐  [전송] │
  *   └───────────────────────────────┘
  *
- * 비드래그 전체화면: snapPoints ['100%'] + index 0, pan/handle 제스처 전부 비활성,
- * handleComponent=null. 드래그로 못 닫으므로 헤더에 ✕ 닫기 버튼.
+ * 비드래그 전체화면: snapPoints ['100%'] + index 0, 제스처 전부 비활성,
+ * handleComponent=null. 드래그로 못 닫으므로 헤더에 ✕.
  *
- * ⚠️ 한글 자모 분리 회피: @gorhom의 `BottomSheetTextInput`은 내부적으로
- * react-native-gesture-handler의 TextInput을 렌더하는데, 이게 iOS에서 한글 IME
- * 조합(marked text)을 깨뜨린다. 그래서 RN 기본 `TextInput`을 사용한다(앱의 다른
- * 시트 입력이 정상인 것과 동일 이유). 대신 BottomSheetTextInput이 해주던 키보드
- * 추적이 빠지므로, reanimated `useAnimatedKeyboard`로 입력창을 키보드 위로 올린다.
+ * ⚠️ 한글 자모 분리 회피 (uncontrolled 입력):
+ *   controlled `value`를 주면 조합(IME marked text) 중 리렌더가 native 텍스트를
+ *   재조정하면서 자모가 분리된다(SDS TextField가 controlled로도 멀쩡한 건 리렌더가
+ *   드물어서일 뿐 — 이 시트는 send-button enable 토글 등으로 조합 중 리렌더가 잦다).
+ *   그래서 `value`를 전달하지 않고 defaultValue + ref로 다룬다(표준 IME 패턴):
+ *   리렌더가 native 입력을 절대 건드리지 않으므로 조합이 깨지지 않는다.
+ *   - 텍스트는 textRef에 보관, 전송 후 inputRef.clear()로 비움.
+ *   - 전송 버튼 활성은 hasText(빈↔비어있지 않음 전환 시에만 setState)로 최소 리렌더.
+ *
+ * 키보드: BottomSheetTextInput을 안 쓰므로(역시 자모 깨짐) @gorhom 키보드 추적 대신
+ *   reanimated useAnimatedKeyboard로 입력창을 키보드 위로 올린다(iOS).
  */
 
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -38,9 +53,9 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
-  SparkleIcon,
   FileTextIcon,
   PaperPlaneRightIcon,
   StopIcon,
@@ -49,6 +64,9 @@ import {
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticeAi, type NoticeForAi } from './useNoticeAi';
 
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
+const LOGO = require('../../../../assets/images/icon.png');
+
 interface Props {
   notice: NoticeForAi;
 }
@@ -56,11 +74,10 @@ interface Props {
 export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
   function NoticeAiSheet({ notice }, parentRef) {
     const { status, turns, isGenerating, ask, stop } = useNoticeAi(notice);
-    const [input, setInput] = useState('');
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
 
-    // 닫기 버튼용 내부 ref + 부모 ref 병합 (NegativeFeedbackSheet 패턴).
+    // 닫기 버튼/포커스용 내부 ref + 부모 ref 병합.
     const sheetRef = useRef<BottomSheetModal>(null);
     const setRefs = useCallback(
       (node: BottomSheetModal | null) => {
@@ -72,26 +89,47 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
     );
     const close = useCallback(() => sheetRef.current?.dismiss(), []);
 
+    // ── 입력 (uncontrolled — 자모분리 방지) ──
+    const inputRef = useRef<TextInput>(null);
+    const textRef = useRef('');
+    const [hasText, setHasText] = useState(false);
+    const [sheetOpen, setSheetOpen] = useState(false);
+
+    const onChangeText = useCallback((t: string) => {
+      textRef.current = t;
+      const has = t.trim().length > 0;
+      setHasText((prev) => (prev === has ? prev : has));
+    }, []);
+
     const snapPoints = useMemo(() => ['100%'], []);
 
-    // 키보드 높이만큼 루트 하단 패딩 → 입력창이 키보드 위로 올라옴.
-    // iOS만 적용(Android는 adjustResize가 창을 리사이즈하므로 중복 방지).
+    // 키보드 높이만큼 루트 하단 패딩 → 입력창이 키보드 위로. iOS만(Android는 adjustResize).
     const keyboard = useAnimatedKeyboard();
     const keyboardStyle = useAnimatedStyle(() => ({
       paddingBottom: Platform.OS === 'ios' ? keyboard.height.value : 0,
     }));
 
     const ready = status.phase === 'ready';
-    const canSend = ready && !isGenerating && input.trim().length > 0;
+    const canSend = ready && !isGenerating && hasText;
+
+    // 시트가 열리고 모델이 ready면 입력창 자동 포커스 → 키보드 기본 표시.
+    useEffect(() => {
+      if (!sheetOpen || !ready) return;
+      const t = setTimeout(() => inputRef.current?.focus(), 200);
+      return () => clearTimeout(t);
+    }, [sheetOpen, ready]);
 
     const handleSend = useCallback(() => {
-      if (!canSend) return;
-      void ask(input);
-      setInput('');
+      const text = textRef.current.trim();
+      if (!text || !ready || isGenerating) return;
+      void ask(text);
+      inputRef.current?.clear();
+      textRef.current = '';
+      setHasText(false);
       requestAnimationFrame(() =>
         scrollRef.current?.scrollToEnd({ animated: true }),
       );
-    }, [canSend, ask, input]);
+    }, [ready, isGenerating, ask]);
 
     return (
       <BottomSheetModal
@@ -104,14 +142,13 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
         enableContentPanningGesture={false}
         enableHandlePanningGesture={false}
         handleComponent={null}
+        onChange={(i) => setSheetOpen(i >= 0)}
       >
         <Animated.View style={[styles.root, keyboardStyle]}>
           {/* 헤더 */}
           <View style={styles.header}>
-            <View style={styles.brandRow}>
-              <SparkleIcon size={18} color={SdsColors.brand} weight="fill" />
-              <Text style={styles.brand}>SKKU AI</Text>
-            </View>
+            <LogoBadge />
+            <Text style={styles.brand}>SKKU AI</Text>
             <Pressable
               onPress={close}
               style={styles.closeBtn}
@@ -162,17 +199,20 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
             </ScrollView>
           )}
 
-          {/* 입력 푸터 */}
+          {/* 입력 푸터 — glass 입력박스(2줄) + 전송 */}
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder={ready ? '무엇이든 물어보세요…' : 'AI 준비 중…'}
-              placeholderTextColor={SdsColors.grey400}
-              editable={ready && !isGenerating}
-              multiline
-            />
+            <InputBox>
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                defaultValue=""
+                onChangeText={onChangeText}
+                placeholder={ready ? '무엇이든 물어보세요…' : 'AI 준비 중…'}
+                placeholderTextColor={SdsColors.grey400}
+                editable={ready && !isGenerating}
+                multiline
+              />
+            </InputBox>
             {isGenerating ? (
               <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
                 <StopIcon size={18} color="#fff" weight="fill" />
@@ -192,6 +232,37 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
     );
   },
 );
+
+// ──────────────────────────────────────────────────────────────
+// 로고 배지 — 뒤에 glass(iOS26) / 흰 원형 fallback
+// ──────────────────────────────────────────────────────────────
+
+function LogoBadge() {
+  const logo = <Image source={LOGO} style={styles.logoImg} resizeMode="contain" />;
+  if (GLASS_AVAILABLE) {
+    return (
+      <GlassView style={styles.logoBadge} glassEffectStyle="regular">
+        {logo}
+      </GlassView>
+    );
+  }
+  return <View style={[styles.logoBadge, styles.logoBadgeFallback]}>{logo}</View>;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 입력 박스 — glass(iOS26) / 흰 박스 fallback, 2줄 높이
+// ──────────────────────────────────────────────────────────────
+
+function InputBox({ children }: { children: React.ReactNode }) {
+  if (GLASS_AVAILABLE) {
+    return (
+      <GlassView style={styles.inputBox} glassEffectStyle="regular" isInteractive>
+        {children}
+      </GlassView>
+    );
+  }
+  return <View style={[styles.inputBox, styles.inputBoxFallback]}>{children}</View>;
+}
 
 // ──────────────────────────────────────────────────────────────
 // 준비 중 (다운로드/로딩) 뷰
@@ -230,25 +301,42 @@ function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
 }
 
+const INPUT_BOX_HEIGHT = 64; // 약 2줄
+const LOGO_BADGE = 56;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
   header: {
     paddingHorizontal: 20,
-    // 드래그 핸들을 없앴고(handleComponent=null), 시트 top은 topInset(=safe top)에서
-    // 시작한다. 헤더가 시트 최상단에 바로 붙으므로 충분한 상단 여백을 둔다.
     paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: SdsColors.grey200,
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
   },
-  brandRow: {
-    flexDirection: 'row',
+  logoBadge: {
+    width: LOGO_BADGE,
+    height: LOGO_BADGE,
+    borderRadius: LOGO_BADGE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    overflow: 'hidden',
+  },
+  logoBadgeFallback: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  logoImg: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
   },
   brand: {
     fontSize: 16,
@@ -267,13 +355,14 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: SdsColors.grey100,
     maxWidth: '100%',
+    marginTop: 2,
   },
   chipLabel: {
     fontSize: 13,
@@ -370,17 +459,31 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: SdsColors.grey200,
   },
-  input: {
+  inputBox: {
     flex: 1,
-    minHeight: 44,
+    minHeight: INPUT_BOX_HEIGHT,
+    borderRadius: 18,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  inputBoxFallback: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  input: {
+    minHeight: INPUT_BOX_HEIGHT,
     maxHeight: 120,
-    borderRadius: 22,
-    backgroundColor: SdsColors.grey100,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
     fontSize: 15,
+    lineHeight: 21,
     color: SdsColors.grey900,
+    textAlignVertical: 'top',
   },
   sendBtn: {
     width: 44,
