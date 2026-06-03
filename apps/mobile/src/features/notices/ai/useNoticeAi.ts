@@ -8,8 +8,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { AppStateStatus } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import type { ChatMessage } from '@skkuverse/shared';
 import {
   acquireLocalLlm,
@@ -34,8 +35,9 @@ export interface NoticeForAi {
 
 const SYSTEM_PREFIX =
   '당신은 성균관대학교 공지사항을 돕는 AI 어시스턴트입니다. ' +
-  '아래 공지 내용만 근거로 한국어로 간결하고 정확하게 답하세요. ' +
-  '공지에 없는 내용은 추측하지 말고 "공지에서 확인할 수 없어요"라고 답하세요.\n\n' +
+  '아래 공지 내용을 바탕으로 한국어로 간결하고 정확하게 답하세요. ' +
+  '공지에 단서가 있으면 적극적으로 찾아 답하고, 표현이 조금 달라도 관련 내용을 활용하세요. ' +
+  '정말로 공지에서 찾을 수 없는 내용에 한해서만 "공지에서 확인할 수 없어요"라고 답하세요.\n\n' +
   '──── 공지 ────\n';
 
 export function useNoticeAi(notice: NoticeForAi) {
@@ -46,6 +48,8 @@ export function useNoticeAi(notice: NoticeForAi) {
   // AppState 콜백 stale 클로저 회피용 — 진행 상태/활성 turn을 ref로도 추적.
   const isGeneratingRef = useRef(false);
   const activeTurnIdRef = useRef<number | null>(null);
+  // 스트리밍 햅틱 throttle 타임스탬프(iOS).
+  const lastHapticRef = useRef(0);
 
   const [turns, setTurns] = useState<AiTurn[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -133,6 +137,17 @@ export function useNoticeAi(notice: NoticeForAi) {
           messages,
           (token) => {
             if (abort.signal.aborted) return;
+            // iOS 고급 햅틱 — 스트리밍 중 미세 진동(ChatGPT 스타일), ~100ms throttle.
+            // Android은 미적용.
+            if (Platform.OS === 'ios') {
+              const now = Date.now();
+              if (now - lastHapticRef.current > 100) {
+                lastHapticRef.current = now;
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                  () => {},
+                );
+              }
+            }
             setTurns((prev) =>
               prev.map((tn) =>
                 tn.id === id ? { ...tn, answer: tn.answer + token } : tn,
@@ -169,5 +184,14 @@ export function useNoticeAi(notice: NoticeForAi) {
     setIsGenerating(false);
   }, []);
 
-  return { status, turns, isGenerating, ask, stop };
+  // 대화 기록 초기화 — 진행 중 생성도 중단하고 새로 시작.
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    isGeneratingRef.current = false;
+    activeTurnIdRef.current = null;
+    setIsGenerating(false);
+    setTurns([]);
+  }, []);
+
+  return { status, turns, isGenerating, ask, stop, reset };
 }

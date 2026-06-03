@@ -64,7 +64,9 @@ export const DEFAULT_GENERATE_OPTIONS: Required<Omit<GenerateOptions, 'signal'>>
  * 변경해도 prebuild 불필요(JS-only).
  *
  * n_gpu_layers: 99 → Metal GPU 최대 사용 (iOS 실기기).
- * n_ctx: 2048 → 프롬프트 + 생성 합산 컨텍스트 창.
+ * n_ctx: 8192 → 프롬프트 + 생성 합산 컨텍스트 창. Kanana 1.5는 네이티브 32K까지
+ *   지원하지만 n_ctx는 KV 캐시 메모리에 비례하므로, 긴 공지+Q&A에 충분한 8192로 둔다
+ *   (모델 최대가 아니라 필요 최소+여유). 변경 시 CONTEXT_CHAR_BUDGET도 함께 맞출 것.
  *
  * use_mlock는 의도적으로 끈다(미설정 → false). mlock은 모델 페이지를 RAM에 잠가
  * OS가 메모리 압박 시 evict하지 못하게 해, 모바일에서 1.5GB 상주 + jetsam kill을
@@ -72,7 +74,7 @@ export const DEFAULT_GENERATE_OPTIONS: Required<Omit<GenerateOptions, 'signal'>>
  * 피한다(llama.cpp 모바일 권장). 백그라운드 unload는 매니저(local-llm-manager)가 담당.
  */
 export const DEFAULT_CONTEXT_PARAMS: Partial<ContextParams> = {
-  n_ctx: 2048,
+  n_ctx: 8192,
   n_gpu_layers: 99,
 };
 
@@ -160,8 +162,15 @@ export function makeStreamChatFn(model: LlamaLanguageModel): StreamChatFn {
     // 동시 completion 1개라 다음 질문이 막히고, 백그라운드 서스펜드 시 Promise가
     // 영영 resolve되지 않는다. stopCompletion 호출 시 completion은 부분 결과로
     // resolve되어 finally까지 정상 진행된다.
+    // stopCompletion()은 llama.rn JSI 바인딩으로 Promise가 아니라 void(undefined)를
+    // 반환할 수 있다. 바로 .catch()를 부르면 "cannot read property 'catch' of
+    // undefined"가 난다 → Promise.resolve로 감싸고 sync throw도 try로 흡수.
     const onAbort = () => {
-      void context.stopCompletion().catch(() => {});
+      try {
+        Promise.resolve(context.stopCompletion()).catch(() => {});
+      } catch {
+        /* stopCompletion이 sync void일 수 있음 */
+      }
     };
     if (signal) {
       if (signal.aborted) onAbort();

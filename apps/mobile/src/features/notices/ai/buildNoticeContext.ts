@@ -7,13 +7,15 @@
  *   - 초과하면: 제목 + (서버 요약 있으면 요약) + 남는 예산만큼 본문 head + '…'.
  *
  * ⚠️ 예산은 char 휴리스틱이다 (정밀 토큰 카운트 아님).
- *    Kanana n_ctx=2048에서 답변(n_predict)·질문·시스템 지시문 오버헤드를 reserve하고
- *    한국어 ~2자/토큰을 보수적으로 가정한 값. 긴 공지에서 답변/컨텍스트 overflow가
- *    관측되면 모델 tokenize() 기반으로 교체할 것. (plan: delightful-greeting-adleman.md)
+ *    Kanana n_ctx=8192에서 답변(n_predict 512)·질문·시스템 지시문 오버헤드를 reserve하면
+ *    입력 컨텍스트로 ~7500토큰 여유가 있다. 토크나이저 조밀 worst-case를 감안해
+ *    8000자로 잡아 overflow(앞부분 잘림)를 차단(원본 ~1.6자/토큰 기준 ~5000토큰).
+ *    n_ctx(local-llm.ts) 변경 시 이 값도 함께 맞출 것. 정밀 제어가 필요하면
+ *    모델 tokenize() 기반으로 교체. (plan: delightful-greeting-adleman.md)
  */
 
-/** 컨텍스트에 허용하는 최대 문자 수. */
-export const CONTEXT_CHAR_BUDGET = 2400;
+/** 컨텍스트에 허용하는 최대 문자 수. (n_ctx=8192에 종속) */
+export const CONTEXT_CHAR_BUDGET = 8000;
 
 /**
  * markdown 잡음 제거 — 이미지 문법은 토큰만 먹고 모델에 의미 없음.
