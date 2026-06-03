@@ -51,19 +51,30 @@ import {
 import Animated, {
   useAnimatedKeyboard,
   useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import * as Clipboard from 'expo-clipboard';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   FileTextIcon,
   ArrowUpIcon,
+  ArrowClockwiseIcon,
   StopIcon,
   XIcon,
+  CopyIcon,
+  ThumbsUpIcon,
+  ThumbsDownIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { useNoticeAi, type NoticeForAi } from './useNoticeAi';
 
+const GLASS_AVAILABLE = isLiquidGlassAvailable();
 const LOGO = require('../../../../assets/images/icon.png');
+const BRAND_DEEP_GREEN = '#1f3d2e';
 
 interface Props {
   notice: NoticeForAi;
@@ -71,7 +82,7 @@ interface Props {
 
 export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
   function NoticeAiSheet({ notice }, parentRef) {
-    const { status, turns, isGenerating, ask, stop } = useNoticeAi(notice);
+    const { status, turns, isGenerating, ask, stop, reset } = useNoticeAi(notice);
     const insets = useSafeAreaInsets();
     const scrollRef = useRef<ScrollView>(null);
 
@@ -87,11 +98,20 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
     );
     const close = useCallback(() => sheetRef.current?.dismiss(), []);
 
+    // 새로고침 — 대화 기록 초기화 + 입력창 비우기.
+    const handleRefresh = useCallback(() => {
+      reset();
+      inputRef.current?.clear();
+      textRef.current = '';
+      setHasText(false);
+    }, [reset]);
+
     // ── 입력 (uncontrolled — 자모분리 방지) ──
     const inputRef = useRef<TextInput>(null);
     const textRef = useRef('');
     const [hasText, setHasText] = useState(false);
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [inputFocused, setInputFocused] = useState(false);
 
     const onChangeText = useCallback((t: string) => {
       textRef.current = t;
@@ -143,25 +163,16 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
         onChange={(i) => setSheetOpen(i >= 0)}
       >
         <Animated.View style={[styles.root, keyboardStyle]}>
-          {/* 헤더 — 로고 + 살짝 겹친 이름칸(글래스) */}
+          {/* 헤더 — 로고 + 이름칸 + 좌(새 대화)/우(닫기) 글래스 버튼 */}
           <View style={styles.header}>
+            <HeaderGlassButton style={styles.headerBtnLeft} onPress={handleRefresh} label="새 대화">
+              <ArrowClockwiseIcon size={18} color={SdsColors.grey700} />
+            </HeaderGlassButton>
             <LogoBadge />
             <NamePill />
-            <Pressable
-              onPress={close}
-              style={styles.closeBtn}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="닫기"
-            >
-              <XIcon size={22} color={SdsColors.grey600} />
-            </Pressable>
-            <View style={styles.chip}>
-              <FileTextIcon size={14} color={SdsColors.grey600} />
-              <Text style={styles.chipLabel} numberOfLines={1}>
-                {notice.title}
-              </Text>
-            </View>
+            <HeaderGlassButton style={styles.headerBtnRight} onPress={close} label="닫기">
+              <XIcon size={18} color={SdsColors.grey700} />
+            </HeaderGlassButton>
           </View>
 
           {/* 본문 */}
@@ -175,55 +186,71 @@ export const NoticeAiSheet = forwardRef<BottomSheetModal, Props>(
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
             >
-              {turns.length === 0 ? (
-                <Text style={styles.hint}>이 공지에 대해 궁금한 점을 물어보세요.</Text>
-              ) : (
-                turns.map((tn) => (
+              {turns.map((tn) => (
                   <View key={tn.id} style={styles.turn}>
                     <View style={styles.qBubble}>
                       <Text style={styles.qText}>{tn.question}</Text>
                     </View>
                     <View style={styles.aBubble}>
-                      <Text style={styles.aText}>
-                        {tn.answer || (isGenerating ? '…' : '')}
-                      </Text>
+                      {tn.answer ? (
+                        <Text style={styles.aText}>{tn.answer}</Text>
+                      ) : isGenerating ? (
+                        <ThinkingShimmer />
+                      ) : null}
                       {tn.interrupted ? (
                         <Text style={styles.interruptedNote}>· 백그라운드로 중단됨</Text>
                       ) : null}
+                      {tn.answer && !isGenerating ? (
+                        <AnswerActions answer={tn.answer} />
+                      ) : null}
                     </View>
                   </View>
-                ))
-              )}
+              ))}
             </ScrollView>
           )}
 
-          {/* 입력 푸터 — 전체너비 입력(배경 없음) + 한 줄 아래 전송 버튼 */}
+          {/* 입력 푸터 — glass 상자: [문서 칩(상단, 입력 X)] → 입력 → 전송 행 */}
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              defaultValue=""
-              onChangeText={onChangeText}
-              placeholder={ready ? '무엇이든 물어보세요…' : 'AI 준비 중…'}
-              placeholderTextColor={SdsColors.grey400}
-              editable={ready && !isGenerating}
-              multiline
-            />
-            <View style={styles.actionRow}>
-              {isGenerating ? (
-                <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
-                  <StopIcon size={18} color="#fff" weight="fill" />
-                </Pressable>
-              ) : (
-                <Pressable
-                  style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
-                  onPress={handleSend}
-                  disabled={!canSend}
-                >
-                  <ArrowUpIcon size={20} color="#fff" weight="bold" />
-                </Pressable>
-              )}
-            </View>
+            <InputBox>
+              {/* 문서 칩 — 박스 상단 라인. 텍스트 입력 받지 않음(고정 표시). */}
+              <View style={styles.boxChip}>
+                <FileTextIcon size={14} color={SdsColors.grey600} />
+                <Text style={styles.chipLabel} numberOfLines={1}>
+                  {notice.title}
+                </Text>
+              </View>
+              <TextInput
+                ref={inputRef}
+                style={[
+                  styles.input,
+                  // 포커스 시 2줄, 그 외(생성 중·blur)엔 1줄로 최소화
+                  { minHeight: inputFocused && !isGenerating ? 46 : 24 },
+                ]}
+                defaultValue=""
+                onChangeText={onChangeText}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                placeholder={ready ? '공지와 관련해 궁금한 점을 물어보세요' : 'AI 준비 중…'}
+                placeholderTextColor={SdsColors.grey400}
+                editable={ready && !isGenerating}
+                multiline
+              />
+              <View style={styles.actionRow}>
+                {isGenerating ? (
+                  <Pressable style={[styles.sendBtn, styles.stopBtn]} onPress={stop}>
+                    <StopIcon size={15} color="#fff" weight="fill" />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+                    onPress={handleSend}
+                    disabled={!canSend}
+                  >
+                    <ArrowUpIcon size={17} color="#fff" weight="bold" />
+                  </Pressable>
+                )}
+              </View>
+            </InputBox>
           </View>
         </Animated.View>
       </BottomSheetModal>
@@ -257,6 +284,99 @@ function NamePill() {
     </View>
   );
 }
+
+// ──────────────────────────────────────────────────────────────
+// 입력 상자 — glass(iOS26) / 흰 박스 fallback
+// ──────────────────────────────────────────────────────────────
+
+function InputBox({ children }: { children: React.ReactNode }) {
+  if (GLASS_AVAILABLE) {
+    return (
+      <GlassView style={styles.inputBox} glassEffectStyle="regular" isInteractive>
+        {children}
+      </GlassView>
+    );
+  }
+  return <View style={[styles.inputBox, styles.inputBoxFallback]}>{children}</View>;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 헤더 원형 글래스 버튼 (iOS26) / 흰 원형 fallback
+// ──────────────────────────────────────────────────────────────
+
+function HeaderGlassButton({
+  onPress,
+  label,
+  style,
+  children,
+}: {
+  onPress: () => void;
+  label: string;
+  style?: object;
+  children: React.ReactNode;
+}) {
+  const inner = (
+    <Pressable
+      onPress={onPress}
+      style={styles.headerBtnInner}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {children}
+    </Pressable>
+  );
+  if (GLASS_AVAILABLE) {
+    return (
+      <GlassView style={[styles.headerBtn, style]} glassEffectStyle="regular" isInteractive>
+        {inner}
+      </GlassView>
+    );
+  }
+  return <View style={[styles.headerBtn, styles.headerBtnFallback, style]}>{inner}</View>;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 생성 중 shimmer — "생각 중…" 펄스
+// ──────────────────────────────────────────────────────────────
+
+function ThinkingShimmer() {
+  const op = useSharedValue(0.35);
+  useEffect(() => {
+    op.value = withRepeat(withTiming(1, { duration: 700 }), -1, true);
+  }, [op]);
+  const animStyle = useAnimatedStyle(() => ({ opacity: op.value }));
+  return <Animated.Text style={[styles.thinking, animStyle]}>생각 중…</Animated.Text>;
+}
+
+// ──────────────────────────────────────────────────────────────
+// 답변 액션 — 복사(실제) / 좋아요·싫어요(액션 없음, 추후)
+// ──────────────────────────────────────────────────────────────
+
+function AnswerActions({ answer }: { answer: string }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = useCallback(() => {
+    void Clipboard.setStringAsync(answer);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [answer]);
+  return (
+    <View style={styles.answerActions}>
+      <Pressable onPress={onCopy} hitSlop={6} style={styles.answerActionBtn} accessibilityLabel="복사">
+        <CopyIcon size={16} color={copied ? SdsColors.brand : SdsColors.grey500} />
+      </Pressable>
+      <Pressable onPress={NOOP} hitSlop={6} style={styles.answerActionBtn} accessibilityLabel="좋아요">
+        <ThumbsUpIcon size={16} color={SdsColors.grey500} />
+      </Pressable>
+      <Pressable onPress={NOOP} hitSlop={6} style={styles.answerActionBtn} accessibilityLabel="싫어요">
+        <ThumbsDownIcon size={16} color={SdsColors.grey500} />
+      </Pressable>
+    </View>
+  );
+}
+
+// 좋아요/싫어요는 아직 액션 없음(추후 피드백 연동). 빈 함수 lint 회피용 상수.
+const NOOP = () => undefined;
 
 // ──────────────────────────────────────────────────────────────
 // 준비 중 (다운로드/로딩) 뷰
@@ -353,27 +473,51 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: SdsColors.grey900,
   },
-  closeBtn: {
-    position: 'absolute',
-    right: 16,
-    top: 12,
-    width: 32,
-    height: 32,
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     zIndex: 3,
   },
-  chip: {
+  headerBtnFallback: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  headerBtnInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerBtnLeft: {
+    position: 'absolute',
+    left: 16,
+    top: 8,
+  },
+  headerBtnRight: {
+    position: 'absolute',
+    right: 16,
+    top: 8,
+  },
+  // 입력 박스 상단 문서 칩 (입력 X, 고정 표시)
+  boxChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
     gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 8,
     backgroundColor: SdsColors.grey100,
     maxWidth: '100%',
-    marginTop: 10,
+    marginBottom: 8,
   },
   chipLabel: {
     fontSize: 13,
@@ -390,21 +534,16 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 16,
   },
-  hint: {
-    color: SdsColors.grey500,
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 24,
-  },
   turn: {
-    gap: 8,
+    gap: 12,
   },
   qBubble: {
     alignSelf: 'flex-end',
     maxWidth: '85%',
     backgroundColor: SdsColors.grey100,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    // 최대한 둥글게 — 단일 줄이면 완전 pill, 여러 줄이면 모서리 크게 라운드.
+    borderRadius: 22,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
   qText: {
@@ -425,6 +564,23 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: SdsColors.grey400,
+  },
+  thinking: {
+    fontSize: 15,
+    color: SdsColors.grey500,
+    fontWeight: '500',
+  },
+  answerActions: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 8,
+  },
+  answerActionBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   preparing: {
@@ -461,19 +617,34 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.brand,
   },
 
-  // 전체너비 입력 + 한 줄 아래 전송. 입력은 배경 없음.
+  // glass 입력 상자를 감싸는 바깥 패딩.
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: SdsColors.grey200,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  // glass 상자: [문서 칩] → 입력 → 전송 행
+  inputBox: {
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    overflow: 'hidden',
+  },
+  inputBoxFallback: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   input: {
     width: '100%',
-    minHeight: 28,
+    // 기본 2줄 높이 (lineHeight 22 × 2 + 약간의 여유)
+    minHeight: 46,
     maxHeight: 120,
     paddingHorizontal: 0,
-    paddingTop: 4,
+    paddingTop: 0,
     paddingBottom: 0,
     fontSize: 16,
     lineHeight: 22,
@@ -487,10 +658,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: SdsColors.brand,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: BRAND_DEEP_GREEN,
     alignItems: 'center',
     justifyContent: 'center',
   },
