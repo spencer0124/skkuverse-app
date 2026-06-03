@@ -310,6 +310,13 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                {/* TODO: Remove — temporary local-LLM eval screen */}
+                <Stack.Screen
+                  name="debug-local-llm"
+                  options={{
+                    presentation: 'modal',
+                  }}
+                />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation
                     FullScreen). We previously tried formSheet but hit
                     react-native-screens issue #2424 (PR #2436 unmerged): on

@@ -225,6 +225,9 @@ export type {
   CollegeMates,
 } from './notices';
 
+// ── Local LLM ──
+export type { ChatRole, ChatMessage, GenerateResult, StreamChatFn } from './localllm';
+
 // ── Food classification ──
 export type {
   EmbedFn,

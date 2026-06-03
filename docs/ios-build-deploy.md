@@ -120,3 +120,15 @@ Fastlane의 Ruby 환경에서 eas build를 호출하면 CocoaPods PATH 문제 �
 
 ### Naver Map key empty
 `.env` 파일이 `.easignore`에서 제외되면 `EXPO_PUBLIC_NAVER_MAP_CLIENT_ID`가 빈 문자열이 됨. `.easignore`에서 `.env`가 포함되는지 확인.
+
+### ARCHIVE FAILED — "Unable to resolve module .../apps/mobile/index.ts" (Metro embed 번들)
+**증상:** 네이티브 컴파일/링킹은 다 통과하는데 Xcode "Bundle React Native code and images" 스크립트 페이즈에서
+`Unable to resolve module .../apps/mobile/index.ts from .../build/.` → `** ARCHIVE FAILED **`.
+
+**원인은 독립적인 2개이고 둘 다 고쳐야 함** (하나만 고치면 에러 경로만 바뀌고 계속 실패):
+
+1. **@expo/cli의 Metro workspace-root 기본값**: 최근 @expo/cli가 `EXPO_USE_METRO_WORKSPACE_ROOT`를 **기본 ON**으로 바꿈 (`@expo/config/build/paths/env.js`). EAS 샌드박스는 `yarn --frozen-lockfile`이 nested `apps/mobile/node_modules`를 만들어(로컬 repo는 완전 호이스팅이라 이게 없음) workspace-root 탐지를 발동 → Metro 서버 루트가 monorepo 루트(`build/`)가 되고, `tsconfig.json` paths(`@/* → ./src/*`)·엔트리를 못 찾음. → **`eas.json` build env에 `EXPO_NO_METRO_WORKSPACE_ROOT=1`** (켜는 변수 `EXPO_USE_...=1`은 이미 기본 ON이라 no-op). 서버 루트가 `build/`→`build/apps/mobile`로 바뀌면 이 단계 통과.
+
+2. **macOS 심볼릭 경로 불일치**: (1) 해결 후엔 엔트리 경로는 심볼릭 형태(`/tmp/...`), Metro 서버 루트는 realpath(`/private/tmp/...`)라 metro가 같은 디렉토리를 다른 경로로 보고 매칭 실패. `/tmp→/private/tmp`, `/var/folders→/private/var/folders` 모두 심볼릭이라 일반 터미널에서도 발생. → **빌드 스크립트가 `export TMPDIR="$HOME/.eas-build-tmp"`로 심볼릭 없는 경로에서 빌드** (`scripts/ios-{beta,build,release}.sh`에 적용됨).
+
+**디버깅 팁:** 이 실패는 **로컬 repo에선 재현 안 됨**(완전 호이스팅). 추측으로 12분짜리 풀빌드 반복하지 말 것. 빌드 *도중* 살아있는 EAS 샌드박스(`$TMPDIR/eas-build-local-nodejs/*/build/apps/mobile`)에 들어가 직접 `expo export:embed`를 돌려 재현 — CWD/projectRoot가 apps/mobile면 5825 modules ✓, monorepo 루트면 깨짐.

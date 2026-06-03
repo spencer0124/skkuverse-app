@@ -5,7 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "스꾸버스",
   slug: "skkubus",
   owner: "seungyongcho",
-  version: "3.5.1",
+  version: "3.6.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
@@ -64,6 +64,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     entitlements: {
       "aps-environment":
         process.env.APP_ENV === "development" ? "development" : "production",
+      // Required for 1.5GB GGUF model resident in memory (prevents jetsam OOM-kill).
+      // Both enabled on App ID "Additional Capabilities" + carried by the
+      // "skkuverse 2" distribution provisioning profile (./certs/dist.mobileprovision).
+      // TODO: remove if GGUF eval experiment is dropped.
+      "com.apple.developer.kernel.increased-memory-limit": true,
+      "com.apple.developer.kernel.extended-virtual-addressing": true,
     },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -116,6 +122,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/withFirebaseModularHeaders",
     "./plugins/withPushNotificationsCapability",
     "./plugins/withLocalizedAppName",
+    [
+      "llama.rn",
+      {
+        // forceCxx20: C++20 required by llama.cpp (llama.rn ≥ 0.10.1)
+        forceCxx20: true,
+        // enableEntitlements: adds com.apple.developer.kernel.increased-memory-limit
+        // — critical for 1.5 GB resident model on iOS (prevents jetsam OOM-kill).
+        // Verify generated ios/*.entitlements after prebuild.
+        // TODO: revisit if we drop the GGUF eval experiment.
+        enableEntitlements: true,
+        // enableOpenCL: Android GPU acceleration — deferred until Android eval phase
+        // enableOpenCL: true,
+      },
+    ],
     [
       "expo-splash-screen",
       {

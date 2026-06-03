@@ -181,6 +181,7 @@ cd apps/mobile
 - `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
 - Android 빌드 스크립트에 `JAVA_HOME`(JDK 17), `ANDROID_HOME` 자동 설정 포함
 - iOS bundle ID: `com.example.skkumap` / Android package: `com.zoyoong.skkubus`
+- **EAS 로컬 빌드 monorepo 필수 설정 (둘 다 없으면 embed 번들 단계에서 `Unable to resolve module .../apps/mobile/index.ts` → `ARCHIVE FAILED`):** (1) `eas.json` beta/production env에 **`EXPO_NO_METRO_WORKSPACE_ROOT=1`** — 최근 @expo/cli가 Metro workspace-root를 기본 ON으로 바꿔, EAS 샌드박스(nested `apps/mobile/node_modules` 생성)에서 서버 루트가 monorepo 루트가 되며 `tsconfig` `@/` paths가 깨짐. (2) iOS 빌드 스크립트가 **`export TMPDIR="$HOME/.eas-build-tmp"`** (심볼릭 없는 경로) — `/tmp`·`/var/folders`는 `/private/...` 심볼릭이라 엔트리(심볼릭)와 Metro 서버 루트(realpath)가 불일치. **이 실패는 로컬 repo에선 재현 안 됨**(완전 호이스팅); 디버깅은 빌드 도중 살아있는 EAS 샌드박스에서 직접 `expo export:embed` 재현. 풀빌드 반복 금지. 자세한 내용 `docs/ios-build-deploy.md` Troubleshooting.
 - **Release Notes**: 배포 전에 `fastlane/metadata/` 아래 locale별 파일 수정 → 업로드 시 자동 포함
   - Android: `metadata/android/{ko-KR,en-US,zh-CN}/changelogs/default.txt` (최대 500자)
   - iOS: `metadata/ios/{ko,en-US,zh-Hans}/release_notes.txt` (최대 4000자)

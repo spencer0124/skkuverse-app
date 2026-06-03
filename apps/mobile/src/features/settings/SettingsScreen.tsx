@@ -56,6 +56,13 @@ export function SettingsScreen() {
         >
           <Text style={devStyles.devButtonText}>🍔 Food Eval (dev only)</Text>
         </TouchableOpacity>
+        {/* TODO: Remove — temporary local-LLM eval */}
+        <TouchableOpacity
+          style={[devStyles.devButton, devStyles.devButtonLlm]}
+          onPress={() => router.push('/debug-local-llm' as never)}
+        >
+          <Text style={devStyles.devButtonText}>🦙 Local LLM (dev only)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -69,6 +76,10 @@ const devStyles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  devButtonLlm: {
+    marginTop: 12,
+    backgroundColor: '#2a1a3a',
   },
   devButtonText: { color: '#4caf50', fontSize: 14, fontWeight: '600' },
 });
