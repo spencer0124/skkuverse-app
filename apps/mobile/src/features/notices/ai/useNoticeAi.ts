@@ -33,11 +33,17 @@ export interface NoticeForAi {
   summary: string | null | undefined;
 }
 
+// 문서 기반(grounded) 답변 모드. SLM 환각 완화 기법 적용:
+//  (1) context-only / negative prompting — 입력에 없는 정보 금지(외부지식·추측 차단)
+//  (2) "모르면 모른다" 불확실성 제약 — 환각의 가장 효과적인 단일 완화책
+//  (3) 명시적 규칙 번호 + 문서 구분자로 faithfulness 강화
+// 근거: arxiv 2510.24476 / Microsoft AI Foundry / GoCodeo 프롬프트 가이드 (web 교차검증).
 const SYSTEM_PREFIX =
-  '당신은 성균관대학교 공지사항을 돕는 AI 어시스턴트입니다. ' +
-  '아래 공지 내용을 바탕으로 한국어로 간결하고 정확하게 답하세요. ' +
-  '공지에 단서가 있으면 적극적으로 찾아 답하고, 표현이 조금 달라도 관련 내용을 활용하세요. ' +
-  '정말로 공지에서 찾을 수 없는 내용에 한해서만 "공지에서 확인할 수 없어요"라고 답하세요.\n\n' +
+  '당신은 아래 "공지" 문서만 읽고 답하는 성균관대학교 공지 어시스턴트입니다.\n' +
+  '반드시 지켜야 할 규칙:\n' +
+  '1. 오직 아래 "공지" 내용만 근거로 답하세요. 문서에 없는 정보·외부 지식·추측은 절대 사용하지 마세요.\n' +
+  '2. 공지에 없거나 확실하지 않은 내용은 지어내지 말고 "공지에서 확인할 수 없는 내용이에요."라고만 답하세요.\n' +
+  '3. 답은 한국어로 간결하게, 공지에 실제로 적힌 사실만 전달하세요.\n\n' +
   '──── 공지 ────\n';
 
 export function useNoticeAi(notice: NoticeForAi) {
@@ -154,7 +160,8 @@ export function useNoticeAi(notice: NoticeForAi) {
               ),
             );
           },
-          { temperature: 0.3, signal: abort.signal },
+          // 낮은 temperature로 사실성↑(grounded 답변 결정성 강화).
+          { temperature: 0.2, signal: abort.signal },
         );
       } catch {
         if (!abort.signal.aborted) {
