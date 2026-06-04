@@ -8,8 +8,8 @@
  */
 
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import type { ActionType } from '@skkuverse/shared';
+import { openInAppBrowser } from '@/features/in-app-browser/open';
 
 interface SduiAction {
   actionType: ActionType;
@@ -51,7 +51,7 @@ export function handleSduiAction({
       break;
 
     case 'external':
-      WebBrowser.openBrowserAsync(actionValue);
+      openInAppBrowser(actionValue);
       break;
   }
 }

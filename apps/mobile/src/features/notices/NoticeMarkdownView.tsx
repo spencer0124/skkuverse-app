@@ -26,7 +26,6 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import {
   Renderer,
   useMarkdown,
@@ -36,6 +35,7 @@ import {
 import { SdsColors } from '@skkuverse/shared';
 import { Skeleton, Txt } from '@skkuverse/sds';
 import { logNoticesContentSelect } from '@/services/analytics';
+import { openInAppBrowser } from '@/features/in-app-browser/open';
 
 interface Props {
   markdown: string | null;
@@ -44,15 +44,6 @@ interface Props {
   /** Called when the user taps a non-web link (email, phone, etc.) with the extracted value. */
   onCopyText?: (text: string) => void;
 }
-
-const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
-  presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-  controlsColor: '#1A8A5C',
-  toolbarColor: '#ffffff',
-  dismissButtonStyle: 'close',
-  showTitle: true,
-  enableBarCollapsing: true,
-};
 
 // ── Dimension hint parser ───────────────────────────────────────
 
@@ -230,7 +221,7 @@ class NoticeRenderer extends Renderer implements RendererInterface {
           key={this.getKey()}
           onPress={() => {
             logNoticesContentSelect({ content_type: 'detail_markdown_link', item_id: href });
-            void WebBrowser.openBrowserAsync(href, inAppBrowserOptions);
+            openInAppBrowser(href);
           }}
           style={styles}
         >

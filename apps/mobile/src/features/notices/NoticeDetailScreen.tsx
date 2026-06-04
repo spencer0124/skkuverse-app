@@ -5,6 +5,7 @@ import type { NativeStackNavigationOptions } from '@react-navigation/native-stac
 import { BookmarkIcon, BookmarkSimpleIcon, DownloadIcon, EyeIcon, ArrowSquareOutIcon, PaperclipIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
+import { openInAppBrowser } from '@/features/in-app-browser/open';
 import {
   SdsColors,
   useNoticeDetail,
@@ -145,8 +146,8 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
 
   const openOriginal = useCallback(() => {
     if (!data?.sourceUrl) return;
-    void WebBrowser.openBrowserAsync(data.sourceUrl, inAppBrowserOptions);
-  }, [data?.sourceUrl]);
+    openInAppBrowser(data.sourceUrl, data.title);
+  }, [data?.sourceUrl, data?.title]);
 
   const openAttachment = useCallback(
     (url: string, mode: 'inline' | 'download', name?: string) => {

@@ -272,6 +272,8 @@ export default function RootLayout() {
                 />
                 {/* Dynamic title — set inline in webview screen via <Stack.Screen options /> */}
                 <Stack.Screen name="webview" />
+                {/* 인앱 브라우저(외부 페이지 + 온디바이스 SKKU AI). 동적 타이틀은 화면 내 inline. */}
+                <Stack.Screen name="in-app-browser" />
 
                 {/* Modals/full-screen — keep headerless */}
                 <Stack.Screen

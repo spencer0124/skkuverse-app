@@ -5,7 +5,8 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    // 생성/벤더 파일 — @mozilla/readability 원본 박제(vendor-readability.mjs).
+    ignores: ['dist/*', 'src/features/in-app-browser/readability.injected.ts'],
   },
   {
     rules: {
