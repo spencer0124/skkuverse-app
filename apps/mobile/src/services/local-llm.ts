@@ -22,11 +22,15 @@
 import {
   downloadModel,
   isModelDownloaded,
+  getModelPath,
+  getDownloadedModels,
+  removeModel,
   LlamaLanguageModel,
   llama,
 } from '@react-native-ai/llama';
 import type { DownloadProgress, ContextParams } from '@react-native-ai/llama';
 import type { StreamChatFn, GenerateResult, GenerateOptions } from '@skkuverse/shared';
+import { devLog } from './dev-log';
 
 // ──────────────────────────────────────────────────────────────
 // 모델 상수
@@ -39,8 +43,11 @@ import type { StreamChatFn, GenerateResult, GenerateOptions } from '@skkuverse/s
 export const KANANA_MODEL_ID =
   'DevQuasar/kakaocorp.kanana-1.5-2.1b-instruct-2505-GGUF/kakaocorp.kanana-1.5-2.1b-instruct-2505.Q4_K_M.gguf';
 
-/** 예상 파일 크기(bytes). 캐시 히트 여부 표시용 참고값. */
-export const KANANA_Q4_KM_SIZE_BYTES = 1_630_000_000; // ~1.52 GB
+/**
+ * 모델 GGUF의 정확한 크기(bytes). HuggingFace Content-Length / x-linked-size 실측값.
+ * 무결성 검사 기준 — 중단된 다운로드(부분 파일) 탐지에 사용한다.
+ */
+export const KANANA_Q4_KM_SIZE_BYTES = 1_522_796_768; // 정확히 1.52 GB
 
 // ──────────────────────────────────────────────────────────────
 // 파라미터 기본값 (호출부에서 override 가능)
@@ -82,25 +89,50 @@ export const DEFAULT_CONTEXT_PARAMS: Partial<ContextParams> = {
 // 모델 다운로드 / 캐시
 // ──────────────────────────────────────────────────────────────
 
+/** 캐시된 모델 파일의 실제 크기(bytes). 없거나 stat 실패 시 null. */
+async function cachedModelSize(): Promise<number | null> {
+  try {
+    const path = getModelPath(KANANA_MODEL_ID);
+    const models = await getDownloadedModels();
+    return models.find((m) => m.path === path)?.sizeBytes ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 모델 파일이 기기에 없으면 HF에서 다운로드 후 로컬 경로 반환.
- * 이미 존재하면 즉시 경로 반환 (progressCallback은 percentage:100 한 번 호출).
+ *
+ * ⚠️ 무결성 검사 (2026-06-05 추가): 존재 여부만으론 부족하다. 중단된 다운로드는 부분
+ * .gguf 파일을 남기는데(react-native-blob-util은 취소 시 부분 파일을 삭제하지 않음),
+ * isModelDownloaded(=fs.exists)는 true를 반환하고 downloadModel은 그 손상 파일을 그대로
+ * early-return → initModel의 prepare()가 "Failed to load model"로 영구 실패한다.
+ * (OTA 재시작이 진행 중이던 모델 다운로드를 끊으면 이 상태가 재현됨 — 실제 회귀 원인.)
+ * 그래서 캐시 파일 크기가 기대값에 못 미치면 손상으로 보고 삭제 후 재다운로드한다.
  *
  * @param onProgress 0~100 정수 진행률 콜백 (react-native-blob-util 기반)
  */
 export async function ensureModel(
   onProgress?: (percentage: number) => void,
 ): Promise<string> {
-  const alreadyExists = await isModelDownloaded(KANANA_MODEL_ID);
-  if (alreadyExists) {
-    onProgress?.(100);
+  if (await isModelDownloaded(KANANA_MODEL_ID)) {
+    const size = await cachedModelSize();
+    // size를 못 읽으면(stat 실패) 멀쩡한 파일을 1.5GB 재다운로드하는 오탐을 피해 신뢰.
+    if (size == null || size >= KANANA_Q4_KM_SIZE_BYTES) {
+      onProgress?.(100);
+      return getModelPath(KANANA_MODEL_ID);
+    }
+    devLog('local-llm.model.corrupt', { size, expected: KANANA_Q4_KM_SIZE_BYTES });
+    await removeModel(KANANA_MODEL_ID); // 부분/손상 파일 제거 → 아래에서 재다운로드
   }
 
   const progressCallback = onProgress
     ? (p: DownloadProgress) => onProgress(p.percentage)
     : undefined;
 
-  return downloadModel(KANANA_MODEL_ID, progressCallback);
+  const path = await downloadModel(KANANA_MODEL_ID, progressCallback);
+  devLog('local-llm.download.complete', { size: await cachedModelSize() });
+  return path;
 }
 
 // ──────────────────────────────────────────────────────────────
