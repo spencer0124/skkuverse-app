@@ -103,19 +103,25 @@ export default function InAppBrowserScreen() {
     [pageTitle, currentUrl, runJinaFallback],
   );
 
-  // 네비게이션 상태 추적 + 메인 프레임 로드 완료 시 1회 추출.
-  const onNavChange = useCallback(
-    (nav: WebViewNavigation) => {
-      setCurrentUrl(nav.url);
-      setCanGoBack(nav.canGoBack);
-      if (nav.title) setPageTitle(nav.title);
-      if (!nav.loading && nav.url && nav.url !== extractedUrlRef.current) {
-        extractedUrlRef.current = nav.url;
-        setContent(null);
-        setExtractState('pending');
-        pendingRef.current = null;
-        requestExtract();
-      }
+  // 네비게이션 상태 추적(크롬 전용 — URL/뒤로가기/타이틀). 추출 트리거는 onLoadEnd로 분리.
+  const onNavChange = useCallback((nav: WebViewNavigation) => {
+    setCurrentUrl(nav.url);
+    setCanGoBack(nav.canGoBack);
+    if (nav.title) setPageTitle(nav.title);
+  }, []);
+
+  // 페이지 로드 완료 시 선제 추출(칩 생성용). onNavigationStateChange의 loading 플래그는
+  // iOS에서 불안정해 페이지 이동 시 누락될 수 있어, 신뢰성 높은 onLoadEnd를 트리거로 쓴다.
+  // 같은 URL 재추출은 가드(iframe/redirect 도배 방지).
+  const onLoadEnd = useCallback(
+    (e: { nativeEvent: { url?: string } }) => {
+      const url = e.nativeEvent.url;
+      if (!url || url === extractedUrlRef.current) return;
+      extractedUrlRef.current = url;
+      pendingRef.current = null; // 새 페이지 → 이전 페이지 대기 액션 폐기
+      setContent(null);
+      setExtractState('pending');
+      requestExtract();
     },
     [requestExtract],
   );
@@ -132,25 +138,24 @@ export default function InAppBrowserScreen() {
   }, [extractState, content, ai]);
 
   // ── 칩/입력 핸들러 ──
+  // 탭 시점에 현재 페이지를 다시 추출한다 — 네비게이션 추적이 누락돼 content가 직전
+  // 페이지로 고착되는 문제 방어(요약/답변이 항상 "지금 보이는 페이지"를 반영). 추출 완료
+  // (onMessage → extractState ready)되면 pending-flush effect가 summarize/ask를 실행.
   const openSummary = useCallback(() => {
     sheetRef.current?.present();
-    if (extractState === 'pending') {
-      pendingRef.current = { type: 'summary' };
-    } else {
-      void ai.summarize();
-    }
-  }, [extractState, ai]);
+    pendingRef.current = { type: 'summary' };
+    setExtractState('pending');
+    requestExtract();
+  }, [requestExtract]);
 
   const openAskChip = useCallback(
     (q: string) => {
       sheetRef.current?.present();
-      if (extractState === 'pending') {
-        pendingRef.current = { type: 'ask', q };
-      } else {
-        void ai.ask(q);
-      }
+      pendingRef.current = { type: 'ask', q };
+      setExtractState('pending');
+      requestExtract();
     },
-    [extractState, ai],
+    [requestExtract],
   );
 
   const goBack = useCallback(() => webRef.current?.goBack(), []);
@@ -166,6 +171,7 @@ export default function InAppBrowserScreen() {
         style={styles.webview}
         onMessage={onMessage}
         onNavigationStateChange={onNavChange}
+        onLoadEnd={onLoadEnd}
         javaScriptEnabled
         domStorageEnabled
         startInLoadingState
