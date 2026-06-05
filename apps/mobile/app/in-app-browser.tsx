@@ -7,8 +7,8 @@
  * 하단: [✨ 요약] 버튼 하나. 탭 → 현재 페이지 추출 → 시트에 요약 스트리밍.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { BackHandler, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type {
   WebViewMessageEvent,
@@ -24,6 +24,8 @@ import {
   ArrowClockwiseIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
+import { defaultHeaderOptions } from '@/lib/header-options';
+import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { GlassSurface } from '@/features/in-app-browser/components/glass';
 import { buildExtractScript, fetchJinaMarkdown } from '@/features/in-app-browser/extract';
 import {
@@ -39,6 +41,12 @@ type ExtractState = 'idle' | 'pending' | 'ready' | 'empty';
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
 
+// iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
+// SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
+// navbar tintColor 재염색 회피.
+const ICON_REFRESH = require('../assets/header-icons/arrow-clockwise.png');
+const ICON_MORE = require('../assets/header-icons/dots-three.png');
+
 export default function MiniAppScreen() {
   const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string }>();
   const startUrl = params.startUrl || DEFAULT_BROWSER_URL;
@@ -52,6 +60,8 @@ export default function MiniAppScreen() {
   const [pageTitle, setPageTitle] = useState(serviceName);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
+  // Android BackHandler가 재구독 없이 최신 canGoBack을 읽도록 ref로 미러.
+  const canGoBackRef = useRef(false);
 
   const [content, setContent] = useState<PageContent | null>(null);
   const [extractState, setExtractState] = useState<ExtractState>('idle');
@@ -101,11 +111,26 @@ export default function MiniAppScreen() {
     (nav: WebViewNavigation) => {
       setCurrentUrl(nav.url);
       setCanGoBack(nav.canGoBack);
+      canGoBackRef.current = nav.canGoBack;
       setCanGoForward(nav.canGoForward);
       if (nav.title) setPageTitle((prev) => (serviceName ? prev : nav.title));
     },
     [serviceName],
   );
+
+  // ── 뒤로가기: 웹뷰 히스토리 우선, 루트에서만 화면 종료 ──
+  // Android 시스템/제스처 back을 가로채 웹뷰 goBack 우선(iOS는 제스처 핸드오프로 처리 — render 참고).
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canGoBackRef.current) {
+        webRef.current?.goBack();
+        return true; // 처리됨 — 화면 pop 차단
+      }
+      return false; // 더 갈 곳 없음 → 시스템 pop = 미니앱 종료
+    });
+    return () => sub.remove();
+  }, []);
 
   // content 도착(추출 완료) 시 대기 중이던 요약 실행.
   useEffect(() => {
@@ -127,58 +152,63 @@ export default function MiniAppScreen() {
     triggerSummary();
   }, [triggerSummary]);
 
-  // ── 상단 바 액션 ──
-  const close = useCallback(() => router.back(), []);
-
-  // ── 하단 바 액션 ──
+  // ── 네비 액션 ──
   const goBack = useCallback(() => webRef.current?.goBack(), []);
   const goForward = useCallback(() => webRef.current?.goForward(), []);
   const reload = useCallback(() => webRef.current?.reload(), []);
 
-  const headerTitle = serviceName || pageTitle || '브라우저';
-
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-
-      {/* 상단 바 — 좌클러스터 [< 제목 홈] / 우클러스터 [새로고침 ⋯]. glass(가능 시)/폴백. */}
-      <View style={[styles.topBar, { paddingTop: insets.top }]}>
-        <GlassSurface interactive style={styles.topClusterLeft}>
-          <Pressable
-            onPress={close}
-            hitSlop={6}
-            style={styles.topIconBtn}
-            accessibilityRole="button"
-            accessibilityLabel="뒤로"
-          >
-            <CaretLeftIcon size={20} color={SdsColors.grey800} />
-          </Pressable>
-          <Text style={styles.serviceTitle} numberOfLines={1}>
-            {headerTitle}
-          </Text>
-        </GlassSurface>
-
-        <GlassSurface interactive style={styles.topClusterRight}>
-          <Pressable
-            onPress={reload}
-            hitSlop={6}
-            style={styles.topIconBtn}
-            accessibilityRole="button"
-            accessibilityLabel="새로고침"
-          >
-            <ArrowClockwiseIcon size={20} color={SdsColors.grey800} />
-          </Pressable>
-          <Pressable
-            onPress={undefined /* ⋯ onPress 추후 결정 */}
-            hitSlop={6}
-            style={styles.topIconBtn}
-            accessibilityRole="button"
-            accessibilityLabel="더보기"
-          >
-            <DotsThreeIcon size={22} color={SdsColors.grey800} weight="bold" />
-          </Pressable>
-        </GlassSurface>
-      </View>
+      {/* 네이티브 헤더 — 버스/공지와 동일 메트릭. 좌: native back(=미니앱 종료, glass 캡슐),
+          제목 미표시. 우: [새로고침 | ⋯] 한 glass 캡슐(고정폭 — RN screens headerRight 왜곡 방지).
+          GlassView는 fill base 위에서만 보이므로 반투명 회색 fill을 깐다(HeaderIconButton 레시피). */}
+      <Stack.Screen
+        options={{
+          ...defaultHeaderOptions,
+          headerShown: true,
+          title: '',
+          // iOS 엣지 스와이프 핸드오프: 웹뷰 히스토리 있으면 화면 pop 제스처 OFF →
+          // WKWebView가 스와이프를 소유(웹뷰 back). 루트면 ON → 스와이프 = 미니앱 종료.
+          // (한 인식기만 활성 — WebView allowsBackForwardNavigationGestures와 배타적.)
+          gestureEnabled: !canGoBack,
+          // 우상단 [새로고침 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
+          // 한 Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
+          ...(Platform.OS === 'ios'
+            ? {
+                unstable_headerRightItems: () => [
+                  {
+                    type: 'button' as const,
+                    label: '',
+                    icon: { type: 'image' as const, source: ICON_REFRESH, tinted: false },
+                    sharesBackground: true,
+                    accessibilityLabel: '새로고침',
+                    onPress: reload,
+                  },
+                  {
+                    type: 'button' as const,
+                    label: '',
+                    icon: { type: 'image' as const, source: ICON_MORE, tinted: false },
+                    sharesBackground: true,
+                    accessibilityLabel: '더보기',
+                    // TODO: ⋯ 더보기 메뉴 추후 구현 (ActionSheet/BottomSheet).
+                    onPress: () => {},
+                  },
+                ],
+              }
+            : {
+                headerRight: () => (
+                  <View style={styles.rightGroup}>
+                    <HeaderIconButton onPress={reload} accessibilityLabel="새로고침">
+                      <ArrowClockwiseIcon size={22} color={SdsColors.grey700} />
+                    </HeaderIconButton>
+                    <HeaderIconButton onPress={() => {}} accessibilityLabel="더보기">
+                      <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
+                    </HeaderIconButton>
+                  </View>
+                ),
+              }),
+        }}
+      />
 
       <WebView
         ref={webRef}
@@ -189,6 +219,9 @@ export default function MiniAppScreen() {
         javaScriptEnabled
         domStorageEnabled
         startInLoadingState
+        // iOS: 웹뷰 히스토리 있을 때만 엣지 스와이프 = 웹뷰 back/forward (Android no-op).
+        // gestureEnabled={!canGoBack}와 짝 — 정확히 한 제스처 인식기만 활성.
+        allowsBackForwardNavigationGestures={canGoBack}
         contentInset={{ bottom: 66 }}
       />
 
@@ -240,43 +273,12 @@ export default function MiniAppScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SdsColors.background },
   webview: { flex: 1 },
-  topBar: {
+  // Android headerRight 폴백 — HeaderIconButton 2개를 가로 배치. iOS는 네이티브
+  // unstable_headerRightItems 경로라 이 스타일을 타지 않음.
+  rightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingBottom: 8,
     gap: 8,
-  },
-  topClusterLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-    borderRadius: 22,
-    paddingHorizontal: 2,
-    overflow: 'hidden',
-    flexShrink: 1,
-  },
-  topClusterRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-    borderRadius: 22,
-    paddingHorizontal: 2,
-    overflow: 'hidden',
-  },
-  topIconBtn: {
-    width: 40,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: SdsColors.grey900,
-    flexShrink: 1,
-    marginHorizontal: 4,
   },
   bottomBar: {
     position: 'absolute',
