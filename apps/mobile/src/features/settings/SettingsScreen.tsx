@@ -4,6 +4,8 @@ import { BadgeNavRow } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { logSettingsContentSelect } from '@/services/analytics';
+import { openInAppBrowser } from '@/features/in-app-browser/open';
+import { DEFAULT_BROWSER_URL } from '@/features/in-app-browser/protocol';
 
 export function SettingsScreen() {
   const router = useRouter();
@@ -63,6 +65,13 @@ export function SettingsScreen() {
         >
           <Text style={devStyles.devButtonText}>🦙 Local LLM (dev only)</Text>
         </TouchableOpacity>
+        {/* TODO: Remove — temporary in-app browser eval (총학 공지 기본 URL) */}
+        <TouchableOpacity
+          style={[devStyles.devButton, devStyles.devButtonBrowser]}
+          onPress={() => openInAppBrowser(DEFAULT_BROWSER_URL, '총학생회 공지')}
+        >
+          <Text style={devStyles.devButtonText}>🌐 인앱 브라우저 (dev only)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -80,6 +89,10 @@ const devStyles = StyleSheet.create({
   devButtonLlm: {
     marginTop: 12,
     backgroundColor: '#2a1a3a',
+  },
+  devButtonBrowser: {
+    marginTop: 12,
+    backgroundColor: '#1a2a3a',
   },
   devButtonText: { color: '#4caf50', fontSize: 14, fontWeight: '600' },
 });
