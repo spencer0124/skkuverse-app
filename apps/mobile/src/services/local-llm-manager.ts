@@ -336,9 +336,16 @@ export async function forceUnloadLocalLlm(): Promise<void> {
  */
 function suspendModel(): Promise<void> {
   return serialize(async () => {
-    if (!model || suspended) return; // model은 cold load 성공 후에만 non-null
+    if (!model || suspended) {
+      // 진단: suspend 본문이 왜 안 도는지(이미 suspended/모델 없음) 구분.
+      devLog('local-llm.suspend.skip', { hasModel: model != null, suspended });
+      return; // model은 cold load 성공 후에만 non-null
+    }
     suspended = true;
-    devLog('local-llm.suspend', { refCount });
+    // 진단(#4): background→unload 타임라인. begin은 찍혔는데 unloaded/end가 다음
+    // 실행에 없으면 = jetsam이 unload 완료 전에 kill (devLog는 MMKV 영속이라 kill 후에도 남음).
+    const t0 = Date.now();
+    devLog('local-llm.suspend.begin', { refCount });
     try {
       const ctx = model.getContext();
       if (ctx) {
@@ -348,11 +355,15 @@ function suspendModel(): Promise<void> {
           /* 진행 중 생성 없을 수 있음 */
         }
       }
+      devLog('local-llm.suspend.stopped', { ms: Date.now() - t0 });
       await model.unload();
+      devLog('local-llm.suspend.unloaded', { ms: Date.now() - t0 });
     } catch (e) {
+      devLog('local-llm.suspend.error', { ms: Date.now() - t0, error: String(e) });
       console.warn('[local-llm-manager] suspend(unload) failed', e);
     }
     setStatus({ phase: 'idle', downloadPct: 0 });
+    devLog('local-llm.suspend.end', { ms: Date.now() - t0 });
   });
 }
 
@@ -390,10 +401,25 @@ function ensureAppStateListener(): void {
   if (appStateWired) return;
   appStateWired = true;
   AppState.addEventListener('change', (s) => {
+    // 진단(#4): 전환 시각 기록 → suspend.begin과 시간차로 "background 발화는 했는지"
+    // "suspend 본문이 돌았는지"를 분리 판정.
+    devLog('local-llm.appstate', {
+      state: s,
+      refCount,
+      hasModel: model != null,
+      suspended,
+    });
     if (s === 'background') void suspendModel();
     else if (s === 'active') void resumeModel();
   });
   if (Platform.OS === 'ios') {
-    AppState.addEventListener('memoryWarning', () => void suspendModel());
+    AppState.addEventListener('memoryWarning', () => {
+      devLog('local-llm.memorywarning', {
+        refCount,
+        hasModel: model != null,
+        suspended,
+      });
+      void suspendModel();
+    });
   }
 }
