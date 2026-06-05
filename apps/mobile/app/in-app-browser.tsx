@@ -1,22 +1,14 @@
 /**
- * 인앱 브라우저 — 외부 웹페이지를 react-native-webview로 띄우고 온디바이스 SKKU AI
- * (요약/추천질문/Q&A)를 하단 바로 붙인다. expo-web-browser(봉인 시스템 브라우저)로는
- * JS 주입·추출·하이라이트가 불가능해서 이 화면이 그 자리를 대체한다.
+ * 미니앱 셸 — (서비스 이름 + 시작 URL) 두 인자로 여러 미니앱을 띄우는 공용 화면.
+ * 외부 웹페이지를 react-native-webview로 렌더하고, 하단 "요약" 버튼으로 온디바이스 Kanana
+ * 요약을 제공한다(추천질문/Q&A 없음 — 요약만).
  *
- * 데이터 흐름:
- *   화면(WebView 소유) — 페이지 로드 완료 시 buildExtractScript 주입 → page_extracted
- *   수신 → content 세팅(부족하면 Jina 폴백) → usePageAi(content)가 ready+content면
- *   추천질문 자동 생성(칩 바로 노출). 요약/Q&A는 칩/입력 탭 시 생성(직렬화).
- *
- * 하단 2단 바:
- *   (1) 칩 스트립 — [✨ 요약] + 추천질문 칩 N개 (가로 스크롤)
- *   (2) 크롬 행 — [<] 현재주소 [새로고침] [⋯]  (⋯ onPress는 추후 결정)
- *   버튼은 모두 glass(가능 시)/흰박스 폴백.
+ * 상단 바: [홈→시작URL  서비스제목] (좌 glass 클러스터) ……… [⋯  ✕] (우 glass 클러스터)
+ * 하단: [✨ 요약] 버튼 하나. 탭 → 현재 페이지 추출 → 시트에 요약 스트리밍.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type {
   WebViewMessageEvent,
@@ -26,12 +18,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   SparkleIcon,
-  CaretLeftIcon,
-  ArrowClockwiseIcon,
   DotsThreeIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  ArrowClockwiseIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
-import { GlassChip, GlassIconButton, GlassSurface } from '@/features/in-app-browser/components/glass';
+import { GlassSurface } from '@/features/in-app-browser/components/glass';
 import { buildExtractScript, fetchJinaMarkdown } from '@/features/in-app-browser/extract';
 import {
   parsePageMessage,
@@ -41,29 +34,29 @@ import {
 import { usePageAi, type PageContent } from '@/features/in-app-browser/ai/usePageAi';
 import { PageAiSheet } from '@/features/in-app-browser/ai/PageAiSheet';
 
-type ExtractState = 'pending' | 'ready' | 'empty';
+type ExtractState = 'idle' | 'pending' | 'ready' | 'empty';
 
-function prettyUrl(url: string): string {
-  return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
-}
+/** 하단 바 아이콘 색 — 전부 검정으로 통일. */
+const DOCK_ICON = SdsColors.grey900;
 
-export default function InAppBrowserScreen() {
-  const params = useLocalSearchParams<{ url?: string; title?: string }>();
-  const initialUrl = params.url || DEFAULT_BROWSER_URL;
+export default function MiniAppScreen() {
+  const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string }>();
+  const startUrl = params.startUrl || DEFAULT_BROWSER_URL;
+  const serviceName = params.serviceName ?? '';
   const insets = useSafeAreaInsets();
 
   const webRef = useRef<WebView>(null);
   const sheetRef = useRef<BottomSheetModal>(null);
 
-  const [currentUrl, setCurrentUrl] = useState(initialUrl);
-  const [pageTitle, setPageTitle] = useState(params.title ?? '');
+  const [currentUrl, setCurrentUrl] = useState(startUrl);
+  const [pageTitle, setPageTitle] = useState(serviceName);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
 
   const [content, setContent] = useState<PageContent | null>(null);
-  const [extractState, setExtractState] = useState<ExtractState>('pending');
-  const extractedUrlRef = useRef<string | null>(null);
-  // 추출 완료 전 탭한 요약/질문을 content 도착 시 흘려보내기 위한 대기 액션.
-  const pendingRef = useRef<{ type: 'summary' } | { type: 'ask'; q: string } | null>(null);
+  const [extractState, setExtractState] = useState<ExtractState>('idle');
+  // 요약 대기 플래그 — content 도착 시 요약 실행.
+  const pendingSummaryRef = useRef(false);
 
   const ai = usePageAi(content);
 
@@ -103,143 +96,142 @@ export default function InAppBrowserScreen() {
     [pageTitle, currentUrl, runJinaFallback],
   );
 
-  // 네비게이션 상태 추적(크롬 전용 — URL/뒤로가기/타이틀). 추출 트리거는 onLoadEnd로 분리.
-  const onNavChange = useCallback((nav: WebViewNavigation) => {
-    setCurrentUrl(nav.url);
-    setCanGoBack(nav.canGoBack);
-    if (nav.title) setPageTitle(nav.title);
-  }, []);
-
-  // 페이지 로드 완료 시 선제 추출(칩 생성용). onNavigationStateChange의 loading 플래그는
-  // iOS에서 불안정해 페이지 이동 시 누락될 수 있어, 신뢰성 높은 onLoadEnd를 트리거로 쓴다.
-  // 같은 URL 재추출은 가드(iframe/redirect 도배 방지).
-  const onLoadEnd = useCallback(
-    (e: { nativeEvent: { url?: string } }) => {
-      const url = e.nativeEvent.url;
-      if (!url || url === extractedUrlRef.current) return;
-      extractedUrlRef.current = url;
-      pendingRef.current = null; // 새 페이지 → 이전 페이지 대기 액션 폐기
-      setContent(null);
-      setExtractState('pending');
-      requestExtract();
+  // 네비게이션 상태(헤더 타이틀 폴백 + Jina 폴백용 URL). 추출은 요약 탭 시 on-demand.
+  const onNavChange = useCallback(
+    (nav: WebViewNavigation) => {
+      setCurrentUrl(nav.url);
+      setCanGoBack(nav.canGoBack);
+      setCanGoForward(nav.canGoForward);
+      if (nav.title) setPageTitle((prev) => (serviceName ? prev : nav.title));
     },
-    [requestExtract],
+    [serviceName],
   );
 
-  // content 도착 시 대기 액션 flush.
+  // content 도착(추출 완료) 시 대기 중이던 요약 실행.
   useEffect(() => {
-    const p = pendingRef.current;
-    if (!p) return;
-    if (extractState === 'pending') return; // 아직 대기
-    pendingRef.current = null;
-    if (p.type === 'summary') void ai.summarize();
-    else void ai.ask(p.q);
-    // ai.summarize/ask는 content empty면 내부에서 graceful 처리.
+    if (!pendingSummaryRef.current) return;
+    if (extractState === 'pending') return; // 아직 추출 중
+    pendingSummaryRef.current = false;
+    void ai.summarize(); // content empty면 훅 내부에서 graceful 처리
   }, [extractState, content, ai]);
 
-  // ── 칩/입력 핸들러 ──
-  // 탭 시점에 현재 페이지를 다시 추출한다 — 네비게이션 추적이 누락돼 content가 직전
-  // 페이지로 고착되는 문제 방어(요약/답변이 항상 "지금 보이는 페이지"를 반영). 추출 완료
-  // (onMessage → extractState ready)되면 pending-flush effect가 summarize/ask를 실행.
-  const openSummary = useCallback(() => {
-    sheetRef.current?.present();
-    pendingRef.current = { type: 'summary' };
+  // ── 요약: 탭 시점에 현재 페이지를 재추출 → 시트에 요약 ──
+  const triggerSummary = useCallback(() => {
+    pendingSummaryRef.current = true;
     setExtractState('pending');
     requestExtract();
   }, [requestExtract]);
 
-  const openAskChip = useCallback(
-    (q: string) => {
-      sheetRef.current?.present();
-      pendingRef.current = { type: 'ask', q };
-      setExtractState('pending');
-      requestExtract();
-    },
-    [requestExtract],
-  );
+  const openSummary = useCallback(() => {
+    sheetRef.current?.present();
+    triggerSummary();
+  }, [triggerSummary]);
 
+  // ── 상단 바 액션 ──
+  const close = useCallback(() => router.back(), []);
+
+  // ── 하단 바 액션 ──
   const goBack = useCallback(() => webRef.current?.goBack(), []);
+  const goForward = useCallback(() => webRef.current?.goForward(), []);
   const reload = useCallback(() => webRef.current?.reload(), []);
+
+  const headerTitle = serviceName || pageTitle || '브라우저';
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: pageTitle || '브라우저' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* 상단 바 — 좌클러스터 [< 제목 홈] / 우클러스터 [새로고침 ⋯]. glass(가능 시)/폴백. */}
+      <View style={[styles.topBar, { paddingTop: insets.top }]}>
+        <GlassSurface interactive style={styles.topClusterLeft}>
+          <Pressable
+            onPress={close}
+            hitSlop={6}
+            style={styles.topIconBtn}
+            accessibilityRole="button"
+            accessibilityLabel="뒤로"
+          >
+            <CaretLeftIcon size={20} color={SdsColors.grey800} />
+          </Pressable>
+          <Text style={styles.serviceTitle} numberOfLines={1}>
+            {headerTitle}
+          </Text>
+        </GlassSurface>
+
+        <GlassSurface interactive style={styles.topClusterRight}>
+          <Pressable
+            onPress={reload}
+            hitSlop={6}
+            style={styles.topIconBtn}
+            accessibilityRole="button"
+            accessibilityLabel="새로고침"
+          >
+            <ArrowClockwiseIcon size={20} color={SdsColors.grey800} />
+          </Pressable>
+          <Pressable
+            onPress={undefined /* ⋯ onPress 추후 결정 */}
+            hitSlop={6}
+            style={styles.topIconBtn}
+            accessibilityRole="button"
+            accessibilityLabel="더보기"
+          >
+            <DotsThreeIcon size={22} color={SdsColors.grey800} weight="bold" />
+          </Pressable>
+        </GlassSurface>
+      </View>
 
       <WebView
         ref={webRef}
-        source={{ uri: initialUrl }}
+        source={{ uri: startUrl }}
         style={styles.webview}
         onMessage={onMessage}
         onNavigationStateChange={onNavChange}
-        onLoadEnd={onLoadEnd}
         javaScriptEnabled
         domStorageEnabled
         startInLoadingState
-        // 하단 바에 콘텐츠가 가리지 않도록 여백 확보.
-        contentInset={{ bottom: 112 }}
+        contentInset={{ bottom: 66 }}
       />
 
-      {/* 하단 2단 바 */}
+      {/* 하단 — 좌클러스터 [< >] / 우클러스터 [AI]. 각 클러스터만 glass/폴백. */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {/* (1) 칩 스트립 */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipStrip}
-          keyboardShouldPersistTaps="handled"
-        >
-          <GlassChip
-            icon={<SparkleIcon size={15} color={SdsColors.brand} weight="fill" />}
-            label="요약"
-            accent
-            onPress={openSummary}
-            disabled={extractState === 'pending'}
-          />
-          {ai.questions.map((q) => (
-            <GlassChip key={q} label={q} onPress={() => openAskChip(q)} />
-          ))}
-        </ScrollView>
-
-        {/* (2) 크롬 행 */}
-        <View style={styles.chromeRow}>
-          <GlassIconButton
-            icon={<CaretLeftIcon size={20} color={canGoBack ? SdsColors.grey800 : SdsColors.grey400} />}
+        <GlassSurface interactive style={styles.bottomNav}>
+          <Pressable
             onPress={goBack}
-            label="뒤로"
             disabled={!canGoBack}
-            size={42}
-          />
-          <GlassSurface style={styles.addressPill}>
-            <Text style={styles.addressText} numberOfLines={1}>
-              {prettyUrl(currentUrl)}
-            </Text>
-          </GlassSurface>
-          <GlassIconButton
-            icon={<ArrowClockwiseIcon size={18} color={SdsColors.grey800} />}
-            onPress={reload}
-            label="새로고침"
-            size={42}
-          />
-          <GlassIconButton
-            icon={<DotsThreeIcon size={20} color={SdsColors.grey800} weight="bold" />}
-            label="더보기"
-            size={42}
-            /* onPress 추후 결정 */
-          />
-        </View>
+            style={[styles.navBtn, !canGoBack && styles.navBtnDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel="뒤로"
+          >
+            <CaretLeftIcon size={21} color={DOCK_ICON} />
+          </Pressable>
+          <Pressable
+            onPress={goForward}
+            disabled={!canGoForward}
+            style={[styles.navBtn, !canGoForward && styles.navBtnDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel="앞으로"
+          >
+            <CaretRightIcon size={21} color={DOCK_ICON} />
+          </Pressable>
+        </GlassSurface>
+
+        <GlassSurface interactive style={styles.aiBtn}>
+          <Pressable
+            onPress={openSummary}
+            style={styles.aiBtnInner}
+            accessibilityRole="button"
+            accessibilityLabel="AI 요약"
+          >
+            <SparkleIcon size={22} color={DOCK_ICON} weight="fill" />
+          </Pressable>
+        </GlassSurface>
       </View>
 
       <PageAiSheet
         ref={sheetRef}
-        pageTitle={pageTitle}
         status={ai.status}
         summary={ai.summary}
         summaryState={ai.summaryState}
-        turns={ai.turns}
-        isGenerating={ai.isGenerating}
-        onAsk={ai.ask}
-        onStop={ai.stop}
-        onReset={ai.reset}
       />
     </View>
   );
@@ -248,36 +240,80 @@ export default function InAppBrowserScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SdsColors.background },
   webview: { flex: 1 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  topClusterLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderRadius: 22,
+    paddingHorizontal: 2,
+    overflow: 'hidden',
+    flexShrink: 1,
+  },
+  topClusterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderRadius: 22,
+    paddingHorizontal: 2,
+    overflow: 'hidden',
+  },
+  topIconBtn: {
+    width: 40,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: SdsColors.grey900,
+    flexShrink: 1,
+    marginHorizontal: 4,
+  },
   bottomBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    gap: 8,
-  },
-  chipStrip: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingRight: 12,
-  },
-  chromeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
   },
-  addressPill: {
-    flex: 1,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 46,
+    borderRadius: 23,
+    paddingHorizontal: 4,
+    gap: 6,
     overflow: 'hidden',
   },
-  addressText: {
-    fontSize: 13,
-    color: SdsColors.grey700,
-    fontWeight: '500',
+  navBtn: {
+    width: 42,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navBtnDisabled: { opacity: 0.3 },
+  aiBtn: {
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+  },
+  aiBtnInner: {
+    height: 46,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

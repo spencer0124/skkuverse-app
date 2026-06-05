@@ -20,6 +20,7 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { openMiniApp } from '@/features/in-app-browser/open';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -85,6 +86,51 @@ export function HomeScreen() {
           handleSduiAction({
             actionType: 'route',
             actionValue: '/search',
+          });
+        },
+      },
+      {
+        id: 'council_hssc',
+        title: '인사캠 총학',
+        emoji: '\u{1F3DB}\u{FE0F}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'council_hssc' });
+          openMiniApp({
+            serviceName: '인사캠 총학생회',
+            startUrl: 'http://student.skku.edu/student/notice2.do',
+          });
+        },
+      },
+      {
+        id: 'council_nsc',
+        title: '자과캠 총학',
+        emoji: '\u{1F3DB}\u{FE0F}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'council_nsc' });
+          openMiniApp({
+            serviceName: '자과캠 총학생회',
+            startUrl: 'http://student.skku.edu/student/notice3.do',
+          });
+        },
+      },
+      {
+        id: 'skkuw',
+        title: '성대신문',
+        emoji: '\u{1F4F0}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'skkuw' });
+          openMiniApp({ serviceName: '성대신문', startUrl: 'http://www.skkuw.com/' });
+        },
+      },
+      {
+        id: 'skkuzine',
+        title: '성균웹진',
+        emoji: '\u{1F4D6}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'skkuzine' });
+          openMiniApp({
+            serviceName: '성균웹진',
+            startUrl: 'https://webzine.skku.edu/skkuzine/index.do',
           });
         },
       },
