@@ -168,6 +168,7 @@ export const PageAiSheet = forwardRef<BottomSheetModal, Props>(function PageAiSh
           <PreparingView
             phase={status.phase}
             downloadPct={status.downloadPct}
+            error={status.error}
             onRetry={() => void retryPrepare()}
           />
         ) : (
@@ -293,10 +294,12 @@ function AnswerActions({ answer }: { answer: string }) {
 function PreparingView({
   phase,
   downloadPct,
+  error,
   onRetry,
 }: {
   phase: string;
   downloadPct: number;
+  error?: string;
   onRetry: () => void;
 }) {
   if (phase === 'error') {
@@ -304,6 +307,12 @@ function PreparingView({
       <View style={styles.preparing}>
         <Text style={styles.preparingTitle}>AI를 준비하지 못했어요</Text>
         <Text style={styles.preparingSub}>잠시 후 다시 시도해 주세요.</Text>
+        {/* 진단용(eval) — 실제 에러 노출. 설정 → 디버그 로그에도 기록됨. */}
+        {error ? (
+          <Text style={styles.errorDetail} selectable>
+            {error}
+          </Text>
+        ) : null}
         <Pressable style={styles.retryBtn} onPress={onRetry}>
           <Text style={styles.retryBtnText}>다시 시도</Text>
         </Pressable>
@@ -428,6 +437,13 @@ const styles = StyleSheet.create({
   },
   preparingTitle: { fontSize: 15, fontWeight: '600', color: SdsColors.grey800 },
   preparingSub: { fontSize: 12, color: SdsColors.grey500 },
+  errorDetail: {
+    fontSize: 11,
+    color: SdsColors.grey400,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: 'center',
+    marginTop: 4,
+  },
   preparingPct: { fontSize: 13, color: SdsColors.brand, fontWeight: '600' },
   retryBtn: {
     marginTop: 14,

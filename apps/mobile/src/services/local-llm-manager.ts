@@ -28,6 +28,7 @@ import {
   makeStreamChatFn,
   releaseModel,
 } from './local-llm';
+import { devLog } from './dev-log';
 
 // ──────────────────────────────────────────────────────────────
 // 상수
@@ -163,25 +164,34 @@ export function useLocalLlmStatus(): LlmStatus {
  * Metal 로딩(prepare/init)만 타임아웃으로 감싼다 — 다운로드(ensureModel)는 분 단위라 제외.
  */
 function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
+  // 온디바이스 진단(TestFlight): 어느 단계에서·몇 ms 만에 실패하는지 영속 버퍼에 기록.
+  // ms≈25000 → init 타임아웃 / ms<2000 → 즉시 throw(메모리·네이티브·다운로드).
+  let stage = 'start';
+  const t0 = Date.now();
   return serialize(async () => {
     // 이미 로드 + 활성(context 살아있음)
     if (model && !suspended) return model;
 
     // suspended 재준비 경로
     if (model && suspended) {
+      stage = 're-prepare';
       setStatus({ phase: 'loading', downloadPct: 100, error: undefined });
       await withTimeout(model.prepare(), PREPARE_TIMEOUT_MS, 're-prepare');
       suspended = false;
       setStatus({ phase: 'ready' });
+      devLog('local-llm.prepare.ok', { stage: 're-prepare', ms: Date.now() - t0 });
       return model;
     }
 
     // cold load
+    stage = 'download';
     setStatus({ phase: 'downloading', downloadPct: 0, error: undefined });
     const modelPath = await ensureModel((pct) => {
       opts?.onProgress?.(pct);
       setStatus({ downloadPct: pct });
     });
+    devLog('local-llm.download.ok', { ms: Date.now() - t0 });
+    stage = 'init';
     setStatus({ phase: 'loading', downloadPct: 100 });
     const loaded = await withTimeout(
       initModel(modelPath, opts?.contextParams),
@@ -191,10 +201,12 @@ function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
     model = loaded;
     suspended = false;
     setStatus({ phase: 'ready' });
+    devLog('local-llm.prepare.ok', { stage: 'cold', ms: Date.now() - t0 });
     return loaded;
   }).catch((e) => {
     // 항상 error로 수렴 — 'loading' 영구 고정 방지. suspended는 유지(재시도 가능).
     setStatus({ phase: 'error', error: String(e) });
+    devLog('local-llm.prepare.error', { stage, ms: Date.now() - t0, error: String(e) });
     throw e;
   });
 }
