@@ -21,9 +21,10 @@ import {
   DotsThreeIcon,
   CaretLeftIcon,
   CaretRightIcon,
-  ArrowClockwiseIcon,
+  BookmarkSimpleIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
+import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { GlassSurface } from '@/features/in-app-browser/components/glass';
@@ -44,7 +45,7 @@ const DOCK_ICON = SdsColors.grey900;
 // iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
 // SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
 // navbar tintColor 재염색 회피.
-const ICON_REFRESH = require('../assets/header-icons/arrow-clockwise.png');
+const ICON_BOOKMARK = require('../assets/header-icons/bookmark-simple.png');
 const ICON_MORE = require('../assets/header-icons/dots-three.png');
 
 export default function MiniAppScreen() {
@@ -62,6 +63,9 @@ export default function MiniAppScreen() {
   const [canGoForward, setCanGoForward] = useState(false);
   // Android BackHandler가 재구독 없이 최신 canGoBack을 읽도록 ref로 미러.
   const canGoBackRef = useRef(false);
+
+  // 중앙 pill 탭 → 페이지 정보 시트(현재는 제목만).
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const [content, setContent] = useState<PageContent | null>(null);
   const [extractState, setExtractState] = useState<ExtractState>('idle');
@@ -155,7 +159,6 @@ export default function MiniAppScreen() {
   // ── 네비 액션 ──
   const goBack = useCallback(() => webRef.current?.goBack(), []);
   const goForward = useCallback(() => webRef.current?.goForward(), []);
-  const reload = useCallback(() => webRef.current?.reload(), []);
 
   return (
     <View style={styles.container}>
@@ -171,7 +174,7 @@ export default function MiniAppScreen() {
           // WKWebView가 스와이프를 소유(웹뷰 back). 루트면 ON → 스와이프 = 미니앱 종료.
           // (한 인식기만 활성 — WebView allowsBackForwardNavigationGestures와 배타적.)
           gestureEnabled: !canGoBack,
-          // 우상단 [새로고침 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
+          // 우상단 [북마크 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
           // 한 Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
           ...(Platform.OS === 'ios'
             ? {
@@ -179,10 +182,11 @@ export default function MiniAppScreen() {
                   {
                     type: 'button' as const,
                     label: '',
-                    icon: { type: 'image' as const, source: ICON_REFRESH, tinted: false },
+                    icon: { type: 'image' as const, source: ICON_BOOKMARK, tinted: false },
                     sharesBackground: true,
-                    accessibilityLabel: '새로고침',
-                    onPress: reload,
+                    accessibilityLabel: '북마크',
+                    // TODO: 북마크 기능 추후 구현.
+                    onPress: () => {},
                   },
                   {
                     type: 'button' as const,
@@ -198,8 +202,8 @@ export default function MiniAppScreen() {
             : {
                 headerRight: () => (
                   <View style={styles.rightGroup}>
-                    <HeaderIconButton onPress={reload} accessibilityLabel="새로고침">
-                      <ArrowClockwiseIcon size={22} color={SdsColors.grey700} />
+                    <HeaderIconButton onPress={() => {}} accessibilityLabel="북마크">
+                      <BookmarkSimpleIcon size={22} color={SdsColors.grey700} />
                     </HeaderIconButton>
                     <HeaderIconButton onPress={() => {}} accessibilityLabel="더보기">
                       <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
@@ -237,22 +241,31 @@ export default function MiniAppScreen() {
           >
             <CaretLeftIcon size={21} color={DOCK_ICON} />
           </Pressable>
-          <Pressable
-            onPress={goForward}
-            disabled={!canGoForward}
-            style={[styles.navBtn, !canGoForward && styles.navBtnDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel="앞으로"
-          >
-            <CaretRightIcon size={21} color={DOCK_ICON} />
-          </Pressable>
+          {/* 앞으로 갈 히스토리가 생겼을 때만 [>] 노출 — 기본은 [<] 단독. */}
+          {canGoForward && (
+            <Pressable
+              onPress={goForward}
+              style={styles.navBtn}
+              accessibilityRole="button"
+              accessibilityLabel="앞으로"
+            >
+              <CaretRightIcon size={21} color={DOCK_ICON} />
+            </Pressable>
+          )}
         </GlassSurface>
 
-        {/* 중앙 — 진입 시 서비스 이름(좌우 [< >]/[AI] 사이 빈 공간을 간격 빼고 채움). */}
-        <GlassSurface style={styles.titlePill}>
-          <Text style={styles.titleText} numberOfLines={1}>
-            {serviceName || pageTitle}
-          </Text>
+        {/* 중앙 pill — 서비스명만 표시. 탭하면 페이지 정보 시트. 좌우 [< >]/[AI] 사이를 채움. */}
+        <GlassSurface interactive style={styles.titlePill}>
+          <Pressable
+            onPress={() => setInfoOpen(true)}
+            style={styles.titlePillBtn}
+            accessibilityRole="button"
+            accessibilityLabel="페이지 정보"
+          >
+            <Text style={styles.titleText} numberOfLines={1}>
+              {serviceName || pageTitle}
+            </Text>
+          </Pressable>
         </GlassSurface>
 
         <GlassSurface interactive style={styles.aiBtn}>
@@ -273,6 +286,18 @@ export default function MiniAppScreen() {
         summary={ai.summary}
         summaryState={ai.summaryState}
       />
+
+      {/* 페이지 정보 시트 — 현재는 제목만. */}
+      <BottomSheet
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        title="페이지 정보"
+        snapPoints={['50%']}
+      >
+        <Txt typography="t5" color={SdsColors.grey900}>
+          {serviceName || pageTitle}
+        </Txt>
+      </BottomSheet>
     </View>
   );
 }
@@ -292,7 +317,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -304,28 +329,35 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 23,
     paddingHorizontal: 4,
-    gap: 6,
+    gap: 0,
     overflow: 'hidden',
   },
   navBtn: {
-    width: 42,
+    width: 36,
     height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navBtnDisabled: { opacity: 0.3 },
-  // 중앙 서비스명 pill — flex로 [< >]/[AI] 사이 빈 공간을 채우되 marginHorizontal로 간격 확보.
+  // 중앙 pill — flex로 [< >]/[AI] 사이 빈 공간을 채우되 marginHorizontal로 간격 확보.
+  // 통째로 탭 가능 — 서비스명만 표시, 탭하면 페이지 정보 시트.
   titlePill: {
     flex: 1,
     height: 46,
     borderRadius: 23,
-    marginHorizontal: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginHorizontal: 12,
     overflow: 'hidden',
   },
+  titlePillBtn: {
+    flex: 1,
+    height: 46,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   titleText: {
+    alignSelf: 'stretch',
+    textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
     color: SdsColors.grey800,
