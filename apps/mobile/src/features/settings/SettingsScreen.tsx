@@ -72,6 +72,13 @@ export function SettingsScreen() {
         >
           <Text style={devStyles.devButtonText}>🌐 인앱 브라우저 (dev only)</Text>
         </TouchableOpacity>
+        {/* RELEASE-GATE(debug-menu): 출시 전 제거 — 상세 진단 로그 뷰어 */}
+        <TouchableOpacity
+          style={[devStyles.devButton, devStyles.devButtonLogs]}
+          onPress={() => router.push('/settings/debug-logs' as never)}
+        >
+          <Text style={devStyles.devButtonText}>🪵 디버그 로그 (dev only)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -93,6 +100,10 @@ const devStyles = StyleSheet.create({
   devButtonBrowser: {
     marginTop: 12,
     backgroundColor: '#1a2a3a',
+  },
+  devButtonLogs: {
+    marginTop: 12,
+    backgroundColor: '#3a2a1a',
   },
   devButtonText: { color: '#4caf50', fontSize: 14, fontWeight: '600' },
 });

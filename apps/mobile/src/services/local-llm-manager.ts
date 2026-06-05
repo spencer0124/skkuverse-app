@@ -169,6 +169,13 @@ function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
   let stage = 'start';
   const t0 = Date.now();
   return serialize(async () => {
+    devLog('local-llm.prepare.begin', {
+      os: Platform.OS,
+      osVersion: String(Platform.Version),
+      refCount,
+      hasModel: model != null,
+      suspended,
+    });
     // 이미 로드 + 활성(context 살아있음)
     if (model && !suspended) return model;
 
@@ -203,10 +210,17 @@ function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
     setStatus({ phase: 'ready' });
     devLog('local-llm.prepare.ok', { stage: 'cold', ms: Date.now() - t0 });
     return loaded;
-  }).catch((e) => {
+  }).catch((e: unknown) => {
     // 항상 error로 수렴 — 'loading' 영구 고정 방지. suspended는 유지(재시도 가능).
+    const err = e as { message?: string; stack?: string };
     setStatus({ phase: 'error', error: String(e) });
-    devLog('local-llm.prepare.error', { stage, ms: Date.now() - t0, error: String(e) });
+    devLog('local-llm.prepare.error', {
+      stage,
+      ms: Date.now() - t0,
+      error: String(e),
+      message: err?.message,
+      stack: err?.stack,
+    });
     throw e;
   });
 }
@@ -236,6 +250,7 @@ export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle>
 
   refCount += 1;
   setStatus({}); // refCount 반영
+  devLog('local-llm.acquire', { refCount });
 
   try {
     const loaded = await prepareModel(opts);
@@ -276,6 +291,7 @@ function scheduleIdleRelease(): void {
 }
 
 async function doRelease(): Promise<void> {
+  devLog('local-llm.release', { refCount });
   const m = model;
   model = null;
   suspended = false;
@@ -322,6 +338,7 @@ function suspendModel(): Promise<void> {
   return serialize(async () => {
     if (!model || suspended) return; // model은 cold load 성공 후에만 non-null
     suspended = true;
+    devLog('local-llm.suspend', { refCount });
     try {
       const ctx = model.getContext();
       if (ctx) {
@@ -347,6 +364,7 @@ function suspendModel(): Promise<void> {
  */
 function resumeModel(): Promise<void> {
   if (refCount <= 0) return Promise.resolve();
+  devLog('local-llm.resume', { refCount });
   return prepareModel().then(
     () => {},
     () => {}, // 실패는 status='error'로 표면화됨 (시트 재시도)

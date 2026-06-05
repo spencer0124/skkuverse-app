@@ -115,24 +115,52 @@ async function cachedModelSize(): Promise<number | null> {
 export async function ensureModel(
   onProgress?: (percentage: number) => void,
 ): Promise<string> {
-  if (await isModelDownloaded(KANANA_MODEL_ID)) {
-    const size = await cachedModelSize();
+  const path = getModelPath(KANANA_MODEL_ID);
+  const exists = await isModelDownloaded(KANANA_MODEL_ID);
+  const size = exists ? await cachedModelSize() : null;
+  devLog('local-llm.ensure.start', {
+    path,
+    exists,
+    size,
+    expected: KANANA_Q4_KM_SIZE_BYTES,
+  });
+
+  if (exists) {
     // size를 못 읽으면(stat 실패) 멀쩡한 파일을 1.5GB 재다운로드하는 오탐을 피해 신뢰.
     if (size == null || size >= KANANA_Q4_KM_SIZE_BYTES) {
+      devLog('local-llm.ensure.cache-hit', { size });
       onProgress?.(100);
-      return getModelPath(KANANA_MODEL_ID);
+      return path;
     }
-    devLog('local-llm.model.corrupt', { size, expected: KANANA_Q4_KM_SIZE_BYTES });
+    devLog('local-llm.model.corrupt', {
+      size,
+      expected: KANANA_Q4_KM_SIZE_BYTES,
+      shortByBytes: KANANA_Q4_KM_SIZE_BYTES - size,
+    });
     await removeModel(KANANA_MODEL_ID); // 부분/손상 파일 제거 → 아래에서 재다운로드
   }
 
-  const progressCallback = onProgress
-    ? (p: DownloadProgress) => onProgress(p.percentage)
-    : undefined;
+  devLog('local-llm.download.start', { url: KANANA_MODEL_ID });
+  const dlStart = Date.now();
+  let lastLoggedPct = -1;
+  const progressCallback = (p: DownloadProgress) => {
+    onProgress?.(p.percentage);
+    // 25% 단위로만 기록(버퍼 도배 방지) — 다운로드 stall 진단용.
+    const bucket = Math.floor(p.percentage / 25) * 25;
+    if (bucket !== lastLoggedPct) {
+      lastLoggedPct = bucket;
+      devLog('local-llm.download.progress', { pct: p.percentage, ms: Date.now() - dlStart });
+    }
+  };
 
-  const path = await downloadModel(KANANA_MODEL_ID, progressCallback);
-  devLog('local-llm.download.complete', { size: await cachedModelSize() });
-  return path;
+  const downloaded = await downloadModel(KANANA_MODEL_ID, progressCallback);
+  devLog('local-llm.download.complete', {
+    path: downloaded,
+    size: await cachedModelSize(),
+    expected: KANANA_Q4_KM_SIZE_BYTES,
+    ms: Date.now() - dlStart,
+  });
+  return downloaded;
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -150,10 +178,14 @@ export async function initModel(
   modelPath: string,
   contextParams?: Partial<ContextParams>,
 ): Promise<LlamaLanguageModel> {
-  const model = llama.languageModel(modelPath, {
-    contextParams: { ...DEFAULT_CONTEXT_PARAMS, ...contextParams },
-  });
+  const params = { ...DEFAULT_CONTEXT_PARAMS, ...contextParams };
+  // "Failed to load model"이 여기서 던져진다(네이티브 GGUF 로드/Metal/KV 할당).
+  // 직전/직후를 찍어 init이 시작은 했는지·prepare에서 죽는지 구분한다.
+  devLog('local-llm.init.start', { modelPath, params });
+  const t0 = Date.now();
+  const model = llama.languageModel(modelPath, { contextParams: params });
   await model.prepare();
+  devLog('local-llm.init.prepared', { ms: Date.now() - t0 });
   return model;
 }
 
