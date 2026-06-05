@@ -15,7 +15,6 @@ import type {
   WebViewNavigation,
 } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   SparkleIcon,
   DotsThreeIcon,
@@ -55,7 +54,6 @@ export default function MiniAppScreen() {
   const insets = useSafeAreaInsets();
 
   const webRef = useRef<WebView>(null);
-  const sheetRef = useRef<BottomSheetModal>(null);
 
   const [currentUrl, setCurrentUrl] = useState(startUrl);
   const [pageTitle, setPageTitle] = useState(serviceName);
@@ -66,6 +64,8 @@ export default function MiniAppScreen() {
 
   // 중앙 pill 탭 → 페이지 정보 시트(현재는 제목만).
   const [infoOpen, setInfoOpen] = useState(false);
+  // ✨ AI 요약 시트 open 상태.
+  const [aiOpen, setAiOpen] = useState(false);
 
   const [content, setContent] = useState<PageContent | null>(null);
   const [extractState, setExtractState] = useState<ExtractState>('idle');
@@ -152,7 +152,7 @@ export default function MiniAppScreen() {
   }, [requestExtract]);
 
   const openSummary = useCallback(() => {
-    sheetRef.current?.present();
+    setAiOpen(true);
     triggerSummary();
   }, [triggerSummary]);
 
@@ -281,7 +281,8 @@ export default function MiniAppScreen() {
       </View>
 
       <PageAiSheet
-        ref={sheetRef}
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
         status={ai.status}
         summary={ai.summary}
         summaryState={ai.summaryState}

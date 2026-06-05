@@ -8,7 +8,7 @@
  *   │            [복사]  [닫기]          │  하단 버튼
  *   └──────────────────────────────────┘
  */
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,9 +27,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView } from 'expo-glass-effect';
 import * as Clipboard from 'expo-clipboard';
-import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { InfoIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
+import { BottomSheet } from '@skkuverse/sds';
 import type { LlmStatus } from '@/services/local-llm-manager';
 import { retryPrepare } from '@/services/local-llm-manager';
 import { GLASS_AVAILABLE } from '../components/glass';
@@ -39,27 +40,15 @@ const LOGO = require('../../../../assets/images/icon.png');
 const BRAND_DEEP_GREEN = '#1f3d2e';
 
 interface Props {
+  open: boolean;
+  onClose: () => void;
   status: LlmStatus;
   summary: string;
   summaryState: GenState;
 }
 
-export const PageAiSheet = forwardRef<BottomSheetModal, Props>(function PageAiSheet(
-  { status, summary, summaryState },
-  parentRef,
-) {
+export function PageAiSheet({ open, onClose, status, summary, summaryState }: Props) {
   const insets = useSafeAreaInsets();
-  const sheetRef = useRef<BottomSheetModal>(null);
-  const setRefs = useCallback(
-    (node: BottomSheetModal | null) => {
-      sheetRef.current = node;
-      if (typeof parentRef === 'function') parentRef(node);
-      else if (parentRef) parentRef.current = node;
-    },
-    [parentRef],
-  );
-  const close = useCallback(() => sheetRef.current?.dismiss(), []);
-  const snapPoints = useMemo(() => ['68%'], []);
   const ready = status.phase === 'ready';
 
   const [copied, setCopied] = useState(false);
@@ -78,13 +67,11 @@ export const PageAiSheet = forwardRef<BottomSheetModal, Props>(function PageAiSh
   }, []);
 
   return (
-    <BottomSheetModal
-      ref={setRefs}
-      index={0}
-      snapPoints={snapPoints}
-      topInset={insets.top}
-      enableDynamicSizing={false}
-      enablePanDownToClose
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      snapPoints={['68%']}
+      contentStyle={styles.sheetContent}
     >
       <View style={styles.root}>
         {/* 제목 한 줄 */}
@@ -107,7 +94,7 @@ export const PageAiSheet = forwardRef<BottomSheetModal, Props>(function PageAiSh
             onRetry={() => void retryPrepare()}
           />
         ) : (
-          <BottomSheetScrollView contentContainerStyle={styles.body}>
+          <BottomSheetScrollView style={styles.bodyScroll} contentContainerStyle={styles.body}>
             {summary ? (
               <Text style={styles.summaryText} selectable>
                 {summary}
@@ -131,14 +118,14 @@ export const PageAiSheet = forwardRef<BottomSheetModal, Props>(function PageAiSh
           >
             <Text style={styles.copyBtnText}>{copied ? '복사됨' : '복사'}</Text>
           </Pressable>
-          <Pressable style={[styles.footerBtn, styles.closeBtn]} onPress={close}>
+          <Pressable style={[styles.footerBtn, styles.closeBtn]} onPress={onClose}>
             <Text style={styles.closeBtnText}>닫기</Text>
           </Pressable>
         </View>
       </View>
-    </BottomSheetModal>
+    </BottomSheet>
   );
-});
+}
 
 // 리퀴드글래스 버전 로고 — glass 가능 시 GlassView 원형, 아니면 흰 원형 폴백.
 function GlassLogo() {
@@ -221,6 +208,9 @@ function clamp(n: number): number {
 const LOGO_BADGE = 26;
 
 const styles = StyleSheet.create({
+  // SDS BottomSheet 기본 content 패딩 제거 + 높이 채움(내부 scroll body 수용).
+  // 각 섹션(title/body/footer)이 자체 padding을 갖는다.
+  sheetContent: { flex: 1, paddingHorizontal: 0, paddingBottom: 0 },
   root: { flex: 1 },
   titleRow: {
     flexDirection: 'row',
@@ -250,6 +240,7 @@ const styles = StyleSheet.create({
   logoImg: { width: LOGO_BADGE, height: LOGO_BADGE, borderRadius: LOGO_BADGE / 2 },
   titleText: { fontSize: 17, fontWeight: '700', color: SdsColors.grey900 },
 
+  bodyScroll: { flex: 1 },
   body: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 24 },
   summaryText: { fontSize: 15, color: SdsColors.grey800, lineHeight: 24 },
   errorText: { fontSize: 14, color: SdsColors.grey500, lineHeight: 21 },
@@ -271,10 +262,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnDisabled: { opacity: 0.4 },
-  copyBtn: { backgroundColor: SdsColors.grey100 },
-  copyBtnText: { fontSize: 15, fontWeight: '700', color: SdsColors.grey800 },
-  closeBtn: { backgroundColor: BRAND_DEEP_GREEN },
-  closeBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  // 복사 = primary(딥그린), 닫기 = secondary(회색). 실제 액션을 강조.
+  copyBtn: { backgroundColor: BRAND_DEEP_GREEN },
+  copyBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  closeBtn: { backgroundColor: SdsColors.grey100 },
+  closeBtnText: { fontSize: 15, fontWeight: '700', color: SdsColors.grey800 },
 
   preparing: {
     flex: 1,
