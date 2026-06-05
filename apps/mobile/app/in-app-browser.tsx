@@ -7,7 +7,7 @@
  * 하단: [✨ 요약] 버튼 하나. 탭 → 현재 페이지 추출 → 시트에 요약 스트리밍.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { BackHandler, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type {
@@ -225,7 +225,7 @@ export default function MiniAppScreen() {
         contentInset={{ bottom: 66 }}
       />
 
-      {/* 하단 — 좌클러스터 [< >] / 우클러스터 [AI]. 각 클러스터만 glass/폴백. */}
+      {/* 하단 — 좌 [< >] / 중앙 서비스명 pill / 우 [AI]. 각 클러스터만 glass/폴백. */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <GlassSurface interactive style={styles.bottomNav}>
           <Pressable
@@ -246,6 +246,13 @@ export default function MiniAppScreen() {
           >
             <CaretRightIcon size={21} color={DOCK_ICON} />
           </Pressable>
+        </GlassSurface>
+
+        {/* 중앙 — 진입 시 서비스 이름(좌우 [< >]/[AI] 사이 빈 공간을 간격 빼고 채움). */}
+        <GlassSurface style={styles.titlePill}>
+          <Text style={styles.titleText} numberOfLines={1}>
+            {serviceName || pageTitle}
+          </Text>
         </GlassSurface>
 
         <GlassSurface interactive style={styles.aiBtn}>
@@ -307,6 +314,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navBtnDisabled: { opacity: 0.3 },
+  // 중앙 서비스명 pill — flex로 [< >]/[AI] 사이 빈 공간을 채우되 marginHorizontal로 간격 확보.
+  titlePill: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    marginHorizontal: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  titleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: SdsColors.grey800,
+  },
   aiBtn: {
     height: 46,
     borderRadius: 23,
