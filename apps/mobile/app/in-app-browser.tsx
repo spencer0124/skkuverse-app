@@ -16,13 +16,16 @@ import type {
 } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  SparkleIcon,
   DotsThreeIcon,
   CaretLeftIcon,
   CaretRightIcon,
   BookmarkSimpleIcon,
+  BellIcon,
   CheckIcon,
   GlobeSimpleIcon,
+  SparkleIcon,
+  ArrowClockwiseIcon,
+  type Icon as PhosphorIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { BottomSheet, Txt } from '@skkuverse/sds';
@@ -47,7 +50,7 @@ const DOCK_ICON = SdsColors.grey900;
 // iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
 // SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
 // navbar tintColor 재염색 회피.
-const ICON_BOOKMARK = require('../assets/header-icons/bookmark-simple.png');
+const ICON_BELL = require('../assets/header-icons/bell.png');
 const ICON_MORE = require('../assets/header-icons/dots-three.png');
 
 /**
@@ -84,6 +87,34 @@ function CheckBadge({ size }: { size: number }) {
   );
 }
 
+/**
+ * 더보기(⋯) 액션 시트의 한 줄 — Safari 스타일 [아이콘 · 라벨] 행. 탭하면 onPress.
+ * 아이콘은 phosphor 컴포넌트를 그대로 주입(Icon 타입)해 헤더 PNG 베이킹 불필요(시트는 JSX).
+ */
+function MenuRow({
+  icon: IconCmp,
+  label,
+  onPress,
+}: {
+  icon: PhosphorIcon;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.menuRow}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <IconCmp size={22} color={SdsColors.grey800} />
+      <Txt typography="t5" color={SdsColors.grey900}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
 export default function MiniAppScreen() {
   const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string }>();
   const startUrl = params.startUrl || DEFAULT_BROWSER_URL;
@@ -101,6 +132,8 @@ export default function MiniAppScreen() {
 
   // 중앙 pill 탭 → 페이지 정보 시트(현재는 제목만).
   const [infoOpen, setInfoOpen] = useState(false);
+  // 헤더 ⋯ 탭 → 더보기 액션 시트(새로고침 / AI 요약).
+  const [moreOpen, setMoreOpen] = useState(false);
   // ✨ AI 요약 시트 open 상태.
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -200,10 +233,20 @@ export default function MiniAppScreen() {
   const goBack = useCallback(() => webRef.current?.goBack(), []);
   const goForward = useCallback(() => webRef.current?.goForward(), []);
 
+  // ── 더보기(⋯) 메뉴 액션 — 행 선택 시 시트 닫고 해당 동작 실행 ──
+  const handleMenuRefresh = useCallback(() => {
+    setMoreOpen(false);
+    webRef.current?.reload();
+  }, []);
+  const handleMenuSummary = useCallback(() => {
+    setMoreOpen(false);
+    openSummary();
+  }, [openSummary]);
+
   return (
     <View style={styles.container}>
       {/* 네이티브 헤더 — 버스/공지와 동일 메트릭. 좌: native back(=미니앱 종료, glass 캡슐),
-          제목 미표시. 우: [새로고침 | ⋯] 한 glass 캡슐(고정폭 — RN screens headerRight 왜곡 방지).
+          제목 미표시. 우: [알림 | ⋯] 한 glass 캡슐(고정폭 — RN screens headerRight 왜곡 방지).
           GlassView는 fill base 위에서만 보이므로 반투명 회색 fill을 깐다(HeaderIconButton 레시피). */}
       <Stack.Screen
         options={{
@@ -214,18 +257,19 @@ export default function MiniAppScreen() {
           // WKWebView가 스와이프를 소유(웹뷰 back). 루트면 ON → 스와이프 = 미니앱 종료.
           // (한 인식기만 활성 — WebView allowsBackForwardNavigationGestures와 배타적.)
           gestureEnabled: !canGoBack,
-          // 우상단 [북마크 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
+          // 우상단 [알림 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
           // 한 Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
+          // ⋯ 탭 → 더보기 액션 시트(새로고침 / AI 요약). 북마크는 하단 바로 이동.
           ...(Platform.OS === 'ios'
             ? {
                 unstable_headerRightItems: () => [
                   {
                     type: 'button' as const,
                     label: '',
-                    icon: { type: 'image' as const, source: ICON_BOOKMARK, tinted: false },
+                    icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
                     sharesBackground: true,
-                    accessibilityLabel: '북마크',
-                    // TODO: 북마크 기능 추후 구현.
+                    accessibilityLabel: '알림',
+                    // TODO: 알림 기능 추후 구현.
                     onPress: () => {},
                   },
                   {
@@ -234,18 +278,17 @@ export default function MiniAppScreen() {
                     icon: { type: 'image' as const, source: ICON_MORE, tinted: false },
                     sharesBackground: true,
                     accessibilityLabel: '더보기',
-                    // TODO: ⋯ 더보기 메뉴 추후 구현 (ActionSheet/BottomSheet).
-                    onPress: () => {},
+                    onPress: () => setMoreOpen(true),
                   },
                 ],
               }
             : {
                 headerRight: () => (
                   <View style={styles.rightGroup}>
-                    <HeaderIconButton onPress={() => {}} accessibilityLabel="북마크">
-                      <BookmarkSimpleIcon size={22} color={SdsColors.grey700} />
+                    <HeaderIconButton onPress={() => {}} accessibilityLabel="알림">
+                      <BellIcon size={22} color={SdsColors.grey700} />
                     </HeaderIconButton>
-                    <HeaderIconButton onPress={() => {}} accessibilityLabel="더보기">
+                    <HeaderIconButton onPress={() => setMoreOpen(true)} accessibilityLabel="더보기">
                       <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
                     </HeaderIconButton>
                   </View>
@@ -269,7 +312,7 @@ export default function MiniAppScreen() {
         contentInset={{ bottom: 66 }}
       />
 
-      {/* 하단 — 좌 [< >] / 중앙 서비스명 pill / 우 [AI]. 각 클러스터만 glass/폴백. */}
+      {/* 하단 — 좌 [< >] / 중앙 서비스명 pill / 우 [북마크]. 각 클러스터만 glass/폴백. */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <GlassSurface interactive style={styles.bottomNav}>
           <Pressable
@@ -312,12 +355,13 @@ export default function MiniAppScreen() {
 
         <GlassSurface interactive style={styles.aiBtn}>
           <Pressable
-            onPress={openSummary}
+            onPress={() => {}}
             style={styles.aiBtnInner}
             accessibilityRole="button"
-            accessibilityLabel="AI 요약"
+            accessibilityLabel="북마크"
           >
-            <SparkleIcon size={22} color={DOCK_ICON} weight="fill" />
+            {/* TODO: 북마크 기능 추후 구현. */}
+            <BookmarkSimpleIcon size={22} color={DOCK_ICON} />
           </Pressable>
         </GlassSurface>
       </View>
@@ -348,6 +392,14 @@ export default function MiniAppScreen() {
             </Txt>
           </View>
           <CheckBadge size={22} />
+        </View>
+      </BottomSheet>
+
+      {/* 더보기(⋯) 액션 시트 — Safari 스타일 액션 목록. 콘텐츠 높이에 맞춰 hug. */}
+      <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
+        <View style={styles.menuList}>
+          <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
+          <MenuRow icon={SparkleIcon} label="AI 요약" onPress={handleMenuSummary} />
         </View>
       </BottomSheet>
     </View>
@@ -431,6 +483,17 @@ const styles = StyleSheet.create({
   infoTextCol: {
     flex: 1,
     gap: 2,
+  },
+  // 더보기 액션 시트 목록 — 행 사이 구분 없는 단순 스택(Safari 메뉴 톤).
+  menuList: {
+    gap: 4,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
   },
   aiBtn: {
     height: 46,
