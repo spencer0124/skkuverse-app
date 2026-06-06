@@ -86,7 +86,7 @@ public final class AnemllEngineImpl: NSObject, AnemllEngine {
 
     // Incremental decode-delta (handles multi-token Korean glyphs correctly).
     var genTokens: [Int] = []
-    var prevText = ""
+    var emitted = 0 // characters already streamed
     let startTime = CFAbsoluteTimeGetCurrent()
     var firstTokenMs: Double = 0
 
@@ -102,12 +102,16 @@ public final class AnemllEngineImpl: NSObject, AnemllEngine {
         }
         genTokens.append(tokenId)
         let full = tok.decode(tokens: genTokens, skipSpecialTokens: true)
-        if full.count >= prevText.count, full.hasPrefix(prevText) {
-          let delta = String(full.dropFirst(prevText.count))
-          prevText = full
-          if !delta.isEmpty { onToken(delta) }
-        } else {
-          prevText = full
+        // Byte-level BPE can split a UTF-8 char (e.g. a Korean syllable) across tokens, so a
+        // partial buffer decodes with a trailing U+FFFD. Hold until it completes (HF TextStreamer
+        // pattern): the already-complete prefix is stable (decode is append-only there); only the
+        // tail is unstable. Emit only the newly-stable suffix beyond what we've already streamed.
+        if full.hasSuffix("\u{FFFD}") { return }
+        let chars = Array(full)
+        if chars.count > emitted {
+          let delta = String(chars[emitted...])
+          emitted = chars.count
+          onToken(delta)
         }
       }
     )

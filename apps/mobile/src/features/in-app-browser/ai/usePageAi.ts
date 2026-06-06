@@ -80,14 +80,20 @@ export function usePageAi(content: PageContent | null) {
     setSummary('');
     setSummaryState('generating');
     try {
-      await handle.streamChat(
+      const result = await handle.streamChat(
         summaryMessages(context),
         (token) => {
           if (!abort.signal.aborted) setSummary((prev) => prev + token);
         },
         { temperature: 0.3, signal: abort.signal },
       );
-      if (!abort.signal.aborted) setSummaryState('done');
+      if (!abort.signal.aborted) {
+        // Reconcile to the authoritative full decode. The ANE engine streams byte-level-BPE
+        // deltas that can briefly show U+FFFD for multi-token Korean glyphs; result.text is the
+        // complete-buffer decode (always valid UTF-8), so this cleans any residual replacement char.
+        setSummary(result.text);
+        setSummaryState('done');
+      }
     } catch {
       if (!abort.signal.aborted) setSummaryState('error');
     }
