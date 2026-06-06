@@ -6,8 +6,8 @@
  * 상단 바: [홈→시작URL  서비스제목] (좌 glass 클러스터) ……… [⋯  ✕] (우 glass 클러스터)
  * 하단: [✨ 요약] 버튼 하나. 탭 → 현재 페이지 추출 → 시트에 요약 스트리밍.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type {
@@ -21,6 +21,8 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   BookmarkSimpleIcon,
+  CheckIcon,
+  GlobeSimpleIcon,
 } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { BottomSheet, Txt } from '@skkuverse/sds';
@@ -30,6 +32,7 @@ import { GlassSurface } from '@/features/in-app-browser/components/glass';
 import { buildExtractScript, fetchJinaMarkdown } from '@/features/in-app-browser/extract';
 import {
   parsePageMessage,
+  faviconUrl,
   MIN_EXTRACT_CHARS,
   DEFAULT_BROWSER_URL,
 } from '@/features/in-app-browser/protocol';
@@ -46,6 +49,40 @@ const DOCK_ICON = SdsColors.grey900;
 // navbar tintColor 재염색 회피.
 const ICON_BOOKMARK = require('../assets/header-icons/bookmark-simple.png');
 const ICON_MORE = require('../assets/header-icons/dots-three.png');
+
+/**
+ * 사이트 파비콘 — faviconV2 고화질 아이콘을 정사각으로 렌더. uri가 없거나(opaque origin)
+ * 로딩 실패 시 중립 Globe 아이콘으로 폴백(깨진 이미지 박스 방지). uri가 바뀌면 에러 리셋.
+ */
+function Favicon({ uri, size }: { uri: string | null; size: number }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+
+  if (!uri || failed) {
+    return <GlobeSimpleIcon size={size} color={SdsColors.grey500} />;
+  }
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: 4 }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+/** 인증 배지 — 딥그린 원형 + 흰 체크. */
+function CheckBadge({ size }: { size: number }) {
+  return (
+    <View
+      style={[
+        styles.checkBadge,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
+    >
+      <CheckIcon size={size * 0.62} color="#FFFFFF" weight="bold" />
+    </View>
+  );
+}
 
 export default function MiniAppScreen() {
   const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string }>();
@@ -73,6 +110,9 @@ export default function MiniAppScreen() {
   const pendingSummaryRef = useRef(false);
 
   const ai = usePageAi(content);
+
+  // 현재 페이지 origin 기반 고화질 파비콘 URL(없으면 null → Globe 폴백).
+  const favicon = useMemo(() => faviconUrl(currentUrl), [currentUrl]);
 
   // ── 추출 ──
   const requestExtract = useCallback(() => {
@@ -254,7 +294,7 @@ export default function MiniAppScreen() {
           )}
         </GlassSurface>
 
-        {/* 중앙 pill — 서비스명만 표시. 탭하면 페이지 정보 시트. 좌우 [< >]/[AI] 사이를 채움. */}
+        {/* 중앙 pill — [파비콘 · 서비스명 · 인증 체크]. 탭하면 페이지 정보 시트. */}
         <GlassSurface interactive style={styles.titlePill}>
           <Pressable
             onPress={() => setInfoOpen(true)}
@@ -262,9 +302,11 @@ export default function MiniAppScreen() {
             accessibilityRole="button"
             accessibilityLabel="페이지 정보"
           >
+            <Favicon uri={favicon} size={18} />
             <Text style={styles.titleText} numberOfLines={1}>
               {serviceName || pageTitle}
             </Text>
+            <CheckBadge size={18} />
           </Pressable>
         </GlassSurface>
 
@@ -288,16 +330,25 @@ export default function MiniAppScreen() {
         summaryState={ai.summaryState}
       />
 
-      {/* 페이지 정보 시트 — 현재는 제목만. */}
+      {/* 페이지 정보 시트 — [파비콘 · 서비스명 · 인증 체크] + origin. 하단 바와 동일 시각요소. */}
       <BottomSheet
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
         title="페이지 정보"
         snapPoints={['50%']}
       >
-        <Txt typography="t5" color={SdsColors.grey900}>
-          {serviceName || pageTitle}
-        </Txt>
+        <View style={styles.infoRow}>
+          <Favicon uri={favicon} size={40} />
+          <View style={styles.infoTextCol}>
+            <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
+              {serviceName || pageTitle}
+            </Txt>
+            <Txt typography="t7" color={SdsColors.grey500} numberOfLines={1}>
+              {currentUrl}
+            </Txt>
+          </View>
+          <CheckBadge size={22} />
+        </View>
       </BottomSheet>
     </View>
   );
@@ -352,16 +403,34 @@ const styles = StyleSheet.create({
   titlePillBtn: {
     flex: 1,
     height: 46,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 7,
   },
   titleText: {
-    alignSelf: 'stretch',
+    flexShrink: 1,
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
     color: SdsColors.grey800,
+  },
+  // 딥그린 인증 배지(파비콘 우측). width/height/radius는 size prop으로 인라인 주입.
+  checkBadge: {
+    backgroundColor: SdsColors.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // 페이지 정보 시트 행 — [파비콘 40 · (제목/URL) · 체크 22].
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  infoTextCol: {
+    flex: 1,
+    gap: 2,
   },
   aiBtn: {
     height: 46,

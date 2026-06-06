@@ -11,6 +11,7 @@
  * TODO: 도그푸딩 평가 완료 후 이 파일 제거(local-llm.ts와 함께).
  */
 import RNBlobUtil from 'react-native-blob-util';
+import { unzip, subscribe as subscribeUnzip } from 'react-native-zip-archive';
 import {
   buildGenerateResult,
   resolveGenerateOptions,
@@ -36,11 +37,18 @@ const ANEMLL_MODELS_ROOT = `${RNBlobUtil.fs.dirs.DocumentDir}/anemll-models`;
 const modelDirPath = (): string => `${ANEMLL_MODELS_ROOT}/${ANEMLL_KANANA_MODEL_ID}`;
 
 /**
- * 호스팅된 모델 zip URL. 비어 있으면 ensureModel은 side-load된 디렉터리만 검사한다
- * (시뮬레이터/실기기 초기 검증용). 호스팅 확정 후 채우고 zip 다운로드+해제를 연결한다.
- * 패키징: 호스트에서 `prepare_hf.sh --ios` 후 디렉터리를 zip.
+ * 호스팅된 모델 zip URL (HuggingFace 공개 레포의 resolve URL). 비어 있으면 ensureModel은
+ * side-load된 디렉터리만 검사한다. 패키징: 호스트에서 `prepare_hf.sh --ios` 후 내용 flat zip.
+ * blob-util이 HF resolve→LFS-CDN 302를 따라간다(GGUF 경로와 동일).
  */
-export const ANEMLL_MODEL_ZIP_URL = '';
+export const ANEMLL_MODEL_ZIP_URL =
+  'https://huggingface.co/spencer0124/kanana-1.5-2.1b-ane-coreml/resolve/main/kanana-ane-lut6-ctx1024-v1.zip?download=true';
+
+/**
+ * 모델 zip의 정확한 크기(bytes). 중단된 다운로드(부분 파일) 탐지용 — local-llm.ts의
+ * KANANA_Q4_KM_SIZE_BYTES 미러.
+ */
+export const ANEMLL_MODEL_ZIP_SIZE_BYTES = 1_916_713_547;
 
 /** per-call 생성 파라미터 기본값(local-llm.ts와 동일 톤). topP는 AnemllCore가 별도 처리. */
 export const DEFAULT_ANEMLL_OPTIONS: ResolvedGenerateOptions = {
@@ -99,18 +107,78 @@ export async function ensureModel(
     return dir;
   }
 
-  if (!ANEMLL_MODEL_ZIP_URL) {
+  if (!ANEMLL_MODEL_ZIP_URL || ANEMLL_MODEL_ZIP_URL.includes('__HF_REPO__')) {
     throw new Error(
       `[anemll] model not provisioned at ${dir} ` +
         `(missing: ${check.missing.join(', ') || 'none'}; ` +
         `undersized: ${check.undersized.join(', ') || 'none'}). ` +
-        `Side-load the converted model dir, or set ANEMLL_MODEL_ZIP_URL.`,
+        `ANEMLL_MODEL_ZIP_URL not configured.`,
     );
   }
 
-  // TODO(hosting): download ANEMLL_MODEL_ZIP_URL → extract → re-check.
-  // react-native-zip-archive(unzip) 추가 후 연결. 부분/손상 시 dir 삭제 후 재시도.
-  throw new Error('[anemll] zip download path not yet wired');
+  // 불완전 → zip 다운로드 + 해제 + 무결성 검사 후 원자적 배치.
+  const tmpZip = `${ANEMLL_MODELS_ROOT}/_download.zip`;
+  const tmpExtract = `${ANEMLL_MODELS_ROOT}/_extract`;
+  await RNBlobUtil.fs.unlink(tmpZip).catch(() => {});
+  await RNBlobUtil.fs.unlink(tmpExtract).catch(() => {});
+  await RNBlobUtil.fs.mkdir(ANEMLL_MODELS_ROOT).catch(() => {});
+
+  // 1) 다운로드 — 진행률 0~80% (나머지 20%는 해제). HF resolve→LFS-CDN 302는 blob-util이 따라감.
+  devLog('anemll.download.start', { url: ANEMLL_MODEL_ZIP_URL });
+  const dlStart = Date.now();
+  const res = await RNBlobUtil.config({ path: tmpZip, fileCache: true })
+    .fetch('GET', ANEMLL_MODEL_ZIP_URL)
+    .progress({ interval: 250 }, (received, total) => {
+      const t = Number(total);
+      onProgress?.(t > 0 ? Math.round((Number(received) / t) * 80) : 0);
+    });
+  const status = res.info().status;
+  if (status < 200 || status >= 300) {
+    await RNBlobUtil.fs.unlink(tmpZip).catch(() => {});
+    throw new Error(`[anemll] download failed (HTTP ${status})`);
+  }
+
+  // 2) 크기 검증 — 부분 다운로드(중단) 탐지.
+  const zipBytes = Number((await RNBlobUtil.fs.stat(tmpZip)).size);
+  devLog('anemll.download.done', {
+    zipBytes,
+    expected: ANEMLL_MODEL_ZIP_SIZE_BYTES,
+    ms: Date.now() - dlStart,
+  });
+  if (zipBytes < ANEMLL_MODEL_ZIP_SIZE_BYTES) {
+    await RNBlobUtil.fs.unlink(tmpZip).catch(() => {});
+    throw new Error(
+      `[anemll] partial download (${zipBytes}/${ANEMLL_MODEL_ZIP_SIZE_BYTES} bytes) — retry`,
+    );
+  }
+
+  // 3) 해제 — 진행률 80~99%.
+  const unzipSub = subscribeUnzip(({ progress }) => {
+    onProgress?.(80 + Math.round(progress * 19));
+  });
+  try {
+    await unzip(tmpZip, tmpExtract);
+  } finally {
+    unzipSub.remove();
+  }
+  await RNBlobUtil.fs.unlink(tmpZip).catch(() => {});
+
+  // 4) 해제물 무결성 재검사 (root에 7개 필수 파일이 flat하게 풀려야 함).
+  const extractedCheck = checkModelDir(await statModelDir(tmpExtract), ANEMLL_KANANA_FILES);
+  if (!extractedCheck.complete) {
+    await RNBlobUtil.fs.unlink(tmpExtract).catch(() => {});
+    throw new Error(
+      `[anemll] extracted model incomplete (missing: ${extractedCheck.missing.join(', ') || 'none'}; ` +
+        `undersized: ${extractedCheck.undersized.join(', ') || 'none'})`,
+    );
+  }
+
+  // 5) 원자적 배치 — 기존 dir 제거 후 이동.
+  await RNBlobUtil.fs.unlink(dir).catch(() => {});
+  await RNBlobUtil.fs.mv(tmpExtract, dir);
+  onProgress?.(100);
+  devLog('anemll.ensure.ready', { dir, totalMs: Date.now() - dlStart });
+  return dir;
 }
 
 // ──────────────────────────────────────────────────────────────

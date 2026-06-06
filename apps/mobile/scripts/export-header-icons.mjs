@@ -40,6 +40,9 @@ const ICONS = [
   // suffix on the SVG filename, so fill entries must spell that out in `phosphor`.
   { name: 'magnifying-glass', phosphor: 'magnifying-glass', color: GREY_700 },
   { name: 'bookmark-simple', phosphor: 'bookmark-simple', color: GREY_700 },
+  // archive: 공지 탭 헤더의 "보관함"(/notices/saved) 진입 버튼. 개별 공지의 단일
+  // bookmark-simple 저장 아이콘과 시각적으로 구분하려 보관함 박스 메타포 사용.
+  { name: 'archive', phosphor: 'archive', color: GREY_700 },
   { name: 'bookmark-simple-fill', phosphor: 'bookmark-simple-fill', weight: 'fill', color: BLUE_500 },
   { name: 'share-network', phosphor: 'share-network', color: GREY_700 },
   { name: 'bell', phosphor: 'bell', color: GREY_700 },

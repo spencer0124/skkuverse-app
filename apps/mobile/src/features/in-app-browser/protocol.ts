@@ -31,6 +31,24 @@ export interface PageExtractErrorMessage {
 
 export type PageMessage = PageExtractedMessage | PageExtractErrorMessage;
 
+/**
+ * 페이지 URL → 고화질 파비콘 URL (Google faviconV2, 기본 size=128).
+ *
+ * 사이트가 직접 주는 `<link rel="icon">`은 보통 16px 저해상도 → retina에서 흐림.
+ * origin만 넘기면 faviconV2가 고해상도 아이콘을 반환한다(없으면 도메인 이니셜 폴백).
+ * http/https origin이 아니면(about:blank 등 opaque origin → origin === 'null') null.
+ */
+export function faviconUrl(pageUrl: string, size = 128): string | null {
+  try {
+    const u = new URL(pageUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    const params = `client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(u.origin)}&size=${size}`;
+    return `https://t1.gstatic.com/faviconV2?${params}`;
+  } catch {
+    return null;
+  }
+}
+
 const VALID_TYPES = new Set(['page_extracted', 'page_extract_error']);
 
 /** WebView onMessage의 raw 문자열을 우리 프로토콜로 파싱(아니면 null). */
