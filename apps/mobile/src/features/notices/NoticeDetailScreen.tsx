@@ -19,7 +19,6 @@ import {
 } from '@/services/analytics';
 import { useReviewPrompt } from '@/features/feedback/useReviewPrompt';
 import { THREE_DAYS_MS } from '@/features/feedback/useReviewPromptGate';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useBookmark } from './hooks/useBookmark';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
@@ -27,8 +26,6 @@ import { SummaryCard } from './SummaryCard';
 import { NoticeMarkdownView } from './NoticeMarkdownView';
 import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
 import { formatDisplayDate } from './utils/formatDisplayDate';
-import { NoticeAiBar } from './ai/NoticeAiBar';
-import { NoticeAiSheet } from './ai/NoticeAiSheet';
 
 const ICON_BOOKMARK = require('../../../assets/header-icons/bookmark-simple.png');
 const ICON_BOOKMARK_FILL = require('../../../assets/header-icons/bookmark-simple-fill.png');
@@ -46,9 +43,6 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   const [toastText, setToastText] = useState<string | null>(null);
   const [isUnsaving, setIsUnsaving] = useState(false);
 
-  // SKKU AI 질문 시트 — 정상 본문 분기에서만 노출 (삭제/에러/로딩 제외).
-  const aiSheetRef = useRef<BottomSheetModal>(null);
-  const openAiSheet = useCallback(() => aiSheetRef.current?.present(), []);
 
   // Review-prompt funnel — orchestrated by the common useReviewPrompt hook.
   // Handles stage-1 sheet, native StoreReview, stage-2 feedback, thanks dialog,
@@ -438,20 +432,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
         </Pressable>
         </ScrollView>
       )}
-      {/* SKKU AI: 정상 본문에서만 하단 진입 바 + 질문 시트. 삭제/에러/로딩 분기 제외. */}
-      {!isLoading && !isDeletedBookmark && !isError && data ? (
-        <>
-          <NoticeAiBar onPress={openAiSheet} />
-          <NoticeAiSheet
-            ref={aiSheetRef}
-            notice={{
-              title: data.title,
-              contentMarkdown: data.contentMarkdown,
-              summary: data.summary?.text,
-            }}
-          />
-        </>
-      ) : null}
+      {/* [on-device LLM 비활성화 — 공지 'AI에게 질문하기' 진입 바 + 시트 삭제. 추후 복구 시 git 이력 참조] */}
       <Toast
         open={toastText !== null}
         text={toastText ?? ''}
@@ -506,8 +487,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    // 하단 떠있는 'AI에게 질문하기' 바(52) + safe-area + 여백 확보.
-    paddingBottom: 96,
+    paddingBottom: 32,
     gap: 8,
   },
   title: {

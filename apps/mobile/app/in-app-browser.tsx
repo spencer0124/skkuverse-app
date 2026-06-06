@@ -399,7 +399,8 @@ export default function MiniAppScreen() {
       <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
         <View style={styles.menuList}>
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
-          <MenuRow icon={SparkleIcon} label="AI 요약" onPress={handleMenuSummary} />
+          {/* [on-device LLM 비활성화 — 미니앱 AI 요약 진입 주석처리, 추후 복구] */}
+          {/* <MenuRow icon={SparkleIcon} label="AI 요약" onPress={handleMenuSummary} /> */}
         </View>
       </BottomSheet>
     </View>

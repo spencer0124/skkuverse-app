@@ -6,10 +6,16 @@ import { handleSduiAction } from '@/sdui/action-handler';
 import { logSettingsContentSelect } from '@/services/analytics';
 import { openMiniApp } from '@/features/in-app-browser/open';
 import { DEFAULT_BROWSER_URL } from '@/features/in-app-browser/protocol';
+import * as Updates from 'expo-updates';
 
 export function SettingsScreen() {
   const router = useRouter();
   const { t } = useT();
+
+  // 진단/eval 진입(dev only 메뉴)은 dev 빌드 + beta(TestFlight)에서만 노출하고
+  // production(App Store) 릴리즈에선 숨긴다. __DEV__는 TestFlight에서도 false이므로
+  // 실기기 ANE 테스트·디버그 로그 확인을 위해 beta 채널을 함께 허용한다.
+  const showDevMenu = __DEV__ || Updates.channel === 'beta';
 
   return (
     <View style={styles.container}>
@@ -51,34 +57,39 @@ export function SettingsScreen() {
             });
           }}
         />
-        {/* TODO: Remove — temporary food classification eval */}
-        <TouchableOpacity
-          style={devStyles.devButton}
-          onPress={() => router.push('/debug-food-eval' as never)}
-        >
-          <Text style={devStyles.devButtonText}>🍔 Food Eval (dev only)</Text>
-        </TouchableOpacity>
-        {/* TODO: Remove — temporary local-LLM eval */}
-        <TouchableOpacity
-          style={[devStyles.devButton, devStyles.devButtonLlm]}
-          onPress={() => router.push('/debug-local-llm' as never)}
-        >
-          <Text style={devStyles.devButtonText}>🦙 Local LLM (dev only)</Text>
-        </TouchableOpacity>
-        {/* TODO: Remove — temporary in-app browser eval (총학 공지 기본 URL) */}
-        <TouchableOpacity
-          style={[devStyles.devButton, devStyles.devButtonBrowser]}
-          onPress={() => openMiniApp({ serviceName: '총학생회 공지', startUrl: DEFAULT_BROWSER_URL })}
-        >
-          <Text style={devStyles.devButtonText}>🌐 인앱 브라우저 (dev only)</Text>
-        </TouchableOpacity>
-        {/* RELEASE-GATE(debug-menu): 출시 전 제거 — 상세 진단 로그 뷰어 */}
-        <TouchableOpacity
-          style={[devStyles.devButton, devStyles.devButtonLogs]}
-          onPress={() => router.push('/settings/debug-logs' as never)}
-        >
-          <Text style={devStyles.devButtonText}>🪵 디버그 로그 (dev only)</Text>
-        </TouchableOpacity>
+        {/* dev/eval 진입 — production(App Store) 릴리즈에선 숨김 (dev + beta/TestFlight만 노출) */}
+        {showDevMenu && (
+          <>
+            {/* TODO: Remove — temporary food classification eval */}
+            <TouchableOpacity
+              style={devStyles.devButton}
+              onPress={() => router.push('/debug-food-eval' as never)}
+            >
+              <Text style={devStyles.devButtonText}>🍔 Food Eval (dev only)</Text>
+            </TouchableOpacity>
+            {/* TODO: Remove — temporary local-LLM eval */}
+            <TouchableOpacity
+              style={[devStyles.devButton, devStyles.devButtonLlm]}
+              onPress={() => router.push('/debug-local-llm' as never)}
+            >
+              <Text style={devStyles.devButtonText}>🦙 Local LLM (dev only)</Text>
+            </TouchableOpacity>
+            {/* TODO: Remove — temporary in-app browser eval (총학 공지 기본 URL) */}
+            <TouchableOpacity
+              style={[devStyles.devButton, devStyles.devButtonBrowser]}
+              onPress={() => openMiniApp({ serviceName: '총학생회 공지', startUrl: DEFAULT_BROWSER_URL })}
+            >
+              <Text style={devStyles.devButtonText}>🌐 인앱 브라우저 (dev only)</Text>
+            </TouchableOpacity>
+            {/* RELEASE-GATE(debug-menu): 출시 전 제거 — 상세 진단 로그 뷰어 */}
+            <TouchableOpacity
+              style={[devStyles.devButton, devStyles.devButtonLogs]}
+              onPress={() => router.push('/settings/debug-logs' as never)}
+            >
+              <Text style={devStyles.devButtonText}>🪵 디버그 로그 (dev only)</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </View>
   );

@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import {
-  acquireLocalLlm,
+  // [on-device LLM 비활성화 — 미니앱 AI 요약 주석처리, 추후 복구]
+  // acquireLocalLlm,
   useLocalLlmStatus,
   type LlmHandle,
 } from '@/services/local-llm-manager';
@@ -38,23 +39,25 @@ export function usePageAi(content: PageContent | null) {
   );
 
   // ── 핸들 acquire/release (화면 수명과 일치) ──
-  useEffect(() => {
-    let cancelled = false;
-    acquireLocalLlm()
-      .then((h) => {
-        if (cancelled) h.release();
-        else handleRef.current = h;
-      })
-      .catch(() => {
-        /* status는 useLocalLlmStatus로 표면화 */
-      });
-    return () => {
-      cancelled = true;
-      abortRef.current?.abort();
-      handleRef.current?.release();
-      handleRef.current = null;
-    };
-  }, []);
+  // [on-device LLM 비활성화 — 미니앱 진입 시 모델 로드 트리거 주석처리. 추후 복구.
+  //  handleRef가 항상 null이라 summarize()는 무해하게 early-return된다.]
+  // useEffect(() => {
+  //   let cancelled = false;
+  //   acquireLocalLlm()
+  //     .then((h) => {
+  //       if (cancelled) h.release();
+  //       else handleRef.current = h;
+  //     })
+  //     .catch(() => {
+  //       /* status는 useLocalLlmStatus로 표면화 */
+  //     });
+  //   return () => {
+  //     cancelled = true;
+  //     abortRef.current?.abort();
+  //     handleRef.current?.release();
+  //     handleRef.current = null;
+  //   };
+  // }, []);
 
   // ── 새 페이지(content.url 변경) → 요약 초기화 ──
   const pageUrl = content?.url ?? null;
