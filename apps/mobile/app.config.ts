@@ -107,6 +107,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           useFrameworks: "static",
+          // Bumped 15.1 -> 18.0: AnemllCore (ANE LLM runtime) declares .iOS(.v18),
+          // so SwiftPM refuses to link it into a lower-deployment target.
+          // Eval-branch tradeoff (drops iOS 15-17); revisit before shipping.
+          deploymentTarget: "18.0",
           extraPods: [
             { name: "GoogleMobileAdsMediationFacebook" },
           ],
@@ -122,6 +126,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/withFirebaseModularHeaders",
     "./plugins/withPushNotificationsCapability",
     "./plugins/withLocalizedAppName",
+    // Wires the Anemll ANE runtime into the app target: AnemllCore SwiftPM (vendor/anemll
+    // submodule) + AnemllEngineImpl.swift. The Anemll Expo-module pod reaches it at runtime
+    // (split bridge). See plugin header for the SPM-only/static-frameworks rationale.
+    "./plugins/withAnemllAppTarget",
     [
       "llama.rn",
       {

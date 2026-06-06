@@ -1,0 +1,7 @@
+{
+  "name": "anemll",
+  "version": "0.1.0",
+  "description": "Anemll Apple-Neural-Engine LLM bridge (local Expo module)",
+  "main": "index.ts",
+  "license": "MIT"
+}

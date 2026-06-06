@@ -227,6 +227,22 @@ export type {
 
 // ── Local LLM ──
 export type { ChatRole, ChatMessage, GenerateResult, GenerateOptions, StreamChatFn } from './localllm';
+export type {
+  ResolvedGenerateOptions,
+  RequiredModelFile,
+  PresentModelFile,
+  ModelDirCheck,
+  LlmEngineId,
+  DeviceEnv,
+} from './localllm';
+export {
+  buildGenerateResult,
+  resolveGenerateOptions,
+  checkModelDir,
+  ANEMLL_KANANA_FILES,
+  canUseAnemllEngine,
+  resolveEngine,
+} from './localllm';
 
 // ── Food classification ──
 export type {

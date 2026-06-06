@@ -20,14 +20,14 @@
 
 import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
-import type { LlamaLanguageModel, ContextParams } from '@react-native-ai/llama';
+import type { ContextParams } from '@react-native-ai/llama';
 import type { StreamChatFn } from '@skkuverse/shared';
 import {
-  ensureModel,
-  initModel,
-  makeStreamChatFn,
-  releaseModel,
-} from './local-llm';
+  ENGINES,
+  type LocalLlmEngine,
+  type EngineModelHandle,
+} from './local-llm-engine';
+import { getSelectedEngine } from './local-llm-engine-store';
 import { devLog } from './dev-log';
 
 // ──────────────────────────────────────────────────────────────
@@ -77,7 +77,9 @@ export interface LlmHandle {
 // 내부 싱글톤 상태
 // ──────────────────────────────────────────────────────────────
 
-let model: LlamaLanguageModel | null = null;
+let model: EngineModelHandle | null = null;
+// 현재 로드된(또는 로드할) 엔진. model이 null이면 다음 cold load 시 store에서 재선택.
+let currentEngine: LocalLlmEngine | null = null;
 let refCount = 0;
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 // 백그라운드 메모리 해제용: model 객체는 유지하되 native context만 unload한 상태.
@@ -99,8 +101,10 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-/** native prepare/init 가 드물게 영영 안 끝나는 경우(웹 보고된 init hang) 방지용 타임아웃. */
-const PREPARE_TIMEOUT_MS = 25_000;
+/**
+ * native prepare/init 가 드물게 영영 안 끝나는 경우 방지용 타임아웃.
+ * 값은 엔진별로 다름(currentEngine.prepareTimeoutMs) — llama 25s, anemll ~200s(ANE 첫 컴파일 ~135s).
+ */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
@@ -163,7 +167,7 @@ export function useLocalLlmStatus(): LlmStatus {
  * 항상 ready 또는 error로 수렴한다. 실패/타임아웃 시 phase='error'(무한 'loading' 방지).
  * Metal 로딩(prepare/init)만 타임아웃으로 감싼다 — 다운로드(ensureModel)는 분 단위라 제외.
  */
-function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
+function prepareModel(opts?: AcquireOptions): Promise<EngineModelHandle> {
   // 온디바이스 진단(TestFlight): 어느 단계에서·몇 ms 만에 실패하는지 영속 버퍼에 기록.
   // ms≈25000 → init 타임아웃 / ms<2000 → 즉시 throw(메모리·네이티브·다운로드).
   let stage = 'start';
@@ -183,26 +187,31 @@ function prepareModel(opts?: AcquireOptions): Promise<LlamaLanguageModel> {
     if (model && suspended) {
       stage = 're-prepare';
       setStatus({ phase: 'loading', downloadPct: 100, error: undefined });
-      await withTimeout(model.prepare(), PREPARE_TIMEOUT_MS, 're-prepare');
+      await withTimeout(model.prepare(), currentEngine?.prepareTimeoutMs ?? 25_000, 're-prepare');
       suspended = false;
       setStatus({ phase: 'ready' });
       devLog('local-llm.prepare.ok', { stage: 're-prepare', ms: Date.now() - t0 });
       return model;
     }
 
-    // cold load
+    // cold load — store에서 엔진 선택(여기서 고정, doRelease까지 currentEngine 유지)
+    const engine = currentEngine ?? (currentEngine = ENGINES[getSelectedEngine()]);
     stage = 'download';
     setStatus({ phase: 'downloading', downloadPct: 0, error: undefined });
-    const modelPath = await ensureModel((pct) => {
+    const modelPath = await engine.ensureModel((pct) => {
       opts?.onProgress?.(pct);
       setStatus({ downloadPct: pct });
     });
-    devLog('local-llm.download.ok', { ms: Date.now() - t0 });
+    devLog('local-llm.download.ok', { engine: engine.id, ms: Date.now() - t0 });
     stage = 'init';
     setStatus({ phase: 'loading', downloadPct: 100 });
     const loaded = await withTimeout(
-      initModel(modelPath, opts?.contextParams),
-      PREPARE_TIMEOUT_MS,
+      engine.initModel(modelPath, {
+        contextParams: opts?.contextParams,
+        // anemll 첫 ANE 컴파일(~135s) 진행률을 status로 표면화(행 아닌 진행 표시).
+        onProgress: (pct) => setStatus({ phase: 'loading', downloadPct: pct }),
+      }),
+      engine.prepareTimeoutMs,
       'init',
     );
     model = loaded;
@@ -262,8 +271,8 @@ export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle>
   }
 }
 
-function makeHandle(loaded: LlamaLanguageModel): LlmHandle {
-  const streamChat = makeStreamChatFn(loaded);
+function makeHandle(loaded: EngineModelHandle): LlmHandle {
+  const streamChat = loaded.streamChat;
   let released = false;
 
   return {
@@ -294,11 +303,12 @@ async function doRelease(): Promise<void> {
   devLog('local-llm.release', { refCount });
   const m = model;
   model = null;
+  currentEngine = null; // 다음 cold load 시 store에서 엔진 재선택
   suspended = false;
   setStatus({ phase: 'idle', downloadPct: 0, error: undefined });
   if (m) {
     try {
-      await releaseModel(m);
+      await m.unload();
     } catch (e) {
       console.warn('[local-llm-manager] releaseModel failed', e);
     }
@@ -347,16 +357,8 @@ function suspendModel(): Promise<void> {
     const t0 = Date.now();
     devLog('local-llm.suspend.begin', { refCount });
     try {
-      const ctx = model.getContext();
-      if (ctx) {
-        try {
-          await ctx.stopCompletion();
-        } catch {
-          /* 진행 중 생성 없을 수 있음 */
-        }
-      }
-      devLog('local-llm.suspend.stopped', { ms: Date.now() - t0 });
-      await model.unload();
+      // 엔진의 suspend()가 stopCompletion+unload(또는 anemll의 native unload)를 캡슐화.
+      await model.suspend();
       devLog('local-llm.suspend.unloaded', { ms: Date.now() - t0 });
     } catch (e) {
       devLog('local-llm.suspend.error', { ms: Date.now() - t0, error: String(e) });
