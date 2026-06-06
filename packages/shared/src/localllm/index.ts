@@ -10,5 +10,4 @@ export type {
   ModelDirCheck,
 } from './modelIntegrity';
 
-export { canUseAnemllEngine, resolveEngine } from './engineSelect';
-export type { LlmEngineId, DeviceEnv } from './engineSelect';
+export type { LlmEngineId } from './engineSelect';

@@ -58,6 +58,53 @@ describe('checkModelDir', () => {
     expect(r.complete).toBe(false);
     expect(r.missing).toContain('meta.yaml');
   });
+
+  describe('requireMlProgram (model.mil structural marker)', () => {
+    const ffn = [
+      { name: 'llama_FFN_PF_lut6_chunk_02of02.mlmodelc', minBytes: 100, requireMlProgram: true },
+    ];
+
+    it('flags present + big-enough bundle missing model.mil as corrupt (partial extract)', () => {
+      // The exact bug: weight.bin intact (bytes way over floor) but model.mil dropped →
+      // CoreML rejects functionName. Size alone would pass; the marker catches it.
+      const r = checkModelDir(
+        [{ name: 'llama_FFN_PF_lut6_chunk_02of02.mlmodelc', bytes: 700_000_000, hasModelMil: false }],
+        ffn,
+      );
+      expect(r.complete).toBe(false);
+      expect(r.corrupt).toEqual(['llama_FFN_PF_lut6_chunk_02of02.mlmodelc']);
+      expect(r.undersized).toEqual([]);
+      expect(r.missing).toEqual([]);
+    });
+
+    it('treats absent hasModelMil flag as corrupt when requireMlProgram', () => {
+      const r = checkModelDir(
+        [{ name: 'llama_FFN_PF_lut6_chunk_02of02.mlmodelc', bytes: 700_000_000 }],
+        ffn,
+      );
+      expect(r.complete).toBe(false);
+      expect(r.corrupt).toContain('llama_FFN_PF_lut6_chunk_02of02.mlmodelc');
+    });
+
+    it('passes a valid ML Program bundle (model.mil present, over floor)', () => {
+      const r = checkModelDir(
+        [{ name: 'llama_FFN_PF_lut6_chunk_02of02.mlmodelc', bytes: 700_000_000, hasModelMil: true }],
+        ffn,
+      );
+      expect(r.complete).toBe(true);
+      expect(r.corrupt).toEqual([]);
+    });
+
+    it('an undersized bundle is undersized (not corrupt) even when model.mil missing', () => {
+      // Truncated weight.bin trips the size floor first — undersized takes precedence.
+      const r = checkModelDir(
+        [{ name: 'llama_FFN_PF_lut6_chunk_02of02.mlmodelc', bytes: 50, hasModelMil: false }],
+        ffn,
+      );
+      expect(r.undersized).toEqual(['llama_FFN_PF_lut6_chunk_02of02.mlmodelc']);
+      expect(r.corrupt).toEqual([]);
+    });
+  });
 });
 
 describe('ANEMLL_KANANA_FILES manifest', () => {
@@ -71,5 +118,13 @@ describe('ANEMLL_KANANA_FILES manifest', () => {
     expect(names).toContain('llama_FFN_PF_lut6_chunk_01of02.mlmodelc');
     expect(names).toContain('llama_FFN_PF_lut6_chunk_02of02.mlmodelc');
     expect(names).toHaveLength(7);
+  });
+
+  it('requires ML Program (model.mil) for all 4 .mlmodelc bundles', () => {
+    const mlmodelc = ANEMLL_KANANA_FILES.filter((f) => f.name.endsWith('.mlmodelc'));
+    expect(mlmodelc).toHaveLength(4);
+    expect(mlmodelc.every((f) => f.requireMlProgram === true)).toBe(true);
+    // every .mlmodelc carries a size floor (partial-extract guard)
+    expect(mlmodelc.every((f) => (f.minBytes ?? 0) > 0)).toBe(true);
   });
 });

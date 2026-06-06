@@ -14,20 +14,18 @@
  *   - forceUnloadLocalLlm(): refCount 무시하고 강제 해제 (메모리 경고/설정용).
  *
  * 설계:
- *   저수준 함수(local-llm.ts)만 사용 — @react-native-ai/llama를 직접 import하지
- *   않아 seam 패턴 유지. 반응형 상태는 useSyncExternalStore (zustand 미도입).
+ *   엔진 seam(local-llm-engine.ts)만 통해 라이프사이클을 돌린다 — 매니저는 엔진
+ *   내부(네이티브 호출)를 모른다. 반응형 상태는 useSyncExternalStore (zustand 미도입).
  */
 
 import { useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
-import type { ContextParams } from '@react-native-ai/llama';
 import type { StreamChatFn } from '@skkuverse/shared';
 import {
-  ENGINES,
+  anemllEngine,
   type LocalLlmEngine,
   type EngineModelHandle,
 } from './local-llm-engine';
-import { getSelectedEngine } from './local-llm-engine-store';
 import { devLog } from './dev-log';
 
 // ──────────────────────────────────────────────────────────────
@@ -59,11 +57,6 @@ export interface LlmStatus {
 export interface AcquireOptions {
   /** 다운로드 진행률 콜백 (0~100). 캐시 히트 시 100 한 번. */
   onProgress?: (pct: number) => void;
-  /**
-   * 컨텍스트 파라미터 override — 첫 cold load에만 적용된다.
-   * 모델이 이미 로드/로딩 중이면 무시되고 경고를 남긴다 (싱글톤이라 단일 context).
-   */
-  contextParams?: Partial<ContextParams>;
 }
 
 export interface LlmHandle {
@@ -194,8 +187,8 @@ function prepareModel(opts?: AcquireOptions): Promise<EngineModelHandle> {
       return model;
     }
 
-    // cold load — store에서 엔진 선택(여기서 고정, doRelease까지 currentEngine 유지)
-    const engine = currentEngine ?? (currentEngine = ENGINES[getSelectedEngine()]);
+    // cold load — 엔진은 anemll 하나뿐(여기서 고정, doRelease까지 currentEngine 유지)
+    const engine = currentEngine ?? (currentEngine = anemllEngine);
     stage = 'download';
     setStatus({ phase: 'downloading', downloadPct: 0, error: undefined });
     const modelPath = await engine.ensureModel((pct) => {
@@ -207,7 +200,6 @@ function prepareModel(opts?: AcquireOptions): Promise<EngineModelHandle> {
     setStatus({ phase: 'loading', downloadPct: 100 });
     const loaded = await withTimeout(
       engine.initModel(modelPath, {
-        contextParams: opts?.contextParams,
         // anemll 첫 ANE 컴파일(~135s) 진행률을 status로 표면화(행 아닌 진행 표시).
         onProgress: (pct) => setStatus({ phase: 'loading', downloadPct: pct }),
       }),
@@ -249,12 +241,6 @@ export async function acquireLocalLlm(opts?: AcquireOptions): Promise<LlmHandle>
   if (releaseTimer) {
     clearTimeout(releaseTimer);
     releaseTimer = null;
-  }
-
-  if (opts?.contextParams && model) {
-    console.warn(
-      '[local-llm-manager] contextParams ignored — model already loaded (singleton)',
-    );
   }
 
   refCount += 1;

@@ -24,21 +24,15 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import {
-  KANANA_MODEL_ID,
-  KANANA_Q4_KM_SIZE_BYTES,
-} from '@/services/local-llm';
+  ANEMLL_KANANA_MODEL_ID,
+  ANEMLL_MODEL_ZIP_SIZE_BYTES,
+} from '@/services/local-llm-anemll';
 import {
   acquireLocalLlm,
-  forceUnloadLocalLlm,
   useLocalLlmStatus,
   type LlmHandle,
 } from '@/services/local-llm-manager';
-import {
-  useLlmEngineStore,
-  isAnemllSupported,
-} from '@/services/local-llm-engine-store';
-import type { GenerateResult, LlmEngineId } from '@skkuverse/shared';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import type { GenerateResult } from '@skkuverse/shared';
 
 // ──────────────────────────────────────────────────────────────
 // 화면 표시용 phase (매니저 load phase + 로컬 generating 병합)
@@ -61,19 +55,12 @@ const DEFAULT_USER_PROMPT = '학교 도서관 이용 시간을 알려줘';
 
 export default function DebugLocalLlmScreen() {
   const status = useLocalLlmStatus();
-  const engine = useLlmEngineStore((s) => s.engine);
-  const setEngine = useLlmEngineStore((s) => s.setEngine);
-  const anemllOk = isAnemllSupported();
 
   const [userPrompt, setUserPrompt] = useState(DEFAULT_USER_PROMPT);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamedText, setStreamedText] = useState('');
   const [lastResult, setLastResult] = useState<GenerateResult | undefined>();
   const [coldLoadMs, setColdLoadMs] = useState<number | undefined>();
-  // 엔진별 마지막 결과 — A/B 2-열 비교용
-  const [abResults, setAbResults] = useState<
-    Partial<Record<LlmEngineId, { result: GenerateResult; coldLoadMs?: number }>>
-  >({});
   const [localError, setLocalError] = useState<string | undefined>();
   // 이 화면이 핸들을 보유 중인지 — re-render 트리거용 (handleRef는 ref라 리렌더 안 함)
   const [hasHandle, setHasHandle] = useState(false);
@@ -102,7 +89,7 @@ export default function DebugLocalLlmScreen() {
       // 다운로드/로딩 진행률은 useLocalLlmStatus()가 반응형으로 표시.
       const t0 = Date.now();
       const handle = await acquireLocalLlm();
-      setColdLoadMs(Date.now() - t0); // anemll 첫 ANE 컴파일(~135s) 측정 — A/B 핵심 지표
+      setColdLoadMs(Date.now() - t0); // anemll 첫 ANE 컴파일(~135s) 측정
       handleRef.current = handle;
       setHasHandle(true);
     } catch (e) {
@@ -111,28 +98,6 @@ export default function DebugLocalLlmScreen() {
       Alert.alert('모델 로드 실패', msg);
     }
   }, []);
-
-  // 엔진 교체: 다른 네이티브 런타임 + ~2GB → 강제 언로드 후 swap.
-  const handleSwitchEngine = useCallback(
-    async (target: LlmEngineId) => {
-      if (target === engine) return;
-      if (target === 'anemll' && !anemllOk) {
-        Alert.alert('지원 안 됨', 'Anemll(ANE)는 iOS 18+ 기기에서만 사용할 수 있어요.');
-        return;
-      }
-      abortRef.current?.abort();
-      handleRef.current?.release();
-      handleRef.current = null;
-      await forceUnloadLocalLlm();
-      setEngine(target);
-      setHasHandle(false);
-      setStreamedText('');
-      setLastResult(undefined);
-      setColdLoadMs(undefined);
-      setLocalError(undefined);
-    },
-    [engine, anemllOk, setEngine],
-  );
 
   // ──────────────────────────────────────────────────────────
   // 생성 핸들러
@@ -167,7 +132,6 @@ export default function DebugLocalLlmScreen() {
 
       if (!abort.signal.aborted) {
         setLastResult(result);
-        setAbResults((prev) => ({ ...prev, [engine]: { result, coldLoadMs } }));
       }
     } catch (e) {
       if (abort.signal.aborted) return;
@@ -177,7 +141,7 @@ export default function DebugLocalLlmScreen() {
     } finally {
       setIsGenerating(false);
     }
-  }, [userPrompt, engine, coldLoadMs]);
+  }, [userPrompt]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -222,44 +186,16 @@ export default function DebugLocalLlmScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
         {/* 헤더 정보 */}
-        <Text style={styles.title}>Kanana 1.5 2.1B — 온디바이스 LLM 실험</Text>
+        <Text style={styles.title}>Kanana 1.5 2.1B — 온디바이스 LLM (ANE)</Text>
         <Text style={styles.subtitle}>
           {`플랫폼: ${Platform.OS} ${Platform.Version}\n`}
-          {`모델: Q4_K_M  (~${(KANANA_Q4_KM_SIZE_BYTES / 1e9).toFixed(2)} GB)`}
+          {`모델: CoreML LUT6 ctx1024  (~${(ANEMLL_MODEL_ZIP_SIZE_BYTES / 1e9).toFixed(2)} GB)`}
         </Text>
         <Text style={styles.simulatorWarning}>
-          ⚠️ 시뮬레이터는 Metal 미가속으로 매우 느림 — 실기기 권장.
-          {'\n'}모델 ID: {KANANA_MODEL_ID.split('/').pop()}
+          ⚠️ ANE(Apple Neural Engine)는 시뮬레이터 미지원 — 실기기(iOS 18+) 필수.
+          {'\n'}첫 로드 시 ANE 컴파일 ~2분 소요(이후 캐시됨).
+          {'\n'}모델 ID: {ANEMLL_KANANA_MODEL_ID}
         </Text>
-
-        {/* 엔진 선택 (A/B) */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚙️ 엔진 (A/B)</Text>
-          <SegmentedControl
-            values={['llama (GGUF·Metal)', 'anemll (ANE)']}
-            selectedIndex={engine === 'anemll' ? 1 : 0}
-            onChange={(e) =>
-              handleSwitchEngine(
-                e.nativeEvent.selectedSegmentIndex === 1 ? 'anemll' : 'llama',
-              )
-            }
-            enabled={!isBusy}
-            backgroundColor="#1a1a1a"
-            tintColor="#1a7a3c"
-            fontStyle={{ color: '#aaa' }}
-            activeFontStyle={{ color: '#fff' }}
-          />
-          {!anemllOk && (
-            <Text style={styles.systemPromptLabel}>
-              anemll은 iOS 18+ 기기 전용 — 현재 기기는 llama만 가능.
-            </Text>
-          )}
-          {engine === 'anemll' && (
-            <Text style={styles.systemPromptLabel}>
-              첫 로드 시 ANE 컴파일 ~2분 소요(이후 캐시됨).
-            </Text>
-          )}
-        </View>
 
         {/* 다운로드 / 로딩 진행 */}
         {(phase === 'downloading' || phase === 'loading') && (
@@ -351,7 +287,7 @@ export default function DebugLocalLlmScreen() {
 
         {/* 성능 지표 */}
         {lastResult && (
-          <Section title={`📊 성능 지표 (${engine})`}>
+          <Section title="📊 성능 지표 (ANE)">
             {coldLoadMs != null && (
               <Row label="콜드 로드" value={`${(coldLoadMs / 1000).toFixed(1)} s`} />
             )}
@@ -360,29 +296,6 @@ export default function DebugLocalLlmScreen() {
             <Row label="출력 토큰" value={String(lastResult.outputTokens)} />
             <Row label="입력 토큰" value={String(lastResult.inputTokens)} />
             <Row label="총 토큰" value={String(lastResult.outputTokens + lastResult.inputTokens)} />
-          </Section>
-        )}
-
-        {/* A/B 비교 — 두 엔진 모두 1회 이상 생성 후 표시 (llama · anemll) */}
-        {abResults.llama?.result && abResults.anemll?.result && (
-          <Section title="⚖️ A/B 비교  (llama · anemll)">
-            <Row
-              label="출력 속도 tok/s"
-              value={`${abResults.llama.result.tokPerSec.toFixed(1)} · ${abResults.anemll.result.tokPerSec.toFixed(1)}`}
-              bold
-            />
-            <Row
-              label="첫 토큰 ms"
-              value={`${abResults.llama.result.firstTokenMs} · ${abResults.anemll.result.firstTokenMs}`}
-            />
-            <Row
-              label="콜드 로드 s"
-              value={`${fmtSec(abResults.llama.coldLoadMs)} · ${fmtSec(abResults.anemll.coldLoadMs)}`}
-            />
-            <Row
-              label="출력 토큰"
-              value={`${abResults.llama.result.outputTokens} · ${abResults.anemll.result.outputTokens}`}
-            />
           </Section>
         )}
 
@@ -411,10 +324,6 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
       <Text style={[styles.rowValue, bold && styles.rowValueBold]}>{value}</Text>
     </View>
   );
-}
-
-function fmtSec(ms?: number): string {
-  return ms == null ? '—' : (ms / 1000).toFixed(1);
 }
 
 function ProgressBar({ value }: { value: number }) {

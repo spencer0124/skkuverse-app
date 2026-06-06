@@ -1,14 +1,11 @@
 /**
  * 엔진 seam — 매니저(local-llm-manager.ts)가 엔진 내부를 모른 채 라이프사이클을
- * 돌릴 수 있게 하는 추상화. llama(GGUF/Metal)와 anemll(CoreML/ANE) 두 구현이 동일
- * 인터페이스를 만족한다. 기본은 llama, anemll은 평가용 opt-in.
+ * 돌릴 수 있게 하는 추상화. 현재 구현은 anemll(CoreML/ANE) 하나뿐이지만, seam은
+ * 일반화된 인터페이스로 유지한다(향후 엔진 추가 대비).
  *
- * 매니저가 직접 찌르던 엔진 내부(model.getContext/prepare/unload, context.stopCompletion)를
- * EngineModelHandle 메서드 뒤로 숨긴다.
+ * 매니저가 직접 찌르던 엔진 내부(prepare/unload 등)를 EngineModelHandle 메서드 뒤로 숨긴다.
  */
-import type { ContextParams } from '@react-native-ai/llama';
 import type { StreamChatFn, LlmEngineId } from '@skkuverse/shared';
-import * as llamaAdapter from './local-llm';
 import * as anemllAdapter from './local-llm-anemll';
 
 export type { LlmEngineId };
@@ -26,8 +23,6 @@ export interface EngineModelHandle {
 }
 
 export interface EngineInitOptions {
-  /** llama 전용: cold load 컨텍스트 파라미터. */
-  contextParams?: Partial<ContextParams>;
   /** 로드 진행률(0~100) — anemll의 ~135s ANE 컴파일 진행 표시에 사용. */
   onProgress?: (pct: number) => void;
 }
@@ -42,39 +37,10 @@ export interface LocalLlmEngine {
   initModel(path: string, opts?: EngineInitOptions): Promise<EngineModelHandle>;
 }
 
-// ── llama.cpp (GGUF / Metal) ──
-export const llamaEngine: LocalLlmEngine = {
-  id: 'llama',
-  prepareTimeoutMs: 25_000,
-  supportsSuspendResume: true,
-  ensureModel: (onProgress) => llamaAdapter.ensureModel(onProgress),
-  async initModel(path, opts) {
-    const m = await llamaAdapter.initModel(path, opts?.contextParams);
-    return {
-      streamChat: llamaAdapter.makeStreamChatFn(m),
-      prepare: async () => {
-        await m.prepare();
-      },
-      suspend: async () => {
-        const ctx = m.getContext();
-        if (ctx) {
-          try {
-            await ctx.stopCompletion();
-          } catch {
-            /* 진행 중 생성 없을 수 있음 */
-          }
-        }
-        await m.unload();
-      },
-      unload: () => llamaAdapter.releaseModel(m),
-    };
-  },
-};
-
 // ── Anemll (CoreML / ANE) ──
 export const anemllEngine: LocalLlmEngine = {
   id: 'anemll',
-  // 첫 ANE 컴파일 ~135s 측정 → 200s 타임아웃(여유). llama의 25s로는 항상 타임아웃.
+  // 첫 ANE 컴파일 ~135s 측정 → 200s 타임아웃(여유).
   prepareTimeoutMs: 200_000,
   // resume=재컴파일(~135s)이라 저렴하지 않음 — 매니저가 백그라운드 정책에 활용.
   supportsSuspendResume: false,
@@ -91,9 +57,4 @@ export const anemllEngine: LocalLlmEngine = {
       unload: () => anemllAdapter.releaseModel(h),
     };
   },
-};
-
-export const ENGINES: Record<LlmEngineId, LocalLlmEngine> = {
-  llama: llamaEngine,
-  anemll: anemllEngine,
 };

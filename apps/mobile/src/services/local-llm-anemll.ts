@@ -62,7 +62,41 @@ export const DEFAULT_ANEMLL_OPTIONS: ResolvedGenerateOptions = {
 // 모델 디렉터리 준비 / 무결성
 // ──────────────────────────────────────────────────────────────
 
-/** 모델 디렉터리의 top-level 엔트리 크기 목록(.mlmodelc 디렉터리는 존재=대용량 sentinel). */
+/** 디렉터리의 실제 재귀 합산 크기(bytes). `.mlmodelc`는 nested `weights/`까지 내려간다. */
+async function dirSizeRecursive(dir: string): Promise<number> {
+  let total = 0;
+  let names: string[];
+  try {
+    names = await RNBlobUtil.fs.ls(dir);
+  } catch {
+    return 0;
+  }
+  for (const name of names) {
+    const p = `${dir}/${name}`;
+    try {
+      const stat = await RNBlobUtil.fs.stat(p);
+      if (stat.type === 'directory') {
+        total += await dirSizeRecursive(p);
+      } else {
+        const b = Number(stat.size);
+        if (Number.isFinite(b)) total += b;
+      }
+    } catch {
+      /* skip unreadable */
+    }
+  }
+  return total;
+}
+
+/**
+ * 모델 디렉터리의 top-level 엔트리 목록 — `.mlmodelc` 디렉터리는 **실제 재귀 크기**와
+ * `model.mil`(ML Program 마커) 존재 여부까지 채운다.
+ *
+ * 과거엔 디렉터리를 `MAX_SAFE_INTEGER`로 센티넬 처리해 `minBytes` 플로어가 무력화됐고,
+ * 부분 추출(예: 703MB weight.bin 또는 model.mil 누락)이 무결성 검사를 통과해 CoreML이
+ * "functionName must be nil unless ML Program"으로 거부하는 버그가 있었다. 재귀 크기 +
+ * model.mil 존재 검증으로 두 손상 형태(잘림/구조 누락)를 모두 잡는다.
+ */
 async function statModelDir(dir: string): Promise<PresentModelFile[]> {
   const exists = await RNBlobUtil.fs.exists(dir);
   if (!exists) return [];
@@ -72,10 +106,17 @@ async function statModelDir(dir: string): Promise<PresentModelFile[]> {
     const p = `${dir}/${name}`;
     try {
       const stat = await RNBlobUtil.fs.stat(p);
-      // .mlmodelc는 디렉터리 → stat.size가 0일 수 있으므로 존재=충분으로 본다.
-      const isDir = stat.type === 'directory';
-      const bytes = isDir ? Number.MAX_SAFE_INTEGER : Number(stat.size);
-      out.push({ name, bytes: Number.isFinite(bytes) ? bytes : 0 });
+      if (stat.type === 'directory') {
+        const bytes = await dirSizeRecursive(p);
+        // .mlmodelc 번들은 ML Program이어야 functionName(infer/prefill) 로드가 가능 → model.mil 필수.
+        const hasModelMil = name.endsWith('.mlmodelc')
+          ? await RNBlobUtil.fs.exists(`${p}/model.mil`)
+          : undefined;
+        out.push({ name, bytes, hasModelMil });
+      } else {
+        const bytes = Number(stat.size);
+        out.push({ name, bytes: Number.isFinite(bytes) ? bytes : 0 });
+      }
     } catch {
       /* skip unreadable */
     }
@@ -100,6 +141,8 @@ export async function ensureModel(
     complete: check.complete,
     missing: check.missing,
     undersized: check.undersized,
+    // corrupt = 존재하지만 model.mil 누락(ML Program 깨짐) → 부분 추출 자가 치유(재다운로드) 트리거.
+    corrupt: check.corrupt,
   });
 
   if (check.complete) {
@@ -111,7 +154,8 @@ export async function ensureModel(
     throw new Error(
       `[anemll] model not provisioned at ${dir} ` +
         `(missing: ${check.missing.join(', ') || 'none'}; ` +
-        `undersized: ${check.undersized.join(', ') || 'none'}). ` +
+        `undersized: ${check.undersized.join(', ') || 'none'}; ` +
+        `corrupt: ${check.corrupt.join(', ') || 'none'}). ` +
         `ANEMLL_MODEL_ZIP_URL not configured.`,
     );
   }
@@ -163,13 +207,16 @@ export async function ensureModel(
   }
   await RNBlobUtil.fs.unlink(tmpZip).catch(() => {});
 
-  // 4) 해제물 무결성 재검사 (root에 7개 필수 파일이 flat하게 풀려야 함).
+  // 4) 해제물 무결성 재검사 — root에 7개 필수 파일이 flat하게 풀리고, 각 .mlmodelc가
+  //    재귀 크기 플로어 + model.mil(ML Program)을 만족해야 atomic move를 진행한다.
+  //    (손상된 추출물이 자리잡는 것을 move 전에 차단 — CoreML functionName 거부 방지.)
   const extractedCheck = checkModelDir(await statModelDir(tmpExtract), ANEMLL_KANANA_FILES);
   if (!extractedCheck.complete) {
     await RNBlobUtil.fs.unlink(tmpExtract).catch(() => {});
     throw new Error(
       `[anemll] extracted model incomplete (missing: ${extractedCheck.missing.join(', ') || 'none'}; ` +
-        `undersized: ${extractedCheck.undersized.join(', ') || 'none'})`,
+        `undersized: ${extractedCheck.undersized.join(', ') || 'none'}; ` +
+        `corrupt: ${extractedCheck.corrupt.join(', ') || 'none'})`,
     );
   }
 

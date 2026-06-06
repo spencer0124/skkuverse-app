@@ -233,15 +233,12 @@ export type {
   PresentModelFile,
   ModelDirCheck,
   LlmEngineId,
-  DeviceEnv,
 } from './localllm';
 export {
   buildGenerateResult,
   resolveGenerateOptions,
   checkModelDir,
   ANEMLL_KANANA_FILES,
-  canUseAnemllEngine,
-  resolveEngine,
 } from './localllm';
 
 // ── Food classification ──
