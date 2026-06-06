@@ -71,16 +71,18 @@ public final class AnemllEngineImpl: NSObject, AnemllEngine {
     busy = true
     defer { busy = false }
 
-    var chat: [Tokenizer.ChatMessage] = []
-    for m in messages {
-      let content = m["content"] ?? ""
-      switch m["role"] {
-      case "system": chat.append(.system(content))
-      case "assistant": chat.append(.assistant(content))
-      default: chat.append(.user(content))
-      }
-    }
+    // Fit the prompt inside the model's fixed ANE context window. contextLength is baked
+    // into the .mlmodelc (e.g. 1024) — runPrefill writes one KV-cache slot per input token,
+    // so prefilling more tokens than contextLength overflows the cache and throws (which
+    // surfaced to users as a generic "no content" error on long pages). Reserve maxTokens for
+    // the generation, then trim the largest message's content head-first: the page body rides
+    // in a system message whose instruction prefix sits at the head, so head-keep preserves
+    // the instructions and drops only the least-important page tail.
+    let contextLength = config?.contextLength ?? 1024
+    let budget = max(1, contextLength - maxTokens - 16)
+    let fittedMessages = AnemllEngineImpl.fitMessages(messages, budget: budget, tokenizer: tok)
 
+    let chat = AnemllEngineImpl.buildChat(from: fittedMessages)
     let initialTokens = tok.applyChatTemplate(input: chat, addGenerationPrompt: true)
     let inputTokens = initialTokens.count
 
@@ -130,6 +132,57 @@ public final class AnemllEngineImpl: NSObject, AnemllEngine {
       "tokPerSec": tokPerSec,
       "stopReason": stopReason,
     ]
+  }
+
+  /// Builds AnemllCore ChatMessages from the JS role/content dictionaries.
+  private static func buildChat(from messages: [[String: String]]) -> [Tokenizer.ChatMessage] {
+    var chat: [Tokenizer.ChatMessage] = []
+    for m in messages {
+      let content = m["content"] ?? ""
+      switch m["role"] {
+      case "system": chat.append(.system(content))
+      case "assistant": chat.append(.assistant(content))
+      default: chat.append(.user(content))
+      }
+    }
+    return chat
+  }
+
+  /// Returns messages whose chat-template token count fits within `budget`, trimming the
+  /// longest message's content from the tail (head-keep). The loop is bounded and convergent:
+  /// a detokenize→re-tokenize round-trip can drift a few tokens, so we re-measure each pass and
+  /// pad the cut by 8 tokens. The on-device tokenizer makes this exact — no char heuristic.
+  private static func fitMessages(
+    _ messages: [[String: String]],
+    budget: Int,
+    tokenizer tok: Tokenizer
+  ) -> [[String: String]] {
+    func templateCount(_ msgs: [[String: String]]) -> Int {
+      tok.applyChatTemplate(input: buildChat(from: msgs), addGenerationPrompt: true).count
+    }
+
+    var msgs = messages
+    var total = templateCount(msgs)
+    if total <= budget { return msgs }
+
+    for _ in 0..<8 {
+      // Trim the message carrying the most content tokens — for summary that's the system
+      // message holding the page body.
+      var idx = 0
+      var maxCount = -1
+      for (i, m) in msgs.enumerated() {
+        let n = tok.tokenize(m["content"] ?? "").count
+        if n > maxCount { maxCount = n; idx = i }
+      }
+      let contentTokens = tok.tokenize(msgs[idx]["content"] ?? "")
+      let overflow = total - budget
+      let keep = max(0, contentTokens.count - overflow - 8)  // pad for re-tokenization drift
+      if keep >= contentTokens.count { break }  // nothing left to cut from this message
+      msgs[idx]["content"] = keep == 0 ? "" : tok.detokenize(Array(contentTokens.prefix(keep)))
+      total = templateCount(msgs)
+      if total <= budget { break }
+    }
+    return msgs
   }
 
   public func stop() {

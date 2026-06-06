@@ -85,7 +85,10 @@ export function usePageAi(content: PageContent | null) {
         (token) => {
           if (!abort.signal.aborted) setSummary((prev) => prev + token);
         },
-        { temperature: 0.3, signal: abort.signal },
+        // 요약은 3~5 불릿이라 출력이 짧다. ANE 모델(ctx1024)에서 nPredict를 낮출수록
+        // 입력 예산이 커져(native fitMessages가 contextLength - nPredict로 본문 truncate)
+        // 더 긴 페이지를 잘림 없이 요약한다. llama 엔진에선 단순 출력 캡(무해).
+        { temperature: 0.3, nPredict: 256, signal: abort.signal },
       );
       if (!abort.signal.aborted) {
         // Reconcile to the authoritative full decode. The ANE engine streams byte-level-BPE
