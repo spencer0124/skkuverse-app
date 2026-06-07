@@ -60,20 +60,6 @@ export function SettingsScreen() {
         {/* dev/eval 진입 — production(App Store) 릴리즈에선 숨김 (dev + beta/TestFlight만 노출) */}
         {showDevMenu && (
           <>
-            {/* TODO: Remove — temporary food classification eval */}
-            <TouchableOpacity
-              style={devStyles.devButton}
-              onPress={() => router.push('/debug-food-eval' as never)}
-            >
-              <Text style={devStyles.devButtonText}>🍔 Food Eval (dev only)</Text>
-            </TouchableOpacity>
-            {/* TODO: Remove — temporary local-LLM eval */}
-            <TouchableOpacity
-              style={[devStyles.devButton, devStyles.devButtonLlm]}
-              onPress={() => router.push('/debug-local-llm' as never)}
-            >
-              <Text style={devStyles.devButtonText}>🦙 Local LLM (dev only)</Text>
-            </TouchableOpacity>
             {/* TODO: Remove — temporary in-app browser eval (총학 공지 기본 URL) */}
             <TouchableOpacity
               style={[devStyles.devButton, devStyles.devButtonBrowser]}
@@ -103,10 +89,6 @@ const devStyles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
-  },
-  devButtonLlm: {
-    marginTop: 12,
-    backgroundColor: '#2a1a3a',
   },
   devButtonBrowser: {
     marginTop: 12,

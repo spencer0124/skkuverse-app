@@ -58,8 +58,6 @@ import { NoticesTabStrip } from './components/NoticesTabStrip';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
 import { useNoticesUiStore } from './store/noticesUiStore';
-// [on-device LLM 비활성화 — 릴리즈에서 모델 로드 트리거 제거, 추후 복구]
-// import { acquireLocalLlm, type LlmHandle } from '@/services/local-llm-manager';
 
 export function NoticesTabScreen() {
   const { t } = useT();
@@ -74,24 +72,6 @@ export function NoticesTabScreen() {
       useNotificationStore.getState().resetUnread();
     }, []),
   );
-
-  // [on-device LLM 비활성화 — 공지 탭 진입 시 warm-load 트리거 주석처리. 추후 복구]
-  // 공지 탭 진입 시 온디바이스 LLM을 백그라운드로 warm-load — 공지 상세에서
-  // 'AI에게 질문하기'를 즉시 응답하기 위함. (현재 ANE 로드 미해결 → 릴리즈에서 비활성)
-  // useEffect(() => {
-  //   let cancelled = false;
-  //   let handle: LlmHandle | null = null;
-  //   acquireLocalLlm()
-  //     .then((h) => {
-  //       if (cancelled) h.release();
-  //       else handle = h;
-  //     })
-  //     .catch(() => {});
-  //   return () => {
-  //     cancelled = true;
-  //     handle?.release();
-  //   };
-  // }, []);
 
   // ── Active tab state (hoisted to store so the custom header can drive it) ──
   const activeTabKey = useNoticesUiStore((s) => s.activeTabKey);

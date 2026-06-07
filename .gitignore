@@ -10,12 +10,6 @@ ios/
 android/
 !**/fastlane/metadata/android/
 !**/fastlane/metadata/ios/
-# Committed native source (the `ios/` rule above is unanchored — re-include hand-written
-# native source for the Anemll local Expo module + app-target Swift, which live in ios/ dirs).
-!apps/mobile/modules/**/ios/
-!apps/mobile/modules/**/ios/**
-!apps/mobile/native/ios/
-!apps/mobile/native/ios/**
 
 # Environment
 .env

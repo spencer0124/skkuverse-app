@@ -6,12 +6,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: "skkubus",
   owner: "seungyongcho",
   version: "3.6.0",
-  orientation: "portrait",
+  orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.4",
+  runtimeVersion: "3.5.5",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -64,13 +64,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     entitlements: {
       "aps-environment":
         process.env.APP_ENV === "development" ? "development" : "production",
-      // Required for 1.5GB GGUF model resident in memory (prevents jetsam OOM-kill).
-      // Both enabled on App ID "Additional Capabilities" + carried by the
-      // "skkuverse 2" distribution provisioning profile (./certs/dist.mobileprovision).
-      // TODO: remove if GGUF eval experiment is dropped.
-      "com.apple.developer.kernel.increased-memory-limit": true,
-      "com.apple.developer.kernel.extended-virtual-addressing": true,
     },
+    requireFullScreen: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       UIBackgroundModes: ["remote-notification"],
@@ -94,6 +89,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    ["expo-screen-orientation", { initialOrientation: "DEFAULT" }],
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
     "@react-native-firebase/crashlytics",
@@ -107,10 +103,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           useFrameworks: "static",
-          // Bumped 15.1 -> 18.0: AnemllCore (ANE LLM runtime) declares .iOS(.v18),
-          // so SwiftPM refuses to link it into a lower-deployment target.
-          // Eval-branch tradeoff (drops iOS 15-17); revisit before shipping.
-          deploymentTarget: "18.0",
+          deploymentTarget: "15.1",
           extraPods: [
             { name: "GoogleMobileAdsMediationFacebook" },
           ],
@@ -126,24 +119,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "./plugins/withFirebaseModularHeaders",
     "./plugins/withPushNotificationsCapability",
     "./plugins/withLocalizedAppName",
-    // Wires the Anemll ANE runtime into the app target: AnemllCore SwiftPM (vendor/anemll
-    // submodule) + AnemllEngineImpl.swift. The Anemll Expo-module pod reaches it at runtime
-    // (split bridge). See plugin header for the SPM-only/static-frameworks rationale.
-    "./plugins/withAnemllAppTarget",
-    [
-      "llama.rn",
-      {
-        // forceCxx20: C++20 required by llama.cpp (llama.rn ≥ 0.10.1)
-        forceCxx20: true,
-        // enableEntitlements: adds com.apple.developer.kernel.increased-memory-limit
-        // — critical for 1.5 GB resident model on iOS (prevents jetsam OOM-kill).
-        // Verify generated ios/*.entitlements after prebuild.
-        // TODO: revisit if we drop the GGUF eval experiment.
-        enableEntitlements: true,
-        // enableOpenCL: Android GPU acceleration — deferred until Android eval phase
-        // enableOpenCL: true,
-      },
-    ],
     [
       "expo-splash-screen",
       {
