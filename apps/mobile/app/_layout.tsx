@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import {
   Stack,
   usePathname,
@@ -165,6 +166,14 @@ export default function RootLayout() {
   // ── Notification tap & foreground message handling ──
   useNotificationHandler();
 
+  // ── Global orientation lock — portrait for all screens except video player ──
+  // app.config orientation:"default" registers all 4 directions in Info.plist
+  // so ScreenOrientation.lockAsync can actually rotate. We lock portrait here
+  // once on mount; VideoPlayerScreen locks LANDSCAPE on focus and restores here.
+  useEffect(() => {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+  }, []);
+
   const { t } = useT();
 
   // ── Centralized screen view logging ──
@@ -305,18 +314,21 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
-                {/* TODO: Remove — temporary food classification eval screen */}
                 <Stack.Screen
-                  name="debug-food-eval"
+                  name="video-gallery"
                   options={{
-                    presentation: 'modal',
+                    title: '영상',
+                    headerStyle: { backgroundColor: '#141414' },
+                    headerTintColor: '#fff',
+                    headerTitleStyle: { color: '#fff' },
                   }}
                 />
-                {/* TODO: Remove — temporary local-LLM eval screen */}
                 <Stack.Screen
-                  name="debug-local-llm"
+                  name="video-player"
                   options={{
-                    presentation: 'modal',
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
                   }}
                 />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation

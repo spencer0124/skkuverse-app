@@ -1,19 +1,15 @@
 /**
  * 미니앱 셸 — (서비스 이름 + 시작 URL) 두 인자로 여러 미니앱을 띄우는 공용 화면.
- * 외부 웹페이지를 react-native-webview로 렌더하고, 하단 "요약" 버튼으로 온디바이스 Kanana
- * 요약을 제공한다(추천질문/Q&A 없음 — 요약만).
+ * 외부 웹페이지를 react-native-webview로 렌더한다.
  *
  * 상단 바: [홈→시작URL  서비스제목] (좌 glass 클러스터) ……… [⋯  ✕] (우 glass 클러스터)
- * 하단: [✨ 요약] 버튼 하나. 탭 → 현재 페이지 추출 → 시트에 요약 스트리밍.
+ * 하단: [< >] / 서비스명 pill / [북마크].
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
-import type {
-  WebViewMessageEvent,
-  WebViewNavigation,
-} from 'react-native-webview';
+import type { WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   DotsThreeIcon,
@@ -21,9 +17,7 @@ import {
   CaretRightIcon,
   BookmarkSimpleIcon,
   BellIcon,
-  CheckIcon,
   GlobeSimpleIcon,
-  SparkleIcon,
   ArrowClockwiseIcon,
   type Icon as PhosphorIcon,
 } from 'phosphor-react-native';
@@ -32,17 +26,11 @@ import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { GlassSurface } from '@/features/in-app-browser/components/glass';
-import { buildExtractScript, fetchJinaMarkdown } from '@/features/in-app-browser/extract';
 import {
-  parsePageMessage,
   faviconUrl,
-  MIN_EXTRACT_CHARS,
   DEFAULT_BROWSER_URL,
 } from '@/features/in-app-browser/protocol';
-import { usePageAi, type PageContent } from '@/features/in-app-browser/ai/usePageAi';
-import { PageAiSheet } from '@/features/in-app-browser/ai/PageAiSheet';
-
-type ExtractState = 'idle' | 'pending' | 'ready' | 'empty';
+import { MINI_APP_LOGOS } from '@/features/in-app-browser/mini-app-logos';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
@@ -73,19 +61,32 @@ function Favicon({ uri, size }: { uri: string | null; size: number }) {
   );
 }
 
-/** 인증 배지 — 딥그린 원형 + 흰 체크. */
-function CheckBadge({ size }: { size: number }) {
-  return (
-    <View
-      style={[
-        styles.checkBadge,
-        { width: size, height: size, borderRadius: size / 2 },
-      ]}
-    >
-      <CheckIcon size={size * 0.62} color="#FFFFFF" weight="bold" />
-    </View>
-  );
+/**
+ * 서비스 로고 — MINI_APP_LOGOS에 로컬 이미지가 있으면 우선 표시, 없으면 파비콘(네트워크),
+ * 둘 다 없거나 로딩 실패 시 Globe 아이콘으로 최종 폴백.
+ */
+function ServiceLogo({
+  serviceName,
+  faviconUri,
+  size,
+}: {
+  serviceName: string;
+  faviconUri: string | null;
+  size: number;
+}) {
+  const localSource = MINI_APP_LOGOS[serviceName];
+  if (localSource) {
+    return (
+      <Image
+        source={localSource}
+        style={{ width: size, height: size, borderRadius: size * 0.22 }}
+        resizeMode="contain"
+      />
+    );
+  }
+  return <Favicon uri={faviconUri} size={size} />;
 }
+
 
 /**
  * 더보기(⋯) 액션 시트의 한 줄 — Safari 스타일 [아이콘 · 라벨] 행. 탭하면 onPress.
@@ -132,58 +133,13 @@ export default function MiniAppScreen() {
 
   // 중앙 pill 탭 → 페이지 정보 시트(현재는 제목만).
   const [infoOpen, setInfoOpen] = useState(false);
-  // 헤더 ⋯ 탭 → 더보기 액션 시트(새로고침 / AI 요약).
+  // 헤더 ⋯ 탭 → 더보기 액션 시트(새로고침).
   const [moreOpen, setMoreOpen] = useState(false);
-  // ✨ AI 요약 시트 open 상태.
-  const [aiOpen, setAiOpen] = useState(false);
-
-  const [content, setContent] = useState<PageContent | null>(null);
-  const [extractState, setExtractState] = useState<ExtractState>('idle');
-  // 요약 대기 플래그 — content 도착 시 요약 실행.
-  const pendingSummaryRef = useRef(false);
-
-  const ai = usePageAi(content);
 
   // 현재 페이지 origin 기반 고화질 파비콘 URL(없으면 null → Globe 폴백).
   const favicon = useMemo(() => faviconUrl(currentUrl), [currentUrl]);
 
-  // ── 추출 ──
-  const requestExtract = useCallback(() => {
-    webRef.current?.injectJavaScript(buildExtractScript());
-  }, []);
-
-  const runJinaFallback = useCallback(async (url: string, title: string) => {
-    const md = await fetchJinaMarkdown(url);
-    if (md) {
-      setContent({ title, text: md, url });
-      setExtractState('ready');
-    } else {
-      setContent({ title, text: '', url });
-      setExtractState('empty');
-    }
-  }, []);
-
-  const onMessage = useCallback(
-    (e: WebViewMessageEvent) => {
-      const msg = parsePageMessage(e.nativeEvent.data);
-      if (!msg) return;
-      if (msg.type === 'page_extracted') {
-        const text = (msg.text ?? '').trim();
-        const title = msg.title || pageTitle;
-        if (text.length >= MIN_EXTRACT_CHARS) {
-          setContent({ title, text, url: msg.url });
-          setExtractState('ready');
-        } else {
-          void runJinaFallback(msg.url || currentUrl, title);
-        }
-      } else if (msg.type === 'page_extract_error') {
-        void runJinaFallback(currentUrl, pageTitle);
-      }
-    },
-    [pageTitle, currentUrl, runJinaFallback],
-  );
-
-  // 네비게이션 상태(헤더 타이틀 폴백 + Jina 폴백용 URL). 추출은 요약 탭 시 on-demand.
+  // 네비게이션 상태(헤더 타이틀 폴백용).
   const onNavChange = useCallback(
     (nav: WebViewNavigation) => {
       setCurrentUrl(nav.url);
@@ -209,26 +165,6 @@ export default function MiniAppScreen() {
     return () => sub.remove();
   }, []);
 
-  // content 도착(추출 완료) 시 대기 중이던 요약 실행.
-  useEffect(() => {
-    if (!pendingSummaryRef.current) return;
-    if (extractState === 'pending') return; // 아직 추출 중
-    pendingSummaryRef.current = false;
-    void ai.summarize(); // content empty면 훅 내부에서 graceful 처리
-  }, [extractState, content, ai]);
-
-  // ── 요약: 탭 시점에 현재 페이지를 재추출 → 시트에 요약 ──
-  const triggerSummary = useCallback(() => {
-    pendingSummaryRef.current = true;
-    setExtractState('pending');
-    requestExtract();
-  }, [requestExtract]);
-
-  const openSummary = useCallback(() => {
-    setAiOpen(true);
-    triggerSummary();
-  }, [triggerSummary]);
-
   // ── 네비 액션 ──
   const goBack = useCallback(() => webRef.current?.goBack(), []);
   const goForward = useCallback(() => webRef.current?.goForward(), []);
@@ -238,10 +174,6 @@ export default function MiniAppScreen() {
     setMoreOpen(false);
     webRef.current?.reload();
   }, []);
-  const handleMenuSummary = useCallback(() => {
-    setMoreOpen(false);
-    openSummary();
-  }, [openSummary]);
 
   return (
     <View style={styles.container}>
@@ -259,7 +191,7 @@ export default function MiniAppScreen() {
           gestureEnabled: !canGoBack,
           // 우상단 [알림 ⋯]. iOS는 네이티브 UIBarButtonItem 2개를 sharesBackground:true로
           // 한 Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
-          // ⋯ 탭 → 더보기 액션 시트(새로고침 / AI 요약). 북마크는 하단 바로 이동.
+          // ⋯ 탭 → 더보기 액션 시트(새로고침). 북마크는 하단 바로 이동.
           ...(Platform.OS === 'ios'
             ? {
                 unstable_headerRightItems: () => [
@@ -301,7 +233,6 @@ export default function MiniAppScreen() {
         ref={webRef}
         source={{ uri: startUrl }}
         style={styles.webview}
-        onMessage={onMessage}
         onNavigationStateChange={onNavChange}
         javaScriptEnabled
         domStorageEnabled
@@ -337,7 +268,7 @@ export default function MiniAppScreen() {
           )}
         </GlassSurface>
 
-        {/* 중앙 pill — [파비콘 · 서비스명 · 인증 체크]. 탭하면 페이지 정보 시트. */}
+        {/* 중앙 pill — [로고 · 서비스명 · 인증 체크]. 탭하면 페이지 정보 시트. */}
         <GlassSurface interactive style={styles.titlePill}>
           <Pressable
             onPress={() => setInfoOpen(true)}
@@ -345,11 +276,10 @@ export default function MiniAppScreen() {
             accessibilityRole="button"
             accessibilityLabel="페이지 정보"
           >
-            <Favicon uri={favicon} size={18} />
+            <ServiceLogo serviceName={serviceName} faviconUri={favicon} size={18} />
             <Text style={styles.titleText} numberOfLines={1}>
               {serviceName || pageTitle}
             </Text>
-            <CheckBadge size={18} />
           </Pressable>
         </GlassSurface>
 
@@ -366,15 +296,7 @@ export default function MiniAppScreen() {
         </GlassSurface>
       </View>
 
-      <PageAiSheet
-        open={aiOpen}
-        onClose={() => setAiOpen(false)}
-        status={ai.status}
-        summary={ai.summary}
-        summaryState={ai.summaryState}
-      />
-
-      {/* 페이지 정보 시트 — [파비콘 · 서비스명 · 인증 체크] + origin. 하단 바와 동일 시각요소. */}
+      {/* 페이지 정보 시트 — [로고 · 서비스명 · 인증 체크] + origin. 하단 바와 동일 시각요소. */}
       <BottomSheet
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
@@ -382,7 +304,7 @@ export default function MiniAppScreen() {
         snapPoints={['50%']}
       >
         <View style={styles.infoRow}>
-          <Favicon uri={favicon} size={40} />
+          <ServiceLogo serviceName={serviceName} faviconUri={favicon} size={40} />
           <View style={styles.infoTextCol}>
             <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
               {serviceName || pageTitle}
@@ -391,7 +313,6 @@ export default function MiniAppScreen() {
               {currentUrl}
             </Txt>
           </View>
-          <CheckBadge size={22} />
         </View>
       </BottomSheet>
 
@@ -399,8 +320,6 @@ export default function MiniAppScreen() {
       <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
         <View style={styles.menuList}>
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
-          {/* [on-device LLM 비활성화 — 미니앱 AI 요약 진입 주석처리, 추후 복구] */}
-          {/* <MenuRow icon={SparkleIcon} label="AI 요약" onPress={handleMenuSummary} /> */}
         </View>
       </BottomSheet>
     </View>
@@ -469,13 +388,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: SdsColors.grey800,
   },
-  // 딥그린 인증 배지(파비콘 우측). width/height/radius는 size prop으로 인라인 주입.
-  checkBadge: {
-    backgroundColor: SdsColors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // 페이지 정보 시트 행 — [파비콘 40 · (제목/URL) · 체크 22].
+  // 페이지 정보 시트 행 — [파비콘 40 · (제목/URL)].
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
