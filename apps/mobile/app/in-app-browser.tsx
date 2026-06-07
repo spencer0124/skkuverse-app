@@ -353,7 +353,9 @@ export default function MiniAppScreen() {
     setMoreOpen(false);
     const link = miniAppId ? `${WEB_ORIGIN}/p/m/${miniAppId}` : currentUrl;
     try {
-      await Share.share({ message: link, url: link });
+      // iOS는 message+url을 별개 항목으로 취급해 URL이 두 번 노출됨 → 플랫폼당 하나만.
+      // iOS: url(링크 프리뷰), Android: message(url prop 무시되므로 텍스트로).
+      await Share.share(Platform.OS === 'ios' ? { url: link } : { message: link });
     } catch {
       // 사용자 취소 등 — 무시.
     }
