@@ -2,37 +2,32 @@ import { useMemo } from 'react';
 import {
   View,
   ScrollView,
+  Pressable,
   StyleSheet,
-  // Pressable, // restore with bottom banner below
-  // Text, // restore with bottom banner below
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
-// import { CaretRightIcon } from 'phosphor-react-native'; // restore with bottom banner below
+import { CaretRightIcon } from 'phosphor-react-native';
 import {
   SdsColors,
-  useAuthStore,
-  useSettingsStore,
   useT,
 } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { openMiniApp } from '@/features/in-app-browser/open';
+import { MINI_APP_LOGOS } from '@/features/in-app-browser/mini-app-logos';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
-import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
 import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
   const { t } = useT();
   const router = useRouter();
-  const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
-  const showOnboardingGate = isAnonymous || !onboardingCompleted;
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -40,7 +35,7 @@ export function HomeScreen() {
   // height so it tracks safe-area changes and large-title states.
   const headerHeight = useHeaderHeight();
 
-  const gridItems = useMemo<readonly TossfaceGridItem[]>(
+  const mainGridItems = useMemo<readonly TossfaceGridItem[]>(
     () => [
       {
         id: 'notices',
@@ -53,12 +48,12 @@ export function HomeScreen() {
         },
       },
       {
-        id: 'campus_map',
-        title: t('home.tile.campusMap'),
-        emoji: '\u{1F9ED}',
+        id: 'youtube_player',
+        title: '유튜브',
+        emoji: '\u{1F3AC}',
         onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'campus_map' });
-          router.navigate('/(tabs)/campus' as never);
+          logHomeContentSelect({ content_type: 'tile', item_id: 'youtube_player' });
+          router.push('/video-gallery' as never);
         },
       },
       {
@@ -89,10 +84,16 @@ export function HomeScreen() {
           });
         },
       },
+    ],
+    [router, t],
+  );
+
+  const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
+    () => [
       {
         id: 'council_hssc',
         title: '인사캠 총학',
-        emoji: '\u{1F3DB}\u{FE0F}',
+        imageSource: MINI_APP_LOGOS['인사캠 총학생회'],
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'council_hssc' });
           openMiniApp({
@@ -104,7 +105,7 @@ export function HomeScreen() {
       {
         id: 'council_nsc',
         title: '자과캠 총학',
-        emoji: '\u{1F3DB}\u{FE0F}',
+        imageSource: MINI_APP_LOGOS['자과캠 총학생회'],
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'council_nsc' });
           openMiniApp({
@@ -116,7 +117,7 @@ export function HomeScreen() {
       {
         id: 'skkuw',
         title: '성대신문',
-        emoji: '\u{1F4F0}',
+        imageSource: MINI_APP_LOGOS['성대신문'],
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'skkuw' });
           openMiniApp({ serviceName: '성대신문', startUrl: 'http://www.skkuw.com/' });
@@ -125,7 +126,7 @@ export function HomeScreen() {
       {
         id: 'skkuzine',
         title: '성균웹진',
-        emoji: '\u{1F4D6}',
+        imageSource: MINI_APP_LOGOS['성균웹진'],
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'skkuzine' });
           openMiniApp({
@@ -135,7 +136,7 @@ export function HomeScreen() {
         },
       },
     ],
-    [router, t],
+    [],
   );
 
   return (
@@ -151,20 +152,36 @@ export function HomeScreen() {
         {/* ── Hero Banner (auto-playing intro animation) ── */}
         <HeroBanner />
 
-        {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
+        {/* ── Grid Menu (main app tiles) ── */}
         <View style={styles.gridWrap}>
-          <TossfaceButtonGrid items={gridItems} />
+          <TossfaceButtonGrid items={mainGridItems} />
         </View>
 
-        {/* ── Dept latest notices (top 3) + 대외활동 — gated for non-onboarded users ── */}
-        {showOnboardingGate ? (
-          <HomeOnboardingGateCard />
-        ) : (
-          <>
-            <DeptNoticesSection />
-            <ExternalActivitiesSection />
-          </>
-        )}
+        {/* ── 미니앱 섹션 ── */}
+        <View style={styles.miniAppsSection}>
+          <View style={styles.sectionHeader}>
+            <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+              미니앱
+            </Txt>
+            <Pressable
+              style={({ pressed }) => [
+                styles.sectionMoreBtn,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={8}
+            >
+              <Txt typography="t7" color={SdsColors.grey500}>
+                더보기
+              </Txt>
+              <CaretRightIcon size={12} color={SdsColors.grey400} />
+            </Pressable>
+          </View>
+          <TossfaceButtonGrid items={miniAppItems} />
+        </View>
+
+        {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
+        <DeptNoticesSection />
+        <ExternalActivitiesSection />
 
         {/* ── Bottom Banner ── (temporarily disabled — restore with CaretRightIcon import above)
         <Pressable style={styles.bottomBanner}>
@@ -201,7 +218,24 @@ const styles = StyleSheet.create({
 
   /* ── Grid wrap ── */
   gridWrap: {
-    marginBottom: 36,
+    marginBottom: 24,
+  },
+
+  /* ── 미니앱 섹션 ── */
+  miniAppsSection: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
 
   /* ── Bottom Banner ── */

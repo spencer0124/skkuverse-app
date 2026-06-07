@@ -120,8 +120,8 @@ function SdsBottomSheet({
       backgroundStyle={styles.background}
       style={style}
     >
-      {title != null && <Header title={title} onClose={onClose} />}
       <BottomSheetView style={[styles.content, contentStyle]}>
+        {title != null && <Header title={title} onClose={onClose} />}
         {children}
       </BottomSheetView>
     </GorhomBottomSheet>
@@ -150,7 +150,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   closeButton: {

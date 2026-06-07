@@ -35,8 +35,6 @@ export function HomeOnboardingGateCard() {
 
 const styles = StyleSheet.create({
   section: {
-    marginHorizontal: 16,
-    marginBottom: 20,
     backgroundColor: '#fff',
     borderRadius: 16,
     paddingTop: 28,
