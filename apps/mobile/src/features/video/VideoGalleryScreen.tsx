@@ -1,3 +1,4 @@
+import { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,80 +7,121 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { PlayCircleIcon } from 'phosphor-react-native';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { VIDEOS, type VideoMeta } from './videos';
 
 export function VideoGalleryScreen() {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
-  const featuredHeight = width * (9 / 16);
+  const { width, height } = useWindowDimensions();
+  const bannerHeight = width * (9 / 16);
 
-  const goToPlayer = (video: VideoMeta) => {
-    router.push({
-      pathname: '/video-player' as never,
-      params: { videoId: video.id, title: video.title },
-    });
-  };
+  // Embedded player: mounting it (with allowsInlineMediaPlayback:false) and starting
+  // playback promotes the video straight to iOS native fullscreen — no separate screen.
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [play, setPlay] = useState(false);
+  const inFullscreen = useRef(false);
 
-  const [featured, ...rest] = VIDEOS;
+  const playVideo = useCallback(
+    (video: VideoMeta) => {
+      if (video.id === activeVideoId) {
+        // already mounted → re-fire play (toggle so the prop change registers)
+        setPlay(false);
+        requestAnimationFrame(() => setPlay(true));
+      } else {
+        // different video → remount via key change; onReady kicks play
+        setPlay(false);
+        setActiveVideoId(video.id);
+      }
+    },
+    [activeVideoId],
+  );
+
+  const onReady = useCallback(() => {
+    requestAnimationFrame(() => setPlay(true));
+  }, []);
+
+  // react-native-webview emits no fullscreen event, so infer it from player state:
+  // iOS auto-pauses when the user taps the native fullscreen Done button. Lock landscape
+  // when playback (→ fullscreen) starts; restore portrait when it pauses/ends.
+  const onChangeState = useCallback((state: string) => {
+    if ((state === 'playing' || state === 'buffering') && !inFullscreen.current) {
+      inFullscreen.current = true;
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    } else if ((state === 'paused' || state === 'ended') && inFullscreen.current) {
+      inFullscreen.current = false;
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      setPlay(false);
+    }
+  }, []);
+
+  const banner = VIDEOS[0];
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Featured card */}
-      <Pressable
-        onPress={() => goToPlayer(featured)}
-        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-      >
-        <View style={[styles.featuredCard, { height: featuredHeight }]}>
-          <Image
-            source={{ uri: featured.thumbnailUrl }}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
+    <View style={styles.root}>
+      {/* Hidden full-screen player behind the opaque gallery. It stays invisible until
+          a play promotes it to iOS native fullscreen. */}
+      {activeVideoId && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <YoutubePlayer
+            key={activeVideoId}
+            videoId={activeVideoId}
+            play={play}
+            mute={false}
+            height={height}
+            width={width}
+            controls={true}
+            webViewStyle={{ opacity: 0.99 }}
+            onReady={onReady}
+            onChangeState={onChangeState}
+            onError={(e: string) => console.warn('[youtube] player error code:', e)}
+            initialPlayerParams={{ rel: false, iv_load_policy: 3 }}
+            webViewProps={{ allowsInlineMediaPlayback: false }}
           />
-          <View style={styles.featuredOverlay}>
-            <View style={styles.playBtn}>
-              <PlayCircleIcon size={18} color="#fff" weight="fill" />
-              <Text style={styles.playBtnText}>재생</Text>
-            </View>
-            <Text style={styles.featuredTitle} numberOfLines={2}>
-              {featured.title}
-            </Text>
+        </View>
+      )}
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Decorative banner */}
+        <View style={[styles.banner, { height: bannerHeight }]}>
+          {banner && (
+            <Image
+              source={{ uri: banner.thumbnailUrl }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+            />
+          )}
+          <View style={styles.bannerOverlay}>
+            <Text style={styles.bannerTitle}>SUBS 성균관대학교 방송국</Text>
           </View>
         </View>
-      </Pressable>
 
-      {/* More section */}
-      {rest.length > 0 && (
+        {/* Video list */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>더 보기</Text>
-          {rest.map(video => (
+          <Text style={styles.sectionLabel}>영상</Text>
+          {VIDEOS.map(video => (
             <Pressable
               key={video.id}
               style={({ pressed }) => [styles.listRow, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => goToPlayer(video)}
+              onPress={() => playVideo(video)}
             >
-              <Image
-                source={{ uri: video.thumbnailUrl }}
-                style={styles.listThumb}
-                contentFit="cover"
-              />
+              <Image source={{ uri: video.thumbnailUrl }} style={styles.listThumb} contentFit="cover" />
               <View style={styles.listMeta}>
                 <Text style={styles.listTitle} numberOfLines={2}>
                   {video.title}
                 </Text>
               </View>
-              <PlayCircleIcon size={22} color="rgba(255,255,255,0.6)" weight="fill" />
+              <PlayCircleIcon size={28} color="#fff" weight="fill" />
             </Pressable>
           ))}
         </View>
-      )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -88,43 +130,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141414',
   },
+  scroll: {
+    flex: 1,
+    backgroundColor: '#141414',
+  },
   content: {
     paddingBottom: 48,
   },
 
-  /* Featured */
-  featuredCard: {
+  /* Banner */
+  banner: {
     width: '100%',
     overflow: 'hidden',
     justifyContent: 'flex-end',
     backgroundColor: '#222',
   },
-  featuredOverlay: {
+  bannerOverlay: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    gap: 10,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  playBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#E50914',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 5,
-    gap: 6,
-  },
-  playBtnText: {
+  bannerTitle: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
-  },
-  featuredTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 24,
   },
 
   /* Section */

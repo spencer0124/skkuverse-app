@@ -196,10 +196,11 @@ export default function RootLayout() {
   // ── Notification tap & foreground message handling ──
   useNotificationHandler();
 
-  // ── Global orientation lock — portrait for all screens except video player ──
+  // ── Global orientation lock — portrait for all screens ──
   // app.config orientation:"default" registers all 4 directions in Info.plist
   // so ScreenOrientation.lockAsync can actually rotate. We lock portrait here
-  // once on mount; VideoPlayerScreen locks LANDSCAPE on focus and restores here.
+  // once on mount; the video gallery temporarily locks LANDSCAPE for native
+  // fullscreen playback and restores portrait when it ends.
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
   }, []);
@@ -351,14 +352,6 @@ export default function RootLayout() {
                     headerStyle: { backgroundColor: '#141414' },
                     headerTintColor: '#fff',
                     headerTitleStyle: { color: '#fff' },
-                  }}
-                />
-                <Stack.Screen
-                  name="video-player"
-                  options={{
-                    headerShown: false,
-                    presentation: 'fullScreenModal',
-                    gestureEnabled: false,
                   }}
                 />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation
