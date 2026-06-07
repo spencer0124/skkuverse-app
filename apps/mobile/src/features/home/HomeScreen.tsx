@@ -10,6 +10,7 @@ import { useHeaderHeight } from '@react-navigation/elements';
 import { CaretRightIcon } from 'phosphor-react-native';
 import {
   SdsColors,
+  useMiniAppIndex,
   useT,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
@@ -18,8 +19,8 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
-import { openMiniApp } from '@/features/in-app-browser/open';
-import { MINI_APP_LOGOS } from '@/features/in-app-browser/mini-app-logos';
+import { openMiniAppById } from '@/features/in-app-browser/open';
+import { miniAppTileImage } from '@/features/in-app-browser/mini-app-assets';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -88,55 +89,20 @@ export function HomeScreen() {
     [router, t],
   );
 
+  // 미니앱 그리드 — 레지스트리(SSOT)에서 생성. 이름/URL/로고/순서 전부 registry에서.
+  const { data: miniApps } = useMiniAppIndex();
   const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
-    () => [
-      {
-        id: 'council_hssc',
-        title: '인사캠 총학',
-        imageSource: MINI_APP_LOGOS['인사캠 총학생회'],
+    () =>
+      (miniApps ?? []).map((app) => ({
+        id: app.id,
+        title: app.shortName ?? app.name,
+        imageSource: miniAppTileImage(app.logo),
         onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'council_hssc' });
-          openMiniApp({
-            serviceName: '인사캠 총학생회',
-            startUrl: 'http://student.skku.edu/student/notice2.do',
-          });
+          logHomeContentSelect({ content_type: 'tile', item_id: app.id });
+          openMiniAppById(app.id);
         },
-      },
-      {
-        id: 'council_nsc',
-        title: '자과캠 총학',
-        imageSource: MINI_APP_LOGOS['자과캠 총학생회'],
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'council_nsc' });
-          openMiniApp({
-            serviceName: '자과캠 총학생회',
-            startUrl: 'http://student.skku.edu/student/notice3.do',
-          });
-        },
-      },
-      {
-        id: 'skkuw',
-        title: '성대신문',
-        imageSource: MINI_APP_LOGOS['성대신문'],
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'skkuw' });
-          openMiniApp({ serviceName: '성대신문', startUrl: 'http://www.skkuw.com/' });
-        },
-      },
-      {
-        id: 'skkuzine',
-        title: '성균웹진',
-        imageSource: MINI_APP_LOGOS['성균웹진'],
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'skkuzine' });
-          openMiniApp({
-            serviceName: '성균웹진',
-            startUrl: 'https://webzine.skku.edu/skkuzine/index.do',
-          });
-        },
-      },
-    ],
-    [],
+      })),
+    [miniApps],
   );
 
   return (

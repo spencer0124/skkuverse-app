@@ -23,6 +23,8 @@ import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
+import { openMiniAppById } from '@/features/in-app-browser/open';
 import { devLog } from '@/services/dev-log';
 
 export const unstable_settings = {
@@ -145,6 +147,34 @@ function PendingNoticeLinkConsumer() {
     tryConsume(); // cold-start: +native-intent set the pending before tree mount
     return pendingExternalNoticeLink.subscribe(tryConsume); // warm-start follow-ups
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navState?.key]);
+
+  return null;
+}
+
+/**
+ * Mini-app deep-link consumer — same pattern as PendingNoticeLinkConsumer.
+ * `+native-intent.tsx` stashed a {id} for `/m/<slug>` and routed to home; once
+ * the nav root is ready we open the registered mini-app shell on top.
+ */
+function PendingMiniAppLinkConsumer() {
+  const navState = useRootNavigationState();
+
+  useEffect(() => {
+    if (!navState?.key) return; // wait until navigation root is mounted
+
+    const tryConsume = () => {
+      const p = pendingMiniAppLink.consume();
+      if (!p) return;
+      // Defer a frame so the home navigate commits before we push the shell
+      // (avoids RNScreens dedupe coalescing the two transitions).
+      requestAnimationFrame(() => {
+        openMiniAppById(p.id);
+      });
+    };
+
+    tryConsume(); // cold-start
+    return pendingMiniAppLink.subscribe(tryConsume); // warm-start follow-ups
   }, [navState?.key]);
 
   return null;
@@ -353,6 +383,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <PendingNoticeLinkConsumer />
+              <PendingMiniAppLinkConsumer />
               <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>

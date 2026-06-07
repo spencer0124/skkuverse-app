@@ -1,5 +1,11 @@
-import { normalizeIncomingPath, resolveInitialTabRouteName, useSettingsStore } from '@skkuverse/shared';
+import {
+  isMiniAppId,
+  normalizeIncomingPath,
+  resolveInitialTabRouteName,
+  useSettingsStore,
+} from '@skkuverse/shared';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
 
 const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
 
@@ -18,6 +24,12 @@ const TAB_PATHS: Record<string, string> = {
 // the detail screen on top of the notices tab (vs. on top of whatever tab
 // happened to be active when the link arrived).
 const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
+
+// Mini-app entry: /m/<slug> (universal `…/p/m/<slug>` or scheme `skkuverse://m/<slug>`).
+// Same pending-holder pattern as notices — route to home, then the root layout's
+// PendingMiniAppLinkConsumer opens the registered mini-app on top. Membership is
+// checked against the registry so untrusted/unknown slugs fall through to home.
+const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full
@@ -55,6 +67,14 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
         source: 'universal_link',
       });
       return '/(tabs)/notices';
+    }
+
+    // Mini-app path → stash slug + route to home; PendingMiniAppLinkConsumer
+    // opens the mini-app shell on top. Only registry-known slugs qualify.
+    const miniAppMatch = pathname.match(MINIAPP_PATH_RE);
+    if (miniAppMatch && isMiniAppId(miniAppMatch[1])) {
+      pendingMiniAppLink.set({ id: miniAppMatch[1] });
+      return '/(tabs)/home';
     }
 
     // Whitelist — anything else falls back to home (uniform across cold/warm

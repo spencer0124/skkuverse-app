@@ -9,8 +9,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
   Image,
+  Linking,
   Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -36,9 +38,16 @@ import {
   BellIcon,
   GlobeSimpleIcon,
   ArrowClockwiseIcon,
+  SealCheckIcon,
+  LinkIcon,
+  XIcon,
+  ShareNetworkIcon,
+  GearSixIcon,
+  HeadsetIcon,
+  HouseIcon,
   type Icon as PhosphorIcon,
 } from 'phosphor-react-native';
-import { SdsColors } from '@skkuverse/shared';
+import { SdsColors, useMiniAppDetail } from '@skkuverse/shared';
 import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
@@ -47,10 +56,18 @@ import {
   faviconUrl,
   DEFAULT_BROWSER_URL,
 } from '@/features/in-app-browser/protocol';
-import { MINI_APP_LOGOS } from '@/features/in-app-browser/mini-app-logos';
+import { miniAppLogoNumber } from '@/features/in-app-browser/mini-app-assets';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
+/** 인증 배지 색 — 스꾸버스 딥그린 브랜드 컬러. */
+const VERIFIED_COLOR = SdsColors.brand;
+
+/** 표시용 URL — 프로토콜/끝 슬래시 제거. */
+const displayUrl = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+
+/** 미니앱 공유/홈추가 링크가 가리키는 웹 도메인(universal link + Toss식 런처). */
+const WEB_ORIGIN = 'https://skkuverse.com';
 
 // ── iOS 26 Safari식 하단 바 collapse 메트릭 ──
 // 스크롤 다운 → 좌/우 클러스터 축소·페이드, 중앙 pill 컴팩트화. 스크롤 업 → 역재생.
@@ -91,19 +108,18 @@ function Favicon({ uri, size }: { uri: string | null; size: number }) {
 }
 
 /**
- * 서비스 로고 — MINI_APP_LOGOS에 로컬 이미지가 있으면 우선 표시, 없으면 파비콘(네트워크),
+ * 서비스 로고 — 레지스트리 번들 로고(localSource)가 있으면 우선 표시, 없으면 파비콘(네트워크),
  * 둘 다 없거나 로딩 실패 시 Globe 아이콘으로 최종 폴백.
  */
 function ServiceLogo({
-  serviceName,
+  localSource,
   faviconUri,
   size,
 }: {
-  serviceName: string;
+  localSource?: number;
   faviconUri: string | null;
   size: number;
 }) {
-  const localSource = MINI_APP_LOGOS[serviceName];
   if (localSource) {
     return (
       <Image
@@ -145,11 +161,52 @@ function MenuRow({
   );
 }
 
+/**
+ * 정보 시트 관련 링크 한 줄 — 통일된 체인 링크 아이콘 + [라벨 / URL].
+ * label 없으면 URL이 곧 제목(한 줄), 있으면 굵은 라벨 위·회색 URL 아래(두 줄).
+ */
+function LinkRow({ label, url, onPress }: { label?: string; url: string; onPress: () => void }) {
+  const display = displayUrl(url);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.linkRow}
+      accessibilityRole="link"
+      accessibilityLabel={label ?? display}
+    >
+      <LinkIcon size={20} color={SdsColors.grey900} />
+      <View style={styles.linkTextCol}>
+        {label ? (
+          <>
+            <Txt typography="t6" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
+              {label}
+            </Txt>
+            <Txt typography="t7" color={SdsColors.grey400} numberOfLines={1}>
+              {display}
+            </Txt>
+          </>
+        ) : (
+          <Txt typography="t6" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
+            {display}
+          </Txt>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function MiniAppScreen() {
-  const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string }>();
+  const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string; id?: string }>();
   const startUrl = params.startUrl || DEFAULT_BROWSER_URL;
   const serviceName = params.serviceName ?? '';
+  // 레지스트리 미니앱 slug(있으면 정보 시트 콘텐츠·공유 링크·홈 추가 활성화).
+  const miniAppId = params.id;
   const insets = useSafeAreaInsets();
+
+  // 레지스트리 상세 — 인증 배지·소개·관련 링크·공지 배너의 단일 출처. id 없으면 undefined.
+  const { data: detail } = useMiniAppDetail(miniAppId);
+  // 번들 로고(slug 기준). 미등록이면 undefined → 파비콘 폴백.
+  const localLogo = miniAppId ? miniAppLogoNumber(miniAppId) : undefined;
 
   const webRef = useRef<WebView>(null);
 
@@ -209,6 +266,8 @@ export default function MiniAppScreen() {
   // Android BackHandler가 재구독 없이 최신 canGoBack을 읽도록 ref로 미러.
   const canGoBackRef = useRef(false);
 
+  // 상단 공지 배너 노출 여부 — 탭하면 닫힘.
+  const [noticeVisible, setNoticeVisible] = useState(true);
   // 중앙 pill 탭 → 페이지 정보 시트(현재는 제목만).
   const [infoOpen, setInfoOpen] = useState(false);
   // 헤더 ⋯ 탭 → 더보기 액션 시트(새로고침).
@@ -276,11 +335,46 @@ export default function MiniAppScreen() {
   const goBack = useCallback(() => webRef.current?.goBack(), []);
   const goForward = useCallback(() => webRef.current?.goForward(), []);
 
+  // 정보 시트 링크 — 시트 닫고 현재 웹뷰를 해당 URL로 이동(loadUrl API 없어 location 주입).
+  const openLink = useCallback((url: string) => {
+    setInfoOpen(false);
+    webRef.current?.injectJavaScript(`window.location.href=${JSON.stringify(url)};true;`);
+  }, []);
+
   // ── 더보기(⋯) 메뉴 액션 — 행 선택 시 시트 닫고 해당 동작 실행 ──
   const handleMenuRefresh = useCallback(() => {
     setMoreOpen(false);
     webRef.current?.reload();
   }, []);
+
+  // 공유하기 — 등록 미니앱이면 "미니앱 진입 링크"(universal link)를, 아니면 현재 페이지 URL을
+  // OS 공유 시트로. 받은 사람이 앱이 있으면 그 미니앱이 바로 열림(Toss minion 링크 방식).
+  const handleShare = useCallback(async () => {
+    setMoreOpen(false);
+    const link = miniAppId ? `${WEB_ORIGIN}/p/m/${miniAppId}` : currentUrl;
+    try {
+      await Share.share({ message: link, url: link });
+    } catch {
+      // 사용자 취소 등 — 무시.
+    }
+  }, [miniAppId, currentUrl]);
+
+  // 홈 화면에 추가 — Toss식 제네릭 런처 페이지를 외부 Safari로 연다(인앱 WebView/SFSafariVC는
+  // A2HS 불가). 페이지가 아이콘/이름을 쿼리로 받아 세팅하고, standalone 실행 시 skkuverse://m/<id>로
+  // 리다이렉트. 등록 미니앱(id)일 때만 메뉴 노출.
+  const handleAddToHome = useCallback(() => {
+    setMoreOpen(false);
+    if (!miniAppId) return;
+    const url =
+      `${WEB_ORIGIN}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
+      `&title=${encodeURIComponent(serviceName || pageTitle)}` +
+      `&iconUrl=${encodeURIComponent(`${WEB_ORIGIN}/miniapps/${miniAppId}.png`)}`;
+    void Linking.openURL(url).catch(() => {});
+  }, [miniAppId, serviceName, pageTitle]);
+
+  // TODO: 설정/고객센터 화면 연결. 현재는 시트만 닫는 더미.
+  const handleSettings = useCallback(() => setMoreOpen(false), []);
+  const handleSupport = useCallback(() => setMoreOpen(false), []);
 
   return (
     <View style={styles.container}>
@@ -307,9 +401,9 @@ export default function MiniAppScreen() {
                     label: '',
                     icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
                     sharesBackground: true,
-                    accessibilityLabel: '알림',
-                    // TODO: 알림 기능 추후 구현.
-                    onPress: () => {},
+                    accessibilityLabel: '공지',
+                    // 공지 배너 다시 띄우기(X로 닫았을 때 복구).
+                    onPress: () => setNoticeVisible(true),
                   },
                   {
                     type: 'button' as const,
@@ -324,7 +418,7 @@ export default function MiniAppScreen() {
             : {
                 headerRight: () => (
                   <View style={styles.rightGroup}>
-                    <HeaderIconButton onPress={() => {}} accessibilityLabel="알림">
+                    <HeaderIconButton onPress={() => setNoticeVisible(true)} accessibilityLabel="공지">
                       <BellIcon size={22} color={SdsColors.grey700} />
                     </HeaderIconButton>
                     <HeaderIconButton onPress={() => setMoreOpen(true)} accessibilityLabel="더보기">
@@ -350,6 +444,34 @@ export default function MiniAppScreen() {
         allowsBackForwardNavigationGestures={canGoBack}
         contentInset={{ bottom: 66 }}
       />
+
+      {/* 상단 공지 배너 — 레지스트리 detail.noticeBanner가 있는 미니앱에만. GLASS_AVAILABLE이면
+          Liquid Glass, 아니면 흰 박스+shadow 폴백(GlassSurface 내부 분기). 탭하면 닫힘. */}
+      {detail?.noticeBanner && noticeVisible && (
+        <View style={styles.topNotice} pointerEvents="box-none">
+          <GlassSurface interactive style={styles.topNoticePill}>
+            <View style={styles.topNoticeInner}>
+              <View style={styles.topNoticeText}>
+                <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
+                  {detail.noticeBanner.title}
+                </Txt>
+                <Txt typography="t7" color={SdsColors.grey500} numberOfLines={1}>
+                  {detail.noticeBanner.subtitle}
+                </Txt>
+              </View>
+              <Pressable
+                onPress={() => setNoticeVisible(false)}
+                style={styles.topNoticeClose}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="공지 닫기"
+              >
+                <XIcon size={18} color={SdsColors.grey500} weight="bold" />
+              </Pressable>
+            </View>
+          </GlassSurface>
+        </View>
+      )}
 
       {/* 하단 — 좌 [< >] / 중앙 서비스명 pill / 우 [북마크]. iOS 26 Safari식 collapse:
           스크롤 다운 시 좌/우는 transform으로 축소·페이드(레이아웃 비용 0), 중앙 pill은
@@ -400,7 +522,7 @@ export default function MiniAppScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="페이지 정보"
                 >
-                  <ServiceLogo serviceName={serviceName} faviconUri={favicon} size={18} />
+                  <ServiceLogo localSource={localLogo} faviconUri={favicon} size={18} />
                   <Text style={styles.titleText} numberOfLines={1}>
                     {serviceName || pageTitle}
                   </Text>
@@ -429,30 +551,59 @@ export default function MiniAppScreen() {
         </View>
       </View>
 
-      {/* 페이지 정보 시트 — [로고 · 서비스명 · 인증 체크] + origin. 하단 바와 동일 시각요소. */}
-      <BottomSheet
-        open={infoOpen}
-        onClose={() => setInfoOpen(false)}
-        title="페이지 정보"
-        snapPoints={['50%']}
-      >
+      {/* 페이지 정보 시트 — [로고(우하단 인증 배지) · 서비스명] + (서비스별 소개 문구). */}
+      <BottomSheet open={infoOpen} onClose={() => setInfoOpen(false)} snapPoints={['50%']}>
         <View style={styles.infoRow}>
-          <ServiceLogo serviceName={serviceName} faviconUri={favicon} size={40} />
-          <View style={styles.infoTextCol}>
-            <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} numberOfLines={1}>
-              {serviceName || pageTitle}
-            </Txt>
-            <Txt typography="t7" color={SdsColors.grey500} numberOfLines={1}>
-              {currentUrl}
-            </Txt>
+          {/* 로고 + (인증 미니앱이면) 우하단 인증 체크 배지(흰 링으로 분리). */}
+          <View style={styles.infoLogoWrap}>
+            <ServiceLogo localSource={localLogo} faviconUri={favicon} size={40} />
+            {detail?.verified ? (
+              <View style={styles.infoBadge}>
+                <SealCheckIcon size={18} weight="fill" color={VERIFIED_COLOR} />
+              </View>
+            ) : null}
           </View>
+          <Txt
+            typography="t5"
+            fontWeight="bold"
+            color={SdsColors.grey900}
+            numberOfLines={1}
+            style={styles.infoName}
+          >
+            {serviceName || pageTitle}
+          </Txt>
         </View>
+        {/* 서비스별 소개 — 레지스트리 detail.description이 있는 미니앱에만. */}
+        {detail?.description ? (
+          <Txt typography="t6" color={SdsColors.grey600} style={styles.infoDesc}>
+            {detail.description}
+          </Txt>
+        ) : null}
+        {/* 관련 링크 — 레지스트리 detail.relatedLinks. */}
+        {detail && detail.relatedLinks.length > 0 ? (
+          <View style={styles.infoLinks}>
+            {detail.relatedLinks.map((link) => (
+              <LinkRow
+                key={link.url}
+                label={link.label}
+                url={link.url}
+                onPress={() => openLink(link.url)}
+              />
+            ))}
+          </View>
+        ) : null}
       </BottomSheet>
 
       {/* 더보기(⋯) 액션 시트 — Safari 스타일 액션 목록. 콘텐츠 높이에 맞춰 hug. */}
       <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
         <View style={styles.menuList}>
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
+          <MenuRow icon={ShareNetworkIcon} label="공유하기" onPress={handleShare} />
+          {miniAppId ? (
+            <MenuRow icon={HouseIcon} label="홈 화면에 추가" onPress={handleAddToHome} />
+          ) : null}
+          <MenuRow icon={GearSixIcon} label="설정" onPress={handleSettings} />
+          <MenuRow icon={HeadsetIcon} label="고객센터" onPress={handleSupport} />
         </View>
       </BottomSheet>
     </View>
@@ -462,6 +613,38 @@ export default function MiniAppScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: SdsColors.background },
   webview: { flex: 1 },
+  // 상단 공지 배너 — 헤더 아래 떠서 콘텐츠 위를 덮음(좌우 여백 + 가운데 정렬).
+  topNotice: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+  },
+  topNoticePill: {
+    alignSelf: 'stretch',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  topNoticeInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingLeft: 18,
+    paddingRight: 12,
+    paddingVertical: 12,
+  },
+  topNoticeText: {
+    flex: 1,
+    gap: 2,
+  },
+  topNoticeClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Android headerRight 폴백 — HeaderIconButton 2개를 가로 배치. iOS는 네이티브
   // unstable_headerRightItems 경로라 이 스타일을 타지 않음.
   rightGroup: {
@@ -543,13 +726,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: SdsColors.grey800,
   },
-  // 페이지 정보 시트 행 — [파비콘 40 · (제목/URL)].
+  // 페이지 정보 시트 행 — [로고(+인증 배지) · 서비스명].
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  infoTextCol: {
+  infoLogoWrap: {
+    width: 40,
+    height: 40,
+  },
+  // 우하단 인증 배지 — 흰 링(원형 배경)으로 로고와 분리.
+  infoBadge: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 11,
+  },
+  infoName: {
+    flex: 1,
+  },
+  // 서비스 소개 문구 — 로고 행 아래, 읽기 편한 줄간격.
+  infoDesc: {
+    marginTop: 16,
+    lineHeight: 22,
+  },
+  // 관련 링크 목록 — 소개 문구 아래 [체인아이콘 · (라벨/URL)] 행 스택.
+  infoLinks: {
+    marginTop: 2,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 10,
+  },
+  linkTextCol: {
     flex: 1,
     gap: 2,
   },

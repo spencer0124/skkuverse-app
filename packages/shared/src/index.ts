@@ -263,3 +263,6 @@ export {
   useNoticeDetail,
   NOTICE_DETAIL_KEY,
 } from './hooks';
+
+// ── Mini-app registry (2-tier SSOT: index + per-service detail, joined by id) ──
+export * from './miniapps';
