@@ -345,13 +345,13 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                <Stack.Screen name="video-gallery" options={{ headerShown: false }} />
                 <Stack.Screen
-                  name="video-gallery"
+                  name="video-player"
                   options={{
-                    title: '영상',
-                    headerStyle: { backgroundColor: '#141414' },
-                    headerTintColor: '#fff',
-                    headerTitleStyle: { color: '#fff' },
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
                   }}
                 />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation

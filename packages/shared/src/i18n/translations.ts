@@ -474,6 +474,7 @@ const ko = {
 
   // ── Home tab ──
   'home.tile.notices': 'AI공지',
+  'home.tile.originalSeries': '오리지널 시리즈',
   'home.tile.campusMap': '캠퍼스맵',
   'home.tile.buildingMap': '건물지도',
   'home.tile.buildingCode': '건물코드',
@@ -903,6 +904,7 @@ const en: TranslationMap = {
 
   // ── Home tab ──
   'home.tile.notices': 'AI Notices',
+  'home.tile.originalSeries': 'Original Series',
   'home.tile.campusMap': 'Campus Map',
   'home.tile.buildingMap': 'Building Map',
   'home.tile.buildingCode': 'Building Code',
@@ -1321,6 +1323,7 @@ const zh: TranslationMap = {
 
   // ── Home tab ──
   'home.tile.notices': 'AI公告',
+  'home.tile.originalSeries': '原创系列',
   'home.tile.campusMap': '校园地图',
   'home.tile.buildingMap': '建筑物地图',
   'home.tile.buildingCode': '建筑物代码',

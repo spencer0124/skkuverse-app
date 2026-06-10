@@ -49,11 +49,11 @@ export function HomeScreen() {
         },
       },
       {
-        id: 'youtube_player',
-        title: '유튜브',
+        id: 'original_series',
+        title: t('home.tile.originalSeries'),
         emoji: '\u{1F3AC}',
         onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'youtube_player' });
+          logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
           router.push('/video-gallery' as never);
         },
       },
