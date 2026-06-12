@@ -10,17 +10,31 @@
 
 import { useCallback } from 'react';
 import { Platform, ScrollView, View, StyleSheet } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { BusIcon, DotsThreeIcon } from 'phosphor-react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import { BusIcon } from 'phosphor-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTransitList, useMainNotice, SdsColors, useEngagementStore, useT } from '@skkuverse/shared';
 import { BusListItemRow } from '@/features/bus/BusListItemRow';
 import { NoticeBanner } from '@/features/bus/NoticeBanner';
 import { TransitSkeleton } from '@/features/bus/TransitSkeleton';
-import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
 import { useReviewPrompt } from '@/features/feedback/useReviewPrompt';
 import { DEV_ALWAYS_SHOW, SEVEN_DAYS_MS } from '@/features/feedback/useReviewPromptGate';
+
+// iOS 26 NativeTabs auto-applies UIKit `automatic` contentInsetAdjustmentBehavior
+// to the FIRST ScrollView in the screen's view tree (resolved by
+// RNSScrollViewFinder at mount). The status-bar inset gets baked into
+// contentInset.top — no manual paddingTop needed. But the chain root must be a
+// ScrollView at MOUNT time: if the loading branch first renders a <View>, the
+// finder caches "no scrollable root" and never re-resolves once data lands.
+// So the skeleton lives INSIDE the same ScrollView, not as a sibling branch.
+//
+// iOS<26 + Android use JS-rendered <Tabs> which doesn't auto-pad headerless
+// screens — apply useSafeAreaInsets().top manually for those platforms only.
+const NEEDS_MANUAL_TOP_INSET =
+  !(Platform.OS === 'ios' && isLiquidGlassAvailable());
 
 const SHUTTLE_VISIT_THRESHOLD = 3;
 
@@ -28,6 +42,8 @@ export default function TransitScreen() {
   useTabFocusTracking('transit');
   const router = useRouter();
   const { t } = useT();
+  const insets = useSafeAreaInsets();
+  const topInset = NEEDS_MANUAL_TOP_INSET ? insets.top : 0;
   const { data, isLoading } = useTransitList();
   const { data: notice } = useMainNotice();
 
@@ -62,45 +78,9 @@ export default function TransitScreen() {
 
   return (
     <>
-      {review.Host}
-      <Stack.Screen
-        options={{
-          title: t('nav.transit'),
-          ...(Platform.OS === 'ios'
-            ? {
-                headerBlurEffect: 'systemChromeMaterial',
-                headerTransparent: true,
-                headerStyle: { backgroundColor: 'transparent' },
-                // unstable_headerRightItems: () => [
-                //   {
-                //     type: 'button' as const,
-                //     label: t('settings.title'),
-                //     icon: {
-                //       type: 'image' as const,
-                //       source: require('../../../assets/header-icons/dots-three.png'),
-                //       tinted: false,
-                //     },
-                //     sharesBackground: false,
-                //     accessibilityLabel: t('settings.title'),
-                //     onPress: () => router.push('/transit/settings' as never),
-                //   },
-                // ],
-              }
-            : {
-                // headerRight: () => (
-                //   <HeaderIconButton
-                //     onPress={() => router.push('/transit/settings' as never)}
-                //     accessibilityLabel={t('settings.title')}
-                //   >
-                //     <DotsThreeIcon size={24} color={SdsColors.grey700} weight="bold" />
-                //   </HeaderIconButton>
-                // ),
-              }),
-        }}
-      />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: topInset }]}
         alwaysBounceVertical={false}
         overScrollMode="never"
       >
@@ -133,6 +113,7 @@ export default function TransitScreen() {
         </>
       )}
     </ScrollView>
+      {review.Host}
     </>
   );
 }
