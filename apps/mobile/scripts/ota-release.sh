@@ -29,8 +29,13 @@ set -a
 source .env
 source .env.ota.local
 set +a
-RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform ios
-RELEASE_CHANNEL=production npx eoas publish --branch production --nonInteractive --platform android
+# eoas 버전 고정 — 미고정 npx는 릴리스 당일의 최신 메이저를 받는다.
+# 2026-07-21 hotfix OTA 때 전날 나온 v3이 우리 v1-스타일 설정
+# (updates.requestHeaders에 expo-app-id 없음)을 거부하며 발행이 중단됐다.
+# 버전을 올릴 땐 `npx eoas init` 마이그레이션을 함께 검증할 것.
+EOAS_VERSION="2.3.19"
+RELEASE_CHANNEL=production npx -y "eoas@${EOAS_VERSION}" publish --branch production --nonInteractive --platform ios
+RELEASE_CHANNEL=production npx -y "eoas@${EOAS_VERSION}" publish --branch production --nonInteractive --platform android
 
 # ── stage 3: compute tag (ISO-like date + time) ──
 TAG="ota/prod/$(date +%Y-%m-%dT%H%M)"

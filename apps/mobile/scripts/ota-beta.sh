@@ -28,8 +28,10 @@ set -a
 source .env
 source .env.ota.local
 set +a
-RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
-RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform android
+# eoas 버전 고정 — ota-release.sh의 EOAS_VERSION 주석 참조 (양쪽 동일하게 유지).
+EOAS_VERSION="2.3.19"
+RELEASE_CHANNEL=beta npx -y "eoas@${EOAS_VERSION}" publish --branch beta --nonInteractive --platform ios
+RELEASE_CHANNEL=beta npx -y "eoas@${EOAS_VERSION}" publish --branch beta --nonInteractive --platform android
 
 # ── stage 3: compute tag (ISO-like date + time) ──
 TAG="ota/beta/$(date +%Y-%m-%dT%H%M)"
