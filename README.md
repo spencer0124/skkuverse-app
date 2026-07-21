@@ -108,9 +108,12 @@ npx expo run:android
 The app reads environment variables from `.env` at `apps/mobile/` (not committed; provisioned separately):
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=https://api.skkuverse.com
+EXPO_PUBLIC_BASE_URL=...
+EXPO_PUBLIC_ENV=...
 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=...
 ```
+
+The full set of consumed variables is authoritative in `apps/mobile/app.config.ts` (`extra` block).
 
 Firebase config is bundled via `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) — not committed, provisioned separately per EAS environment.
 
