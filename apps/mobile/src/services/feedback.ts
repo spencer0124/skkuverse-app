@@ -1,7 +1,7 @@
 import firestore from '@react-native-firebase/firestore';
-import appCheck from '@react-native-firebase/app-check';
 import { authStore } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
+import { primeAppCheck } from '@/services/app-check-prime';
 
 /**
  * Firestore feedback — review-prompt 아쉬워요 feedback written to the unified
@@ -29,14 +29,6 @@ export interface FeedbackSubmission {
   source: string;
   /** Optional notice the user was looking at when they gave feedback. */
   noticeRef?: { sourceId: string; articleNo: number };
-}
-
-async function primeAppCheck(): Promise<void> {
-  try {
-    await appCheck().getToken(true);
-  } catch (e) {
-    logHandledError('feedback/app-check-refresh', e);
-  }
 }
 
 /**

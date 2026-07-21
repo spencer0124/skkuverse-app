@@ -1,9 +1,9 @@
 import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
-import appCheck from '@react-native-firebase/app-check';
 import type { BookmarkEntry, BookmarkSummaryType } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
+import { primeAppCheck } from '@/services/app-check-prime';
 
 /**
  * Firestore service for the notice bookmark subsystem (Phase 1 Chunk A).
@@ -38,15 +38,6 @@ import { logHandledError } from '@/services/crashlytics';
 
 const USERS = 'users';
 const BOOKMARKS = 'bookmarks';
-
-/** Force-refresh App Check token before a write — see firestore-notifications.ts. */
-async function primeAppCheck(): Promise<void> {
-  try {
-    await appCheck().getToken(true);
-  } catch (e) {
-    logHandledError('bookmarks/app-check-refresh', e);
-  }
-}
 
 function bookmarkDocRef(uid: string, key: string) {
   return firestore()
