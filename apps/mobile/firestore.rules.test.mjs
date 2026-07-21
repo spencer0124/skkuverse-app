@@ -449,6 +449,27 @@ describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () =>
     );
   });
 
+  // 회귀 가드: 부트스트랩 자가복구 시드(firestore-notifications.ts
+  // initializeFirestoreNotifications의 defaultPrefs)가 rules의 create를
+  // 통과해야 한다. 과거 essential:false 시드가 ESSENTIAL LOCK에 걸려
+  // 자가복구 경로 전체가 조용히 죽는 사고가 있었음 (2026-07 학과 picker
+  // 유령 상태 버그). 아래 shape은 프로덕션 defaultPrefs의 문자 그대로의
+  // 사본 — 프로덕션 쪽을 바꾸면 여기도 함께 바꿔서 drift를 CI에서 잡는다.
+  test('bootstrap self-heal defaultPrefs shape create → allow (prod mirror)', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').set({
+        enabled: false,
+        categoryEnabled: { essential: true, services: false, notices: false },
+        noticeTabEnabled: {},
+        pickerSelections: {},
+        subscribedTopics: [],
+        derivedAt: null,
+        onboardedAt: null,
+      }),
+    );
+  });
+
   // ── ONBOARDED_AT IMMUTABILITY ────────────────────────────────────
   // 'null → timestamp' 한 방향 전환만 허용 (시드 후 immutable).
   // CF는 admin SDK라 이 룰 우회 가능. 클라가 이미 시드된 timestamp를
