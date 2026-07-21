@@ -1,39 +1,13 @@
 import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
-import appCheck from '@react-native-firebase/app-check';
 import type {
   DeviceDocument,
   PreferencesDocument,
   UserDocument,
 } from '@skkuverse/shared';
+import { primeAppCheck } from '@/services/app-check-prime';
 import { logHandledError } from '@/services/crashlytics';
-
-/**
- * Force-refresh the App Check token before a Firestore write.
- *
- * Workaround for a known Firebase SDK bug where a stale App Check token
- * causes server-side PERMISSION_DENIED on writes while the local cache still
- * accepts the mutation. The Promise resolves, onSnapshot fires with the local
- * cache, but the write never reaches the server until the app is restarted
- * (which issues a fresh App Check token). Users perceive this as "settings
- * only sync after app kill + reopen".
- *
- * References:
- *   - flutterfire#12799 (Firestore doesn't pick up refreshed App Check token)
- *   - firebase-android-sdk#5235 (AppCheck doesn't schedule auto-refresh when
- *     a stored token exists)
- *
- * Failures are swallowed — if the refresh fails, we let the write proceed
- * with the cached token so we never block on a bad network.
- */
-async function primeAppCheck(): Promise<void> {
-  try {
-    await appCheck().getToken(true);
-  } catch (e) {
-    logHandledError('notifications/app-check-refresh', e);
-  }
-}
 
 /**
  * Firestore service for the push-notification subsystem (v5 SSOT, option D).
@@ -210,15 +184,31 @@ export async function seedOnboardingPreferences(
 }
 
 /**
- * Step 7 ACCEPT 경로의 finalize.
+ * Step 7 ACCEPT 경로의 finalize. 멱등 — 완료 게이트가 이 함수의 성공을
+ * 기다리므로(OnboardingScreen handleComplete), 실패로 남을 수 있는 상태를
+ * 케이스별로 전부 수렴시킨다:
  *
- * prepareCategoryStep에서 doc이 이미 seed됨 (보장). 여기서는 onboardedAt만
- * null→serverTimestamp() 단일 dot-path update로 전환.
- *
- * 만약 doc이 없거나(이론상 불가) onboardedAt이 이미 timestamp(중복 호출)면
- * rules가 reject할 수 있음 — 호출 측에서 try/catch로 non-fatal 처리.
+ *   - onboardedAt 이미 timestamp: no-op 성공. 로컬 초기화(앱 데이터 삭제)
+ *     후 재온보딩 케이스 — 여기서 update를 쏘면 rules의 onboardedAt
+ *     immutable 룰에 걸려 사용자가 완료 화면에 영구히 갇힌다.
+ *   - doc 부재: step 6 시드가 실제로는 실패했던 케이스. full seed로 복구
+ *     (step 6 토글 dot-path update도 문서 부재로 다 실패했으므로 잃을
+ *     것이 없다). 호출부가 넘긴 pickerSelections로 시드.
+ *   - 정상(onboardedAt null): null→serverTimestamp() 단일 dot-path update.
  */
-export async function finalizeOnboardingAccepted(uid: string): Promise<void> {
+export async function finalizeOnboardingAccepted(
+  uid: string,
+  pickerSelections: Record<string, string[]>,
+): Promise<void> {
+  const existing = await getPreferences(uid);
+  if (existing?.onboardedAt != null) return;
+  if (!existing) {
+    await seedOnboardingPreferences(uid, pickerSelections, {
+      enabled: true,
+      finalize: true,
+    });
+    return;
+  }
   await primeAppCheck();
   await prefsRef(uid).update({
     onboardedAt: firestore.FieldValue.serverTimestamp(),
@@ -273,6 +263,58 @@ export function onPreferencesChanged(
 
 // ── Bootstrap orchestration ──────────────────────────────────────
 
+const DEFAULT_PREFS: PreferencesDocument = {
+  enabled: false,
+  // essential은 rules invariant로 항상 true — rules의 allow create가
+  // essential != true 인 문서 생성을 거부한다 (ESSENTIAL LOCK). false로
+  // 두면 자가복구 create가 매번 PERMISSION_DENIED로 죽는다.
+  // firestore.rules.test.mjs의 "prod mirror" 테스트가 이 shape을 create
+  // 통과 기준으로 고정하고 있음 — 여기를 바꾸면 그 테스트도 함께 갱신.
+  categoryEnabled: { essential: true, services: false, notices: false },
+  noticeTabEnabled: {},
+  pickerSelections: {},
+  subscribedTopics: [],
+  derivedAt: null,
+  onboardedAt: null,
+};
+
+/**
+ * users/{uid}/preferences/main 존재 보장 — 없으면 생성 후 시드를 반환.
+ *
+ * FCM 토큰·알림 권한과 무관하게 호출 가능해야 한다: 문서 부재는 picker
+ * 저장(update = patch mutation, 문서 없으면 NOT_FOUND)을 조용히 죽이는
+ * "유령 상태"라서, 알림을 거부한 유저에게도 복구가 돌아야 한다.
+ *
+ * `restore`: 로컬 MMKV에 온보딩 이력이 남은 유령 계정의 사후 구제용.
+ * 사용자가 실제로 골랐던 학과 선택을 빈 문서 대신 복원한다. onboarded=true면
+ * onboardedAt을 serverTimestamp로 시드 — create rule은 onboardedAt 무제약이라
+ * 통과하고, 이후 리스너의 auto-restore discriminator가 정상 동작한다.
+ */
+export async function ensurePreferencesDoc(
+  uid: string,
+  restore?: { pickerSelections: Record<string, string[]>; onboarded: boolean },
+): Promise<PreferencesDocument> {
+  const existing = await getPreferences(uid);
+  if (existing) return existing;
+
+  const seed: PreferencesDocument = {
+    ...DEFAULT_PREFS,
+    ...(restore
+      ? {
+          pickerSelections: restore.pickerSelections,
+          onboardedAt: restore.onboarded
+            ? (firestore.FieldValue.serverTimestamp() as unknown)
+            : null,
+        }
+      : {}),
+  };
+  // Full set with merge:false — v5 shape로 create. Rules (Phase F)는 create 시
+  // subscribedTopics 빈 배열을 요구하며 DEFAULT_PREFS가 이를 만족한다.
+  await primeAppCheck();
+  await prefsRef(uid).set(seed);
+  return seed;
+}
+
 interface BootstrapParams {
   uid: string;
   deviceId: string;
@@ -310,27 +352,23 @@ export async function initializeFirestoreNotifications(
     bootstrap.push(updateUserLocale(uid, osLocale));
   }
 
-  const defaultPrefs: PreferencesDocument = {
-    enabled: false,
-    categoryEnabled: { essential: false, services: false, notices: false },
-    noticeTabEnabled: {},
-    pickerSelections: {},
-    subscribedTopics: [],
-    derivedAt: null,
-    onboardedAt: null,
-  };
+  // prefs 문서 보장과 기기 등록은 의도적으로 디커플링. 과거엔 create 실패가
+  // 여기서 throw → registerDevice까지 연쇄로 죽어서, 시드가 막힌 유저는
+  // 푸시 기기 등록도 통째로 누락됐다. 실패는 registerDevice를 마친 뒤
+  // 다시 던져 useAppInit의 withRetry 재시도 대상으로 남긴다.
+  let prefsError: unknown = null;
+  let finalPrefs: PreferencesDocument | null = prefsDoc;
   if (!prefsDoc) {
-    // Use full set with merge:false to create the doc with the v5 shape.
-    // Rules (Phase F) require subscribedTopics to be empty on create —
-    // defaultPrefs.subscribedTopics = [] satisfies this.
-    await primeAppCheck();
-    bootstrap.push(prefsRef(uid).set(defaultPrefs));
+    try {
+      finalPrefs = await ensurePreferencesDoc(uid);
+    } catch (err) {
+      prefsError = err;
+    }
   }
+
   if (bootstrap.length > 0) {
     await Promise.all(bootstrap);
   }
-
-  const finalPrefs: PreferencesDocument = prefsDoc ?? defaultPrefs;
 
   await registerDevice(deviceId, {
     uid,
@@ -339,8 +377,10 @@ export async function initializeFirestoreNotifications(
     appVersion,
     lastActive: new Date(), // overridden by serverTimestamp() inside registerDevice
     active: true,
-    subscribedTopics: finalPrefs.subscribedTopics,
-    notificationsEnabled: finalPrefs.enabled,
+    subscribedTopics: finalPrefs?.subscribedTopics ?? [],
+    notificationsEnabled: finalPrefs?.enabled ?? false,
     locale: osLocale,
   });
+
+  if (prefsError) throw prefsError;
 }

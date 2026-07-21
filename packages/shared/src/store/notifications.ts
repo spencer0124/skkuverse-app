@@ -69,7 +69,11 @@ export const useNotificationStore = create<NotificationStore>()(
       permissionStatus: 'notDetermined',
       preferences: {
         enabled: false,
-        categoryEnabled: { essential: false, services: false, notices: false },
+        // essential은 시스템 전역 invariant로 항상 true (Firestore rules
+        // ESSENTIAL LOCK + CF derive 강제 + UI lock). in-memory 기본값도
+        // 동일하게 — false면 Firestore 미동기 순간에 잠금 토글이 꺼진
+        // 것처럼 보인다.
+        categoryEnabled: { essential: true, services: false, notices: false },
         noticeTabEnabled: {},
         pickerSelections: {},
         subscribedTopics: [],
