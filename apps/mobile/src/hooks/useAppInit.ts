@@ -31,10 +31,12 @@ import { setupNotificationChannels } from '@/services/notification-channels';
 import { ensureRegistered, requestPermission, getDeviceToken, onTokenRefresh } from '@/services/messaging';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import {
+  ensurePreferencesDoc,
   initializeFirestoreNotifications,
   onPreferencesChanged,
   updateUserLocale,
 } from '@/services/firestore-notifications';
+import { assembleOnboardingPickerSelections } from '@/features/onboarding/utils/assemblePickerSelections';
 import { onBookmarksChanged } from '@/services/firestore-bookmarks';
 import { withRetry } from '@/utils/with-retry';
 
@@ -279,6 +281,38 @@ export function useAppInit() {
                   });
                 }
               });
+            }
+
+            // Self-heal: 로그인 계정인데 preferences/main이 없는 "유령 상태"
+            // 복구. 아래 5번 bootstrap 블록은 onboardingCompleted + 권한
+            // granted + fcmToken 3중 게이트 뒤라, 알림을 거부/스킵한 유저는
+            // 문서 생성 경로에 영원히 진입하지 못한다 — 문서 존재 보장은
+            // 알림 파이프라인과 무관하게 여기서 무조건 돈다. 익명 유저는
+            // 문서 없음이 정상이라 제외 (위 리스너 주석 참조).
+            //
+            // 로컬 MMKV에 온보딩 이력이 있으면 (completeOnboarding이 남긴
+            // primaryDeptId/interestDeptIds — 유령 상태에선 restore가 덮은
+            // 적 없어 사용자의 실제 선택 그대로다) 그 선택으로 문서를
+            // 복원한다. tabsConfig: undefined → dept만 시드되고 library/
+            // dorm 키는 생략 — 뷰는 server defaultIds로 fallback하므로 UX
+            // 손실 없음. 문서가 이미 있으면 read 1회 no-op. 생성되면 위
+            // onSnapshot이 즉시 emit → 세션 내 실시간 복구.
+            if (!user.isAnonymous) {
+              const settings = useSettingsStore.getState();
+              const restore = settings.onboardingCompleted
+                ? {
+                    pickerSelections: assembleOnboardingPickerSelections({
+                      campus: settings.preferredCampus,
+                      primaryDeptId: settings.primaryDeptId,
+                      interestDeptIds: settings.interestDeptIds,
+                      tabsConfig: undefined,
+                    }),
+                    onboarded: true,
+                  }
+                : undefined;
+              withRetry(() => ensurePreferencesDoc(user.uid, restore)).catch(
+                (err) => logHandledError('notifications/ensure-prefs', err),
+              );
             }
 
             // Bookmarks listener — same uid-scoped lifecycle as unsubPrefs.

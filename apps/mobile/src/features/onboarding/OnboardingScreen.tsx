@@ -26,6 +26,7 @@ import {
   useEnableNotificationsFlow,
 } from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import { logHandledError } from '@/services/crashlytics';
+import { withRetry } from '@/utils/with-retry';
 import {
   logOnboardingStep,
   logScreenView,
@@ -263,7 +264,17 @@ export function OnboardingScreen() {
     prepareCategoryStepInFlight.current = true;
     try {
       const uid = authStore.getState().uid;
-      if (!uid || !state.campus || !tabsConfig) return;
+      if (!uid || !state.campus || !tabsConfig) {
+        // login step(4) 뒤라 셋 다 있어야 정상 — 무음 no-op이면 "다음 버튼이
+        // 안 눌리는" 증상만 남고 원인이 안 보인다. 시끄럽게 기록.
+        logHandledError(
+          'onboarding/prepare-category-precondition',
+          new Error(
+            `uid=${!!uid} campus=${!!state.campus} tabs=${!!tabsConfig}`,
+          ),
+        );
+        return;
+      }
       const picker = assembleOnboardingPickerSelections({
         campus: state.campus,
         primaryDeptId: state.primaryDeptId,
@@ -271,10 +282,15 @@ export function OnboardingScreen() {
         tabsConfig,
       });
       try {
-        await seedOnboardingPreferences(uid, picker, {
-          enabled: true,
-          finalize: false,
-        });
+        // withRetry: 온보딩 시드는 앱에서 가장 이른 Firestore write 중
+        // 하나라 App Check 토큰 콜드스타트 순간 실패가 실제로 발생한다
+        // (안드로이드 Play Integrity 경로에서 특히). 1s/2s 백오프로 흡수.
+        await withRetry(() =>
+          seedOnboardingPreferences(uid, picker, {
+            enabled: true,
+            finalize: false,
+          }),
+        );
       } catch (err) {
         logHandledError('onboarding/seed-intent', err);
         Alert.alert(t('onboarding.seedErrorTitle'), t('onboarding.seedErrorMessage'));
@@ -341,45 +357,66 @@ export function OnboardingScreen() {
   // ── Completion (Step 7) ──
   // 분기:
   //   - ACCEPT: prepareCategoryStep에서 doc seed됨 → finalizeOnboardingAccepted
-  //     (onboardedAt null→timestamp 단일 update).
+  //     (멱등: 이미 timestamp면 no-op, doc 부재면 full seed 복구).
   //   - DECLINE: doc 미존재 가능 → seedOnboardingPreferences가 doc 존재 분기로
   //     처리 (없으면 .set(), 있으면 dot-path update). enabled:false +
   //     categoryEnabled.notices:false 명시 — master OFF intent를 SSOT에 기록.
-  // zustand `completeOnboarding`은 양쪽 모두 호출 — 로컬 게이트 해제.
+  //
+  // 순서 불변식: `completeOnboarding()`(MMKV 게이트 해제)은 Firestore write
+  // **성공 후**에만 호출한다. 반대 순서였을 때 write 실패가 조용히 삼켜지며
+  // "로컬은 완료·서버는 문서 없음"인 유령 상태가 생겼고, 그 상태에선 학과
+  // picker의 update()가 NOT_FOUND로 영구 무반응이었다 (2026-07 버그).
+  // 실패 시 prepareCategoryStep과 동일한 규율: alert + step 유지 + 재시도.
   const handleComplete = useCallback(async () => {
     if (!state.campus) return;
     logOnboardingStep({ step: 'completion', action: 'complete' });
     const campus: Campus = state.campus;
+
+    const uid = authStore.getState().uid;
+    if (uid) {
+      const picker =
+        state.seededPickerSelections ??
+        assembleOnboardingPickerSelections({
+          campus,
+          primaryDeptId: state.primaryDeptId,
+          interestDeptIds: state.interestDeptIds,
+          tabsConfig,
+        });
+      try {
+        if (state.notificationsAccepted === true) {
+          await withRetry(() => finalizeOnboardingAccepted(uid, picker));
+        } else {
+          await withRetry(() =>
+            seedOnboardingPreferences(uid, picker, {
+              enabled: false,
+              finalize: true,
+            }),
+          );
+        }
+      } catch (err) {
+        logHandledError('onboarding/finalize', err);
+        Alert.alert(
+          t('onboarding.seedErrorTitle'),
+          t('onboarding.seedErrorMessage'),
+        );
+        return; // 완료 게이트 유지 — 사용자가 재시도 가능
+      }
+    } else {
+      // login step(4) 뒤라 uid는 보장돼야 정상 — null이면 버그 신호.
+      // 완료는 진행하되 (UX를 여기서 브릭하지 않음) 시끄럽게 기록.
+      // useAppInit의 ensurePreferencesDoc self-heal이 다음 auth 확립 시
+      // MMKV에 남은 선택으로 문서를 복원한다.
+      logHandledError(
+        'onboarding/complete-no-uid',
+        new Error('uid null at onboarding completion'),
+      );
+    }
+
     useSettingsStore.getState().completeOnboarding({
       campus,
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
     });
-
-    const uid = authStore.getState().uid;
-    if (uid) {
-      try {
-        if (state.notificationsAccepted === true) {
-          await finalizeOnboardingAccepted(uid);
-        } else {
-          const picker =
-            state.seededPickerSelections ??
-            assembleOnboardingPickerSelections({
-              campus,
-              primaryDeptId: state.primaryDeptId,
-              interestDeptIds: state.interestDeptIds,
-              tabsConfig,
-            });
-          await seedOnboardingPreferences(uid, picker, {
-            enabled: false,
-            finalize: true,
-          });
-        }
-      } catch (err) {
-        // Non-fatal: 사용자는 설정 화면에서 재토글 가능.
-        logHandledError('onboarding/finalize', err);
-      }
-    }
 
     router.dismissAll();
   }, [
@@ -390,6 +427,7 @@ export function OnboardingScreen() {
     state.seededPickerSelections,
     router,
     tabsConfig,
+    t,
   ]);
 
   // ── Next step ──
