@@ -1,39 +1,13 @@
 import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
-import appCheck from '@react-native-firebase/app-check';
 import type {
   DeviceDocument,
   PreferencesDocument,
   UserDocument,
 } from '@skkuverse/shared';
+import { primeAppCheck } from '@/services/app-check-prime';
 import { logHandledError } from '@/services/crashlytics';
-
-/**
- * Force-refresh the App Check token before a Firestore write.
- *
- * Workaround for a known Firebase SDK bug where a stale App Check token
- * causes server-side PERMISSION_DENIED on writes while the local cache still
- * accepts the mutation. The Promise resolves, onSnapshot fires with the local
- * cache, but the write never reaches the server until the app is restarted
- * (which issues a fresh App Check token). Users perceive this as "settings
- * only sync after app kill + reopen".
- *
- * References:
- *   - flutterfire#12799 (Firestore doesn't pick up refreshed App Check token)
- *   - firebase-android-sdk#5235 (AppCheck doesn't schedule auto-refresh when
- *     a stored token exists)
- *
- * Failures are swallowed — if the refresh fails, we let the write proceed
- * with the cached token so we never block on a bad network.
- */
-async function primeAppCheck(): Promise<void> {
-  try {
-    await appCheck().getToken(true);
-  } catch (e) {
-    logHandledError('notifications/app-check-refresh', e);
-  }
-}
 
 /**
  * Firestore service for the push-notification subsystem (v5 SSOT, option D).
