@@ -3,8 +3,9 @@
  * derive 함수가 필요한 최소한만 — fixed category 키 + 알려진 picker 키.
  *
  * Source of truth:
- *   ~/project/skkuverse/skkuverse-server/features/notices/categories.json
- *   (loader: skkuverse-server/features/notices/tabConfig.js)
+ *   ~/project/skkuverse/skkuverse-server/src/notices/categories.json
+ *   (loader: skkuverse-server/src/notices/tabConfig.ts)
+ *   탭 추가 절차: docs/how-to/add-notice-tab.md
  *
  * ⚠️ Backend가 새 탭 추가/제거 시 이 파일도 같은 release에서 갱신해야 함.
  *    derive()는 unknown picker key는 logger.warn으로 감지되지만,

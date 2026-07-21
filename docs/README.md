@@ -17,7 +17,7 @@ audience: internal
 
 | 폴더 | 니즈 | 내용 | 예시 |
 | --- | --- | --- | --- |
-| `tutorials/` | 배우기 (학습) | 손잡고 따라가는 온보딩 레슨 | (아직 없음 — 자리만 예약) |
+| `tutorials/` | 배우기 (학습) | 손잡고 따라가는 온보딩 레슨 | 개발 환경 셋업 |
 | `how-to/` | 해내기 (작업) | 특정 목표를 달성하는 절차 런북 | 빌드·배포, OTA 발행 |
 | `reference/` | 찾아보기 (정보) | 계약·스펙·규칙의 권위 있는 사실 | API 스펙, 딥링크 계약, UX 라이팅 규칙 |
 | `explanation/` | 이해하기 (맥락) | 왜 이렇게 되어 있는지, 네이티브 메커니즘 | iOS 26 탭바, SafeArea, 마커 버그 |
@@ -31,6 +31,12 @@ audience: internal
 
 ## 문서 인덱스
 
+### tutorials (학습)
+
+| 문서 | 요약 |
+| --- | --- |
+| [getting-started.md](tutorials/getting-started.md) | 새 머신 → 앱 실행까지 (Node/JDK/SDK, 비밀 파일, 네이티브 빌드) |
+
 ### how-to (런북)
 
 | 문서 | 요약 |
@@ -38,6 +44,8 @@ audience: internal
 | [ios-build-deploy.md](how-to/ios-build-deploy.md) | iOS 로컬 빌드(EAS `--local`) → TestFlight/App Store 배포 |
 | [android-build-deploy.md](how-to/android-build-deploy.md) | Android 로컬 빌드 → Google Play 배포 |
 | [ota-update.md](how-to/ota-update.md) | OTA 업데이트 발행 (beta/production 채널) |
+| [firestore-debugging.md](how-to/firestore-debugging.md) | Firestore 디버깅 절차 — 증상별 판별표, REST server truth, emulator 검증 |
+| [add-notice-tab.md](how-to/add-notice-tab.md) | 공지 탭 추가 크로스-레포 체크리스트 (server categories.json ↔ tabsContract 미러) |
 
 ### reference (계약·스펙)
 
@@ -52,6 +60,10 @@ audience: internal
 
 | 문서 | 요약 |
 | --- | --- |
+| [architecture.md](explanation/architecture.md) | 전체 아키텍처 — monorepo 경계, 데이터 흐름, provider stack, 시스템 다이어그램 |
+| [fcm-architecture.md](explanation/fcm-architecture.md) | 현행 FCM 아키텍처 — v5 SSOT, tabsContract, delivery, auth transition |
+| [notices-feature.md](explanation/notices-feature.md) | 공지 기능 — 서버 주도 탭, 마크다운 렌더링, 온보딩 게이트 + 자동복원 |
+| [app-check.md](explanation/app-check.md) | App Check — 디버그 토큰 주입 경로, Play Integrity 스로틀 + prime 캐시 |
 | [ios-26-native-tabs-minimize.md](explanation/ios-26-native-tabs-minimize.md) | NativeTabs minimize + contentInset의 chain root rule |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | 모달 라우트별 SafeAreaProvider 재마운트가 필요한 이유 |
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | 커스텀 뷰 마커 bitmap snapshot race와 해법 |
@@ -62,6 +74,10 @@ audience: internal
 | 문서 | 상태 |
 | --- | --- |
 | [0001-adopt-diataxis-docs-structure.md](decisions/0001-adopt-diataxis-docs-structure.md) | accepted |
+| [0002-no-notification-inbox.md](decisions/0002-no-notification-inbox.md) | accepted (백필) |
+| [0003-local-eas-build-fastlane.md](decisions/0003-local-eas-build-fastlane.md) | accepted (백필) |
+| [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | accepted (백필) |
+| [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | accepted (백필) |
 
 ### internal (포스트모템·디버깅)
 
