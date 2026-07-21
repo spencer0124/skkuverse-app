@@ -22,7 +22,7 @@
  *   The modal mounts in a separate UIViewController. The root
  *   SafeAreaProvider measures the parent VC, not the modal — first paint
  *   loses top safe area without a per-modal wrap. See
- *   `docs/ios-modal-safe-area-provider.md`.
+ *   `docs/explanation/ios-modal-safe-area-provider.md`.
  *
  * Selection model (restore-on-dismiss is free)
  * ────────────────────────────────────────────

@@ -10,7 +10,7 @@
   "scripts": {
     "android": "cd apps/mobile && expo run:android",
     "ios": "cd apps/mobile && expo run:ios",
-    "lint": "expo lint",
+    "lint": "expo lint && yarn lint:md",
     "lint:md": "markdownlint-cli2",
     "test:rules": "JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin:$PATH firebase emulators:exec --only firestore \"node --test apps/mobile/firestore.rules.test.mjs\"",
     "postinstall": "patch-package"

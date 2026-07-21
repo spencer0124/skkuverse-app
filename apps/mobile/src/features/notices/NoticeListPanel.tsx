@@ -40,7 +40,7 @@
  * `contentContainerStyle.flexGrow: 1`. FlatList stays as Fragment first
  * child during transient states (no non-ScrollView root swap).
  *
- * Chain root rule background: `docs/ios-26-native-tabs-minimize.md`.
+ * Chain root rule background: `docs/explanation/ios-26-native-tabs-minimize.md`.
  */
 
 import type { ReactElement } from 'react';

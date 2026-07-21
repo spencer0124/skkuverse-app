@@ -33,10 +33,10 @@ What the app delivers to students:
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
+| --- | --- |
 | Framework | React Native 0.81 + Expo 54 |
 | Language | TypeScript ~5.9 |
-| Routing | Expo Router v4 (file-based) |
+| Routing | Expo Router (file-based; version in `apps/mobile/package.json`) |
 | State | Zustand v5 |
 | Data fetching | TanStack React Query v5 |
 | Auth | Firebase Auth + Google Sign-In |
@@ -44,15 +44,15 @@ What the app delivers to students:
 | Push notifications | Firebase Cloud Messaging (FCM v1) |
 | Crash reporting | Firebase Crashlytics |
 | Maps | Naver Maps |
-| OTA updates | EAS Update (`ota.skkuverse.com`) |
-| Build / distribution | EAS Build |
+| OTA updates | Self-hosted expo-open-ota (`ota.skkuverse.com`) |
+| Build / distribution | EAS Build `--local` + Fastlane |
 | Cloud Functions | Firebase Functions (Node.js) |
 
 ---
 
 ## Project Structure
 
-```
+```text
 skkuverse-app/
 ├── apps/
 │   ├── mobile/                    # React Native + Expo app
@@ -70,7 +70,7 @@ skkuverse-app/
 ├── packages/                      # Shared monorepo packages
 ├── functions/                     # Firebase Cloud Functions
 │   └── src/                       # dispatchNotice, sync-preferences, triggers
-├── docs/                          # Architecture decisions
+├── docs/                          # Documentation (Diátaxis: how-to, reference, explanation, decisions)
 ├── firebase.json                  # Firebase project config
 ├── eas.json                       # EAS Build + Update config
 └── package.json                   # Yarn workspace root
@@ -82,7 +82,7 @@ skkuverse-app/
 
 ### Prerequisites
 
-- Node.js ≥ 22 (`.nvmrc`; run `nvm use` to align)
+- Node.js 20 (`.nvmrc`; run `nvm use` to align)
 - Yarn (workspace manager)
 - Expo CLI (`npx expo`)
 - A physical device or simulator for running the app
@@ -105,7 +105,7 @@ npx expo run:android
 
 ### Environment
 
-The app reads environment variables from `.env` at `apps/mobile/`. Copy `.env.example` and fill in:
+The app reads environment variables from `.env` at `apps/mobile/` (not committed; provisioned separately):
 
 ```env
 EXPO_PUBLIC_API_BASE_URL=https://api.skkuverse.com
@@ -118,17 +118,23 @@ Firebase config is bundled via `google-services.json` (Android) and `GoogleServi
 
 ## Build & Distribution
 
-Managed via [EAS Build](https://docs.expo.dev/build/introduction/). Config in `apps/mobile/eas.json`.
+Built locally with [EAS Build](https://docs.expo.dev/build/introduction/) `--local` + Fastlane upload (no EAS cloud builds). Config in `apps/mobile/eas.json`.
 
 ```bash
-# Production build (iOS)
-eas build --platform ios --profile production
+cd apps/mobile
 
-# OTA update (no app store review)
-eas update --branch production --message "..."
+# iOS:    build / build+TestFlight / build+App Store
+./scripts/ios-build.sh && ./scripts/ios-beta.sh && ./scripts/ios-release.sh
+
+# Android: build / internal testing / production
+./scripts/android-build.sh && ./scripts/android-beta.sh && ./scripts/android-release.sh
+
+# OTA (JS-only changes, no store review) — beta / production channels
+./scripts/ota-beta.sh
+./scripts/ota-release.sh
 ```
 
-OTA updates are served from `ota.skkuverse.com` (skkuverse-codepush).
+OTA updates are served from a self-hosted [expo-open-ota](https://github.com/axelmarciano/expo-open-ota) server at `ota.skkuverse.com`. See [docs/how-to/](docs/how-to/) for full runbooks.
 
 ---
 
@@ -137,18 +143,22 @@ OTA updates are served from `ota.skkuverse.com` (skkuverse-codepush).
 Firebase Cloud Functions under `functions/src/` handle server-side logic that can't live in the mobile client:
 
 | Function | Trigger | Description |
-|---|---|---|
-| `dispatchNotice` | HTTP (called by skkuverse-server) | Reads FCM tokens from Firestore, sends FCM v1 push |
-| `sync-preferences-to-devices` | Firestore trigger | Propagates subscription changes to device token docs |
-| `handle-notice` | Firestore trigger | Post-processing on new notice documents |
-| `delete-account` | Callable | Full account + data deletion |
+| --- | --- | --- |
+| `sendNotification` | HTTP (called by skkuverse-server) | Reads FCM tokens from Firestore, sends FCM v1 push |
+| `syncPreferencesToDevices` | Firestore trigger | Propagates subscription changes to device token docs |
+| `onPreferencesWrite` | Firestore trigger | Derives `subscribedTopics` from notification intent (SSOT) |
+| `deleteAccount` | Callable | Full account + data deletion |
 
 ---
 
 ## Further Reading
 
+- **[`docs/README.md`](docs/README.md)** — documentation index & writing conventions (start here)
+- **[`docs/how-to/`](docs/how-to/)** — build, deploy, and OTA runbooks
+- **[`docs/reference/`](docs/reference/)** — API contracts (map config, SDUI), deep-link spec, UX writing rules
+- **[`docs/explanation/`](docs/explanation/)** — native platform deep-dives (iOS 26 tabs, safe area, map markers)
+- **[`docs/decisions/`](docs/decisions/)** — architecture decision records
 - **`CLAUDE.md`** — guidance for Claude Code (architecture, patterns, ecosystem boundaries)
-- **`docs/`** — architecture decisions and runbooks
 - **`apps/mobile/firestore.rules`** — Firestore security rules with inline test coverage
 
 ---

@@ -39,7 +39,7 @@
  * which causes RNSScreen to re-fire `mountChildComponentView` and the
  * finder picks up the SectionList.
  *
- * Full pattern + native mechanism: `docs/ios-26-native-tabs-minimize.md`.
+ * Full pattern + native mechanism: `docs/explanation/ios-26-native-tabs-minimize.md`.
  */
 
 import { useCallback, useEffect, useMemo } from 'react';

@@ -75,6 +75,19 @@ audience: internal
 | --- | --- |
 | [fcm-push-notifications.md](plans/fcm-push-notifications.md) | superseded — 완료. 현행 SSOT는 `CLAUDE.md` FCM 섹션 |
 
+### 워크스페이스 README (co-located)
+
+패키지 국소 지식은 각 워크스페이스 README에 있다:
+
+| README | 패키지 |
+| --- | --- |
+| [apps/mobile](../apps/mobile/README.md) | Expo 모바일 앱 — 실행·구조·빌드 링크 |
+| [apps/webview](../apps/webview/README.md) | Vite SPA (임베디드 webview) |
+| [packages/shared](../packages/shared/README.md) | 데이터 레이어 (API·스토어·훅·토큰·i18n) |
+| [packages/bridge](../packages/bridge/README.md) | Web↔Native 메시지 계약 |
+| [packages/sds](../packages/sds/README.md) | 디자인 시스템 (+ SDS.md, TOSS_UX_GUIDE.md) |
+| [functions](../functions/README.md) | Cloud Functions (트리거·verify 스크립트) |
+
 ## 문서 작성 규칙
 
 ### 1. Frontmatter (필수)

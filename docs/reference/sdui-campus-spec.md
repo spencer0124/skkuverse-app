@@ -1,18 +1,26 @@
+---
+title: SDUI Campus Tab Specification
+type: reference
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: public
+---
+
 # SDUI (Server-Driven UI) — Campus Tab
 
-캠퍼스 탭의 UI 구성을 서버에서 제어하는 섹션 템플릿 SDUI 시스템.
+> 캠퍼스 탭의 UI 구성을 서버에서 제어하는 섹션 템플릿 SDUI 계약. 섹션/위젯을 추가·변경하는 서버/클라이언트 개발자가 읽는다.
 
-## Overview
+## 요약
 
 서버가 `sections` 배열로 "어떤 섹션을 어떤 순서로 보여줄지" 결정하고, 클라이언트는 미리 정의된 위젯으로 각 섹션을 렌더링한다. 토스의 HomeDST에서 영감을 받은 구조이며, SKKUBUS 규모에 맞게 단순화했다.
 
 **핵심 원칙:**
+
 - `sections` 배열 순서 = 렌더링 순서 (서버에서 순서만 바꾸면 UI 순서 변경)
 - `type` 필드가 컴포넌트 매핑 키
 - 모르는 `type` → `null` 반환 (구버전 앱 크래시 방지)
 - 위젯은 SDUI 컨텍스트 외에서도 하드코딩으로 재사용 가능
-
----
 
 ## API
 
@@ -61,8 +69,6 @@
 
 이 응답을 제대로 렌더링하기 위한 최소 앱 버전. 평소에는 모르는 type 무시로 하위호환을 유지하고, breaking change 시에만 이 값을 올려 업데이트를 유도한다. 클라이언트에서 optional로 파싱하며, 현재는 사용하지 않음.
 
----
-
 ## Section Types
 
 ### `button_grid`
@@ -70,14 +76,14 @@
 이모지+텍스트 버튼을 N열 그리드로 배치.
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `columns` | int | 열 수 (기본 4) |
 | `items` | array | 버튼 아이템 배열 |
 
 각 item 필드:
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `id` | string | 고유 식별자 |
 | `title` | string | 표시 텍스트 (i18n) |
 | `emoji` | string | Unicode 이모지 (Tossface 폰트로 렌더링) |
@@ -91,7 +97,7 @@
 섹션 구분 제목.
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `title` | string | 표시 텍스트 |
 
 ### `notice`
@@ -99,7 +105,7 @@
 상단 공지 바. 탭하면 액션 실행.
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `title` | string | 공지 텍스트 |
 | `actionType` | string | `route` / `webview` / `external` |
 | `actionValue` | string | 네비게이션 대상 |
@@ -109,7 +115,7 @@
 이미지 배너. 탭하면 액션 실행.
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `imageUrl` | string | 배너 이미지 URL |
 | `actionType` | string | `route` / `webview` / `external` |
 | `actionValue` | string | 네비게이션 대상 |
@@ -119,30 +125,26 @@
 섹션 간 여백.
 
 | 필드 | 타입 | 설명 |
-|------|------|------|
+| --- | --- | --- |
 | `height` | number? | 높이 (px). 기본 16 |
-
----
 
 ## Action Types
 
 모든 섹션에서 동일한 액션 체계를 사용.
 
 | actionType | 동작 | 예시 |
-|------------|------|------|
+| --- | --- | --- |
 | `route` | 앱 내 화면 이동 (Expo Router) | `/map/hssc`, `/search` |
 | `webview` | 인앱 WebView | `https://webview.skkuuniverse.com/...` |
 | `external` (또는 `url`) | 외부 브라우저/앱 | `http://pf.kakao.com/...` |
 
 `external`과 `url`은 동일하게 처리됨 (서버 어느 쪽이든 사용 가능).
 
----
-
 ## Client Architecture
 
 ### 파일 구조
 
-```
+```text
 apps/mobile/src/sdui/
 ├── types.ts                  # Section 타입 정의 (discriminated union)
 ├── action-handler.ts         # 공통 액션 핸들러 (route/webview/external)
@@ -157,7 +159,7 @@ apps/mobile/src/sdui/
 
 ### Discriminated Union 구조
 
-```typescript
+```ts
 type SduiSection =
   | { type: 'button_grid'; id: string; columns: number; items: SduiButtonItem[] }
   | { type: 'section_title'; id: string; title: string }
@@ -168,22 +170,18 @@ type SduiSection =
 
 모르는 `type`은 dispatcher에서 `null` 반환 → 렌더링하지 않음.
 
----
-
 ## Fallback
 
 API 호출 실패 시 React Query의 캐시 또는 기본 데이터가 사용됨.
 
----
-
 ## i18n
 
-- 서버가 `Accept-Language` 헤더 기반으로 로케일별 텍스트 반환
-- 지원: `ko` (default), `en`, `zh`
-- 로케일 의존 필드: `title`, `label` 등 사용자 노출 문구
-- 로케일 독립 필드: `id`, `type`, `actionType`, `actionValue`, `emoji`
-
----
+| 항목 | 값 |
+| --- | --- |
+| 로케일 결정 | 서버가 `Accept-Language` 헤더 기반으로 로케일별 텍스트 반환 |
+| 지원 로케일 | `ko` (기본), `en`, `zh` |
+| 로케일 의존 필드 | `title`, `label` 등 사용자 노출 문구 |
+| 로케일 독립 필드 | `id`, `type`, `actionType`, `actionValue`, `emoji` |
 
 ## 새 Section Type 추가하기
 
@@ -197,8 +195,14 @@ API 호출 실패 시 React Query의 캐시 또는 기본 데이터가 사용됨
 ### 향후 확장 후보
 
 | type | 설명 |
-|------|------|
+| --- | --- |
 | `list` | 세로 목록 |
 | `card` | 카드형 UI |
 | `countdown` | D-day 카운트다운 |
 | `carousel` | 배너 슬라이드 |
+
+## 관련 문서
+
+- [map-config-api-spec.md](map-config-api-spec.md) — 같은 서버 주도 패턴을 쓰는 지도 레이어 계약
+- [ux-writing.md](ux-writing.md) — 사용자 노출 문구(`title` 등) 작성 규칙
+- [../README.md](../README.md) — 문서 작성 규칙

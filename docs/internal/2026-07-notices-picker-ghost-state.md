@@ -1,7 +1,16 @@
+---
+title: Notices Picker Ghost State Postmortem
+type: postmortem
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: internal
+---
+
 # Postmortem: 학과 picker 저장 무반응 (유령 preferences 상태)
 
 | | |
-|---|---|
+| --- | --- |
 | **Date** | 발생 ~2026-04-25부터 누적 · 문의 2026-07 · 수정 2026-07-18 |
 | **Status** | Resolved — fix merged (`3e3cbca`, dev), 배포 대기 |
 | **Detection** | 사용자 문의 1건 (안드로이드 화면녹화). 모니터링 미감지 — Crashlytics에 90일간 라벨이 쌓여 있었으나 리뷰 부재 |
@@ -15,7 +24,7 @@
 ## Impact (Android 3.5.1, 90일 Crashlytics)
 
 | 지표 | 값 |
-|---|---|
+| --- | --- |
 | 유령 탄생 (`onboarding/finalize` 실패) | **25명** / 97건 |
 | 증상 도달 — picker 저장 실패 (`notifications/picker-set`) | **7명** / 32건 |
 | 죽은 자가복구 충돌 (`notifications/init`+`register`+`post-signin`) | 78명 / 231건 |
@@ -26,7 +35,7 @@
 ## Timeline
 
 | 시각 | 이벤트 |
-|---|---|
+| --- | --- |
 | 04-25 10:20 | 부트스트랩 기본 문서(`essential:false`) 작성 (`ecd4a7c`) |
 | 04-25 13:55 | rules ESSENTIAL LOCK 추가 (`ded4a4b`) — 기존 기본값 미수정 → **자가복구 사망** |
 | 04-25~07 | 유령 누적 (Crashlytics 라벨 축적, 미인지) |
@@ -48,7 +57,7 @@
 수정 커밋 `3e3cbca` (5파일, +215/−52 · tsc/lint/tests/rules 72/72 green):
 
 | 구분 | 변경 |
-|---|---|
+| --- | --- |
 | 근본 (P0) | 자가복구 시드 `essential: false → true` |
 | 예방 (P1·P2) | `completeOnboarding()`을 Firestore write **성공 후**로 이동, 실패 시 Alert+재시도. 시드에 `withRetry`. 무음 스킵 2곳에 로그 |
 | 예방 (P3) | `ensurePreferencesDoc` 분리 — prefs 실패와 기기 등록 디커플링. `finalizeOnboardingAccepted` 멱등화 |
@@ -58,10 +67,12 @@
 ## What Went Well / Wrong
 
 **Well**
+
 - ACCEPT 경로엔 Alert+재시도 규율이 이미 있었음 → 실측 대조: 그 경로(`seed-intent`)는 29명 전원 1회 회복, 무음 경로(`finalize`)는 유령 25명. 수정은 이 규율의 복제
 - 과거 디버깅 기록(`docs/plans/fcm-push-notifications.md`)의 latency-compensation 지식이 가설 절반을 즉시 기각
 
 **Wrong**
+
 - 로컬/서버 이중 기록이 비원자적 + 실패 무음 → 유령 상태 가능
 - rules 강화 시 기존 클라이언트 payload 미점검 → 복구 경로 84일 사망
 - 비치명적 라벨 수백 건이 쌓였으나 아무도 보지 않음
