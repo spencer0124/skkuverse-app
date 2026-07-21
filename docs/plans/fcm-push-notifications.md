@@ -1,4 +1,16 @@
+---
+title: FCM Push Notifications Plan
+type: plan
+status: superseded
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: internal
+---
+
 # FCM 학과별 푸시 알림 구현 계획
+
+> [!WARNING]
+> 이 계획은 구현 완료로 superseded — 현행 SSOT는 루트 [`CLAUDE.md`](../../CLAUDE.md)의 FCM 섹션 (옵션 D: 알림함 없음). 특히 아래 "배포 전략"의 "알림함까지 완성" 서술은 초기 구상이며 폐기됨 (옵션 D — 알림함 없이 로컬 뱃지로 대체). 이 문서는 이력 가치로만 보존한다.
 
 ## Context
 
@@ -9,7 +21,8 @@
 **배포 전략:** Phase 1→2→3 순서로 개발, **앱스토어에는 Phase 3 완료 후 한 번에 릴리즈**. 유저가 처음 받는 버전이 다국어·읽음 처리·알림함까지 완성된 버전. 과도기 없음.
 
 **데이터 아키텍처:**
-```
+
+```text
 ┌─────────────────────────┬──────────────────────────┐
 │ Firebase (Firestore)    │ MongoDB (Node 관리)      │
 ├─────────────────────────┼──────────────────────────┤
@@ -19,6 +32,7 @@
 │                         │ 학과 정보                │
 └─────────────────────────┴──────────────────────────┘
 ```
+
 - 앱 → Firestore 직접 읽기/쓰기 (디바이스 등록, 구독 관리, 유저 설정)
 - Node 서버 → 공지 발행 시 Cloud Function HTTP 호출만 (Firebase 의존성 제로)
 - Cloud Functions → Firestore 구독자 쿼리 + FCM 발송 + 토큰 cleanup (Admin SDK, Security Rules 우회)
@@ -64,6 +78,7 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 > **현재 상태 (2026-04-19) — ko-only 운영:** MongoDB `Notice` 스키마에 **한국어 필드만 존재**. 영문 번역 파이프라인은 향후 작업(`skkuverse-ai`에서 생성 예정). 아키텍처는 locale-ready로 유지 — `users.locale`·`devices.locale` 필드와 Cloud Function의 locale별 그룹핑은 MVP부터 구현. 당장 모든 유저(`locale: 'ko' | 'en'`)에게 **한국어 문구만 발송** (Cloud Function의 `title_en ?? title_ko` fallback 경유). 영문 데이터 추가 시 Node 서버에서 `title_en`을 채우기 시작하면 코드 변경 없이 자동 전환.
 
 **구독 스키마:** 통합 topics 배열 + prefix
+
 ```ts
 // Topic 네임스페이스:
 // category:{id}  → 공지 타입 (scholarship, career, academic, general...)
@@ -73,6 +88,7 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 ```
 
 **확장성 원칙 — 향후 버스·기숙사 알림 대비:**
+
 - Cloud Function `sendNotification`이 `type` 필드 기반 switch 분기
 - Firestore `notifications.type`/`notifications.data` 자유 구조
 - 앱 측 `notification-router.ts`도 `type` 기반 switch (기존 구조 그대로 사용)
@@ -84,28 +100,34 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 ## Firestore 스키마
 
 ### `users/{uid}` (유저 문서)
+
 ```ts
 {
   locale: 'ko' | 'en';           // ⭐ 서버 발송 시 언어 선택 기준
   // 향후 유저 레벨 설정 추가 가능
 }
 ```
+
 > `locale`은 device가 아닌 user 레벨. 유저가 앱에서 언어 변경 시 이 필드 업데이트.
 > Cloud Function `syncUserLocaleToDevices`가 devices에 자동 복제 (쿼리 최적화).
 
 ### `users/{uid}/preferences` (단일 문서)
+
 ```ts
 {
   enabled: boolean;           // 마스터 스위치
   subscribedTopics: string[]; // ["category:scholarship", "dept:cs", ...]
 }
 ```
+
 > **`enabled`과 `subscribedTopics`의 관계:**
+>
 > - `enabled`은 마스터 스위치. 서버 발송 시 `enabled == true AND topic 매칭`의 AND 조건.
 > - `enabled: false`여도 `subscribedTopics`는 그대로 유지. 마스터 다시 ON 하면 이전 구독 복원.
 > - MANDATORY_TOPICS는 마스터 OFF 시에도 항목에서 제거 불가 (앱 단 + Security Rules).
 
 ### `devices/{deviceId}` (top-level collection)
+
 ```ts
 {
   uid: string;                    // Firebase Auth UID
@@ -119,6 +141,7 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
   locale: 'ko' | 'en';           // ← users.locale 복제 (쿼리 최적화)
 }
 ```
+
 > **top-level + 필드 복제인 이유:** 발송 쿼리가 **한 번**으로 완결.
 > `devices.where('active','==',true).where('notificationsEnabled','==',true).where('subscribedTopics','array-contains-any',topics)`
 > locale은 쿼리 후 Map으로 그룹핑(`ko: [...]`, `en: [...]`)하여 언어별 sendEachForMulticast 호출.
@@ -130,7 +153,8 @@ iOS/Android **둘 다 동일** 구조. `notification` + `data` 혼합 페이로�
 > **`notifications/{id}` 컬렉션은 사용하지 않음 (옵션 D).** 원본 공지 히스토리는 MongoDB + 공지 탭이 이미 커버하고, 미확인 알림은 로컬 뱃지(Notifee + Zustand)로 처리. Firestore 비용 0원 + Security Rules 단순화 + Cloud Function 페이로드 경량화. 향후 "알림함" 재도입이 필요해지면 `type`/`deptId`/`articleNo` 딥링크 필드는 그대로 유지되고 `data.notificationId`만 추가하면 재확장 가능.
 
 ### Firestore Security Rules
-```
+
+```text
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -154,6 +178,7 @@ service cloud.firestore {
   }
 }
 ```
+
 > **배포:** Phase 2에서 앱 코드와 함께 `firebase deploy --only firestore:rules`.
 > `firestore.rules` 파일을 `apps/mobile/` 또는 레포 루트에 배치.
 > Node 서버 Admin SDK는 Rules 우회하므로 서버 PR과 무관.
@@ -176,11 +201,13 @@ cd apps/mobile && yarn add @react-native-firebase/messaging@^23.8.8 @notifee/rea
 **파일:** `apps/mobile/app.config.ts`
 
 (a) plugins 배열에 추가 (`@react-native-firebase/app-check` 다음):
+
 ```ts
 "@react-native-firebase/messaging",
 ```
 
 (b) iOS entitlements + background modes 수동 추가 (Expo SDK 51+ — 플러그인이 자동 추가 안 함):
+
 ```ts
 ios: {
   // ...existing...
@@ -203,6 +230,7 @@ ios: {
 **파일:** `apps/mobile/firebase.json`
 
 기존 키 유지 + messaging 설정 2줄 추가:
+
 ```json
 "messaging_auto_init_enabled": true,
 "messaging_ios_auto_register_for_remote_messages": false
@@ -357,6 +385,7 @@ interface NotificationData {
 **생성:** `apps/mobile/src/hooks/useNotificationHandler.ts`
 
 RootLayout 내부 (InitGate 안쪽):
+
 - `getInitialNotification()` — quit-state 딥링크
 - `onNotificationOpenedApp()` — background-state 딥링크
 - `onForegroundMessage()` — 포그라운드 수신 시 Notifee 로컬 알림 표시 (Phase 3)
@@ -370,6 +399,7 @@ RootLayout 내부 (InitGate 안쪽):
 **수정:** `apps/mobile/src/hooks/useAppInit.ts`
 
 기존 step 4 이후:
+
 ```ts
 // 5. Notification channels (Android)
 await setupNotificationChannels();
@@ -466,6 +496,7 @@ onPreferencesChanged(uid, callback) → onSnapshot listener → unsubscribe
 **생성:** `apps/mobile/firestore.rules` (또는 레포 루트)
 
 Phase 2 앱 작업의 일부로 배포:
+
 ```bash
 firebase deploy --only firestore:rules
 ```
@@ -582,6 +613,7 @@ try {
 ```
 
 **설계 의도:**
+
 - 순차 실행(왕복 3~5회) → 병렬화로 대략 1 왕복 시간으로 단축
 - 3회 exponential backoff (1s / 2s / 4s)로 네트워크 플레어 대응
 - 전체 실패 시 Crashlytics 리포트만, `setIsReady(true)` 블로킹 금지 — 알림 기능은 off-critical
@@ -624,6 +656,7 @@ try {
 ### 3.2 라우트 추가
 
 **생성:**
+
 - `apps/mobile/app/notifications/_layout.tsx`
 - `apps/mobile/app/notifications/settings.tsx`
 
@@ -673,6 +706,7 @@ onForegroundMessage(async (remoteMessage) => {
 > **백그라운드 핸들러에서는 `displayNotification` 호출 금지.** Hybrid 페이로드에서 OS가 이미 표시 중 → 중복 발생.
 
 > **iOS UX 주의:** iOS는 관례상 앱 사용 중 알림 표시가 방해로 느껴질 수 있음. Phase 3 실기기 dogfooding 단계에서 유저 피드백 기준으로 전환 고려:
+>
 > - **(A) 양쪽 다 Notifee** `displayNotification` — 현 계획, iOS에서도 상단 헤드업 배너 표시
 > - **(B) Android = Notifee, iOS = in-app toast** — SDS Toast 컴포넌트 활용 또는 신규 작성. iOS 전용 UX 관례 준수
 > - **(C) 양쪽 다 in-app toast** — 플랫폼 일관성
@@ -799,6 +833,7 @@ updateUserLocale(uid, newLang);
 ### 3.9 Analytics
 
 **수정 없음.** Firebase Analytics가 `notification` 필드 포함 메시지에 대해 다음 이벤트를 **자동 기록**:
+
 - `notification_receive` (백그라운드·quit 수신)
 - `notification_open` (탭)
 - `notification_dismiss` (스와이프)
@@ -813,8 +848,9 @@ updateUserLocale(uid, newLang);
 ## 수정 대상 파일 요약
 
 ### 신규 생성
+
 | 파일 | Phase |
-|---|---|
+| --- | --- |
 | `apps/mobile/index.ts` | 1 |
 | `apps/mobile/src/services/messaging.ts` | 1 |
 | `apps/mobile/src/services/background-messaging.ts` | 1 |
@@ -834,8 +870,9 @@ updateUserLocale(uid, newLang);
 | `apps/mobile/src/features/notifications/NotificationPromptSheet.tsx` | 3 |
 
 ### 기존 수정
+
 | 파일 | Phase | 변경 |
-|---|---|---|
+| --- | --- | --- |
 | `apps/mobile/package.json` | 1 | `"main": "./index.ts"` |
 | `apps/mobile/app.config.ts` | 1 | plugin + entitlements (APP_ENV 분기) + UIBackgroundModes |
 | `apps/mobile/firebase.json` | 1 | messaging 설정 2줄 |
@@ -849,6 +886,7 @@ updateUserLocale(uid, newLang);
 | `packages/shared/src/index.ts` | 2 | notification 타입/스토어/상수 export |
 
 ### 삭제 대상 (이전 계획 잔재 — **이미 삭제됨 또는 애초에 생성하지 않음**)
+
 - ~~`apps/mobile/plugins/withNotificationServiceExtension.js`~~ — iOS NSE 전략 폐기
 - ~~App Groups 설정 / NSE Bundle ID~~ — NSE 없음
 - ~~`title_ko`/`title_en`/`body_ko`/`body_en` data 필드~~ — 서버가 `notification.title`/`body`에 완성 문구 탑재
@@ -925,7 +963,7 @@ export const sendNotification = onRequest(async (req, res) => {
 
 **2. `handleNoticeNotification` — 공지 발송 로직 (옵션 D — 레코드 생성 없음)**
 
-```
+```text
 1. devices 쿼리 (한 번):
    where active == true
      AND notificationsEnabled == true
@@ -953,7 +991,7 @@ export const sendNotification = onRequest(async (req, res) => {
 
 **3. `syncPreferencesToDevices` — Firestore onUpdate trigger**
 
-```
+```text
 users/{uid}/preferences 변경 감지
   → 해당 uid의 모든 devices 문서에 subscribedTopics + notificationsEnabled 복제
 ```
@@ -962,7 +1000,7 @@ users/{uid}/preferences 변경 감지
 
 **4. `syncUserLocaleToDevices` — Firestore onUpdate trigger (**NEW**)**
 
-```
+```text
 users/{uid}.locale 변경 감지
   → 해당 uid의 모든 devices 문서에 locale 복제
   → 다음 알림부터 새 언어로 수신
@@ -970,7 +1008,7 @@ users/{uid}.locale 변경 감지
 
 **5. `cleanupStaleDevices` — scheduled function**
 
-```
+```text
 주기 cron (주 1회)
   → lastActive가 N개월 이전인 devices soft delete
   → UNREGISTERED 토큰으로 인한 유령 device 문서 정리 속도 개선 (월→주)
@@ -991,6 +1029,7 @@ Cloud Function URL은 `FCM_FANOUT_URL` env 변수로 관리 (dev/prod 분리 가
 **스택:** TypeScript + `firebase-functions` v6 + `firebase-admin` v12 + Node 20 런타임.
 
 **배포 명령 (MVP — 수동):**
+
 ```bash
 # 개별 function 배포 (권장 — 테스트 범위 명확)
 firebase deploy --only functions:sendNotification
@@ -1001,6 +1040,7 @@ firebase deploy --only functions
 ```
 
 **Secrets 관리:**
+
 ```bash
 # 1st gen: functions config
 firebase functions:config:set cloud.api_key="$(openssl rand -hex 32)"
@@ -1012,6 +1052,7 @@ firebase functions:secrets:set CLOUD_FUNCTION_API_KEY
 **향후 자동화:** GitHub Actions (`.github/workflows/deploy-functions.yml`) — `main` 브랜치 `functions/` 하위 변경 push 시 `firebase deploy --only functions` 자동 실행. MVP는 수동으로 충분.
 
 **로컬 테스트:**
+
 ```bash
 # Firestore + Functions emulator
 firebase emulators:start --only functions,firestore
@@ -1044,6 +1085,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 ## 검증 방법
 
 ### Phase 1
+
 1. `yarn ios`로 빌드 — messaging + notifee + firestore pod 확인
 2. `ensureRegistered()` 성공 로그 (iOS)
 3. `checkPermission()` → 팝업 안 뜸
@@ -1054,6 +1096,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 8. foreground 메시지 수신 → 콘솔 로그
 
 ### Phase 2
+
 1. Firestore `devices/{deviceId}` 문서 생성 확인 (locale 포함)
 2. `users/{uid}.locale` + `users/{uid}/preferences` 읽기/쓰기
 3. auth 변경 → 토큰 재등록
@@ -1061,6 +1104,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 5. `getOrCreateDeviceId()` → MMKV persist 확인
 
 ### Phase 3
+
 1. 알림 설정 화면 → 탭/학과 목록
 2. 마스터 ON → OS 팝업 → 토큰 획득
 3. 카테고리/학과 토글 → Firestore 즉시 반영
@@ -1073,12 +1117,14 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 10. 공지 탭 진입 → 앱 아이콘 뱃지 0으로 리셋 + 탭바 뱃지 제거 (`useFocusEffect`)
 11. 언어 변경 → `users.locale` → Cloud Function → `devices.locale` 전파 확인 (다음 알림부터 언어 변경)
 12. **Firebase Analytics DebugView 실시간 확인:**
+
     ```bash
     # Android
     adb shell setprop debug.firebase.analytics.app com.zoyoong.skkubus
 
     # iOS: Xcode → Edit Scheme → Run → Arguments → "-FIRDebugEnabled"
     ```
+
     Firebase Console → Analytics → DebugView에서 알림 수신/탭 시 다음 이벤트가 실시간 기록되는지 확인:
     - `notification_receive` (백그라운드·quit 수신)
     - `notification_open` (탭)
@@ -1088,6 +1134,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
     `fcmOptions.analyticsLabel`(예: `notice_scholarship_v1`) 값이 이벤트 파라미터에 태깅되는지 함께 확인. → 카테고리별 오픈율 분석에 활용.
 
 ### 통합 E2E (출시 전)
+
 1. 서버 공지 발행 → Android/iOS 알림 수신 + 앱 아이콘 뱃지 +1
 2. 탭 → 딥링크 → 공지 상세 → 공지 탭으로 돌아오면 뱃지 자동 리셋
 3. 언어 전환 → 다음 알림 언어 변경
@@ -1124,7 +1171,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 ### Phase 1: FCM Foundation — ✅ 완료 (실기기 토큰 검증 + 테스트 알림 수신 완료)
 
 | 단계 | 상태 | 비고 |
-|---|---|---|
+| --- | --- | --- |
 | 1.1 패키지 설치 | ✅ | messaging@23.8.8, firestore@23.8.8, notifee@9.1.8 |
 | 1.2 app.config.ts | ✅ | messaging plugin + aps-environment + UIBackgroundModes |
 | 1.3 firebase.json | ✅ | messaging_auto_init + auto_register false |
@@ -1141,7 +1188,7 @@ Cloud Function이 유휴 → 첫 호출 2~5초 지연.
 ### 추가 작업 (Phase 1 과정에서)
 
 | 작업 | 상태 | 비고 |
-|---|---|---|
+| --- | --- | --- |
 | withPushNotificationsCapability.js | ✅ | SystemCapabilities.com.apple.Push 추가 plugin |
 | provisioning profile 갱신 | ✅ | Apple Developer Portal Push 활성화 → dist.mobileprovision에 aps-environment 포함 확인 |
 | debug-fcm.tsx | ✅ | 임시 FCM 디버그 화면 (permission, deviceId, token 확인 + 복사) |
@@ -1169,6 +1216,7 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - `plugins/withPushNotificationsCapability.js` — **영구 유지** (production 필수).
 
 **Phase 2 이후 공식 확인 수단:**
+
 - FCM 토큰: Firestore Console → `devices/{deviceId}` 문서 직접 확인 or 디버그 화면
 - 권한 상태: iOS 설정 앱 / Android 앱 정보 → 알림 or 디버그 화면
 - 수신 테스트: Firebase Console → Cloud Messaging → Send test message
@@ -1176,6 +1224,7 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 ### Phase 2: Firestore Integration — ✅ 완료 (2026-04-20)
 
 **주요 커밋:**
+
 - `b865c33` — Phase 2 Firestore device/preferences bootstrap (types, service, rules, store, hook, useAppInit integration)
 - `b599a23` — requestPermission 복귀 + on-device debug screen (checkPermission이 팝업 못 띄워 신규 기기 bootstrap 미발동 이슈 해결)
 - `9315e8b` — locale이 preference order를 따르고 매 launch마다 refresh (기존 users.locale stale 값 문제 해결)
@@ -1193,6 +1242,7 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - [x] OTA 2회 beta 채널 배포 (debug screen + locale refresh fix)
 
 **Phase 2 구현 세부:**
+
 - `users/{uid}.locale`은 매 launch마다 OS detect 결과로 refresh (preference list iterate, `getLocales()` 전체 순회 후 첫 supported 반환). `'zh'` → `'ko'` fallback.
 - `devices/{deviceId}.locale`도 osLocale 직접 사용 (stale userDoc 무시).
 - bootstrap은 fire-and-forget — withRetry 3회 (1s/2s/4s) 후 실패 시 Crashlytics `notifications/init` 라벨로 기록, 앱 기동 block 금지.
@@ -1201,6 +1251,7 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 ### Phase 3: UI + 뱃지 — ✅ 완료 (2026-04-22)
 
 **완료 커밋 요약 (chronological):**
+
 - `497ebe9 feat(notifications): Phase 3 — settings UI + badge + foreground display` — UI + 뱃지 + 포그라운드 Notifee
 - `082a14b fix(notifications): flush pending write on unmount` — (후속 commit 81cb070 로 대체)
 - `085c2ce fix(notifications): force-refresh App Check token before Firestore writes` — primeAppCheck 도입
@@ -1216,6 +1267,7 @@ Phase 2 진행 중 실기기 진단이 필요해 일부 디버그 코드를 의�
 - `b2ca214 fix(app-check): strip debug token from beta/production bundles` — prod/beta 번들에서 debug token extras 제거
 
 **실기기 / TestFlight 확인 남은 것:**
+
 - [ ] TestFlight 빌드에서 App Attest 경로로 App Check 정상 작동
 - [ ] Android 실기기 / Emulator 에서 Play Integrity 경로 확인
 - [ ] 백그라운드/킬드 수신 시 OS 자동 표시 + 뱃지 +1
@@ -1274,11 +1326,11 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 **실기기(App Attest) 시에는 debug token 이 존재해도 무시됨.** `__DEV__ === false` 에서 `provider: 'appAttestWithDeviceCheckFallback'` 이 선택돼 `FIRAppAttestProvider` 가 instantiate, debug token 은 dead code path. `EAS_BUILD_PROFILE` gate 까지 같이 쓰면 bundle 자체에도 안 들어감.
 
 **시뮬레이터 동작 안 할 때 디버그 순서:**
+
 1. Metro 에 `[fcm-diag] app-check refresh FAILED: ... 403 ... "App attestation failed"` 뜨는지 확인 (diag 로그 유지 중)
 2. `.env` 의 `FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS` 값과 Firebase Console → Project → App Check → iOS 앱 (`com.example.skkumap`) → Manage debug tokens 리스트가 **대소문자까지 정확히** 일치하는지 확인
 3. `.env` 만 바꾸고 rebuild 안 했으면 `npx expo prebuild --clean && yarn ios` — `app.config.ts extras` 는 빌드 타임에 박히므로 네이티브 재빌드 필요
 4. 위 모두 맞는데 여전히 실패면 `Constants.expoConfig?.extra.firebaseAppCheckDebugTokenIos` 가 런타임에 undefined 아닌지 확인 (빌드 시 `.env` 를 못 읽었을 수 있음)
-
 
 ### Phase 3 디버깅 기록 #2: preferences ↔ devices drift (원래 "Kill 때만 반영" 증상의 진짜 원인, 2026-04-23)
 
@@ -1287,12 +1339,14 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 **원인:** `users/{uid}/preferences/main` 과 `devices/{deviceId}` 가 같은 `subscribedTopics` / `notificationsEnabled` 필드를 **중복 저장 (replica)** 하도록 설계됨 (쿼리 최적화 목적 — Cloud Function이 devices를 topic별로 쿼리해서 FCM 발송). 원래 Phase 2 설계는 서버에 Firestore `onWrite` 트리거 Cloud Function `syncPreferencesToDevices` 를 두고 복제를 담당시킴. **이 Cloud Function은 배포되지 않았음.** `NotificationSettingsScreen.tsx:104` 주석 참조.
 
 결과:
+
 - `updatePreferences()` (토글 시 호출) — `users/.../preferences/main` 만 씀
 - `registerDevice()` (devices 문서 쓰는 유일 경로) — **bootstrap / token refresh / auth transition 시에만 호출** (`useAppInit`)
 - 토글 시 → preferences 는 실시간 업데이트 ✅, devices 는 stale ❌
 - 앱 kill + 재실행 → `initializeFirestoreNotifications` 이 fresh preferences 읽어서 `registerDevice` 로 devices 에 복제 → "재실행해야 반영" 증상
 
 **실제 검증 (2026-04-23 세션 로그):**
+
 - `preferences/main.subscribedTopics = [academic]` (updateTime 10:53:34, 마지막 토글 시각과 정확히 일치)
 - `devices/{deviceId}.subscribedTopics = [recruitment, scholarship, career, academic, event]` (updateTime 10:51:39 — 그 세션 bootstrap 때 값 그대로)
 - FCM 타겟팅은 devices 기반 → 유저가 academic만 남기려 해도 실제 푸시는 5개 다 배송됨.
@@ -1300,7 +1354,7 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 **수정 옵션:**
 
 | 옵션 | 내용 | 비용 | 다기기 커버 |
-|------|------|------|-------------|
+| ------ | ------ | ------ | ------------- |
 | A | 클라이언트 사이드 미러: `updatePreferences` 내부에서 `devices/{deviceId}` 도 같은 트랜잭션으로 업데이트 | 5분 | 현재 기기만 |
 | B | Cloud Function `syncPreferencesToDevices` (Phase 2 원래 설계) 실제 배포 | CF 배포 + Firestore onWrite trigger 비용 | ✅ 다기기 전부 |
 | C | A + B 병행 — 현재 기기는 client-side zero-latency, 다기기는 CF 가 propagate | A+B 합산 | ✅ + 최저 latency |
@@ -1313,7 +1367,7 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 ### CF 배포 현황 및 잔여 (2026-04-23)
 
 | # | CF 이름 | 상태 | 비고 |
-|---|--------|------|------|
+| --- | -------- | ------ | ------ |
 | 1 | `syncPreferencesToDevices` | ✅ 배포 완료 (2026-04-23, asia-northeast3) | drift 해결. retry + age guard + diff guard + maxInstances:10 |
 | 2 | `sendNotification` (HTTP) | ❌ 미배포 | **진짜 푸시 발송 entry point.** API key 인증 + type 분기. Node 백엔드가 공지 발행 시 호출. |
 | 3 | `handleNoticeNotification` | ❌ 미배포 | `sendNotification` 의 helper. devices 쿼리 + locale 그룹핑 + multicast FCM 발송 + UNREGISTERED cleanup. 실제 푸시 배송 담당. |
@@ -1327,6 +1381,7 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 ### Phase 3 운영 가이드 — 과금/보안 주의 (2026-04-23 배포 후)
 
 **예상 월 비용 (DAU 700–800 기준):**
+
 - Invocations: ~11K/월 (유저 토글 ~6K + bootstrap redundant ~5K)
 - 무료 티어 (2M invocations, 400K GB-초) 대비 < 1% — **월 $0 예상**
 - Firestore 유발 과금: 일 370 reads + 730 writes — 무료 티어 (50K reads/20K writes per day) 대비 < 4%
@@ -1334,7 +1389,7 @@ RN Firebase 의 `RNFBAppCheckProvider.m:44–48` 이 `debugToken` 인자를 받�
 **위험 레벨별 방어 체크:**
 
 | 위험도 | 항목 | 현재 방어 | 필요 추가 조치 |
-|--------|------|---------|------|
+| -------- | ------ | --------- | ------ |
 | 🔴 | Retry amplification (버그 시 최대 7일 재시도) | event age guard 10분 + maxInstances 10 | 운영 지표 주간 체크 |
 | 🔴 | Admin SDK 가 Firestore rules 우회 | `.where('uid', '==', uid)` 스코프 + whitelist field-value update | 코드 리뷰 시 반드시 확인 |
 | 🟡 | diff guard false negative | Set 비교 | `PreferencesDocument` 스키마 변경 시 PR review sync |
@@ -1365,7 +1420,8 @@ Default `onSnapshot()` 은 **metadata-only change 를 fire 하지 않음**. 즉 
 ```
 
 켜두면 매 write 당 기대 시퀀스:
-```
+
+```text
 fire N: fromCache=false, hasPendingWrites=true   (local echo, 새 data)
 fire N+1 (~50-500ms 뒤): fromCache=false, hasPendingWrites=false   (server ack, data 동일)
 ```
@@ -1379,7 +1435,8 @@ Firebase Console 자체가 Firestore listener 사용하는 웹앱이라 **stale 
 `~/.config/configstore/firebase-tools.json` 에 저장된 Firebase CLI refresh_token 으로 OAuth access_token 발급 → `firestore.googleapis.com/v1/...` 로 직접 조회. Node 스크립트 한 방에 가능 (이 세션의 검증 스크립트 참조, 대략 40줄).
 
 엔드포인트:
-```
+
+```text
 GET https://firestore.googleapis.com/v1/projects/skkubus-95723/databases/(default)/documents/<path>
 Authorization: Bearer <access_token>
 ```
@@ -1387,7 +1444,6 @@ Authorization: Bearer <access_token>
 `createTime` + `updateTime` 필드가 각 문서에 자동 포함되므로 drift 검증 시 두 replica 의 `updateTime` 비교로 바로 판정 가능.
 
 **일반 원칙:** data 복제를 두는 시스템에서는 두 replica 의 `updateTime` 비교를 디버깅 first-step으로 삼을 것. 같은 updateTime 이면 동기 OK, 다르면 drift 의심. 본 세션에서는 `updateTime` 차이 2분 = stale bootstrap 으로 즉시 결론 도출.
-
 
 - [ ] 3.1 NotificationSettingsScreen
 - [ ] 3.2 `app/notifications/settings.tsx` 라우트 (inbox 라우트 없음)
@@ -1407,18 +1463,20 @@ Authorization: Bearer <access_token>
 
 **Attempted 2026-04-22:** `yarn workspace mobile add @react-native-firebase/{app,auth,analytics,crashlytics,firestore,messaging}@^24.0.0` → `npx expo prebuild --clean` → `yarn ios`. Packages install cleanly (peer-dep warnings only), typecheck + lint pass, but iOS native build fails with:
 
-```
+```text
 ❌ RNFBFirestoreCommon.h:40 — expected a type (RCTPromiseRejectBlock)
 ❌ RNFBFirestoreCollectionModule.h:28 — declaration of 'RCTBridgeModule' must be
     imported from module 'RNFBApp.RNFBAppModule' before it is required
 ```
 
 This is the Firebase-with-modular-headers-and-static-frameworks error class. Our `plugins/withFirebaseModularHeaders.js` applies:
+
 - `$RNFirebaseAsStaticFramework = true`
 - `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES` on all pods
 - `CLANG_ENABLE_MODULES = NO` on targets starting with `RNFB*`
 
 These patches were sufficient for v23. In v24 RN Firebase apparently added stricter Clang module declarations for Firestore internals, and our post_install hook runs **before** `react_native_post_install` which may reset the flags. Several possible next steps (untried):
+
 - Move the withFirebaseModularHeaders snippet AFTER `react_native_post_install` in the post_install block so React Native's defaults don't override ours.
 - Widen `CLANG_ENABLE_MODULES = NO` to more targets (not just RNFB*) — maybe dependencies of RNFB need it too.
 - Switch back to dynamic frameworks (`useFrameworks: "dynamic"` in expo-build-properties) — v24 may assume that.
@@ -1439,7 +1497,7 @@ App Groups UserDefaults sync, NSE 타겟, NSE provisioning profile, `mutable-con
 
 ### 구현 구조
 
-```
+```text
 크롤러/백엔드 ──(POST + X-API-Key)──▶ sendNotification (dispatcher)
                                             │
                                             ▼
@@ -1461,7 +1519,7 @@ App Groups UserDefaults sync, NSE 타겟, NSE provisioning profile, `mutable-con
 ### 핵심 파일
 
 | 파일 | 역할 |
-|---|---|
+| --- | --- |
 | `functions/src/send-notification.ts` | HTTP dispatcher — `defineSecret('FCM_API_KEY')` + timingSafeEqual + POST-only + type switch |
 | `functions/src/handle-notice.ts` | notice 핸들러 — payload 검증 + devices 쿼리 + locale 그룹 + FCM 발송 + allowlist cleanup + 구조화 로깅 |
 | `functions/src/channels.ts` | `mapCategoryToChannel()` — 앱 측 `notification-channels.ts` 와 SYNC |
@@ -1580,7 +1638,7 @@ PreferencesDocument = {
 ### 컴포넌트
 
 | 파일 | 역할 |
-|---|---|
+| --- | --- |
 | `functions/src/notifications/tabsContract.ts` | 백엔드 categories.json의 부분 mirror — `FIXED_TAB_KEYS` (5) + `KNOWN_PICKER_KEYS` (4). 백엔드 새 탭 추가 시 같은 release에서 갱신 필수. 컨벤션: picker key === topic prefix. |
 | `functions/src/notifications/derive.ts` | `deriveSubscribedTopics` 순수 함수. enabled OFF → 빈 배열 (defense in depth). Unknown picker key → `logger.warn` (drift 조기 감지). |
 | `functions/src/triggers/onPreferencesWrite.ts` | `users/{uid}/preferences/main` onDocumentWritten 트리거. Guard 1: intent 변경 없으면 skip (self-loop 방지). Guard 2: derive 결과가 현재값과 동일하면 skip (idempotency). retry: false. |
@@ -1593,7 +1651,7 @@ PreferencesDocument = {
 
 ### Firestore Rules (Phase F 봉쇄)
 
-```
+```text
 match /users/{uid}/preferences/main {
   allow read: if auth.uid == uid;
   allow create: if auth.uid == uid && (subscribedTopics absent or empty);
@@ -1624,6 +1682,7 @@ Task #12가 Google→anon 방향만 커버했고 anon→Google (onboarding 첫 �
 **Discriminator 결정 — 명시 필드 채택.** v3까지 implicit 시그널(`pickerSelections.dept ≥1` non-empty)을 검토했지만 출시 전이라 schema migration 부담 0 → `PreferencesDocument`에 `onboardedAt: Timestamp | null` 명시 필드 추가가 더 정직. JSDoc 시간폭탄(wizard step 2 invariant) 회피 + Rules가 'null→timestamp' 한 방향 immutability 강제로 데이터 레이어가 contract 보장.
 
 **구현 — dual-write always-overwrite**:
+
 - **Primary path (인라인 핸들러)**: `notices/index.tsx`의 `handleExistingAccountSignIn` — OnboardingLanding 보조 액션 "이미 가입한 적 있어요" → Google sign-in 직후 `getPreferences(uid)` 명시 read → `onboardedAt != null && pickerSelections.dept.length > 0`이면 `useSettingsStore.restoreOnboardingFromRemote()` 즉시 호출 (UX 즉시성, flicker 없음). 신규 가입자 또는 corrupt state면 `/onboarding` push.
 - **Fallback path (cold-start)**: `useAppInit.ts`의 prefs listener가 동일한 자동복원 로직을 fallback으로 호출 — 평범한 부팅(이미 인증된 returning user)에서도 게이트 자동 해제. listener는 navigate 못하니 corrupt state는 log-only.
 - **`restoreOnboardingFromRemote` action** (`packages/shared/src/store/settings.ts`): always-overwrite (no idempotency guard). 의도: SSOT mirror = eventual consistency > idempotency. 부수효과: account-switch (logout A → signin B) 시 A의 stale dept를 B 값으로 자동 self-heal. dual-write는 동일 데이터로 race-free.

@@ -1,24 +1,31 @@
+---
+title: Splash Animation (SKKUverseSplash)
+type: explanation
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: internal
+---
+
 # Splash Animation (SKKUverseSplash)
 
-## Overview
+> 앱 시작 시 OTA 체크 + 초기화 동안 표시되는 "스꾸버스 → 스꾸유니버스" Toss-style 브랜드 애니메이션의 구현 구조, 웹 프로토타입 → Reanimated 포팅 차이점, InitGate 연동. 스플래시 모션을 튜닝하거나 초기화 흐름을 건드리는 사람이 읽는다.
 
-앱 시작 시 OTA 업데이트 체크 + 앱 초기화 동안 표시되는 브랜드 애니메이션. "스꾸버스" 워드마크가 갈라지며 "스꾸유니버스"로 변환되는 Toss-style 모션.
+## 문제 / 배경
 
-웹 프로토타입(`skkuverse-splash.jsx`)을 React Native + Reanimated로 1:1 포팅.
+앱 시작 시 OTA 업데이트 체크 + 앱 초기화 동안 표시되는 브랜드 애니메이션이 필요했다. "스꾸버스" 워드마크가 갈라지며 "스꾸유니버스"로 변환되는 Toss-style 모션. 웹 프로토타입(`skkuverse-splash.jsx`)을 React Native + Reanimated로 1:1 포팅했다 — 그런데 CSS의 여러 기능(속성별 transition, gradient, filter blur, em 단위)이 RN에 없어서 각각 등가물을 찾아야 했다. 그 매핑 결정들이 이 문서의 핵심이다.
 
-### Files
+## 구현 구조
 
 | File | Role |
-|------|------|
+| --- | --- |
 | `src/providers/SKKUverseSplash.tsx` | 애니메이션 컴포넌트 |
 | `src/providers/InitGate.tsx` | OTA/init gating + splash 오버레이 관리 |
 | `Downloads/skkuverse-splash.jsx` | 원본 웹 프로토타입 (참조용) |
 
----
+## 애니메이션 타임라인
 
-## Animation Timeline
-
-```
+```text
 t=0       mount, 흰 화면 + "스꾸버스" centered
 t=800ms   Step 1 — split: 스꾸 ←  → 버스 (0.85s TOSS_SPRING)
 t=1150ms  Step 2 — reveal: 유니 container maxWidth 0→open (0.9s SMOOTH)
@@ -28,15 +35,13 @@ t=1900ms  Step 3 — settle: accent line, subtitle, glow 등장
 t=2600ms  Step 4 — animation settled, dismiss 대기
 ```
 
----
-
 ## Web → React Native 포팅 핵심 차이점
 
 ### 1. CSS `cubic-bezier` → `Easing.bezier`
 
 웹의 핵심 커브 3가지를 Reanimated `Easing.bezier`로 정확히 매핑:
 
-```
+```text
 Web CSS                                    RN Reanimated
 ─────────────────────────────────────────────────────────
 cubic-bezier(0.34, 1.56, 0.64, 1)  →  Easing.bezier(0.34, 1.56, 0.64, 1)  // TOSS_SPRING
@@ -44,11 +49,11 @@ cubic-bezier(0.16, 1, 0.3, 1)     →  Easing.bezier(0.16, 1, 0.3, 1)      // SM
 cubic-bezier(0.0, 0.0, 0.2, 1)    →  Easing.bezier(0.0, 0.0, 0.2, 1)     // DECEL
 ```
 
-**중요**: 처음에 `withSpring({ damping: 14, stiffness: 120, mass: 1 })`으로 근사했으나, 이는 7.4% overshoot밖에 안 됨. 웹의 TOSS_SPRING은 **56% overshoot** — `withTiming` + 정확한 bezier 커브 사용이 필수.
+**중요**: 처음에 `withSpring({ damping: 14, stiffness: 120, mass: 1 })`으로 근사했으나, 이는 7.4% overshoot밖에 안 된다. 웹의 TOSS_SPRING은 **56% overshoot** — `withTiming` + 정확한 bezier 커브 사용이 필수.
 
 ### 2. CSS 다중 transition → 분리된 shared values
 
-웹 CSS는 하나의 요소에 속성별 다른 transition을 걸 수 있음:
+웹 CSS는 하나의 요소에 속성별 다른 transition을 걸 수 있다:
 
 ```css
 transition: opacity 0.45s ease,           /* 빠른 fade-in */
@@ -56,7 +61,7 @@ transition: opacity 0.45s ease,           /* 빠른 fade-in */
             filter 0.5s ease;              /* blur fade */
 ```
 
-Reanimated에서 하나의 shared value로 모든 속성을 구동하면 같은 커브가 적용됨 → **"쫀득한" 느낌이 사라짐**.
+Reanimated에서 하나의 shared value로 모든 속성을 구동하면 같은 커브가 적용됨 → **"쫀득한" 느낌이 사라진다**.
 
 **해결**: 속성별 별도 shared value:
 
@@ -73,6 +78,7 @@ c1Transform.value = withTiming(1, { duration: 850, easing: TOSS_SPRING });
 ### 3. CSS `max-width` transition → Reanimated `maxWidth`
 
 웹의 유니 reveal:
+
 ```css
 max-width: isRevealing ? "4.8em" : "0em";
 transition: max-width 0.9s SMOOTH;
@@ -90,9 +96,10 @@ const revealAnim = useAnimatedStyle(() => ({
 
 ### 4. CSS `linear-gradient` / `radial-gradient` → react-native-svg
 
-RN에는 CSS gradient가 없음. `react-native-svg`로 정확히 재현:
+RN에는 CSS gradient가 없다. `react-native-svg`로 정확히 재현:
 
 **Accent line** (transparent → green → transparent):
+
 ```tsx
 <SvgLinearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
   <Stop offset="0" stopColor={GREEN_LIGHT} stopOpacity={0} />
@@ -102,6 +109,7 @@ RN에는 CSS gradient가 없음. `react-native-svg`로 정확히 재현:
 ```
 
 **Radial glow** (rgba(43,90,58,0.08) → transparent):
+
 ```tsx
 <SvgRadialGradient id="glow" cx="50%" cy="50%" r="50%">
   <Stop offset="0" stopColor={GREEN} stopOpacity={0.08} />
@@ -111,12 +119,12 @@ RN에는 CSS gradient가 없음. `react-native-svg`로 정확히 재현:
 
 ### 5. CSS `filter: blur()` → `textShadowRadius` 애니메이션
 
-웹의 `filter: blur(0.8px)`는 텍스트 픽셀 자체를 부드럽게 만듦. RN에서 여러 접근을 시도한 끝에 `textShadowRadius` 애니메이션으로 결정.
+웹의 `filter: blur(0.8px)`는 텍스트 픽셀 자체를 부드럽게 만든다. RN에서 여러 접근을 시도한 끝에 `textShadowRadius` 애니메이션으로 결정.
 
 #### 시도한 접근들과 실패 이유
 
 | 접근 | 결과 |
-|------|------|
+| --- | --- |
 | `expo-blur` BlurView overlay | iOS의 frosted glass 효과 (UIVisualEffectView). CSS filter blur와 근본적으로 다른 효과. 직사각형 경계선이 뚜렷하게 보이고, 텍스트 자체를 흐리게 하는 게 아니라 위에 유리를 올리는 방식 |
 | └ overlay opacity 애니메이션 | BlurView를 감싼 부모의 opacity를 1→0으로 내리면 blur 강도가 줄어드는 게 아니라 레이어 전체가 투명해져 blur가 거의 안 보임 |
 | └ intensity 직접 애니메이션 | `Animated.createAnimatedComponent(BlurView)` + `animatedProps`로 intensity 100→0 애니메이트. blur는 강하게 보이지만 **직사각형 경계선 문제**는 해결 불가 — frosted glass의 구조적 한계 |
@@ -151,9 +159,9 @@ const c1Anim = useAnimatedStyle(() => ({
 
 ### 6. CSS `em` units → 명시적 계산
 
-CSS의 `em` 단위는 context에 따라 기준 font-size가 달라짐:
+CSS의 `em` 단위는 context에 따라 기준 font-size가 달라진다:
 
-```
+```text
 letterSpacing: "0.28em"  → 요소 자체 fontSize 기준
 marginTop: "0.85em"      → 부모에서 상속된 fontSize 기준 (16px default)
 transform: "-0.12em"     → baseStyle의 fontSize 기준
@@ -174,7 +182,7 @@ translateX: -(fontSize * 0.12)
 
 ### 7. CSS `clamp()` → `Math.min(Math.max())`
 
-```
+```text
 Web: clamp(2.6rem, 10vw, 5.6rem)
 RN:  Math.min(Math.max(screenW * 0.1, 42), 90)
 
@@ -185,6 +193,7 @@ RN:  Math.min(Math.max(screenW * 0.02, 10.4), 13.6)
 ### 8. Split — 비대칭 간격 ("스꾸 유니버스")
 
 웹 원본은 스꾸/버스 대칭 split이었으나, 앱에서는 **"스꾸 유니버스"** 레이아웃으로 변경:
+
 - 스꾸: 왼쪽으로 이동 (gap 생성)
 - 버스: 이동 없음 (유니와 붙어서 "유니버스"로 읽힘)
 
@@ -194,22 +203,22 @@ splitL.value = withDelay(T.SPLIT, withTiming(1, { duration: 850, easing: TOSS_SP
 // splitR은 애니메이션하지 않음 → 0 유지
 ```
 
-버스는 reveal 컨테이너의 `maxWidth` 성장에 의해 layout으로 오른쪽으로 밀리지만, 추가 `translateX`가 없으므로 유니와 간격 없이 붙음.
+버스는 reveal 컨테이너의 `maxWidth` 성장에 의해 layout으로 오른쪽으로 밀리지만, 추가 `translateX`가 없으므로 유니와 간격 없이 붙는다.
 
----
-
-## InitGate Integration
+## InitGate 연동
 
 ### Overlay 구조
 
 이전 (blocking):
-```
+
+```text
 phase=ota/init → static splash 반환 (children 안 렌더)
 phase=ready   → children 반환
 ```
 
 현재 (overlay):
-```
+
+```text
 항상 children 렌더 + SKKUverseSplash가 absoluteFillObject로 위에 덮음
 isReady=true + animation settled → splash fade-out → onDismiss
 ```
@@ -245,12 +254,10 @@ withRepeat(
 
 각 dot에 150ms stagger delay → 물결치는 로딩 효과.
 
----
-
-## Tuning Guide
+## 튜닝 가이드
 
 | 파라미터 | 현재 값 | 조정 방법 |
-|----------|---------|----------|
+| --- | --- | --- |
 | `revealTargetW` | `fontSize * 2.1` | IBM Plex Sans KR 폰트 기준, 실기기에서 잘리면 올리기 |
 | `textShadowRadius` 초기값 | `8` | 높이면 glow 넓음, 낮추면 미세. 웹 blur(0.8px) 대응 |
 | `textShadowColor` opacity | `0.5` | 높이면 glow 진하고, 낮추면 연함 |
@@ -259,9 +266,7 @@ withRepeat(
 | Split distance | `fontSize * 0.12` | 웹 동일 (0.12em) |
 | Char slide distance | `fontSize * 0.6` | 웹 동일 (0.6em) |
 
----
-
-## Native Build Requirement
+## 배포 시 주의 (native build requirement)
 
 스플래시 자체는 JS-only 코드라 OTA 업데이트 가능. 단, 폰트(IBM Plex Sans KR) 변경 시에는 `expo-font` 플러그인이 네이티브에 폰트를 임베딩하므로 네이티브 리빌드 필요:
 
@@ -269,3 +274,8 @@ withRepeat(
 npx expo prebuild --clean    # 네이티브 코드 재생성
 npx expo run:ios             # 빌드 + 실행
 ```
+
+## 관련 문서
+
+- [../how-to/ota-update.md](../how-to/ota-update.md) — OTA 발행 절차 (JS-only 변경 배포)
+- [docs/README.md](../README.md) — 문서 작성 규칙

@@ -10,7 +10,8 @@
   "scripts": {
     "android": "cd apps/mobile && expo run:android",
     "ios": "cd apps/mobile && expo run:ios",
-    "lint": "expo lint",
+    "lint": "expo lint && yarn lint:md",
+    "lint:md": "markdownlint-cli2",
     "test:rules": "JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin:$PATH firebase emulators:exec --only firestore \"node --test apps/mobile/firestore.rules.test.mjs\"",
     "postinstall": "patch-package"
   },
@@ -24,6 +25,7 @@
     "@firebase/rules-unit-testing": "^5.0.0",
     "@phosphor-icons/core": "^2.1.1",
     "@resvg/resvg-js": "^2.6.2",
-    "firebase": "^12.12.1"
+    "firebase": "^12.12.1",
+    "markdownlint-cli2": "^0.23.1"
   }
 }

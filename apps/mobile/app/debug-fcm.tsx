@@ -31,9 +31,10 @@ import { getOrCreateDeviceId } from '@/services/device-id';
 import { initializeFirestoreNotifications } from '@/services/firestore-notifications';
 
 /**
- * On-device Phase 2 debug screen — reachable via the persistent red "FCM"
- * floating button on the campus tab (kept intentionally visible even in
- * TestFlight builds so real-device diagnostics are possible without Xcode).
+ * On-device Phase 2 debug screen. ORPHANED (2026-07): the red "FCM" entry
+ * button on the campus tab was removed, so this screen is registered in
+ * app/_layout.tsx but unreachable from UI — navigate programmatically
+ * (router.push('/debug-fcm')) if needed. Removal candidate.
  *
  * Shows: platform + auth + permission + tokens + Zustand store state +
  * Firestore doc existence / contents.
