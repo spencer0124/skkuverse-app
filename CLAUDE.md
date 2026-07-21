@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+문서는 Diátaxis 구조 (`docs/how-to|reference|explanation|decisions|internal|plans`). **새 문서 작성·수정 전 `docs/README.md`(인덱스 + 작성 규칙 SSOT) 필독** — frontmatter 스키마, kebab-case, 값 복사 금지(버전·수치는 source-of-truth 파일 참조) 규칙. 마크다운 린트는 `yarn lint:md` (루트 `yarn lint`에 체인됨).
+
 ## Project Overview
 
 Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorepo** with a React Native mobile app and a companion webview SPA.
