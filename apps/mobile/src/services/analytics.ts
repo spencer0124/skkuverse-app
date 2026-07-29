@@ -340,6 +340,7 @@ export type NoticesContentType =
   | 'picker_close'
   | 'picker_row'
   | 'picker_chip_remove'
+  | 'picker_unsupported'
   | 'search_back'
   | 'detail_share'
   | 'detail_open_original'
