@@ -190,6 +190,7 @@ export {
   parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
+  hasBundledExcludeReasonCopy,
   resolvePickerSelection,
   computeOnboardingPickerSeed,
   highlightMatches,
