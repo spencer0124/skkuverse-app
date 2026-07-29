@@ -34,6 +34,11 @@ set +a
 # (updates.requestHeaders에 expo-app-id 없음)을 거부하며 발행이 중단됐다.
 # 버전을 올릴 땐 `npx eoas init` 마이그레이션을 함께 검증할 것.
 EOAS_VERSION="2.3.19"
+# Publishing to the WRONG runtimeVersion succeeds silently and reaches no
+# device (2026-07-29 incident). Surface the target loudly before publishing;
+# verify it matches the store builds' runtime (see docs/how-to/ota-update.md).
+RT="$(grep -o 'runtimeVersion: *"[^"]*"' app.config.ts | head -1 | sed 's/.*"\(.*\)"/\1/')"
+echo "🎯 publishing for runtimeVersion=${RT} — store builds must match or nobody receives this"
 RELEASE_CHANNEL=production npx -y "eoas@${EOAS_VERSION}" publish --branch production --nonInteractive --platform ios
 RELEASE_CHANNEL=production npx -y "eoas@${EOAS_VERSION}" publish --branch production --nonInteractive --platform android
 

@@ -88,6 +88,13 @@ OCI A1 (ARM64, 4 OCPU, 24GB)
 ## 사전 준비
 
 - **워킹 트리가 clean해야 함** (커밋 필요) — eoas의 dirty-tree 체크에 걸린다.
+- ⚠️ **`runtimeVersion`이 실제 스토어 배포 빌드의 런타임과 일치하는지 확인** — 다르면 발행이 에러 없이 성공하지만 **어떤 기기도 받지 못한다** (조용한 무효). 레포의 runtimeVersion은 미출시 네이티브 빌드용으로 미리 bump돼 있을 수 있다 (2026-07-29 인시던트: 레포 3.5.5 vs 배포 빌드 3.5.4 — 4회 발행이 전부 허공행). 실기기 런타임 확인:
+
+  ```bash
+  ssh oracle "docker compose -f /opt/skkuverse-codepush/docker-compose.yml logs --since 1h | grep -o 'Expo-Runtime-Version:\[[^]]*\]' | sort | uniq -c"
+  ```
+
+  불일치 시: 배포 빌드가 마지막으로 받은 OTA 태그의 커밋(runtimeVersion이 일치하는 트리)에서 백포트 브랜치를 만들어 필요한 커밋만 체리픽 후 발행한다. 현재 레포 번들을 옛 런타임으로 그대로 발행하면 그 사이 추가된 네이티브 모듈 사용 코드(예: 스플래시의 LinearGradient)가 **부팅 크래시**를 낼 수 있으므로 금지.
 - **`EXPO_TOKEN`**은 `.env.ota.local`에 저장 (gitignored). 스크립트가 자동으로 읽음. 없으면 [expo.dev](https://expo.dev) → Settings → Access tokens에서 발급 후 `.env.ota.local`에 `EXPO_TOKEN=<토큰>` 추가.
 - `app.config.ts`의 `updates` 설정이 아래 형태로 되어 있는지 확인 (`runtimeVersion` 실제 값은 `apps/mobile/app.config.ts`에서 확인):
 
