@@ -2,6 +2,7 @@ export {
   parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
+  hasBundledExcludeReasonCopy,
 } from './parser';
 export { resolvePickerSelection, computeOnboardingPickerSeed } from './picker';
 export { highlightMatches } from './highlight';
