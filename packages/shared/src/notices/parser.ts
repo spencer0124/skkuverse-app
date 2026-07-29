@@ -32,13 +32,19 @@ const KNOWN_EXCLUDE_REASONS: ReadonlySet<ExcludeReasonKey> = new Set<ExcludeReas
   'temporarilyUnavailable',
 ]);
 
-function asExcludeReason(raw: unknown): ExcludeReasonKey | null {
-  // Forward-compat: unknown enum values from a newer server are downgraded to
-  // null rather than rejected, so an enum addition can be deployed
-  // server-first without breaking existing clients.
-  return typeof raw === 'string' && KNOWN_EXCLUDE_REASONS.has(raw as ExcludeReasonKey)
-    ? (raw as ExcludeReasonKey)
-    : null;
+/** True when the app bundle carries fallback i18n copy for this reason key. */
+export function hasBundledExcludeReasonCopy(
+  key: string | null,
+): key is ExcludeReasonKey {
+  return key !== null && KNOWN_EXCLUDE_REASONS.has(key as ExcludeReasonKey);
+}
+
+function asExcludeReason(raw: unknown): string | null {
+  // Keys are no longer whitelisted here: display copy comes from the
+  // server-resolved `excludeReasonText`, so an unknown key is fine — the
+  // UnsupportedDeptSheet falls back to bundled i18n only for known keys
+  // (hasBundledExcludeReasonCopy) and stays closed otherwise.
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
 }
 
 // ── Internal helpers ──
@@ -258,6 +264,8 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
           // doesn't render every dept as unsupported.
           noticeAvailable: asBool(ss.noticeAvailable, true),
           excludeReason: asExcludeReason(ss.excludeReason),
+          // Server-resolved localized copy; null on pre-SSOT servers.
+          excludeReasonText: asNullableString(ss.excludeReasonText),
         };
       });
       const validIds = new Set(sources.map((s) => s.id));
