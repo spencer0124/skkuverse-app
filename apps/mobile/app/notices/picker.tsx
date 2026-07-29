@@ -412,18 +412,33 @@ function NoticesPickerScreenInner() {
           const isSelected = pending.includes(item.id);
           const atMax = pending.length >= maxSelection;
           if (!item.noticeAvailable) {
+            // Grandfathered state: a source retired AFTER the user selected
+            // it stays in `pending` (resolvePickerSelection keeps any id
+            // still present in picker.sources). Render the real selection
+            // state and let tap deselect it like any other selected row —
+            // once deselected, tapping again hits the unselected branch and
+            // opens the explanation sheet (which also tells them why they
+            // can't re-add it).
             return (
               <DeptRow
                 name={item.name}
-                selected={false}
+                selected={isSelected}
                 unsupported
                 variant="checkbox"
                 onPress={() => {
-                  logNoticesContentSelect({
-                    content_type: 'picker_unsupported',
-                    item_id: item.id,
-                  });
-                  setUnsupportedTapped(item);
+                  if (isSelected) {
+                    logNoticesContentSelect({
+                      content_type: 'picker_row',
+                      item_id: item.id,
+                    });
+                    handleToggle(item.id);
+                  } else {
+                    logNoticesContentSelect({
+                      content_type: 'picker_unsupported',
+                      item_id: item.id,
+                    });
+                    setUnsupportedTapped(item);
+                  }
                 }}
               />
             );
