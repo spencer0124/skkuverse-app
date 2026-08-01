@@ -47,16 +47,18 @@ import {
   HouseIcon,
   type Icon as PhosphorIcon,
 } from 'phosphor-react-native';
-import { SdsColors, useMiniAppDetail } from '@skkuverse/shared';
+import {
+  SdsColors,
+  getWebOrigin,
+  useMiniAppDetail,
+  useMiniAppIndex,
+} from '@skkuverse/shared';
 import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
+import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
-import { GlassSurface } from '@/features/in-app-browser/components/glass';
-import {
-  faviconUrl,
-  DEFAULT_BROWSER_URL,
-} from '@/features/in-app-browser/protocol';
-import { miniAppLogoNumber } from '@/features/in-app-browser/mini-app-assets';
+import { GlassSurface } from '@/features/mini-app/components/glass';
+import { faviconUrl } from '@/features/mini-app/protocol';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
@@ -65,9 +67,6 @@ const VERIFIED_COLOR = SdsColors.brand;
 
 /** 표시용 URL — 프로토콜/끝 슬래시 제거. */
 const displayUrl = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-
-/** 미니앱 공유/홈추가 링크가 가리키는 웹 도메인(universal link + Toss식 런처). */
-const WEB_ORIGIN = 'https://skkuverse.com';
 
 // ── iOS 26 Safari식 하단 바 collapse 메트릭 ──
 // 스크롤 다운 → 좌/우 클러스터 축소·페이드, 중앙 pill 컴팩트화. 스크롤 업 → 역재생.
@@ -108,24 +107,32 @@ function Favicon({ uri, size }: { uri: string | null; size: number }) {
 }
 
 /**
- * 서비스 로고 — 레지스트리 번들 로고(localSource)가 있으면 우선 표시, 없으면 파비콘(네트워크),
+ * 서비스 로고 — 레지스트리 로고(서버 호스팅 URL)를 우선 표시, 없으면 파비콘(네트워크),
  * 둘 다 없거나 로딩 실패 시 Globe 아이콘으로 최종 폴백.
+ *
+ * 번들 require() 로고는 제거됨 — 레지스트리가 서버 소유가 되면서 로고도
+ * `logo.uri`(skkuverse.com/miniapps/<id>.png)로 내려온다. 미니앱 추가에 앱
+ * 릴리스가 필요 없다는 게 이 전환의 목적이므로, 로고만 번들로 남기면 그 목적이 깨진다.
  */
 function ServiceLogo({
-  localSource,
+  logoUri,
   faviconUri,
   size,
 }: {
-  localSource?: number;
+  logoUri?: string;
   faviconUri: string | null;
   size: number;
 }) {
-  if (localSource) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [logoUri]);
+
+  if (logoUri && !failed) {
     return (
       <Image
-        source={localSource}
+        source={{ uri: logoUri }}
         style={{ width: size, height: size, borderRadius: size * 0.22 }}
         resizeMode="contain"
+        onError={() => setFailed(true)}
       />
     );
   }
@@ -196,17 +203,33 @@ function LinkRow({ label, url, onPress }: { label?: string; url: string; onPress
 }
 
 export default function MiniAppScreen() {
-  const params = useLocalSearchParams<{ serviceName?: string; startUrl?: string; id?: string }>();
-  const startUrl = params.startUrl || DEFAULT_BROWSER_URL;
-  const serviceName = params.serviceName ?? '';
-  // 레지스트리 미니앱 slug(있으면 정보 시트 콘텐츠·공유 링크·홈 추가 활성화).
+  // slug만 라우트를 건넌다 — 이름·시작 URL·로고는 전부 레지스트리(서버)에서 해석.
+  // 예전처럼 serviceName/startUrl을 params로 받으면 호출부가 레지스트리와 어긋난
+  // 셸을 그릴 수 있다.
+  const params = useLocalSearchParams<{ id?: string }>();
   const miniAppId = params.id;
   const insets = useSafeAreaInsets();
 
-  // 레지스트리 상세 — 인증 배지·소개·관련 링크·공지 배너의 단일 출처. id 없으면 undefined.
+  // 레지스트리 상세 — 시작 URL·인증 배지·소개·관련 링크·공지 배너의 단일 출처.
   const { data: detail } = useMiniAppDetail(miniAppId);
-  // 번들 로고(slug 기준). 미등록이면 undefined → 파비콘 폴백.
-  const localLogo = miniAppId ? miniAppLogoNumber(miniAppId) : undefined;
+  // 인덱스 엔트리 — 표시 이름과 로고. 홈 그리드가 이미 캐시해둔 쿼리를 재사용.
+  const { data: index } = useMiniAppIndex();
+  const entry = useMemo(
+    () => (miniAppId ? index?.find((e) => e.id === miniAppId) : undefined),
+    [index, miniAppId],
+  );
+
+  // http→https 업그레이드 필수 — iOS ATS가 cleartext http를 차단한다(NSURLErrorDomain
+  // -1022). 레지스트리에는 여전히 http startUrl이 있고(hssc/nsc/skkuw), 예전에는
+  // openMiniApp()이 push 직전에 정규화했다. URL 해석이 화면으로 내려오면서 그
+  // 단계가 사라졌었다. 서버 데이터를 고치는 것과 별개로 여기서 방어한다 —
+  // 레지스트리는 서버 소유라 언제든 http가 다시 들어올 수 있다.
+  const startUrl = detail?.startUrl ? normalizeWebUrl(detail.startUrl).url : '';
+  const serviceName = entry?.name ?? '';
+  const logoUri = entry?.logo?.uri;
+  // 공유/홈추가 링크가 가리키는 웹 도메인 — 서버 설정(GET /app/config). 아직 못
+  // 받았으면 null이고, 해당 메뉴는 degrade하거나 숨는다.
+  const webOrigin = getWebOrigin();
 
   const webRef = useRef<WebView>(null);
 
@@ -259,7 +282,11 @@ export default function MiniAppScreen() {
     };
   });
 
-  const [currentUrl, setCurrentUrl] = useState(startUrl);
+  // startUrl은 레지스트리 fetch 이후에야 정해지므로 초기값은 빈 문자열.
+  // `currentUrl || startUrl`로 읽어 상세 도착 시점에 자연히 채워지게 한다
+  // (effect로 setState하면 첫 페인트가 한 프레임 늦는다).
+  const [navigatedUrl, setNavigatedUrl] = useState('');
+  const currentUrl = navigatedUrl || startUrl;
   const [pageTitle, setPageTitle] = useState(serviceName);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
@@ -279,7 +306,7 @@ export default function MiniAppScreen() {
   // 네비게이션 상태(헤더 타이틀 폴백용).
   const onNavChange = useCallback(
     (nav: WebViewNavigation) => {
-      setCurrentUrl(nav.url);
+      setNavigatedUrl(nav.url);
       setCanGoBack(nav.canGoBack);
       canGoBackRef.current = nav.canGoBack;
       setCanGoForward(nav.canGoForward);
@@ -347,11 +374,15 @@ export default function MiniAppScreen() {
     webRef.current?.reload();
   }, []);
 
-  // 공유하기 — 등록 미니앱이면 "미니앱 진입 링크"(universal link)를, 아니면 현재 페이지 URL을
-  // OS 공유 시트로. 받은 사람이 앱이 있으면 그 미니앱이 바로 열림(Toss minion 링크 방식).
+  // 공유하기 — "미니앱 진입 링크"(universal link)를 OS 공유 시트로. 받은 사람이 앱이
+  // 있으면 그 미니앱이 바로 열림(Toss minion 링크 방식). webOrigin은 서버 설정에서
+  // 오므로, 아직 못 받았으면 현재 페이지 URL로 degrade — 하드코딩 폴백을 두면
+  // 서버가 SSOT라는 전제가 깨진다.
   const handleShare = useCallback(async () => {
     setMoreOpen(false);
-    const link = miniAppId ? `${WEB_ORIGIN}/p/m/${miniAppId}` : currentUrl;
+    const link =
+      webOrigin && miniAppId ? `${webOrigin}/p/m/${miniAppId}` : currentUrl;
+    if (!link) return;
     try {
       // iOS는 message+url을 별개 항목으로 취급해 URL이 두 번 노출됨 → 플랫폼당 하나만.
       // iOS: url(링크 프리뷰), Android: message(url prop 무시되므로 텍스트로).
@@ -359,20 +390,21 @@ export default function MiniAppScreen() {
     } catch {
       // 사용자 취소 등 — 무시.
     }
-  }, [miniAppId, currentUrl]);
+  }, [webOrigin, miniAppId, currentUrl]);
 
   // 홈 화면에 추가 — Toss식 제네릭 런처 페이지를 외부 Safari로 연다(인앱 WebView/SFSafariVC는
   // A2HS 불가). 페이지가 아이콘/이름을 쿼리로 받아 세팅하고, standalone 실행 시 skkuverse://m/<id>로
-  // 리다이렉트. 등록 미니앱(id)일 때만 메뉴 노출.
+  // 리다이렉트. 아이콘은 레지스트리 로고를 그대로 재사용 — 서버가 이미 절대 URL로 내려준다.
   const handleAddToHome = useCallback(() => {
     setMoreOpen(false);
-    if (!miniAppId) return;
+    if (!miniAppId || !webOrigin) return;
+    const icon = logoUri ?? `${webOrigin}/miniapps/${miniAppId}.png`;
     const url =
-      `${WEB_ORIGIN}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
+      `${webOrigin}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
       `&title=${encodeURIComponent(serviceName || pageTitle)}` +
-      `&iconUrl=${encodeURIComponent(`${WEB_ORIGIN}/miniapps/${miniAppId}.png`)}`;
+      `&iconUrl=${encodeURIComponent(icon)}`;
     void Linking.openURL(url).catch(() => {});
-  }, [miniAppId, serviceName, pageTitle]);
+  }, [miniAppId, webOrigin, logoUri, serviceName, pageTitle]);
 
   // TODO: 설정/고객센터 화면 연결. 현재는 시트만 닫는 더미.
   const handleSettings = useCallback(() => setMoreOpen(false), []);
@@ -432,20 +464,27 @@ export default function MiniAppScreen() {
         }}
       />
 
-      <WebView
-        ref={webRef}
-        source={{ uri: startUrl }}
-        style={styles.webview}
-        onNavigationStateChange={onNavChange}
-        onScroll={onScroll}
-        javaScriptEnabled
-        domStorageEnabled
-        startInLoadingState
-        // iOS: 웹뷰 히스토리 있을 때만 엣지 스와이프 = 웹뷰 back/forward (Android no-op).
-        // gestureEnabled={!canGoBack}와 짝 — 정확히 한 제스처 인식기만 활성.
-        allowsBackForwardNavigationGestures={canGoBack}
-        contentInset={{ bottom: 66 }}
-      />
+      {/* startUrl은 레지스트리에서 온다 — 도착 전에 마운트하면 about:blank를 한 번
+          로드하고 히스토리에 남아 뒤로가기가 빈 페이지로 간다. 그래서 URL이 생긴
+          뒤에만 마운트한다. */}
+      {startUrl ? (
+        <WebView
+          ref={webRef}
+          source={{ uri: startUrl }}
+          style={styles.webview}
+          onNavigationStateChange={onNavChange}
+          onScroll={onScroll}
+          javaScriptEnabled
+          domStorageEnabled
+          startInLoadingState
+          // iOS: 웹뷰 히스토리 있을 때만 엣지 스와이프 = 웹뷰 back/forward (Android no-op).
+          // gestureEnabled={!canGoBack}와 짝 — 정확히 한 제스처 인식기만 활성.
+          allowsBackForwardNavigationGestures={canGoBack}
+          contentInset={{ bottom: 66 }}
+        />
+      ) : (
+        <View style={styles.webview} />
+      )}
 
       {/* 상단 공지 배너 — 레지스트리 detail.noticeBanner가 있는 미니앱에만. GLASS_AVAILABLE이면
           Liquid Glass, 아니면 흰 박스+shadow 폴백(GlassSurface 내부 분기). 탭하면 닫힘. */}
@@ -524,7 +563,7 @@ export default function MiniAppScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="페이지 정보"
                 >
-                  <ServiceLogo localSource={localLogo} faviconUri={favicon} size={18} />
+                  <ServiceLogo logoUri={logoUri} faviconUri={favicon} size={18} />
                   <Text style={styles.titleText} numberOfLines={1}>
                     {serviceName || pageTitle}
                   </Text>
@@ -558,7 +597,7 @@ export default function MiniAppScreen() {
         <View style={styles.infoRow}>
           {/* 로고 + (인증 미니앱이면) 우하단 인증 체크 배지(흰 링으로 분리). */}
           <View style={styles.infoLogoWrap}>
-            <ServiceLogo localSource={localLogo} faviconUri={favicon} size={40} />
+            <ServiceLogo logoUri={logoUri} faviconUri={favicon} size={40} />
             {detail?.verified ? (
               <View style={styles.infoBadge}>
                 <SealCheckIcon size={18} weight="fill" color={VERIFIED_COLOR} />

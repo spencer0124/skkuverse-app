@@ -1,5 +1,4 @@
 import {
-  isMiniAppId,
   normalizeIncomingPath,
   resolveInitialTabRouteName,
   useSettingsStore,
@@ -27,8 +26,18 @@ const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
 
 // Mini-app entry: /m/<slug> (universal `…/p/m/<slug>` or scheme `skkuverse://m/<slug>`).
 // Same pending-holder pattern as notices — route to home, then the root layout's
-// PendingMiniAppLinkConsumer opens the registered mini-app on top. Membership is
-// checked against the registry so untrusted/unknown slugs fall through to home.
+// PendingMiniAppLinkConsumer opens the mini-app on top.
+//
+// SHAPE ONLY — registry membership is NOT checked here. This function runs
+// outside the React tree before the app mounts, so it cannot await the registry,
+// and the registry is now server-owned (no bundled copy to read synchronously).
+// Keeping a bundled seed just to answer this one question would reintroduce the
+// second source of truth the migration removed, so the membership check moved
+// to PendingMiniAppLinkConsumer, which is inside React and can await.
+//
+// Security is unchanged: an unknown slug still resolves to /(tabs)/home and
+// cannot push an arbitrary internal route. The consumer drops it on lookup
+// failure, so the worst case is a deep link that lands on home.
 const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
@@ -70,9 +79,9 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     }
 
     // Mini-app path → stash slug + route to home; PendingMiniAppLinkConsumer
-    // opens the mini-app shell on top. Only registry-known slugs qualify.
+    // resolves it against the server registry and opens the shell (or drops it).
     const miniAppMatch = pathname.match(MINIAPP_PATH_RE);
-    if (miniAppMatch && isMiniAppId(miniAppMatch[1])) {
+    if (miniAppMatch) {
       pendingMiniAppLink.set({ id: miniAppMatch[1] });
       return '/(tabs)/home';
     }

@@ -1,72 +1,108 @@
 /**
- * Mini-app data access. The async `MiniAppRepository` interface is the SINGLE
- * swap point for going server-driven: today `localMiniAppRepository` resolves
- * bundled JSON instantly; tomorrow a `remoteMiniAppRepository` does `fetch()` of
- * the same shape and call sites (hooks) don't change.
+ * Mini-app data access — server-driven.
  *
- * Sync accessors (`*Sync`) exist for two cases the async interface can't serve:
- * React Query `initialData` (no loading flicker in the local era) and
- * `+native-intent.tsx` (runs outside React, must validate a deep-link slug
- * synchronously).
+ * The registry lives in skkuverse-server (`src/miniapps/`, served at
+ * `GET /miniapps` and `GET /miniapps/:id`). Nothing is bundled here: adding or
+ * editing a mini-app is a server deploy, not an app release.
+ *
+ * There is deliberately NO bundled fallback. A baked-in copy would be a second
+ * source of truth that silently wins whenever the network is slow, which is
+ * exactly the drift this migration removes. What replaces it is a last-known-
+ * good MMKV cache: written only from successful responses, always beaten by a
+ * fresh fetch, and empty on a first launch that has never reached the server.
+ * That first-launch-offline case renders an empty mini-app grid, which is the
+ * accepted cost of having one source of truth.
  */
-import indexJson from './index.json';
-import skkuzineDetail from './details/skkuzine.json';
-import skkuwDetail from './details/skkuw.json';
-import hsscDetail from './details/hssc.json';
-import nscDetail from './details/nsc.json';
+import { safeGet } from '../api/safe-request';
+import { ApiEndpoints } from '../api/endpoints';
+import { readCache, writeCache } from '../store/mmkv-cache';
 import {
-  assertValidRegistry,
+  parseMiniAppDetail,
+  parseMiniAppIndex,
   type MiniAppDetail,
-  type MiniAppIndex,
   type MiniAppIndexEntry,
 } from './schema';
 
-// JSON literal types don't narrow the `logo.kind` / generic shapes to our unions,
-// so cast after the runtime integrity check below validates them for real.
-const index = indexJson as unknown as MiniAppIndex;
-const detailMap: Record<string, MiniAppDetail> = {
-  skkuzine: skkuzineDetail as unknown as MiniAppDetail,
-  skkuw: skkuwDetail as unknown as MiniAppDetail,
-  hssc: hsscDetail as unknown as MiniAppDetail,
-  nsc: nscDetail as unknown as MiniAppDetail,
-};
+const INDEX_CACHE_KEY = 'miniapp:index:v1';
+const detailCacheKey = (id: string) => `miniapp:detail:v1:${id}`;
 
-// Throw loud at module load if the bundled config is malformed (our own data).
-assertValidRegistry(index, detailMap);
+// ── Last-known-good cache ──
+// Cached blobs are re-parsed through the same tolerant parsers used on live
+// responses, so a value written by an older build can never inject a shape the
+// current one doesn't expect.
 
-const sortedIndex: MiniAppIndexEntry[] = [...index.miniApps].sort((a, b) => a.order - b.order);
-
-// ── Sync accessors (local era only) ──
-export function getMiniAppIndexSync(): MiniAppIndexEntry[] {
-  return sortedIndex;
-}
-export function getMiniAppDetailSync(id: string): MiniAppDetail | undefined {
-  return detailMap[id];
-}
-export function getMiniAppEntrySync(id: string): MiniAppIndexEntry | undefined {
-  return sortedIndex.find((e) => e.id === id);
-}
-/** Is this a registered mini-app slug? Used by the deep-link router. */
-export function isMiniAppId(id: string): boolean {
-  return Object.prototype.hasOwnProperty.call(detailMap, id);
+function readCachedIndex(): MiniAppIndexEntry[] | null {
+  return readCache(INDEX_CACHE_KEY, (raw) => {
+    const parsed = parseMiniAppIndex(raw);
+    return parsed.miniApps.length > 0 ? parsed.miniApps : null;
+  });
 }
 
-// ── Async repository (server-swap point) ──
+function readCachedDetail(id: string): MiniAppDetail | null {
+  return readCache(detailCacheKey(id), parseMiniAppDetail);
+}
+
+/**
+ * Cached index, or an empty array. Synchronous — this is what seeds React Query
+ * so the home grid paints without a flash on a warm start.
+ */
+export function getCachedMiniAppIndex(): MiniAppIndexEntry[] {
+  return readCachedIndex() ?? [];
+}
+
+/** Cached detail for a slug, or undefined. Synchronous. */
+export function getCachedMiniAppDetail(id: string): MiniAppDetail | undefined {
+  return readCachedDetail(id) ?? undefined;
+}
+
+// ── Repository ──
+
 export interface MiniAppRepository {
   getIndex(): Promise<MiniAppIndexEntry[]>;
   getDetail(id: string): Promise<MiniAppDetail>;
 }
 
-export const localMiniAppRepository: MiniAppRepository = {
+export const remoteMiniAppRepository: MiniAppRepository = {
   async getIndex() {
-    return sortedIndex;
+    const result = await safeGet(ApiEndpoints.miniApps(), (envelope) =>
+      parseMiniAppIndex(envelope.data),
+    );
+
+    if (result.ok && result.data.miniApps.length > 0) {
+      writeCache(INDEX_CACHE_KEY, result.data);
+      return result.data.miniApps;
+    }
+
+    // Network/parse failure, or a server that returned nothing usable. Serve
+    // the last-known-good rather than blanking a grid that was fine a moment
+    // ago; React Query keeps retrying underneath.
+    const cached = readCachedIndex();
+    if (cached) return cached;
+
+    if (!result.ok && __DEV__) {
+      console.debug('[miniapps] index fetch failed, no cache:', result.failure);
+    }
+    return [];
   },
+
   async getDetail(id) {
-    const detail = detailMap[id];
-    if (!detail) throw new Error(`Unknown mini-app id: ${id}`);
-    return detail;
+    const result = await safeGet(ApiEndpoints.miniAppDetail(id), (envelope) =>
+      parseMiniAppDetail(envelope.data),
+    );
+
+    if (result.ok && result.data) {
+      writeCache(detailCacheKey(id), result.data);
+      return result.data;
+    }
+
+    const cached = readCachedDetail(id);
+    if (cached) return cached;
+
+    // Unlike the index, this one throws: the caller is opening a specific
+    // mini-app, and there is no degraded shell worth showing without a
+    // startUrl. React Query surfaces it as an error state.
+    throw new Error(`Unknown or unavailable mini-app id: ${id}`);
   },
 };
 
-// Flip this to a `remoteMiniAppRepository` when the registry moves server-side.
-export const miniAppRepository: MiniAppRepository = localMiniAppRepository;
+export const miniAppRepository: MiniAppRepository = remoteMiniAppRepository;

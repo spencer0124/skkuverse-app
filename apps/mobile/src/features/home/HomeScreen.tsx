@@ -19,8 +19,7 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
-import { openMiniAppById } from '@/features/in-app-browser/open';
-import { miniAppTileImage } from '@/features/in-app-browser/mini-app-assets';
+import { openMiniAppById } from '@/features/mini-app/open';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -64,11 +63,11 @@ export function HomeScreen() {
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'building_map' });
           router.navigate('/(tabs)/campus' as never);
+          // 네이티브 SVG 지도. 서버는 이미 `route` → /map/hssc로 바뀌었는데 이 타일만
+          // 죽은 webview 지도(webview.skkuuniverse.com/#/map/hssc)를 계속 열고 있었다.
           handleSduiAction({
-            actionType: 'webview',
-            actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
-            webviewTitle: t('home.tile.buildingMap'),
-            webviewColor: '003626',
+            actionType: 'route',
+            actionValue: '/map/hssc',
           });
         },
       },
@@ -89,14 +88,16 @@ export function HomeScreen() {
     [router, t],
   );
 
-  // 미니앱 그리드 — 레지스트리(SSOT)에서 생성. 이름/URL/로고/순서 전부 registry에서.
+  // 미니앱 그리드 — 서버 레지스트리(SSOT)에서 생성. 이름/URL/로고/순서 전부 서버에서.
+  // 로고는 원격 URL(`{uri}`) — 번들 require() 맵은 제거됨. 서버가 아직 응답하지
+  // 않았거나 로고가 없으면 undefined라 타일은 이모지 폴백으로 그려진다.
   const { data: miniApps } = useMiniAppIndex();
   const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
     () =>
       (miniApps ?? []).map((app) => ({
         id: app.id,
         title: app.shortName ?? app.name,
-        imageSource: miniAppTileImage(app.logo),
+        imageSource: app.logo ? { uri: app.logo.uri } : undefined,
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: app.id });
           openMiniAppById(app.id);

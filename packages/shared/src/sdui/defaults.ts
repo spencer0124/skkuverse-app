@@ -20,10 +20,13 @@ export const DEFAULT_CAMPUS_SECTIONS: CampusSectionsResponse = {
           id: 'building_map',
           title: '건물지도',
           emoji: '\u{1F3E2}',
-          actionType: 'webview',
-          actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
-          webviewTitle: '건물지도',
-          webviewColor: '003626',
+          // Native SVG map. This entry used to point at the webview map
+          // (`webview.skkuuniverse.com/#/map/hssc`) long after the server had
+          // switched to `route` → /map/hssc, so an API failure resurrected a
+          // dead screen. Fallbacks that disagree with the server are worse than
+          // no fallback: they only ever surface when nobody is looking.
+          actionType: 'route',
+          actionValue: '/map/hssc',
         },
         {
           id: 'building_code',

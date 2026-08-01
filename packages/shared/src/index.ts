@@ -150,8 +150,20 @@ export type {
 export { getLocalizedText, floorBadge } from './types/building';
 
 // ── App config ──
-export type { PlatformConfig, AppConfig } from './app/parser';
+export type {
+  PlatformConfig,
+  WebviewConfig,
+  WebConfig,
+  AppConfig,
+} from './app/parser';
 export { parseAppConfig } from './app/parser';
+export {
+  setCachedAppConfig,
+  getCachedAppConfig,
+  getBridgeOrigins,
+  getWebOrigin,
+  resetAppConfigMemo,
+} from './app/config-cache';
 
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';

@@ -1,6 +1,7 @@
 export {
   MINIAPP_REGISTRY_VERSION,
-  assertValidRegistry,
+  parseMiniAppIndex,
+  parseMiniAppDetail,
   type MiniAppLogo,
   type MiniAppIndexEntry,
   type MiniAppIndex,
@@ -9,11 +10,9 @@ export {
   type MiniAppDetail,
 } from './schema';
 export {
-  getMiniAppIndexSync,
-  getMiniAppDetailSync,
-  getMiniAppEntrySync,
-  isMiniAppId,
-  localMiniAppRepository,
+  getCachedMiniAppIndex,
+  getCachedMiniAppDetail,
+  remoteMiniAppRepository,
   miniAppRepository,
   type MiniAppRepository,
 } from './repository';

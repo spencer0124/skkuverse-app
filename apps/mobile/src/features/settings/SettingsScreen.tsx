@@ -4,8 +4,6 @@ import { BadgeNavRow } from '@skkuverse/sds';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { logSettingsContentSelect } from '@/services/analytics';
-import { openMiniApp } from '@/features/in-app-browser/open';
-import { DEFAULT_BROWSER_URL } from '@/features/in-app-browser/protocol';
 import * as Updates from 'expo-updates';
 
 export function SettingsScreen() {
@@ -60,13 +58,6 @@ export function SettingsScreen() {
         {/* dev/eval 진입 — production(App Store) 릴리즈에선 숨김 (dev + beta/TestFlight만 노출) */}
         {showDevMenu && (
           <>
-            {/* TODO: Remove — temporary in-app browser eval (총학 공지 기본 URL) */}
-            <TouchableOpacity
-              style={[devStyles.devButton, devStyles.devButtonBrowser]}
-              onPress={() => openMiniApp({ serviceName: '총학생회 공지', startUrl: DEFAULT_BROWSER_URL })}
-            >
-              <Text style={devStyles.devButtonText}>🌐 인앱 브라우저 (dev only)</Text>
-            </TouchableOpacity>
             {/* RELEASE-GATE(debug-menu): 출시 전 제거 — 상세 진단 로그 뷰어 */}
             <TouchableOpacity
               style={[devStyles.devButton, devStyles.devButtonLogs]}
