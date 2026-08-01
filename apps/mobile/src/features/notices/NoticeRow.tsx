@@ -179,13 +179,27 @@ export function NoticeRow({
           >
             {renderTitleWithHighlight(item.title, highlightQuery)}
           </Txt>
+          {/* Line-breaking props, both deliberate and both single-platform:
+              - `standard` is NSLineBreakStrategyStandard, which the SDK
+                defines as 0xFFFF — a superset of PushOut (1<<0) and
+                HangulWordPriority (1<<1). So this is not a trade against
+                the previous "hangul-word": Korean word priority is kept
+                and push-out is gained.
+              - `balanced` is BREAK_STRATEGY_BALANCED and is ANDROID ONLY.
+                iOS never reads textBreakStrategy (no reference to it
+                anywhere under the iOS textlayoutmanager), and iOS has no
+                balanced-wrapping API at all — so a 33-char summary still
+                wraps ~29 + ~4 there. Don't re-investigate that; it is a
+                platform ceiling, not a bug here.
+              The previous value "highQuality" was a no-op: it is already
+              the default on both the C++ and Android sides. */}
           {summaryText.length > 0 ? (
             <Txt
               typography="t7"
               color={isCard ? SdsColors.grey500 : SdsColors.grey900}
               numberOfLines={isCard ? 1 : 2}
-              lineBreakStrategyIOS="hangul-word"
-              textBreakStrategy="highQuality"
+              lineBreakStrategyIOS="standard"
+              textBreakStrategy="balanced"
               style={styles.subText}
             >
               {summaryText}
