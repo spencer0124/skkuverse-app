@@ -11,10 +11,12 @@ import type {
   TranslationKey,
 } from '@skkuverse/shared';
 
-// Project deepgreen — same accent used by the onboarding pinned-card and
-// the unified notice pill palette (NoticeRow.tsx). HTML mock proposed
-// #00563F; we keep the existing palette to avoid re-fragmenting brand
-// green right after the consolidation in 7bd5ba0.
+// Project deepgreen — same accent used by the onboarding pinned-card.
+// HTML mock proposed #00563F; we keep the existing palette to avoid
+// re-fragmenting brand green right after the consolidation in 7bd5ba0.
+// (The notice *list* row used to share this palette for its deadline
+// pill; that pill is now plain grey inline text, so the detail screen is
+// the only place the colored deadline treatment survives.)
 const DEEPGREEN = '#1f3d2e';
 
 interface Props {

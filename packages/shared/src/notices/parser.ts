@@ -55,10 +55,15 @@ function asRecord(raw: unknown): Record<string, unknown> {
 
 /**
  * Server-side `date` field is contractually "YYYY-MM-DD" (per NoticeListItem
- * docs + formatRelativeDate / groupNoticesByDate consumers), but some sources
+ * docs + formatListDate / groupNoticesByDate consumers), but some sources
  * (e.g. ecostat-undergrad) emit "YYYY-MM-DD HH:MM" and ISO timestamps could
  * appear in the future. Truncate to the first 10 chars so downstream split('-')
  * always sees `[YYYY, MM, DD]` and items don't fall into the "기타" bucket.
+ *
+ * NOTE: the HH:MM some sources carry is dropped here on purpose. It is not a
+ * usable posting-time source for the UI — most sources emit date only, so any
+ * "today → show time" rule would fire for a minority of notices and silently
+ * fall back for the rest. Surfacing posting time needs a real backend field.
  */
 function normalizeNoticeDate(raw: string): string {
   return raw.slice(0, 10);

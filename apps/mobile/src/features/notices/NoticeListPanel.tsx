@@ -58,9 +58,7 @@ import {
   SdsColors,
   useNoticeList,
   useMultiSourceNoticeList,
-  useSettingsStore,
   useT,
-  type AppLanguage,
   type NoticeListItem,
   type NoticePage,
 } from '@skkuverse/shared';
@@ -68,7 +66,6 @@ import { Txt } from '@skkuverse/sds';
 import { NoticeRow } from './NoticeRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
-import { groupNoticesByDate } from './utils/groupNotices';
 import { logNoticesContentSelect } from '@/services/analytics';
 
 type Props = (
@@ -83,9 +80,21 @@ type Props = (
   q?: string;
 };
 
-type Row =
-  | { type: 'title'; text: string; key: string }
-  | { type: 'item'; notice: NoticeListItem; key: string };
+/**
+ * The list is deliberately ungrouped — no date section headers, no month
+ * dividers, just one continuous run of notices. That makes it homogeneous,
+ * so the separator is a constant: every gap is the same hairline and
+ * `ItemSeparatorComponent` needs no knowledge of its neighbours.
+ *
+ * (Worth remembering if grouping ever returns: FlatList's separator only
+ * receives `{highlighted, leadingItem}` — `trailingItem` is injected
+ * exclusively by VirtualizedSectionList, so a FlatList separator cannot
+ * see what follows it and any "which kind of gap" decision has to be
+ * precomputed onto the row during flattening.)
+ */
+function RowDivider() {
+  return <View style={styles.divider} />;
+}
 
 // First-frame estimate so chrome doesn't briefly overlap the first notice
 // row before onLayout settles. 94pt covers the picker case (NoticesTabStrip
@@ -100,7 +109,6 @@ export function NoticeListPanel(props: Props) {
   const q = props.q;
   const router = useRouter();
   const { t } = useT();
-  const lang = useSettingsStore((s) => s.appLanguage) as AppLanguage;
 
   const singleResult = useNoticeList({
     sourceId: multi ? '' : props.sourceId!,
@@ -129,26 +137,6 @@ export function NoticeListPanel(props: Props) {
     [data],
   );
 
-  const sections = useMemo(
-    () => groupNoticesByDate(items, lang),
-    [items, lang],
-  );
-
-  // Flatten sections into a typed Row[]: each section becomes a title row
-  // followed by its item rows. FlatList renders inline; date headers are
-  // ordinary rows since the chrome (handled separately) carries the
-  // sticky-pinned UI now.
-  const rows: Row[] = useMemo(() => {
-    const out: Row[] = [];
-    for (const s of sections) {
-      out.push({ type: 'title', text: s.title, key: `t-${s.key}` });
-      for (const n of s.data) {
-        out.push({ type: 'item', notice: n, key: n.id });
-      }
-    }
-    return out;
-  }, [sections]);
-
   const navSourceId = multi ? undefined : props.sourceId;
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
@@ -166,54 +154,15 @@ export function NoticeListPanel(props: Props) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Row }) => {
-      if (item.type === 'title') {
-        return (
-          <View style={styles.sectionHeader}>
-            <Txt
-              typography="t7"
-              fontWeight="semiBold"
-              color={SdsColors.grey600}
-            >
-              {item.text}
-            </Txt>
-          </View>
-        );
-      }
-      return (
-        <NoticeRow
-          item={item.notice}
-          onPress={handleSelect}
-          showDepartment={multi}
-          highlightQuery={q}
-        />
-      );
-    },
+    ({ item }: { item: NoticeListItem }) => (
+      <NoticeRow
+        item={item}
+        onPress={handleSelect}
+        showDepartment={multi}
+        highlightQuery={q}
+      />
+    ),
     [handleSelect, multi, q],
-  );
-
-  // Type-aware separator: 1pt divider between consecutive items, 8pt grey
-  // section gap when an item is followed by the next section's title.
-  // title → item needs no separator (the title already carries top
-  // padding). Title rows don't follow other titles in our flattening.
-  const renderSeparator = useCallback(
-    ({
-      leadingItem,
-      trailingItem,
-    }: {
-      leadingItem?: Row;
-      trailingItem?: Row;
-    }) => {
-      if (!leadingItem || !trailingItem) return null;
-      if (leadingItem.type === 'item' && trailingItem.type === 'item') {
-        return <View style={styles.divider} />;
-      }
-      if (leadingItem.type === 'item' && trailingItem.type === 'title') {
-        return <View style={styles.sectionGap} />;
-      }
-      return null;
-    },
-    [],
   );
 
   // Measure the chrome overlay so the FlatList's marginTop matches it
@@ -225,15 +174,15 @@ export function NoticeListPanel(props: Props) {
     if (next > 0 && next !== chromeHeight) setChromeHeight(next);
   }, [chromeHeight]);
 
-  const isEmpty = rows.length === 0;
+  const isEmpty = items.length === 0;
   return (
     <>
       <FlatList
         style={[styles.list, { marginTop: chromeHeight }]}
-        data={rows}
-        keyExtractor={(r) => r.key}
+        data={items}
+        keyExtractor={(n) => n.id}
         renderItem={renderItem}
-        ItemSeparatorComponent={renderSeparator}
+        ItemSeparatorComponent={RowDivider}
         contentContainerStyle={[
           styles.listContent,
           isEmpty ? styles.emptyContent : null,
@@ -300,19 +249,14 @@ const styles = StyleSheet.create({
   emptyContent: {
     flexGrow: 1,
   },
-  sectionHeader: {
-    paddingTop: 28,
-    paddingBottom: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#FFFFFF',
-  },
-  sectionGap: {
-    height: 8,
-    backgroundColor: SdsColors.grey100,
-  },
+  // Inset hairline between consecutive notices. `marginLeft: 24` aligns the
+  // line's left edge with the row text (ListRow's default horizontal
+  // padding). grey200 rather than SDS's usual grey100 hairline because
+  // notice rows are tall multi-line blocks — a grey100 line disappears
+  // against the whitespace between them.
   divider: {
-    height: 1,
-    backgroundColor: '#F2F3F5',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: SdsColors.grey200,
     marginLeft: 24,
   },
   footer: {

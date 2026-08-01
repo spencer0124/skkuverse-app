@@ -216,10 +216,11 @@ export function formatDeadlineBadge(
 // ── manual test cases (reference only) ──
 //
 // Assuming now = 2026-04-11. Shape is { pill: {text, variant}, context }.
-// NoticeRow renders `${pill.text} · ${context}` inside a single colored box
-// when context exists, else just `pill.text`. For action_required with a
-// label, "까지" is baked into `context` for future deadlines (past → just
-// the label).
+// NoticeRow flattens this to `${pill.text} · ${context}` (or just
+// `pill.text`) and prepends it to the one-liner summary line as plain grey
+// text — `variant` is ignored there, and only SummaryCard on the detail
+// screen still styles by variant. For action_required with a label, "까지"
+// is baked into `context` for future deadlines (past → just the label).
 //
 // - 통금해제 4/13~4/26 informational        → pill="D-2" (upcoming), context="시작까지"
 //     → "D-2 · 시작까지"
