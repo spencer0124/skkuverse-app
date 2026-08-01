@@ -66,6 +66,7 @@ import { Txt } from '@skkuverse/sds';
 import { NoticeRow } from './NoticeRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './EmptyState';
+import { useNoticeSiblingsStore } from './store/noticeSiblingsStore';
 import { logNoticesContentSelect } from '@/services/analytics';
 
 type Props = (
@@ -138,15 +139,27 @@ export function NoticeListPanel(props: Props) {
   );
 
   const navSourceId = multi ? undefined : props.sourceId;
+  const setSiblings = useNoticeSiblingsStore((s) => s.setItems);
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
       logNoticesContentSelect({
         content_type: 'list_row',
         item_id: `${navSourceId ?? n.sourceId}/${n.articleNo}`,
       });
+      // 상세 화면의 이전/다음 네비게이션 컨텍스트. 지금 화면에 로드된 만큼만
+      // 넘긴다 — 무한스크롤로 더 받아 두었으면 그만큼 더 넘어간다. 라우트에
+      // 쓰인 sourceId(다중 소스 탭에서는 item의 것)를 그대로 저장해야
+      // 상세 화면의 params와 매칭된다.
+      setSiblings(
+        items.map((it) => ({
+          sourceId: navSourceId ?? it.sourceId,
+          articleNo: it.articleNo,
+          title: it.title,
+        })),
+      );
       router.push(`/notices/${navSourceId ?? n.sourceId}/${n.articleNo}` as never);
     },
-    [router, navSourceId],
+    [router, navSourceId, items, setSiblings],
   );
 
   const onEndReached = useCallback(() => {

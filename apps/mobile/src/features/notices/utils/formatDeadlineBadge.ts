@@ -3,6 +3,13 @@ import type {
   NoticeListItemSummary,
   NoticeStartAt,
 } from '@skkuverse/shared';
+import {
+  diffDays,
+  formatHourMinute,
+  parseLocalDate,
+  startOfLocalDay,
+  toEffectiveDateTime,
+} from './localDate';
 
 /**
  * Format a notice summary into a badge for the list cell. Branches by
@@ -37,44 +44,8 @@ export interface DeadlineInfo {
 }
 
 // ── helpers ──
-
-function startOfLocalDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-// "YYYY-MM-DD" → Date at local 00:00. Safer than `new Date('YYYY-MM-DD')`,
-// which parses as UTC and can shift day in non-UTC zones.
-function parseLocalDate(date: string): Date {
-  const [y, m, d] = date.split('-').map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
-}
-
-// date + optional time → local Date. If time is null, falls back to 23:59:59.
-function toEffectiveDateTime(date: string, time: string | null): Date {
-  const base = parseLocalDate(date);
-  if (!time) {
-    base.setHours(23, 59, 59, 999);
-    return base;
-  }
-  const parts = time.split(':').map(Number);
-  const hh = parts[0] ?? 0;
-  const mm = parts[1] ?? 0;
-  const ss = parts[2] ?? 0;
-  base.setHours(hh, mm, ss, 0);
-  return base;
-}
-
-function diffDays(fromStartMs: number, toStartMs: number): number {
-  return Math.round((toStartMs - fromStartMs) / 86_400_000);
-}
-
-// "HH:mm[:ss]" → "H:mm" (24h, keep leading zero on minutes)
-function formatHourMinute(time: string): string {
-  const parts = time.split(':');
-  const hh = Number(parts[0] ?? 0);
-  const mm = parts[1] ?? '00';
-  return `${hh}:${mm.padStart(2, '0')}`;
-}
+// 로컬 타임존 파싱/일수 계산은 `./localDate`가 단일 출처 — 상세 화면
+// 타임라인(`buildNoticeTimeline`)과 판정이 갈라지지 않게 공유한다.
 
 // "YYYY-MM-DD" → "M/D" (no leading zeros)
 function formatMonthDay(date: string): string {

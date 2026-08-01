@@ -19,6 +19,7 @@ import { Fragment, isValidElement, type ReactNode, useEffect, useMemo, useState 
 import {
   Image,
   type ImageStyle,
+  Linking,
   StyleSheet,
   Text,
   type TextStyle,
@@ -35,7 +36,6 @@ import {
 import { SdsColors } from '@skkuverse/shared';
 import { Skeleton, Txt } from '@skkuverse/sds';
 import { logNoticesContentSelect } from '@/services/analytics';
-import { openWebView } from '@/features/webview/open';
 
 interface Props {
   markdown: string | null;
@@ -212,7 +212,13 @@ class NoticeRenderer extends Renderer implements RendererInterface {
     styles?: TextStyle,
     title?: string,
   ) {
-    // Web links → generic webview shell (no bridge: these are arbitrary origins)
+    // Web links → 외부 브라우저.
+    //
+    // 예전에는 인앱 webview 셸(`openWebView`)을 밀었지만, 이 렌더러는 이제
+    // 바텀시트 안에서만 산다. 시트 위에서 `router.push`를 하면 새 화면이
+    // 시트 **뒤로** 들어가 사용자에겐 아무 일도 안 일어난 것처럼 보이고,
+    // 시트를 닫아야 비로소 드러난다. 외부 브라우저는 시트를 건드리지 않고
+    // 위로 뜨므로 그 충돌 자체가 없다.
     if (href.startsWith('http://') || href.startsWith('https://')) {
       return (
         <Text
@@ -221,7 +227,7 @@ class NoticeRenderer extends Renderer implements RendererInterface {
           key={this.getKey()}
           onPress={() => {
             logNoticesContentSelect({ content_type: 'detail_markdown_link', item_id: href });
-            openWebView({ url: href });
+            void Linking.openURL(href);
           }}
           style={styles}
         >
