@@ -47,8 +47,10 @@ export function HomeScreen() {
           router.navigate('/(tabs)/notices' as never);
         },
       },
-      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 라우트(/video-gallery)와
-      // 번역 키(home.tile.originalSeries)는 그대로 살아있으니 이 블록만 되살리면 복구된다.
+      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 영상 화면/라우트(/video-gallery)는
+      // 네이티브 의존(expo-screen-orientation, expo-linear-gradient) 때문에 feat/native로
+      // 옮겨졌고 dev에는 존재하지 않는다 — 복구는 3.6.0 네이티브 빌드와 함께. 번역 키
+      // (home.tile.originalSeries)만 여기 남겨둔다.
       // {
       //   id: 'original_series',
       //   title: t('home.tile.originalSeries'),

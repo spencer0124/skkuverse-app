@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import {
   Stack,
   usePathname,
@@ -226,15 +225,6 @@ export default function RootLayout() {
   // ── Notification tap & foreground message handling ──
   useNotificationHandler();
 
-  // ── Global orientation lock — portrait for all screens ──
-  // app.config orientation:"default" registers all 4 directions in Info.plist
-  // so ScreenOrientation.lockAsync can actually rotate. We lock portrait here
-  // once on mount; the video gallery temporarily locks LANDSCAPE for native
-  // fullscreen playback and restores portrait when it ends.
-  useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-  }, []);
-
   const { t } = useT();
 
   // ── Centralized screen view logging ──
@@ -373,15 +363,6 @@ export default function RootLayout() {
                   name="debug-fcm"
                   options={{
                     presentation: 'modal',
-                  }}
-                />
-                <Stack.Screen name="video-gallery" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="video-player"
-                  options={{
-                    headerShown: false,
-                    presentation: 'fullScreenModal',
-                    gestureEnabled: false,
                   }}
                 />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation
