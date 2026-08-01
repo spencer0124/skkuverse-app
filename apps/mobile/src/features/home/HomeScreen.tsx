@@ -2,24 +2,24 @@ import { useMemo } from 'react';
 import {
   View,
   ScrollView,
-  Pressable,
+  // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { CaretRightIcon } from 'phosphor-react-native';
+// import { CaretRightIcon } from 'phosphor-react-native';  // 미니앱 섹션 전용
 import {
   SdsColors,
-  useMiniAppIndex,
+  // useMiniAppIndex,  // 미니앱 섹션과 함께 주석 처리
   useT,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+// import { Txt } from '@skkuverse/sds';  // 미니앱 섹션 헤더 전용
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
-import { openMiniAppById } from '@/features/mini-app/open';
+// import { openMiniAppById } from '@/features/mini-app/open';  // 미니앱 섹션 전용
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -47,15 +47,17 @@ export function HomeScreen() {
           router.navigate('/(tabs)/notices' as never);
         },
       },
-      {
-        id: 'original_series',
-        title: t('home.tile.originalSeries'),
-        emoji: '\u{1F3AC}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
-          router.push('/video-gallery' as never);
-        },
-      },
+      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 라우트(/video-gallery)와
+      // 번역 키(home.tile.originalSeries)는 그대로 살아있으니 이 블록만 되살리면 복구된다.
+      // {
+      //   id: 'original_series',
+      //   title: t('home.tile.originalSeries'),
+      //   emoji: '\u{1F3AC}',
+      //   onPress: () => {
+      //     logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
+      //     router.push('/video-gallery' as never);
+      //   },
+      // },
       {
         id: 'building_map',
         title: t('home.tile.buildingMap'),
@@ -84,27 +86,39 @@ export function HomeScreen() {
           });
         },
       },
+      // 오리지널 시리즈가 빠지며 생긴 4번째 칸 — 이동 탭 바로가기.
+      {
+        id: 'transit',
+        title: t('nav.transit'),
+        emoji: '\u{1F68C}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'transit' });
+          router.navigate('/(tabs)/transit' as never);
+        },
+      },
     ],
     [router, t],
   );
 
-  // 미니앱 그리드 — 서버 레지스트리(SSOT)에서 생성. 이름/URL/로고/순서 전부 서버에서.
-  // 로고는 원격 URL(`{uri}`) — 번들 require() 맵은 제거됨. 서버가 아직 응답하지
-  // 않았거나 로고가 없으면 undefined라 타일은 이모지 폴백으로 그려진다.
-  const { data: miniApps } = useMiniAppIndex();
-  const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
-    () =>
-      (miniApps ?? []).map((app) => ({
-        id: app.id,
-        title: app.shortName ?? app.name,
-        imageSource: app.logo ? { uri: app.logo.uri } : undefined,
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: app.id });
-          openMiniAppById(app.id);
-        },
-      })),
-    [miniApps],
-  );
+  // 미니앱 그리드 — 임시 비노출 (2026-08-01). 서버 레지스트리(SSOT)에서 생성.
+  // 이름/URL/로고/순서 전부 서버에서. 로고는 원격 URL(`{uri}`) — 번들 require()
+  // 맵은 제거됨. 서버가 아직 응답하지 않았거나 로고가 없으면 undefined라 타일은
+  // 이모지 폴백으로 그려진다. 훅까지 같이 주석 처리해야 불필요한 /mini-apps
+  // 쿼리가 안 나간다 (JSX만 지우면 fetch는 계속 돎).
+  // const { data: miniApps } = useMiniAppIndex();
+  // const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
+  //   () =>
+  //     (miniApps ?? []).map((app) => ({
+  //       id: app.id,
+  //       title: app.shortName ?? app.name,
+  //       imageSource: app.logo ? { uri: app.logo.uri } : undefined,
+  //       onPress: () => {
+  //         logHomeContentSelect({ content_type: 'tile', item_id: app.id });
+  //         openMiniAppById(app.id);
+  //       },
+  //     })),
+  //   [miniApps],
+  // );
 
   return (
     <View style={styles.container}>
@@ -124,7 +138,9 @@ export function HomeScreen() {
           <TossfaceButtonGrid items={mainGridItems} />
         </View>
 
-        {/* ── 미니앱 섹션 ── */}
+        {/* ── 미니앱 섹션 ── 임시 비노출 (2026-08-01). 되살릴 때 위쪽
+            useMiniAppIndex/miniAppItems 블록과 Pressable·CaretRightIcon·Txt
+            import도 함께 복구할 것.
         <View style={styles.miniAppsSection}>
           <View style={styles.sectionHeader}>
             <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
@@ -145,6 +161,7 @@ export function HomeScreen() {
           </View>
           <TossfaceButtonGrid items={miniAppItems} />
         </View>
+        */}
 
         {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
         <DeptNoticesSection />
