@@ -7,6 +7,7 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 import { SdsColors } from '@skkuverse/shared';
 
 export interface TossfaceGridItem {
@@ -14,8 +15,12 @@ export interface TossfaceGridItem {
   title: string;
   /** Tossface 이모지 — imageSource가 없을 때 렌더. */
   emoji?: string;
-  /** 로컬 require() 이미지 — 제공 시 이모지 대신 표시. */
-  imageSource?: number;
+  /**
+   * 타일 이미지 — 제공 시 이모지 대신 표시. 로컬 require()(number)와 원격
+   * `{ uri }` 둘 다 받는다: 미니앱 로고가 서버 호스팅으로 바뀌면서 number만으로는
+   * 부족해졌다.
+   */
+  imageSource?: ImageSourcePropType;
   onPress: () => void;
   /** When true, renders a small red "N" badge at the top-right of the tile. */
   isNew?: boolean;

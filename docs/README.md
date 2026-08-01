@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-07-22
 audience: internal
 ---
 
@@ -78,6 +78,7 @@ audience: internal
 | [0003-local-eas-build-fastlane.md](decisions/0003-local-eas-build-fastlane.md) | accepted (백필) |
 | [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | accepted (백필) |
 | [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | accepted (백필) |
+| [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | accepted |
 
 ### internal (포스트모템·디버깅)
 
@@ -90,6 +91,7 @@ audience: internal
 | 문서 | 상태 |
 | --- | --- |
 | [fcm-push-notifications.md](plans/fcm-push-notifications.md) | superseded — 완료. 현행 SSOT는 `CLAUDE.md` FCM 섹션 |
+| [miniapp-platform.md](plans/miniapp-platform.md) | draft — 미니앱 플랫폼 기획(사례·온보딩). 앱측 결정은 ADR 0006 |
 
 ### 워크스페이스 README (co-located)
 

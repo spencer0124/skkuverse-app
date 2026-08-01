@@ -35,7 +35,7 @@ import {
 import { SdsColors } from '@skkuverse/shared';
 import { Skeleton, Txt } from '@skkuverse/sds';
 import { logNoticesContentSelect } from '@/services/analytics';
-import { openInAppBrowser } from '@/features/in-app-browser/open';
+import { openWebView } from '@/features/webview/open';
 
 interface Props {
   markdown: string | null;
@@ -212,7 +212,7 @@ class NoticeRenderer extends Renderer implements RendererInterface {
     styles?: TextStyle,
     title?: string,
   ) {
-    // Web links → open in-app browser (SFSafariViewController / Chrome Custom Tabs)
+    // Web links → generic webview shell (no bridge: these are arbitrary origins)
     if (href.startsWith('http://') || href.startsWith('https://')) {
       return (
         <Text
@@ -221,7 +221,7 @@ class NoticeRenderer extends Renderer implements RendererInterface {
           key={this.getKey()}
           onPress={() => {
             logNoticesContentSelect({ content_type: 'detail_markdown_link', item_id: href });
-            openInAppBrowser(href);
+            openWebView({ url: href });
           }}
           style={styles}
         >

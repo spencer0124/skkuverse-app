@@ -55,9 +55,13 @@ sourceId/articleNo가 동적이라 정적 화이트리스트에 enumerable하지
 
 `MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/`가 공지 인터셉트 다음, 화이트리스트 검사 전에 매칭한다. 공지와 같은 pending-holder 패턴:
 
-1. slug가 미니앱 레지스트리에 등록되어 있는지 `isMiniAppId()`(`packages/shared/src/miniapps/repository.ts`)로 멤버십 검사 — **레지스트리에 없는 unknown slug는 인터셉트하지 않고 화이트리스트 검사로 흘러 홈으로 리다이렉트**된다.
-2. 등록된 slug면 `pendingMiniAppLink.set({ id })`로 스태시하고 `/(tabs)/home`을 반환.
-3. root layout의 `PendingMiniAppLinkConsumer`가 홈 탭 위에 미니앱 shell을 연다.
+1. **shape 검사만** 한다(`[a-z0-9-]+`). 매치되면 `pendingMiniAppLink.set({ id })`로 스태시하고 `/(tabs)/home`을 반환.
+2. root layout의 `PendingMiniAppLinkConsumer`가 **레지스트리 멤버십을 여기서** 확인한다 — `queryClient.fetchQuery`로 `GET /miniapps/:id`를 조회해 성공하면 미니앱 shell을 홈 탭 위에 열고, 실패하면 조용히 버린다(이미 홈이므로 dead end 없음).
+
+> [!NOTE]
+> 멤버십 검사가 `+native-intent.tsx`에서 consumer로 옮겨간 이유: 레지스트리가 서버 소유(`GET /miniapps`)가 되면서 동기 조회가 불가능해졌다. `redirectSystemPath`는 React 트리 밖에서 앱 마운트 전에 실행되므로 await할 수 없다. 이 한 가지 질문에 답하려고 번들 사본을 남기면 서버 SSOT 전환이 무의미해지므로, await가 가능한 consumer로 옮겼다.
+>
+> 보안 등가성은 유지된다: unknown slug도 결국 `/(tabs)/home`에 착지하고 임의 내부 라우트로 push할 수 없다. 달라진 것은 "홈으로 리다이렉트"가 **인터셉트 전**이 아니라 **인터셉트 후 조회 실패**로 일어난다는 점뿐이다.
 
 ## 차단되는 경로 (예시)
 
