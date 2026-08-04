@@ -64,8 +64,13 @@ export interface DeviceDocument {
 /**
  * Request payload from crawler/backend to `sendNotification` CF.
  *
- * topics: Firestore `array-contains-any` 실제 한도는 30 (OR-query 도입 후)이지만,
- * MVP 는 보수적으로 ≤10 으로 guard. 백엔드가 split 해서 보낸다는 가정.
+ * topics: Firestore `array-contains-any` 실제 한도인 30 으로 guard (`MAX_TOPICS`).
+ * **백엔드는 split 하지 않는다** — 한 글이 여러 게시판에 교차 게시되면 서버가
+ * 형제 문서의 topic 을 union 해서 **1회만** 보낸다 (skkuverse-server#75, 그쪽
+ * ADR 0005). split 이 곧 중복 알림의 원인이었다: handler 는 topics 전체로
+ * `array-contains-any` 단일 쿼리를 돌리므로 여러 topic 을 구독한 기기도 1번만
+ * 반환되지만, 호출을 N번으로 쪼개면 그 기기가 N번 푸시를 받는다.
+ * 이 한도는 skkuverse-server `notices.topics.ts` 의 `TOPIC_CAP` 과 항상 같아야 한다.
  *
  * title_en/body_en 은 ko-only MVP 구간에서 null 허용 — handler 가 ?? fallback
  * 으로 ko 문구를 선택. 번역 파이프라인 붙이면 자동으로 en 문구 우선.
