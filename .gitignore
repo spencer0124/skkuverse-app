@@ -50,12 +50,16 @@ firestore-debug.log
 ui-debug.log
 firestore-export/
 
-# Claude Code — allow only workflow files
+# Claude Code — allow only workflow files.
+# ⚠️ This is an allowlist: a new workflow file is silently untracked until it
+#    gets a `!` line here. `git add` reports nothing and CI never runs it.
+#    Verify with: git check-ignore -v .github/workflows/<name>.yml
 .github/*
 !.github/workflows/
 .github/workflows/*
 !.github/workflows/claude-code-review.yml
 !.github/workflows/claude.yml
+!.github/workflows/contracts.yml
 
 # Claude Code local state (per-machine: scheduled-task locks, settings).
 # Project-level CLAUDE.md and any docs/plans intentionally live at the
