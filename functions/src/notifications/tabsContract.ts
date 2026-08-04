@@ -37,3 +37,22 @@ export const KNOWN_PICKER_KEYS = [
 
 export type FixedTabKey = (typeof FIXED_TAB_KEYS)[number];
 export type PickerKey = (typeof KNOWN_PICKER_KEYS)[number];
+
+/**
+ * Max topics accepted in one `sendNotification` payload — Firestore의 실제
+ * `array-contains-any` 한도.
+ *
+ * Source of truth pair:
+ *   skkuverse-server/src/notices/notices.topics.ts `TOPIC_CAP` (항상 같아야 함)
+ *   근거: skkuverse-server/docs/decisions/0005-notice-dispatch-content-group.md
+ *
+ * ⚠️ 서버는 한 글이 N개 게시판에 교차 게시되면 형제들의 topic 을 union 해서
+ *    **1회만** 보낸다 — split 하지 않는다. 이 값을 서버의 TOPIC_CAP 보다 낮게
+ *    두면 handler 가 그 병합 payload 를 400 으로 거절하고, 서버는 재시도를
+ *    소진한 뒤 영구 실패한다 → 교차 게시 공지가 조용히 미발송된다.
+ *    올릴 때는 **여기 먼저 배포**하고 그다음 서버를 올린다.
+ *
+ * handle-notice.ts 가 아니라 이 파일에 두는 이유: 위 탭 키들과 같은 부류의
+ * 백엔드 계약 상수이고, 이 모듈은 import 가 없어 계약 테스트가 바로 로드할 수 있다.
+ */
+export const MAX_TOPICS = 30;
