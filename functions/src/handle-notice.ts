@@ -6,6 +6,7 @@ import {
 } from 'firebase-admin/messaging';
 import { logger } from 'firebase-functions/logger';
 import { mapCategoryToChannel } from './channels';
+import { MAX_TOPICS } from './notifications/tabsContract';
 import type { DeviceDocument, NoticeNotificationPayload } from './types';
 
 /**
@@ -25,7 +26,9 @@ const TOKEN_CLEANUP_CODES = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-const MAX_TOPICS = 10;
+// MAX_TOPICS (30) lives in ./notifications/tabsContract with the other
+// skkuverse-server contract constants — see there for why it must not drop
+// below the server's TOPIC_CAP.
 const FCM_BATCH = 500;
 
 type LocaleGroup = { docId: string; token: string };
@@ -46,7 +49,9 @@ export async function handleNoticeNotification(
   if (body.topics.length > MAX_TOPICS) {
     return {
       status: 400,
-      body: { error: `topics length > ${MAX_TOPICS} (MVP conservative limit)` },
+      body: {
+        error: `topics length > ${MAX_TOPICS} (Firestore array-contains-any limit)`,
+      },
     };
   }
   if (!body.title_ko || !body.body_ko) {
