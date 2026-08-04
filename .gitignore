@@ -60,6 +60,7 @@ firestore-export/
 !.github/workflows/claude-code-review.yml
 !.github/workflows/claude.yml
 !.github/workflows/contracts.yml
+!.github/workflows/contracts-sync.yml
 
 # Claude Code local state (per-machine: scheduled-task locks, settings).
 # Project-level CLAUDE.md and any docs/plans intentionally live at the
