@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { CheckIcon } from 'phosphor-react-native';
+import { CheckIcon, WarningCircleIcon } from 'phosphor-react-native';
 import { Txt } from '@skkuverse/sds';
 import { SdsColors } from '@skkuverse/shared';
 
@@ -50,6 +50,16 @@ export function DeptRow({
       >
         {name}
       </Txt>
+      {unsupported && (
+        // Tap-to-explain affordance: without a visible marker a greyed row
+        // reads as "broken / doesn't exist", not "tap to learn why".
+        <WarningCircleIcon
+          size={16}
+          color={SdsColors.grey400}
+          weight="fill"
+          style={styles.warnIcon}
+        />
+      )}
       <View
         style={[
           variant === 'radio' ? styles.radio : styles.checkbox,
@@ -76,6 +86,9 @@ const styles = StyleSheet.create({
   },
   name: {
     flex: 1,
+  },
+  warnIcon: {
+    marginRight: 8,
   },
   radio: {
     width: 22,

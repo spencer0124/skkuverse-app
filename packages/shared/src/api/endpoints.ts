@@ -34,6 +34,10 @@ export const ApiEndpoints = {
   // ── App config ──
   appConfig: () => '/app/config',
 
+  // ── Mini-apps (server-owned registry) ──
+  miniApps: () => '/miniapps',
+  miniAppDetail: (id: string) => `/miniapps/${id}`,
+
   // ── Notices ──
   noticesTabs: () => '/notices/tabs',
   noticesBySource: (sourceId: string) => `/notices/source/${sourceId}`,

@@ -32,12 +32,7 @@ import {
   SdsColors,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
-import { handleSduiAction } from '@/sdui/action-handler';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
-import {
-  TossfaceButtonGrid,
-  type TossfaceGridItem,
-} from '@/components/TossfaceButtonGrid';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
@@ -47,50 +42,15 @@ import { FilterSheet } from './components/FilterSheet';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useSearchResultStore } from '@/features/search/store';
-import { logMarkerTap, logConnectionTap, logCampusContentSelect } from '@/services/analytics';
+import { logMarkerTap, logConnectionTap } from '@/services/analytics';
 
-const CAMPUS_GRID_ITEMS: readonly TossfaceGridItem[] = [
-  {
-    id: 'building_map',
-    title: '건물지도',
-    emoji: '\u{1F3E2}',
-    onPress: () => {
-      logCampusContentSelect({ content_type: 'quick_action_building_map', item_id: 'hssc' });
-      handleSduiAction({
-        actionType: 'webview',
-        actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
-        webviewTitle: '건물지도',
-        webviewColor: '003626',
-      });
-    },
-  },
-  {
-    id: 'building_code',
-    title: '건물코드',
-    emoji: '\u{1F522}',
-    onPress: () => {
-      logCampusContentSelect({ content_type: 'quick_action_building_code', item_id: 'search' });
-      handleSduiAction({
-        actionType: 'route',
-        actionValue: '/search',
-      });
-    },
-  },
-  {
-    id: 'lost_found',
-    title: '분실물',
-    emoji: '\u{1F9F3}',
-    onPress: () => {
-      logCampusContentSelect({ content_type: 'quick_action_lost_found', item_id: 'skku' });
-      handleSduiAction({
-        actionType: 'webview',
-        actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
-        webviewTitle: '분실물',
-        webviewColor: '003626',
-      });
-    },
-  },
-];
+// 이 자리에 하드코딩 그리드(CAMPUS_GRID_ITEMS)가 있었다. `useCampusSections()`가
+// 서버 button_grid를 이미 받아오는데도 `s.type !== 'button_grid'`로 걸러 버리고
+// 하드코딩 사본을 대신 그렸다 — 그래서 서버가 건물지도를 네이티브 지도(route
+// `/map/hssc`)로 바꾼 뒤에도 클라는 죽은 webview 지도를 계속 열었다.
+// 이제 서버 섹션을 그대로 렌더한다: 항목·URL·순서의 SSOT는 서버 하나뿐이다.
+// (`useCampusSections`는 절대 throw하지 않고 실패 시 DEFAULT_CAMPUS_SECTIONS를
+// 주므로, 그리드가 비는 경우는 없다.)
 
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
@@ -248,15 +208,10 @@ export function CampusScreen() {
                 <View style={styles.sheetTopToggleWrap}>
                   <CampusToggle campuses={mapConfig.campuses} />
                 </View>
-                <View style={styles.hardcodedGridWrap}>
-                  <TossfaceButtonGrid items={CAMPUS_GRID_ITEMS} />
-                </View>
                 {campusData && (
-                  <SduiSectionList
-                    sections={campusData.sections.filter(
-                      (s) => s.type !== 'button_grid',
-                    )}
-                  />
+                  <View style={styles.gridWrap}>
+                    <SduiSectionList sections={campusData.sections} />
+                  </View>
                 )}
               </>
             )}
@@ -302,7 +257,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
-  hardcodedGridWrap: {
+  gridWrap: {
     paddingTop: 8,
     paddingBottom: 16,
   },

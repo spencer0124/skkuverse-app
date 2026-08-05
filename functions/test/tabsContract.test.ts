@@ -80,3 +80,25 @@ test('MAX_TOPICS 는 Firestore array-contains-any 한도를 넘지 않는다', (
     `MAX_TOPICS=${MAX_TOPICS} exceeds Firestore's array-contains-any limit of 30`,
   );
 });
+
+/**
+ * Cross-repo cap contract (skkuverse-server#75 / that repo's ADR 0005).
+ *
+ * The server merges an article cross-posted to N boards into ONE call carrying
+ * the union of their topics, so MAX_TOPICS must be >= the widest cross-post it
+ * can produce. Lowering this below the server's TOPIC_CAP makes the handler
+ * 400 those merged payloads, and the server retries them to permanent failure —
+ * i.e. subscribers silently stop receiving cross-posted notices.
+ */
+test('MAX_TOPICS matches skkuverse-server TOPIC_CAP (notices.topics.ts)', () => {
+  assert.equal(MAX_TOPICS, 30);
+});
+
+test('MAX_TOPICS covers the widest cross-post measured in prod (16-way dept)', () => {
+  // skku_notices.notices, 2026-08-04: one 교직 notice on 16 college boards,
+  // every one a `dept` picker source -> a 16-topic union in a single call.
+  assert.ok(
+    MAX_TOPICS >= 16,
+    `MAX_TOPICS=${MAX_TOPICS} would truncate a 16-way cross-post and drop subscribers`,
+  );
+});

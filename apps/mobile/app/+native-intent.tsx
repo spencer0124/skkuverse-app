@@ -1,5 +1,10 @@
-import { normalizeIncomingPath, resolveInitialTabRouteName, useSettingsStore } from '@skkuverse/shared';
+import {
+  normalizeIncomingPath,
+  resolveInitialTabRouteName,
+  useSettingsStore,
+} from '@skkuverse/shared';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
 
 const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
 
@@ -18,6 +23,22 @@ const TAB_PATHS: Record<string, string> = {
 // the detail screen on top of the notices tab (vs. on top of whatever tab
 // happened to be active when the link arrived).
 const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
+
+// Mini-app entry: /m/<slug> (universal `…/p/m/<slug>` or scheme `skkuverse://m/<slug>`).
+// Same pending-holder pattern as notices — route to home, then the root layout's
+// PendingMiniAppLinkConsumer opens the mini-app on top.
+//
+// SHAPE ONLY — registry membership is NOT checked here. This function runs
+// outside the React tree before the app mounts, so it cannot await the registry,
+// and the registry is now server-owned (no bundled copy to read synchronously).
+// Keeping a bundled seed just to answer this one question would reintroduce the
+// second source of truth the migration removed, so the membership check moved
+// to PendingMiniAppLinkConsumer, which is inside React and can await.
+//
+// Security is unchanged: an unknown slug still resolves to /(tabs)/home and
+// cannot push an arbitrary internal route. The consumer drops it on lookup
+// failure, so the worst case is a deep link that lands on home.
+const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full
@@ -55,6 +76,14 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
         source: 'universal_link',
       });
       return '/(tabs)/notices';
+    }
+
+    // Mini-app path → stash slug + route to home; PendingMiniAppLinkConsumer
+    // resolves it against the server registry and opens the shell (or drops it).
+    const miniAppMatch = pathname.match(MINIAPP_PATH_RE);
+    if (miniAppMatch) {
+      pendingMiniAppLink.set({ id: miniAppMatch[1] });
+      return '/(tabs)/home';
     }
 
     // Whitelist — anything else falls back to home (uniform across cold/warm

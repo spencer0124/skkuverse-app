@@ -1,6 +1,6 @@
 import { Platform, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { BellIcon, BookmarkSimpleIcon } from 'phosphor-react-native';
+import { BellIcon, ArchiveIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
@@ -17,10 +17,11 @@ import { logNoticesContentSelect } from '@/services/analytics';
 // it's an independent `bottomAccessory` slot on the parent NativeTabs.
 //
 // Icon set:
-//   - bookmark-simple → /notices/saved (mirrors the bottom accessory bar's
-//     bookmark action, surfaced in the top bar so the saved list is also
-//     reachable when the tab bar is expanded — accessory bar is only
-//     visible when minimized).
+//   - archive (보관함) → /notices/saved (the saved-bookmarks list). Uses the
+//     archive-box glyph (not bookmark-simple) so it reads as "collection of
+//     saved items" and doesn't collide with the per-notice single-bookmark
+//     save action. Surfaced in the top bar so the saved list is reachable when
+//     the tab bar is expanded — accessory bar is only visible when minimized.
 //   - bell → /notifications/notices (per-tab notice notification settings;
 //     dedicated screen for "공지 알림" rather than the top-level overview).
 //
@@ -49,7 +50,7 @@ export default function NoticesTabStackLayout() {
                     label: t('notices.accessory.bookmark'),
                     icon: {
                       type: 'image' as const,
-                      source: require('../../../assets/header-icons/bookmark-simple.png'),
+                      source: require('../../../assets/header-icons/archive.png'),
                       tinted: false,
                     },
                     sharesBackground: false,
@@ -86,7 +87,7 @@ export default function NoticesTabStackLayout() {
                       }}
                       accessibilityLabel={t('notices.accessory.bookmark')}
                     >
-                      <BookmarkSimpleIcon
+                      <ArchiveIcon
                         size={22}
                         color={SdsColors.grey700}
                       />

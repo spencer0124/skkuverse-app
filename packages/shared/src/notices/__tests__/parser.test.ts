@@ -222,7 +222,7 @@ describe('parseTabsConfig', () => {
     });
   });
 
-  it('downgrades unknown excludeReason to null (forward compat)', () => {
+  it('keeps unknown excludeReason keys (copy comes from excludeReasonText)', () => {
     const raw = envelope({
       schemaVersion: 1,
       tabs: [
@@ -239,6 +239,7 @@ describe('parseTabsConfig', () => {
                 college: null,
                 noticeAvailable: false,
                 excludeReason: 'futureNewReason',
+                excludeReasonText: '새로운 사유 문구',
               },
             ],
             maxSelection: 1,
@@ -249,7 +250,39 @@ describe('parseTabsConfig', () => {
       ],
     });
     const source = parseTabsConfig(raw).tabs[0].picker?.sources[0];
-    expect(source?.excludeReason).toBe(null);
+    expect(source?.excludeReason).toBe('futureNewReason');
+    expect(source?.excludeReasonText).toBe('새로운 사유 문구');
+  });
+
+  it('excludeReasonText defaults to null on pre-SSOT server responses', () => {
+    const raw = envelope({
+      schemaVersion: 1,
+      tabs: [
+        {
+          key: 'dept',
+          label: '학과',
+          tabMode: 'picker',
+          picker: {
+            sources: [
+              {
+                id: 'x',
+                name: 'X',
+                campus: 'nsc',
+                college: null,
+                noticeAvailable: false,
+                excludeReason: 'loginRequired',
+              },
+            ],
+            maxSelection: 1,
+            defaultIds: [],
+            campusDefaultIds: {},
+          },
+        },
+      ],
+    });
+    const source = parseTabsConfig(raw).tabs[0].picker?.sources[0];
+    expect(source?.excludeReason).toBe('loginRequired');
+    expect(source?.excludeReasonText).toBe(null);
   });
 
   it('defaults missing new fields safely (no crash, sensible values)', () => {

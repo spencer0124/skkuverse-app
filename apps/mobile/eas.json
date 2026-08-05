@@ -19,12 +19,20 @@
     "beta": {
       "credentialsSource": "local",
       "channel": "beta",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1",
+        "EAS_BUILD_DISABLE_BUNDLE_JAVASCRIPT_STEP": "1"
+      }
     },
     "production": {
       "credentialsSource": "local",
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_NO_METRO_WORKSPACE_ROOT": "1",
+        "EAS_BUILD_DISABLE_BUNDLE_JAVASCRIPT_STEP": "1"
+      }
     }
   }
 }

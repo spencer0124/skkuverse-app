@@ -1,7 +1,7 @@
 import { Button, Dialog } from '@skkuverse/sds';
 import {
+  hasBundledExcludeReasonCopy,
   useT,
-  type ExcludeReasonKey,
   type TabSource,
 } from '@skkuverse/shared';
 
@@ -24,13 +24,20 @@ interface Props {
  *   • umbrella absent → reason copy only, with a single dismiss button.
  *     Avoids offering a fallback we cannot fulfill.
  *
- * Reason copy is looked up via i18n key (`onboarding.unsupportedDept.reason.<enum>`).
+ * Reason copy priority: server-resolved `excludeReasonText` (crawler SSOT,
+ * localized per response language) → bundled i18n for legacy keys (old-server
+ * fallback) → sheet stays closed (a key with no copy anywhere has nothing
+ * useful to say).
  */
 export function UnsupportedDeptSheet({ source, umbrella, onAccept, onDismiss }: Props) {
   const { t, tpl } = useT();
-  const open = source !== null && source.excludeReason !== null;
-  const reasonKey: ExcludeReasonKey | null = source?.excludeReason ?? null;
-  const reasonCopy = reasonKey ? t(`onboarding.unsupportedDept.reason.${reasonKey}`) : '';
+  const serverCopy = source?.excludeReasonText ?? null;
+  const rawKey = source?.excludeReason ?? null;
+  const bundledKey =
+    serverCopy === null && hasBundledExcludeReasonCopy(rawKey) ? rawKey : null;
+  const reasonCopy =
+    serverCopy ?? (bundledKey ? t(`onboarding.unsupportedDept.reason.${bundledKey}`) : '');
+  const open = source !== null && reasonCopy !== '';
   const description = umbrella
     ? `${reasonCopy}\n${tpl('onboarding.unsupportedDept.alternative', umbrella.name)}`
     : reasonCopy;
