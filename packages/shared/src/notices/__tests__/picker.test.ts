@@ -1,9 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
+  NOTICE_MULTI_SOURCE_LIMIT,
   computeOnboardingPickerSeed,
+  resolveAllFollowedSourceIds,
   resolvePickerSelection,
 } from '../picker';
 import type { NoticeTab } from '../types';
+
+function fixedTab(key: string, sourceId: string): NoticeTab {
+  return {
+    key,
+    label: key,
+    tabMode: 'fixed',
+    fixed: { sourceId, name: sourceId, campus: 'both' },
+  };
+}
 
 function pickerTab(
   key: string,
@@ -187,5 +198,117 @@ describe('resolvePickerSelection (post-rename)', () => {
       3,
     );
     expect(resolvePickerSelection(empty, undefined)).toEqual(['first']);
+  });
+});
+
+describe('resolveAllFollowedSourceIds', () => {
+  const academic = fixedTab('academic', 'skku-academic');
+  const scholarship = fixedTab('scholarship', 'skku-scholarship');
+  const dept = pickerTab(
+    'dept',
+    [
+      { id: 'cs', campus: 'nsc' },
+      { id: 'sw', campus: 'nsc' },
+      { id: 'econ', campus: 'hssc' },
+    ],
+    ['econ'],
+    { hssc: [], nsc: [] },
+  );
+  const library = pickerTab(
+    'library',
+    [
+      { id: 'lib-all', campus: null },
+      { id: 'lib-hssc', campus: 'hssc' },
+    ],
+    ['lib-all'],
+    { hssc: [], nsc: [] },
+  );
+
+  it('unions fixed sourceIds with resolved picker selections', () => {
+    expect(
+      resolveAllFollowedSourceIds([academic, dept, library], {
+        dept: ['cs', 'sw'],
+        library: ['lib-hssc'],
+      }),
+    ).toEqual(['cs', 'lib-hssc', 'skku-academic', 'sw']);
+  });
+
+  it('falls back to picker defaults for tabs the user never touched', () => {
+    // No `dept` / `library` entry in selections — each picker still
+    // contributes, exactly as the tab itself would render.
+    expect(resolveAllFollowedSourceIds([academic, dept, library], {})).toEqual([
+      'econ',
+      'lib-all',
+      'skku-academic',
+    ]);
+  });
+
+  it('dedupes a source reachable from two tabs', () => {
+    const alsoCs = pickerTab(
+      'favorites',
+      [{ id: 'cs', campus: 'nsc' }],
+      ['cs'],
+      { hssc: [], nsc: [] },
+    );
+    const ids = resolveAllFollowedSourceIds([dept, alsoCs], { dept: ['cs'] });
+    expect(ids).toEqual(['cs']);
+  });
+
+  it('is order-stable regardless of tab order (cache-key safety)', () => {
+    const selections = { dept: ['sw', 'cs'] };
+    expect(
+      resolveAllFollowedSourceIds([academic, scholarship, dept], selections),
+    ).toEqual(
+      resolveAllFollowedSourceIds([dept, scholarship, academic], selections),
+    );
+  });
+
+  it('returns [] for an empty tab list', () => {
+    expect(resolveAllFollowedSourceIds([], {})).toEqual([]);
+  });
+
+  it('drops stored ids that no longer exist in the server config', () => {
+    expect(resolveAllFollowedSourceIds([dept], { dept: ['ghost'] })).toEqual([
+      'econ',
+    ]);
+  });
+
+  // Regression guard for the reason "전체" search 400'd on first try: the
+  // server caps GET /notices at NOTICE_MULTI_SOURCE_LIMIT ids. Today's tab
+  // config lands exactly on that ceiling (5 fixed + 5 dept + 3 library +
+  // 2 dorm + 5 general = 20), so there is zero headroom — this asserts the
+  // arithmetic that makes the union fit, and fails loudly if a tab is added
+  // or a picker's maxSelection grows without raising the server constant.
+  it('a maxed-out follow set still fits NOTICE_MULTI_SOURCE_LIMIT', () => {
+    const fixedTabs = ['academic', 'scholarship', 'career', 'recruitment', 'event'].map(
+      (key) => fixedTab(key, `src-${key}`),
+    );
+    const maxedPicker = (key: string, max: number) =>
+      pickerTab(
+        key,
+        Array.from({ length: max }, (_, i) => ({
+          id: `${key}-${i}`,
+          campus: null,
+        })),
+        [],
+        { hssc: [], nsc: [] },
+        max,
+      );
+    const tabs = [
+      ...fixedTabs,
+      maxedPicker('dept', 5),
+      maxedPicker('library', 3),
+      maxedPicker('dorm', 2),
+      maxedPicker('general', 5),
+    ];
+    const selections = {
+      dept: ['dept-0', 'dept-1', 'dept-2', 'dept-3', 'dept-4'],
+      library: ['library-0', 'library-1', 'library-2'],
+      dorm: ['dorm-0', 'dorm-1'],
+      general: ['general-0', 'general-1', 'general-2', 'general-3', 'general-4'],
+    };
+    const ids = resolveAllFollowedSourceIds(tabs, selections);
+    expect(ids).toHaveLength(20);
+    expect(ids.length).toBeLessThanOrEqual(NOTICE_MULTI_SOURCE_LIMIT);
   });
 });

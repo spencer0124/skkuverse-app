@@ -44,6 +44,53 @@ export function resolvePickerSelection(
 }
 
 /**
+ * Hard-coded mirror of `NoticesController.MAX_MULTI_SOURCE_IDS` in
+ * skkuverse-server (`src/notices/notices.controller.ts`). `GET /notices`
+ * rejects more ids than this with `400 INVALID_PARAMS` — there is no way to
+ * discover the value at runtime, so it has to be duplicated here.
+ *
+ * Today the ceiling is exactly met: 5 fixed tabs + dept(5) + library(3) +
+ * dorm(2) + general(5) = 20. **Adding a notice tab, or raising any picker's
+ * `maxSelection`, pushes the "전체" scope past the contract.** Callers must
+ * treat a union larger than this as "전체 unavailable" rather than sending the
+ * request — see `NoticesSearchScreen`. Raise the server constant first, then
+ * this one.
+ */
+export const NOTICE_MULTI_SOURCE_LIMIT = 20;
+
+/**
+ * Union of every source the user is currently following: each fixed tab's
+ * `sourceId` plus each picker tab's *effective* selection (so a tab the user
+ * never touched still contributes its server defaults, exactly as the tab
+ * itself would render).
+ *
+ * This is the client-side definition of the search screen's "전체" scope. It
+ * deliberately means "everything I follow", NOT "every source that exists" —
+ * the latter would need a server-side scope parameter and would drag in
+ * hundreds of unselected department sources.
+ *
+ * Sorted + deduped: `useMultiSourceNoticeList` builds its React Query cache
+ * key from `sourceIds.slice().sort().join(',')`, so returning a stable order
+ * here keeps the key stable across tab-config refetches that reorder tabs.
+ */
+export function resolveAllFollowedSourceIds(
+  tabs: NoticeTab[],
+  pickerSelections: Record<string, string[] | undefined>,
+): string[] {
+  const ids = new Set<string>();
+  for (const tab of tabs) {
+    if (tab.tabMode === 'picker' && tab.picker) {
+      for (const id of resolvePickerSelection(tab, pickerSelections[tab.key])) {
+        ids.add(id);
+      }
+    } else if (tab.tabMode === 'fixed' && tab.fixed) {
+      ids.add(tab.fixed.sourceId);
+    }
+  }
+  return Array.from(ids).sort();
+}
+
+/**
  * Computes the onboarding seed for a picker tab given the user's selected
  * campus. Merges common defaults with campus-conditional defaults, dedupes,
  * and caps at `maxSelection`.

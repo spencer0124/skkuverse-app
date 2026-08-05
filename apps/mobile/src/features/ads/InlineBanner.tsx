@@ -6,6 +6,15 @@ import {
   BannerAdSize,
   useForeground,
 } from 'react-native-google-mobile-ads';
+import { SdsColors, useT } from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
+
+/**
+ * "광고" 라벨이 차지하는 높이(dp). 슬롯 전체 높이는 `maxHeight`로 고정이므로
+ * 배너에 요청하는 높이에서 이만큼을 빼야 라벨+배너가 슬롯 안에 들어간다.
+ * 빼지 않으면 소재가 상한까지 꽉 찬 날 라벨이 슬롯 밖으로 밀린다.
+ */
+const AD_LABEL_HEIGHT = 18;
 
 interface Props {
   unitId: string;
@@ -39,6 +48,7 @@ interface Props {
  *    남길 수는 없어서 이때만 0으로 접는다(위로 한 번 당겨짐).
  */
 export function InlineBanner({ unitId, maxHeight = 250 }: Props) {
+  const { t } = useT();
   const bannerRef = useRef<BannerAd>(null);
   const [width, setWidth] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
@@ -63,13 +73,25 @@ export function InlineBanner({ unitId, maxHeight = 250 }: Props) {
       onLayout={handleLayout}
     >
       {width > 0 ? (
-        <Animated.View style={{ opacity }}>
+        /* 라벨은 배너와 **같은 opacity**를 탄다. 따로 항상 띄우면 로드 전
+           예약된 빈 슬롯 위에 "광고"만 떠 있게 되고, no-fill로 접힐 때는
+           라벨만 남는 유령이 된다. 함께 페이드인해야 둘의 수명이 같다.
+           위치는 배너 **바로 위 왼쪽** — AdMob이 허용하는 관행적 자리다.
+           소재 위에 겹치면 광고를 가리는 게 되어 오히려 정책 위반이다. */
+        <Animated.View style={{ opacity, width }}>
+          <Txt
+            typography="st12"
+            color={SdsColors.grey500}
+            style={{ height: AD_LABEL_HEIGHT }}
+          >
+            {t('common.adLabel')}
+          </Txt>
           <BannerAd
             ref={bannerRef}
             unitId={unitId}
             size={BannerAdSize.INLINE_ADAPTIVE_BANNER}
             width={width}
-            maxHeight={maxHeight}
+            maxHeight={maxHeight - AD_LABEL_HEIGHT}
             onAdLoaded={(dimensions) => {
               if (__DEV__) console.log('[AdMob] Inline loaded:', unitId, dimensions);
               setCollapsed(false);

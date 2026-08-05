@@ -79,6 +79,22 @@ type Props = (
    *  as `highlightQuery` so each row visually marks the matched
    *  substring. Empty / undefined preserves existing behavior. */
   q?: string;
+  /**
+   * In-scroll header, distinct from `listHeader` above: `listHeader` is the
+   * absolute-positioned chrome overlay (tab strip + selector) that stays put,
+   * whereas this goes through `ListHeaderComponent` and scrolls away with the
+   * rows. Used by the search screen for the answer card.
+   *
+   * The FlatList is still the Fragment's first child either way, so the iOS 26
+   * chain-root rule is untouched — and both props are optional so the notices
+   * tab's render path is unchanged.
+   */
+  answerSlot?: ReactElement;
+  /**
+   * Recovery CTA shown when a `q` search returns nothing (e.g. "전체 공지에서
+   * 찾아보기"). Only reachable via the search-empty branch; omitted elsewhere.
+   */
+  searchEmptyAction?: { label: string; onPress: () => void };
 };
 
 /**
@@ -108,6 +124,8 @@ export function NoticeListPanel(props: Props) {
   const multi = 'sourceIds' in props && props.sourceIds != null;
   const listHeader = props.listHeader;
   const q = props.q;
+  const answerSlot = props.answerSlot;
+  const searchEmptyAction = props.searchEmptyAction;
   const router = useRouter();
   const { t } = useT();
 
@@ -191,7 +209,12 @@ export function NoticeListPanel(props: Props) {
   return (
     <>
       <FlatList
-        style={[styles.list, { marginTop: chromeHeight }]}
+        // `chromeHeight` only means anything when the overlay is actually
+        // rendered. Without `listHeader` the overlay never mounts, so
+        // `onChromeLayout` never fires and the estimate would sit there
+        // forever as a dead top margin (visible on the search screen, which
+        // passes no chrome).
+        style={[styles.list, { marginTop: listHeader ? chromeHeight : 0 }]}
         data={items}
         keyExtractor={(n) => n.id}
         renderItem={renderItem}
@@ -200,6 +223,7 @@ export function NoticeListPanel(props: Props) {
           styles.listContent,
           isEmpty ? styles.emptyContent : null,
         ]}
+        ListHeaderComponent={answerSlot}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.4}
         // Native iOS / Android RefreshControl. Indicator auto-positions at
@@ -215,7 +239,11 @@ export function NoticeListPanel(props: Props) {
           ) : isError ? (
             <NoticeEmptyState message={t('notices.error')} onRetry={refetch} />
           ) : q && q.length > 0 ? (
-            <NoticeEmptyState message={t('notices.search.empty.subtitle')} />
+            <NoticeEmptyState
+              message={t('notices.search.empty.subtitle')}
+              actionLabel={searchEmptyAction?.label}
+              onAction={searchEmptyAction?.onPress}
+            />
           ) : (
             <NoticeEmptyState message={t('notices.empty')} onRetry={refetch} />
           )

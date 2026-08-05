@@ -47,23 +47,24 @@ function renderTitleWithHighlight(title: string, query: string | undefined) {
 /**
  * Flatten the deadline info into a footer segment ("D-22 · 지원 마감까지").
  *
- * Still un-pilled — it is plain text in the footer row, not a badge — but
- * it carries the one accent colour in the row: brand deepgreen. `expired`
- * is the single surviving distinction from the old six-variant palette,
- * because a passed deadline rendered in the brand action colour would read
- * as a live call to action. Everything else (urgent / event / inProgress …)
- * is conveyed by the wording alone; the detail screen's SummaryCard keeps
- * the full colour treatment.
+ * Still un-pilled — it is plain text in the footer row, not a badge — but it
+ * carries the one accent colour in the row: brand deepgreen. That includes
+ * the expired "마감". An earlier revision greyed expired deadlines out on the
+ * theory that the action colour would read as a live CTA; in practice "마감"
+ * is the status a scanner most needs to catch, and greying it made expired
+ * notices indistinguishable from ones carrying no deadline at all. The word
+ * itself already says the deadline has passed, so the colour is free to do
+ * the one job it has here: pull the eye to the deadline fact.
+ *
+ * Everything else (urgent / event / inProgress …) is conveyed by the wording
+ * alone; the detail screen's SummaryCard keeps the full colour treatment.
  */
-function formatDeadline(
-  item: NoticeListItem,
-): { text: string; expired: boolean } | null {
+function formatDeadline(item: NoticeListItem): string | null {
   const info = formatDeadlineBadge(item.summary ?? null);
   if (!info) return null;
-  return {
-    text: info.context ? `${info.pill.text} · ${info.context}` : info.pill.text,
-    expired: info.pill.variant === 'closed',
-  };
+  return info.context
+    ? `${info.pill.text} · ${info.context}`
+    : info.pill.text;
 }
 
 // Footer meta ink. Two steps darker than the old grey400 (#B0B8C1), which
@@ -76,13 +77,6 @@ const FOOTER_COLOR = SdsColors.grey600;
 // the literal — `#1f3d2e` is currently hand-copied into ~14 files, and this
 // is not going to be the 15th.
 const DEADLINE_COLOR = colorSeeds.primary;
-
-// Thousands separators without touching Intl — Hermes ships `toLocaleString`
-// but its behavior depends on whether the build has Intl compiled in, so a
-// plain regex keeps the output identical on every device and in tests.
-function formatViews(views: number): string {
-  return String(views).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
 
 // Horizontal padding inside the department chip. Also the exact amount the
 // chip is pulled left, so the chip's text — not its box — lines up with the
@@ -125,15 +119,14 @@ export function NoticeRow({
   const footerSegments: { text: string; color: string }[] = [];
   if (dateText) footerSegments.push({ text: dateText, color: FOOTER_COLOR });
   if (deadline) {
-    footerSegments.push({
-      text: deadline.text,
-      color: deadline.expired ? FOOTER_COLOR : DEADLINE_COLOR,
-    });
+    footerSegments.push({ text: deadline, color: DEADLINE_COLOR });
   }
   // Bookmarks synthesize `views: 0` (saved.tsx) because the cached entry has
   // no view count — showing "0" there would assert something false, so the
   // whole views cluster is dropped when there is nothing real to report.
-  const viewsText = !isCard && item.views > 0 ? formatViews(item.views) : null;
+  // Digits only, no thousands separator — matches the detail screen's
+  // `notices.views` rendering so the same notice reads the same in both places.
+  const viewsText = !isCard && item.views > 0 ? String(item.views) : null;
 
   return (
     <ListRow
@@ -334,7 +327,7 @@ const styles = StyleSheet.create({
   // Reserve a 3-digit slot (3 tabular digits at 1280/2048 em = 22.5pt at
   // 12pt, rounded up) and left-align inside it, so 1- and 2-digit counts
   // pad on the right and the first separator holds one column. Counts of
-  // 1,000+ overflow the slot and push that row's separator right — the
+  // 1000+ overflow the slot and push that row's separator right — the
   // accepted trade for not reserving dead space on the common case.
   viewsText: {
     minWidth: 23,

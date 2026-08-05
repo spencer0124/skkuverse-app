@@ -103,8 +103,13 @@ function RefRow({
   onPress,
   thumbnailUrl,
   onThumbnailError,
-  tint = SdsColors.blue500,
-  tintBg = SdsColors.blue50,
+  // 브랜드 그린 타일. `brand`/`brandLight`는 토큰에서 짝으로 정의된 전경/배경
+  // 쌍이라 blue500/blue50 자리에 그대로 대응된다. `colorSeeds.primary`
+  // (#1f3d2e)를 쓰지 않는 이유는 그 값이 너무 어두워 연한 타일 위에서
+  // "초록 아이콘"이 아니라 "검정 아이콘"으로 읽히기 때문 — primary는
+  // NoticeRow의 텍스트 강조처럼 흰 배경 위 액센트용이다.
+  tint = SdsColors.brand,
+  tintBg = SdsColors.brandLight,
 }: {
   Icon: typeof LinkSimpleIcon;
   title: string;

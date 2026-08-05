@@ -4,7 +4,12 @@ export {
   parseNoticeDetail,
   hasBundledExcludeReasonCopy,
 } from './parser';
-export { resolvePickerSelection, computeOnboardingPickerSeed } from './picker';
+export {
+  resolvePickerSelection,
+  resolveAllFollowedSourceIds,
+  computeOnboardingPickerSeed,
+  NOTICE_MULTI_SOURCE_LIMIT,
+} from './picker';
 export { highlightMatches } from './highlight';
 export type { HighlightSegment } from './highlight';
 export { classifyBookmarkToggleError } from './bookmarkErrors';
