@@ -50,7 +50,7 @@ export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/setti
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
 export { useEngagementStore } from './store/engagement';
-export type { EngagementStore, EngagementState, ReviewPromptOutcome } from './store/engagement';
+export type { EngagementStore, EngagementState, ReviewPromptOutcome, ReviewPromptHistoryEntry } from './store/engagement';
 
 // ── Notifications ──
 export type {
@@ -150,8 +150,20 @@ export type {
 export { getLocalizedText, floorBadge } from './types/building';
 
 // ── App config ──
-export type { PlatformConfig, AppConfig } from './app/parser';
+export type {
+  PlatformConfig,
+  WebviewConfig,
+  WebConfig,
+  AppConfig,
+} from './app/parser';
 export { parseAppConfig } from './app/parser';
+export {
+  setCachedAppConfig,
+  getCachedAppConfig,
+  getBridgeOrigins,
+  getWebOrigin,
+  resetAppConfigMemo,
+} from './app/config-cache';
 
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
@@ -190,6 +202,7 @@ export {
   parseTabsConfig,
   parseNoticePage,
   parseNoticeDetail,
+  hasBundledExcludeReasonCopy,
   resolvePickerSelection,
   computeOnboardingPickerSeed,
   highlightMatches,
@@ -263,3 +276,6 @@ export {
   useNoticeDetail,
   NOTICE_DETAIL_KEY,
 } from './hooks';
+
+// ── Mini-app registry (2-tier SSOT: index + per-service detail, joined by id) ──
+export * from './miniapps';

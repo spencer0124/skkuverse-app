@@ -2,16 +2,25 @@ import { useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   Pressable,
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 import { SdsColors } from '@skkuverse/shared';
 
 export interface TossfaceGridItem {
   id: string;
   title: string;
-  emoji: string;
+  /** Tossface 이모지 — imageSource가 없을 때 렌더. */
+  emoji?: string;
+  /**
+   * 타일 이미지 — 제공 시 이모지 대신 표시. 로컬 require()(number)와 원격
+   * `{ uri }` 둘 다 받는다: 미니앱 로고가 서버 호스팅으로 바뀌면서 number만으로는
+   * 부족해졌다.
+   */
+  imageSource?: ImageSourcePropType;
   onPress: () => void;
   /** When true, renders a small red "N" badge at the top-right of the tile. */
   isNew?: boolean;
@@ -43,7 +52,15 @@ export function TossfaceButtonGrid({ items }: Props) {
           style={[styles.button, { width: itemSize, height: itemSize }]}
           onPress={item.onPress}
         >
-          <Text style={styles.emoji}>{item.emoji}</Text>
+          {item.imageSource ? (
+            <Image
+              source={item.imageSource}
+              style={styles.tileImage}
+              resizeMode="contain"
+            />
+          ) : (
+            <Text style={styles.emoji}>{item.emoji}</Text>
+          )}
           <Text style={styles.title} numberOfLines={1}>
             {item.title}
           </Text>
@@ -79,6 +96,11 @@ const styles = StyleSheet.create({
     fontFamily: 'TossFaceFontMac',
     fontSize: 26,
     lineHeight: 32,
+  },
+  tileImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
   },
   title: {
     fontSize: 12,

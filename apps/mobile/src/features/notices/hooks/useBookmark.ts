@@ -15,7 +15,7 @@ import {
 } from '@/services/firestore-bookmarks';
 import { logBookmarkSave, logBookmarkUnsave } from '@/services/analytics';
 import { logHandledError } from '@/services/crashlytics';
-import { useReviewPromptGate, DEV_ALWAYS_SHOW } from './useReviewPromptGate';
+import { DEV_ALWAYS_SHOW } from './useReviewPromptGate';
 
 /**
  * Outcome of `toggle()`. The caller decides UX: auth-required → toast +
@@ -34,10 +34,12 @@ export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
  * `notice.summary` shape don't invalidate the toggle callback's memoization.
  */
 export interface UseBookmarkOptions {
-  /** Imperative callback to open the review-prompt sheet. The gate only
-   *  invokes this on the user's 2nd+ bookmark and when the time/outcome
-   *  conditions pass. */
-  onShowReviewPrompt?: () => void;
+  /**
+   * Called with the current bookmark count when the 2nd+ bookmark threshold
+   * passes. The callee (useReviewPrompt.triggerIfEligible) owns the
+   * install-age / cooldown / global-positive gate check internally.
+   */
+  onReviewEligible?: (count: number) => void;
 }
 
 /**
@@ -70,7 +72,6 @@ export function useBookmark(
     optsRef.current = options;
   }, [options]);
 
-  const reviewPromptGate = useReviewPromptGate();
   // In-flight guard for refreshSummaryIfNewlyAvailable. The detail screen
   // calls it from a useEffect on `notice` reference identity; React Query
   // background refetch (e.g. on app focus) yields a new reference even when
@@ -136,19 +137,22 @@ export function useBookmark(
        * applyLocal above, so it's included in the count. `requestAnimationFrame`
        * defers past the optimistic icon-flip animation so the sheet doesn't
        * overlap with the bookmark capsule transition (~16-32ms tail).
+       *
+       * The gate (install-age, cooldown, global-positive) is handled inside
+       * the injected `onReviewEligible` callback (useReviewPrompt.triggerIfEligible).
        */
       function maybeFireReviewPrompt() {
         const opts = optsRef.current;
-        if (!opts?.onShowReviewPrompt) return;
+        if (!opts?.onReviewEligible) return;
         const count = Object.keys(useBookmarkStore.getState().entries).length;
         if (!DEV_ALWAYS_SHOW && count < 2) return;
-        const open = opts.onShowReviewPrompt;
+        const onReviewEligible = opts.onReviewEligible;
         requestAnimationFrame(() => {
-          reviewPromptGate('second_bookmark', count, open);
+          onReviewEligible(count);
         });
       }
     },
-    [key, sourceId, articleNo, reviewPromptGate],
+    [key, sourceId, articleNo],
   );
 
   /**

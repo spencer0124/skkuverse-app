@@ -12,7 +12,7 @@
  *   profile + kebab icons get the system Liquid Glass capsule treatment.
  *   That precludes a `header: () => Component` callback (which replaces
  *   the entire bar). The 9-tab strip therefore lives in the SectionList
- *   ListHeaderComponent. Per docs/ios-26-native-tabs-minimize.md (chain
+ *   ListHeaderComponent. Per docs/explanation/ios-26-native-tabs-minimize.md (chain
  *   root rule), this preserves minimize-on-scroll because RNSScreen
  *   subviews[0] is still the SectionList — the strip is rendered INSIDE
  *   the list, not as a sibling.

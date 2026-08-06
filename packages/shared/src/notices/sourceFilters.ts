@@ -1,15 +1,13 @@
 /**
  * Context-aware filtering for picker `TabSource[]`.
  *
- * The same dept list is reused across surfaces but should not look the same:
- *
- * - **Onboarding (step 2/3)** — `showUnsupported: true`. Unsupported entries
- *   stay in the list (rendered greyed out) so the user can tap one and learn
- *   *why* it's not supported, with a parent-college alternative offered.
- *
- * - **Main notices picker route** (`app/notices/picker.tsx`) —
- *   `showUnsupported: false`. The user has already onboarded; unsupported
- *   entries here are noise during a subscription change.
+ * Every current surface (onboarding steps AND the main notices picker route
+ * `app/notices/picker.tsx`) passes `showUnsupported: true`: unsupported
+ * entries stay in the list (greyed, warning marker) so the user can tap one
+ * and learn *why* it's not supported, with a parent-college alternative
+ * offered. Hiding them (`false`) made a dept silently vanish from search,
+ * which read as "app is broken" — keep the option for surfaces where
+ * unsupported entries truly are noise.
  *
  * The filter is intentionally a thin selector with no React Query / store
  * coupling — call it where you produce the list for the renderer.

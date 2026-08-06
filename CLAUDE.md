@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+문서는 Diátaxis 구조 (`docs/how-to|reference|explanation|decisions|internal|plans`). **새 문서 작성·수정 전 `docs/README.md`(인덱스 + 작성 규칙 SSOT) 필독** — frontmatter 스키마, kebab-case, 값 복사 금지(버전·수치는 source-of-truth 파일 참조) 규칙. 마크다운 린트는 `yarn lint:md` (루트 `yarn lint`에 체인됨).
+
 ## Project Overview
 
 Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorepo** with a React Native mobile app and a companion webview SPA.
@@ -42,6 +46,7 @@ yarn test:rules       # Firestore rules tests (Firestore emulator + node:test)
 ```
 
 Firestore rules는 `apps/mobile/firestore.rules`에 정의. 배포 명령:
+
 ```bash
 firebase deploy --only firestore:rules
 ```
@@ -55,15 +60,16 @@ Node version is pinned to **20** (see `.nvmrc`).
 **Routing:** Expo Router (file-based). Route files live in `app/`, feature code in `src/features/`.
 
 **Provider stack** (defined in `app/_layout.tsx`):
-```
+
+```text
 ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider → QueryProvider → InitGate → BottomSheetModalProvider → Stack
 ```
 
-`SafeAreaProvider` is **explicit at root**(rnsac + Expo docs 권장 패턴) AND **also re-mounted inside each modal route** (e.g. `app/onboarding.tsx`). Modal routes registered with `presentation: 'fullScreenModal'` / `'modal'` mount in a separate native UIViewController; the root provider measures the wrong VC's insets, so the modal's first paint loses top safe area. Per-modal `<SafeAreaProvider>` wrap is mandatory for any modal screen — see `docs/ios-modal-safe-area-provider.md`.
+`SafeAreaProvider` is **explicit at root**(rnsac + Expo docs 권장 패턴) AND **also re-mounted inside each modal route** (e.g. `app/onboarding.tsx`). Modal routes registered with `presentation: 'fullScreenModal'` / `'modal'` mount in a separate native UIViewController; the root provider measures the wrong VC's insets, so the modal's first paint loses top safe area. Per-modal `<SafeAreaProvider>` wrap is mandatory for any modal screen — see `docs/explanation/ios-modal-safe-area-provider.md`.
 
 **Tab structure (per-tab nested Stack):** `app/(tabs)/` 그룹 안에 4개 탭 디렉토리(`home/`, `campus/`, `transit/`, `notices/`)가 각자 `_layout.tsx`(`<Stack screenOptions={defaultHeaderOptions}/>`) + `index.tsx`(실제 화면)로 구성. 각 탭이 독립 Stack을 가지므로 탭 전환 시 부모 Stack의 `headerShown`이 토글되지 않음 — 콘텐츠가 위아래로 슬라이드하는 layout shift 방지. 헤더는 `react-native-screens` native-stack(iOS UINavigationController, Android Toolbar) 직접 사용 — 공통 옵션은 `apps/mobile/src/lib/header-options.ts`(`headerTitleAlign:'center'`, `headerBackButtonDisplayMode:'minimal'`, etc.), 헤더 우측 아이콘은 `apps/mobile/src/lib/HeaderIconButton.tsx`(44×44 고정으로 react-native-screens iOS customView stretch 회피). 동적 옵션(notices의 Bell/BellOff 등)은 화면 안에서 inline `<Stack.Screen options={...}/>`. Home 탭 URL은 `/home`. Cold-start root `/`는 `app/+native-intent.tsx`의 `redirectSystemPath`가 `initial: true && path === '/'` 분기에서 `/(tabs)/${resolveInitialTabRouteName(lastTab)}`로 직접 라우팅 — `app/index.tsx`(`<Redirect>`)는 마운트조차 안 됨. 이렇게 하는 이유: 만약 redirect-only 화면이 root Stack history에 남으면 iOS long-press 뒤로가기에서 titleless phantom 항목으로 보이는 결함이 생긴다. 만에 하나 leak되어도 `app/_layout.tsx`의 `<Stack.Screen name="index" options={{ title: t('nav.home') }}/>`가 fallback 라벨 보장. SDUI 'route' action에서 bare `/`도 마찬가지로 `router.dismissTo('/(tabs)/home')`로 가로채서 phantom 회피 (`apps/mobile/src/sdui/action-handler.ts`). Initial tab 복원은 `packages/shared/src/utils/resolveInitialTabRoute.ts` + `useSettingsStore.lastTab`.
 
-**iOS 26 NativeTabs chain root rule (minimize + auto contentInset 동시 게이트):** `<NativeTabs minimizeBehavior="onScrollDown">` 발화 + headerless 화면의 status-bar 영역 자동 contentInset adjustment, **두 동작 모두** 같은 native finder에 게이트된다. 조건은 각 탭 화면의 RNSScreen `subviews[0]` 직계가 `ScrollView`/`SectionList`/`FlatList`여야 한다는 것. **outer wrapping `<View>` 한 겹만 추가돼도, 또는 isLoading 분기가 첫 마운트에 ScrollView가 아닌 view를 두면 두 동작 모두 영구 비활성** (탭 바 minimize 안 됨 + 컨텐츠가 status bar와 겹침). native finder(`RNSScrollViewFinder.mm`)가 strict subviews[0] chain을 명목상 끝까지 따라가지만, `mountChildComponentView(index==0)` 호출 타이밍이 첫 자식의 자식들이 mount되기 전이라 사실상 **1단계 깊이만 보장**되기 때문. RNS는 chain root에 한해 RN ScrollView default `contentInsetAdjustmentBehavior=Never`를 `Automatic`으로 flip해 UIKit-native safe-area 처리로 reverts (`RNSScrollViewHelper.mm:6`). 화면 root는 ScrollView/SectionList를 직계 반환하거나 Fragment(`<>...</>`)의 첫 자식으로 둘 것. **isLoading/error 분기는 ScrollView를 sibling으로 두지 말고 ScrollView 안에서 swap** (children만 분기). selector/header overlay는 absolute positioning + Fragment 두 번째 이후 자식으로 (`<><SectionList listHeaderHeight=…/><View style={absoluteOverlay}>…</View></>` 패턴). loading/empty/error는 SectionList의 `ListEmptyComponent` + `contentContainerStyle.flexGrow:1`로 흡수. 자세한 패턴/안티패턴/native 메커니즘: `docs/ios-26-native-tabs-minimize.md`.
+**iOS 26 NativeTabs chain root rule (minimize + auto contentInset 동시 게이트):** `<NativeTabs minimizeBehavior="onScrollDown">` 발화 + headerless 화면의 status-bar 영역 자동 contentInset adjustment, **두 동작 모두** 같은 native finder에 게이트된다. 조건은 각 탭 화면의 RNSScreen `subviews[0]` 직계가 `ScrollView`/`SectionList`/`FlatList`여야 한다는 것. **outer wrapping `<View>` 한 겹만 추가돼도, 또는 isLoading 분기가 첫 마운트에 ScrollView가 아닌 view를 두면 두 동작 모두 영구 비활성** (탭 바 minimize 안 됨 + 컨텐츠가 status bar와 겹침). native finder(`RNSScrollViewFinder.mm`)가 strict subviews[0] chain을 명목상 끝까지 따라가지만, `mountChildComponentView(index==0)` 호출 타이밍이 첫 자식의 자식들이 mount되기 전이라 사실상 **1단계 깊이만 보장**되기 때문. RNS는 chain root에 한해 RN ScrollView default `contentInsetAdjustmentBehavior=Never`를 `Automatic`으로 flip해 UIKit-native safe-area 처리로 reverts (`RNSScrollViewHelper.mm:6`). 화면 root는 ScrollView/SectionList를 직계 반환하거나 Fragment(`<>...</>`)의 첫 자식으로 둘 것. **isLoading/error 분기는 ScrollView를 sibling으로 두지 말고 ScrollView 안에서 swap** (children만 분기). selector/header overlay는 absolute positioning + Fragment 두 번째 이후 자식으로 (`<><SectionList listHeaderHeight=…/><View style={absoluteOverlay}>…</View></>` 패턴). loading/empty/error는 SectionList의 `ListEmptyComponent` + `contentContainerStyle.flexGrow:1`로 흡수. 자세한 패턴/안티패턴/native 메커니즘: `docs/explanation/ios-26-native-tabs-minimize.md`.
 
 **Feature modules** (`src/features/`): `home`, `bus`, `map`, `building`, `search`, `notices` — each self-contained with components, hooks, and utils.
 
@@ -86,33 +92,16 @@ Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
 
 ### Notices Feature (`src/features/notices/`)
 
-**Tab layout:** Server-driven via `GET /notices/tabs`. 서버가 탭 종류, 순서, 타입(`fixed`/`picker`), picker source 목록, `maxSelection`, `defaultIds` + `campusDefaultIds`를 모두 내려줌. 현재 9탭: 학과 / 학사 / 장학 / 취업 / 모집 / 행사 / 도서관 / 기숙사 / 일반. `tabMode: "picker"` 탭은 multi-source picker (BottomSheetModal, multi-select).
-
-**Markdown rendering:** `react-native-marked` (major in `apps/mobile/package.json`), custom `NoticeRenderer` extending `Renderer`:
-- `image()`: `RefererImage` component — SKKU 이미지 서버의 Referer 요구사항 대응 + dimension hint 기반 shimmer placeholder
-- `paragraph()`: 이미지 포함 paragraph → `<View>`, 텍스트만 → `<Text selectable>` 분기 (Animated.View가 Text 안에서 동작하지 않는 RN 제약 우회)
-- `link()`: 웹 링크 → in-app browser, 이메일/전화 → 클립보드 복사
-
-**Image dimension hint (크롤러 연동):** 크롤러가 `![{WxH} alt](url)` 포맷으로 이미지 원본 크기를 markdown alt text에 삽입. 앱의 `parseDimHint()`가 이를 파싱하여 이미지 로딩 전 정확한 크기의 shimmer skeleton을 overlay로 표시 → CLS(Cumulative Layout Shift) 제거. hint가 없는 이미지는 `getSizeWithHeaders` 완료 후 표시.
-
-**Notice row:** Toss-style 왼쪽 정렬 메타 (`3일 전 · 학과명` — multi-dept 탭에서만 학과명 표시). 첨부파일 있는 공지는 제목 옆 paperclip 아이콘. 마감일 있는 공지는 deadline badge 표시 (D-day 기반 색상 시스템).
-
-**Section grouping:** `groupNoticesByDate()` (`apps/mobile/src/features/notices/utils/groupNotices.ts`)가 공지를 5개 버킷으로 묶어 `SectionList` 헤더로 표시 — `recent7`(최근 7일) → `recent30`(최근 30일) → `month-{n}`(올해 월별, desc) → `year-{n}`(과거 연도, desc) → `unknown`(기타). `unknown`은 `item.date`가 빈 문자열·ISO timestamp·malformed 등 `YYYY-MM-DD` 파싱 실패 시 fallback (parser `asString(raw.date)`가 missing/null을 `''`로 강등하는 데 대한 방어). 라벨은 ko `기타` / en `Other` / zh `其他`. 정렬 priority 99998로 모든 year 버킷보다 뒤·default(`99999`)보다 앞에 위치.
+**전체 상세: `docs/explanation/notices-feature.md`** — 서버 주도 탭 레이아웃(`GET /notices/tabs`, fixed/picker), 마크다운 렌더링(`NoticeRenderer` image/paragraph/link 오버라이드), dimension hint 기반 CLS 제거, notice row 메타·deadline badge, 날짜 그루핑(`groupNoticesByDate` 5버킷), 첨부파일 프록시.
 
 **Onboarding gate + 자동복원 (2026-04-28, v2 redesign 2026-05-01):** 공지 탭 진입 게이트는 `isAnonymous || !onboardingCompleted` (`apps/mobile/app/(tabs)/notices/index.tsx`). 둘 중 하나라도 true면 `OnboardingLanding` 표시. `@g.skku.edu` 도메인 필수.
 
-**v2 게이트 화면 (2026-05-01)**: 좌상단 정렬 hook 헤드라인 ("성균관대 공지, / 찾지 말고 받아보세요", 32pt bold) + 가운데 mock 노티스 카드(복수전공 D-3 예시, 한국어 하드코딩 — i18n 미적용은 의도적 prototype 스코프) + 다크 그린 #1f3d2e CTA "시작하기" + 보조 "이미 가입한 적 있어요" (grey400 t6). CTA는 SDS Button variant에 없는 색이라 커스텀 Pressable로 인라인. 게이트 활성 시 화면을 가입 유도에 집중시키기 위해:
-- **상단 9탭 스트립 숨김**: `notices/index.tsx`의 게이트 분기에서 `<Stack.Screen options={{ headerShown: false }} />` 발화. 정상 분기는 그대로 `header: () => <NoticesHeader />`. native-stack header는 body의 sibling이 아니라 별도 계층 mount이라 body 안 absolute overlay로 못 덮음 → header 자체를 mount 안 하는 게 유일한 방법.
-- **하단 Search/Bookmarks/Filter 액세서리 바 숨김**: `(tabs)/_layout.tsx`에서 `showNoticesAccessory = isNoticesTab && !isAnonymous && onboardingCompleted` 게이트를 부모 `TabLayout`에 hoist해서 `bottomAccessory={showNoticesAccessory ? () => <NoticesBottomAccessoryGate /> : undefined}` 발화. 자식에서 `null` 리턴해도 빈 Liquid Glass capsule이 공간을 잡으므로 prop 자체를 `undefined`로 만들어야 `setBottomAccessory:nil animated:YES` 호출 → 진짜 unmount.
+게이트·자동복원의 상세 메커니즘(v2 게이트 화면, 헤더/액세서리 native unmount 이유, 복원 경로 dual-write)은 `docs/explanation/notices-feature.md`. 세션 중 실수 방지 불변식만:
 
-- **메인 CTA**: 5-step Toss-style wizard로 push (`/onboarding`).
-- **보조 액션 "이미 가입한 적 있어요"**: 인라인 Google Sign-In 핸들러 (`notices/index.tsx` `handleExistingAccountSignIn`) — `login.tsx` 패턴 미러 (pre-unregister anon device → sign-in → re-register). sign-in 후 `getPreferences(uid)` 명시 read → `prefs.onboardedAt != null && pickerSelections.dept.length > 0`이면 `useSettingsStore.restoreOnboardingFromRemote()` 즉시 호출 (게이트 자동 해제, flicker 없음). 신규 가입자거나 corrupt state면 `/onboarding`으로 push.
-- **Cold-start fallback**: `useAppInit.ts`의 `onPreferencesChanged` 리스너가 동일한 자동복원 로직을 fallback으로 호출 — 평범한 부팅(이미 인증된 returning user)에서도 게이트 자동 해제. 인라인 핸들러와 dual-write라 race-free (always-overwrite + 동일 데이터).
-- **`onboardedAt` discriminator**: Firestore preferences/main의 명시 시그널. `seedOnboardingPreferences`가 wizard 완료 시 `serverTimestamp()`로 시드, `initializeFirestoreNotifications` default doc은 `null`. Rules가 'null→timestamp' 한 방향 immutability 강제 — `firestore.rules` + `firestore.rules.test.mjs` 4 케이스.
-- **always-overwrite 의미론**: `restoreOnboardingFromRemote`는 idempotency guard 없음. 의도: SSOT mirror = eventual consistency. account-switch (logout A → signin B) 케이스에서 A의 stale dept를 B의 값으로 자동 self-heal. dept 미러는 `pickerSelections.dept[0]` (primary) + `slice(1, 4)` (interest, max 3).
-- **'dept' 키 cross-cutting hard-code**: discriminator는 `onboardedAt`이 떠맡았지만 dept 미러 read는 여전히 3 sites — `notices/index.tsx` handler, `useAppInit.ts` listener, server-side `functions/src/notifications/tabsContract.ts`. coordinated rename 필요.
-
-**첨부파일:** `files.skkuverse.com` 프록시 경유. preview/download 버튼 제공.
+- **자동복원 dual-write 유지**: 인라인 sign-in 핸들러(`notices/index.tsx`) + `useAppInit.ts` `onPreferencesChanged` fallback — 한쪽만 수정하지 말 것 (race-free 근거 = always-overwrite + 동일 데이터).
+- **`onboardedAt` discriminator**: rules가 'null→timestamp' 단방향 immutability 강제. 온보딩 완료 게이트는 Firestore write **성공 후**에만 커밋 (유령 상태 방지 — `docs/internal/2026-07-notices-picker-ghost-state.md`).
+- **'dept' 키 cross-cutting hard-code**: dept 미러 read 3 sites — `notices/index.tsx` handler, `useAppInit.ts` listener, `functions/src/notifications/tabsContract.ts`. rename은 coordinated 필요.
+- **게이트 분기의 header/bottomAccessory는 진짜 unmount 필요** (`headerShown: false` 발화 + accessory prop 자체를 `undefined`로) — 숨김/overlay로 대체 불가.
 
 ### Design System (`@skkuverse/sds`)
 
@@ -123,24 +112,24 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com/p/...`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
 
 - **유니버셜 링크 prefix:** `/p/` (예: `skkuverse.com/p/search`) — 앱에서 자동 스트립
-- **허용:** `/`, `/home`, `/campus`, `/transit`, `/map/hssc`, `/search`
+- **허용 (정적):** `/`, `/home`, `/campus`, `/transit`, `/map/hssc`, `/search`
+- **허용 (동적):** 공지 `/notices/<sourceId>/<articleNo>` — 통과가 아니라 **가로채기**: `pendingExternalNoticeLink.set(...)` 후 `/(tabs)/notices` 반환, root layout의 `PendingNoticeLinkConsumer`가 상세를 push (뒤로가기가 공지 탭에 안착). 미니앱 `/m/<slug>` — registry 등록 slug만 `pendingMiniAppLink.set(...)` 후 `/(tabs)/home` 반환, `PendingMiniAppLinkConsumer`가 오픈.
 - **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈(`/(tabs)/home`)으로 리다이렉트
-- **Cold start 가드:** `redirectSystemPath`는 `initial: true`일 때 대부분 path 그대로 통과 — 단 **bare `/`만 `/(tabs)/<lastTab>`으로 직접 매핑** (app/index.tsx 미마운트로 long-press 뒤로가기의 titleless phantom 회피). 다른 path 라우트 매칭은 router-internal layer가 담당.
+- **필터링은 cold/warm 균일:** 화이트리스트·공지·미니앱 로직이 `initial` 여부와 무관하게 동일 적용 (untrusted 딥링크가 `/login`·`/onboarding` 같은 내부 라우트로 push 못 하게). 유일한 분기는 **bare `/`** — cold는 `/(tabs)/<lastTab>` 복원(app/index.tsx 미마운트로 long-press 뒤로가기의 titleless phantom 회피), warm은 `/(tabs)/home`.
 - **앱 내부 네비게이션(`router.push`)은 영향 없음** — 단 SDUI 'route' action의 bare `/`는 `router.dismissTo('/(tabs)/home')`로 가로채서 동일한 phantom 회피
-- 자세한 내용은 `docs/deep-link.md` 참조
+- 자세한 내용은 `docs/reference/deep-link.md` 참조
 
 ## Key Technical Details
 
-- **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/android-naver-map-markers.md`)
+- **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/explanation/android-naver-map-markers.md`)
 - **Auth/Analytics:** Firebase (auth, analytics, crashlytics, app-check). Google Sign-In (`@g.skku.edu` 도메인 제한). App Check은 iOS App Attest + Android Play Integrity.
-- **Push notifications:** FCM via `@react-native-firebase/messaging` + `@notifee/react-native`. Phase 1~4 (토큰·딥링크·뱃지·delivery CF) + **Phase 5 SSOT (2026-04-25)** 완료. 옵션 D — 알림함 없음, 뱃지는 Zustand+Notifee 로컬. 자세한 내용은 `docs/plans/fcm-push-notifications.md`. 임시 진단 화면 `app/debug-fcm.tsx` — 캠퍼스 탭 우상단 빨간 "FCM" 버튼으로 진입 (dogfooding 안정 후 제거).
-- **FCM v5 SSOT (Firestore-driven, server-derived, 2026-04-25; onboardedAt 추가 2026-04-28):** "기록은 의도, 전송은 파생" 원칙. 클라는 intent 5 필드만 씀 (`enabled`, `categoryEnabled: { essential, services, notices }`, `noticeTabEnabled: Record<string, boolean>`, `pickerSelections: Record<string, string[]>`, `onboardedAt: Timestamp | null`). CF `onPreferencesWrite` 트리거(asia-northeast3, 2nd gen, Node 22)가 derive해서 `subscribedTopics` + `derivedAt` 채움 (단 `onboardedAt`은 derive 입력 아님 — Guard 1 비교 4 필드에 미포함). Firestore Rules가 derived 필드 client write 봉쇄 + `onboardedAt`은 'null→timestamp' 한 방향 immutability 강제 (시드 후 재변경 reject). 클라 write API: `setMasterEnabled` / `setCategoryEnabled` / `setNoticeTabEnabled` / `setPickerSelectionRemote` (전부 단일 dot-path `updateDoc`, 트랜잭션 없음 — 캠퍼스 wifi dead spot offline 큐잉 보호). `seedOnboardingPreferences`가 wizard 완료 시 `onboardedAt: serverTimestamp()` 시드 — 자동복원 discriminator로 사용. MMKV는 device-local state(token/deviceId/unreadCount)만 persist, `preferences`는 Firestore listener가 단일 source. Trigger guards 두 겹 (intent unchanged → skip self-loop, derived equal → skip idempotent write). 구현: `functions/src/notifications/{tabsContract,derive}.ts` + `functions/src/triggers/onPreferencesWrite.ts` + `apps/mobile/src/services/firestore-notifications.ts` + `apps/mobile/src/features/notifications/NotificationSettingsScreen.tsx`. 통합 검증: `cd functions && npm run verify:trigger` (firebase emulators:exec 4 시나리오). Rules 테스트: `yarn test:rules` (30 케이스 = devices 13 + preferences 13 + onboardedAt immutability 4).
-- **FCM tabsContract — 9 server tab key 미러:** `functions/src/notifications/tabsContract.ts`에 fixed 5개(`academic`/`scholarship`/`career`/`recruitment`/`event`)와 picker 4개(`dept`/`library`/`dorm`/`general`) 하드코딩. Source of truth: `~/project/skkuverse/skkuverse-server/features/notices/categories.json` (별도 레포). 백엔드가 새 탭 추가 시 같은 release에서 미러 갱신 필수. derive는 unknown picker key를 `logger.warn`하지만 unknown fixed key는 자체 감지 불가 (개발자 조율). 컨벤션: picker tab key === topic prefix (identity 매핑) — `pickerPrefixForTabKey` 함수 폐기됨.
-- **FCM preferences ↔ devices drift (2026-04-23 해결):** Cloud Function `syncPreferencesToDevices` (2nd gen, `asia-northeast3`, Node 22). `users/{uid}/preferences/main` onWrite trigger → 해당 uid 의 active devices 모두에 `subscribedTopics` + `notificationsEnabled` **두 필드만** whitelist update. 실측 latency ~0.3초. 구현: `functions/src/sync-preferences-to-devices.ts`. 설정: `retry: true` + 10분 event age guard + `maxInstances: 10` + before/after diff Set 비교 + admin SDK (rules 우회). 운영 주의사항은 `docs/plans/fcm-push-notifications.md` Phase 3 디버깅 기록 #2 섹션 참조.
-- **FCM delivery path (Phase 4, 2026-04-23 배포 완료):** `sendNotification` HTTP CF (2nd gen, asia-northeast3, Node 22) + `handleNoticeNotification` internal handler. Endpoint: `https://asia-northeast3-skkubus-95723.cloudfunctions.net/sendNotification`. 인증: `X-API-Key` 헤더 vs Secret Manager `FCM_API_KEY` — `defineSecret` 바인딩 + `timingSafeEqual` + **`.trim()` 방어**. devices 쿼리는 composite index 필수 — `apps/mobile/firestore.indexes.json` (active + notificationsEnabled + subscribedTopics). **Critical cleanup 정책: `TOKEN_CLEANUP_CODES` allowlist 에 `registration-token-not-registered` + `invalid-registration-token` 두 개만 포함** — `messaging/invalid-argument` 의도적 제외 (payload-wide 에러라 healthy device 500개를 `active:false`로 꺼버리는 footgun). FCM `data` payload는 `Record<string, string>` 빌드 (optional undefined 제외, v1 API validation 보호). 구조화 로깅: `logger.info('notice.dispatch.complete', { noticeId, topics, deviceCount, sent, failed, cleanedUp, durationMs })` → Cloud Logging `jsonPayload.noticeId="..."` 필터. 구현: `functions/src/{send-notification,handle-notice,channels,types}.ts`. 백엔드 payload 계약 (`NoticeNotificationPayload`) 별도 레포 공유.
-- **Firestore 디버깅 기법 (2026-04-23 확립):** (1) `onSnapshot` 에 `{ includeMetadataChanges: true }` 없이는 서버 ack / fromCache 전환이 emit 되지 않아 "write 미도달" 오진 유발. (2) Firebase Console은 자체 listener라 stale 뷰 보일 수 있음 → server truth는 Firestore REST API로 직접 조회 (`~/.config/configstore/firebase-tools.json`의 refresh_token 활용). (3) 복제 필드 drift는 두 replica의 `updateTime` 비교로 first-step 판정.
-- **FCM auth transition (Task #12 + 2026-04-25 보강):** anon↔Google uid 전환 시 `devices/{deviceId}.uid` stale → `firestore/permission-denied` 버그 해결. `useAppInit`의 `onAuthStateChanged`가 `authStore.lastKnownUid`로 uid 전환 감지하여 `initializeFirestoreNotifications()` 재실행 (`withRetry` closure는 `getAuth().currentUser?.uid` lazy resolve — race-safe). `signOutFromGoogle`은 sign-out 전에 `unregisterDevice(deviceId)`로 active:false 처리. **2026-04-25 보강 — anon→Google 미러**: `OnboardingScreen.handleSignIn` + `app/login.tsx`의 `handleSignIn` 양쪽에 sign-in 전 `unregisterDevice` + sign-in 후 `await initializeFirestoreNotifications` 패턴 추가 (rule path b 통과 + step 5 race 차단). Firestore rule: "active 문서는 owner만, inactive 문서는 아무 authed user가 claim 가능" 시맨틱 — `firestore.rules` SECURITY TRADE 주석 + `firestore.rules.test.mjs` 26 케이스 (devices 13 + preferences 13) 참조. Rules는 `skkubus-95723` production 배포 완료.
-- **App Check debug token (iOS Simulator):** `.env`의 `FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS` → `app.config.ts` `extra` → `src/services/app-check.ts` 에서 `provider.configure({ apple: { debugToken } })` 로 전달. RN Firebase가 내부적으로 `setenv("FIRAAppCheckDebugToken", value)` 호출해서 AppCheckCore가 env 경로로 읽음. **UserDefaults (`GACAppCheckDebugToken`) fallback은 iOS Simulator + 이 Expo prebuild 조합에서 silently 무시됨** — 2026-04-22 재현·확정. `EAS_BUILD_PROFILE=beta|production` 이면 `app.config.ts extras` 에서 debug token 자동 strip → 퍼블릭 레포 + 프로덕션 번들 안전. 시뮬레이터 켤 때 디버그 토큰 교환 안 되면 Firebase Console → App Check → iOS 앱 → Manage debug tokens 에 `.env` 값과 정확히 같은 UUID 등록 여부 먼저 확인.
+- **Push notifications (FCM):** 옵션 D — 알림함 없음, 뱃지는 로컬(Zustand+Notifee), 결정 기록 `docs/decisions/0002`. **전체 아키텍처: `docs/explanation/fcm-architecture.md`** (v5 SSOT·tabsContract·drift sync·delivery·auth transition). 히스토리·과거 디버깅 기록은 `docs/plans/fcm-push-notifications.md` (superseded). 진단 화면 `app/debug-fcm.tsx`는 orphan (진입 버튼 제거됨) — 제거 후보.
+- **FCM 불변식 (상세는 fcm-architecture.md):** "기록은 의도, 전송은 파생" — 클라는 intent 필드만 write (derived 필드는 rules 봉쇄), 전부 단일 dot-path `updateDoc` (트랜잭션 금지 — 캠퍼스 wifi dead spot offline 큐잉 보호). `onboardedAt`은 'null→timestamp' 단방향 immutability. MMKV는 device-local state만, preferences는 Firestore listener가 단일 source. 검증: `cd functions && npm run verify:trigger` + `yarn test:rules` (케이스 수·구성은 `firestore.rules.test.mjs`가 권위 — 개수 박제 금지).
+- **FCM tabsContract 미러 규율:** `functions/src/notifications/tabsContract.ts`는 skkuverse-server `src/notices/categories.json`(별도 레포)의 하드코딩 미러 — 백엔드 탭 추가 시 **같은 release에서** 미러 갱신 필수 (unknown fixed key는 자체 감지 불가). 컨벤션: picker tab key === topic prefix. 절차 체크리스트: `docs/how-to/add-notice-tab.md`.
+- **FCM drift sync / delivery 주의:** `syncPreferencesToDevices` 설정·`sendNotification` 인증·로깅 상세는 `docs/explanation/fcm-architecture.md`. 불변식 하나만: `TOKEN_CLEANUP_CODES`에 `messaging/invalid-argument` 추가 금지 — payload-wide 에러라 healthy device 대량 `active:false` footgun.
+- **Firestore 디버깅:** 증상별 판별표("잠깐 반영 후 revert"=rules 거부 등)·REST server truth 조회·updateTime 비교 절차는 `docs/how-to/firestore-debugging.md`.
+- **FCM auth transition 불변식:** 새 sign-in 경로를 추가하면 반드시 pre-`unregisterDevice` → sign-in → `await initializeFirestoreNotifications` 패턴을 미러할 것 (`OnboardingScreen.handleSignIn`·`app/login.tsx` 참조). rule 시맨틱 "active는 owner만, inactive는 claim 가능" — 상세: `docs/explanation/fcm-architecture.md`.
+- **App Check:** 디버그 토큰 주입 경로(env만 유효 — UserDefaults fallback은 시뮬레이터+prebuild 조합에서 silently 무시)·EAS 프로필별 자동 strip·Play Integrity 스로틀 대응(prime 캐시)은 `docs/explanation/app-check.md`. 시뮬레이터 토큰 교환 실패 시 Firebase Console debug token 등록부터 확인.
 - **Data storage 원칙:** 유저 데이터는 모두 **Firebase** (Firestore/Auth), 공공 데이터(공지사항, 건물정보, 버스 등)는 **MongoDB** (백엔드 API 경유)
 - **Local storage:** `react-native-mmkv` for general state, `expo-secure-store` for sensitive data
 - **Animations:** React Native Reanimated 4 + Gesture Handler 2
@@ -157,7 +146,7 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 ## Build & Deploy (로컬 빌드)
 
-이 프로젝트는 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포함. EAS 클라우드 빌드 안 씀. 자세한 내용은 `docs/ios-build-deploy.md`, `docs/android-build-deploy.md` 참조.
+이 프로젝트는 **EAS Build `--local`** + **Fastlane**으로 로컬에서 빌드/배포함. EAS 클라우드 빌드 안 씀. 자세한 내용은 `docs/how-to/ios-build-deploy.md`, `docs/how-to/android-build-deploy.md` 참조.
 
 ```bash
 cd apps/mobile
@@ -174,6 +163,7 @@ cd apps/mobile
 ```
 
 **공통 주의사항:**
+
 - `credentials.json`에 iOS(dist.p12 + mobileprovision)와 Android(upload-keystore.jks) 인증 설정
 - `eas.json`의 `production` 프로필에 `"credentialsSource": "local"` 필수
 - `.easignore`가 `.gitignore` 대신 적용됨 — Firebase 설정, `.env`, `certs/certificate.pem`이 빌드에 포함되어야 함
@@ -181,13 +171,14 @@ cd apps/mobile
 - `expo-channel-name`은 EAS 클라우드에서만 자동 주입됨 → **로컬 빌드에서는 `app.config.ts`의 `updates.requestHeaders`에 수동 설정 필수**
 - Android 빌드 스크립트에 `JAVA_HOME`(JDK 17), `ANDROID_HOME` 자동 설정 포함
 - iOS bundle ID: `com.example.skkumap` / Android package: `com.zoyoong.skkubus`
+- **EAS 로컬 빌드 monorepo 필수 설정 (둘 다 없으면 embed 번들 단계에서 `Unable to resolve module .../apps/mobile/index.ts` → `ARCHIVE FAILED`):** (1) `eas.json` beta/production env에 **`EXPO_NO_METRO_WORKSPACE_ROOT=1`** — 최근 @expo/cli가 Metro workspace-root를 기본 ON으로 바꿔, EAS 샌드박스(nested `apps/mobile/node_modules` 생성)에서 서버 루트가 monorepo 루트가 되며 `tsconfig` `@/` paths가 깨짐. (2) iOS 빌드 스크립트가 **`export TMPDIR="$HOME/.eas-build-tmp"`** (심볼릭 없는 경로) — `/tmp`·`/var/folders`는 `/private/...` 심볼릭이라 엔트리(심볼릭)와 Metro 서버 루트(realpath)가 불일치. **이 실패는 로컬 repo에선 재현 안 됨**(완전 호이스팅); 디버깅은 빌드 도중 살아있는 EAS 샌드박스에서 직접 `expo export:embed` 재현. 풀빌드 반복 금지. 자세한 내용 `docs/how-to/ios-build-deploy.md` Troubleshooting.
 - **Release Notes**: 배포 전에 `fastlane/metadata/` 아래 locale별 파일 수정 → 업로드 시 자동 포함
   - Android: `metadata/android/{ko-KR,en-US,zh-CN}/changelogs/default.txt` (최대 500자)
   - iOS: `metadata/ios/{ko,en-US,zh-Hans}/release_notes.txt` (최대 4000자)
 
 ## OTA 업데이트
 
-셀프호스팅 expo-open-ota 서버 (`https://ota.skkuverse.com`). 자세한 내용은 `docs/ota-update.md` 참조.
+셀프호스팅 expo-open-ota 서버 (`https://ota.skkuverse.com`). 자세한 내용은 `docs/how-to/ota-update.md` 참조.
 
 ```bash
 cd apps/mobile

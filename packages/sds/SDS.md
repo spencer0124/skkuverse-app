@@ -1,6 +1,15 @@
+---
+title: SDS Design System Notes
+type: explanation
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: internal
+---
+
 # SDS (Skku Design System)
 
-`@toss/tds-react-native` v2.0.2를 기반으로 만든 커스텀 디자인 시스템.
+> `@toss/tds-react-native` v2.0.2를 기반으로 만든 커스텀 디자인 시스템. TDS 원본 분석 결과와 컴포넌트별 이식 전략·구현 상태를 기록한다.
 
 ---
 
@@ -12,7 +21,7 @@ TDS npm 패키지 (11MB, 2,739 파일, 51개 컴포넌트 패밀리)를 분석�
 
 prettier 돌리면 구조 파악 가능. minified 변수명만 복원하면 TS로 변환 가능.
 
-```
+```text
 Button, Badge, Switch, Checkbox, ListRow, Border,
 Skeleton, Loader, ProgressBar, TextButton, IconButton,
 ListHeader, ListFooter, Radio, Rating, Shadow, Agreement, StepperRow
@@ -24,7 +33,7 @@ ListHeader, ListFooter, Radio, Rating, Shadow, Agreement, StepperRow
 
 구조는 보이지만 일부 핵심 로직이 암호화. .d.ts가 완벽하므로 API 계약서로 재구현.
 
-```
+```text
 Dialog, Toast, BottomSheet, BottomCTA, FixedBottomCTA,
 Tab, SegmentedControl, Dropdown, Top, SearchField,
 NumericSpinner, Tooltip, FullTooltip, Highlight, Gradient
@@ -36,7 +45,7 @@ NumericSpinner, Tooltip, FullTooltip, Highlight, Gradient
 
 모든 문자열이 XOR로 암호화되어 있어 해독 불가. 완전 재구현 필요.
 
-```
+```text
 Txt, TextField, Keypad (Number/FullSecure),
 Carousel, BarChart, Post, ErrorPage, Result
 ```
@@ -46,7 +55,7 @@ Carousel, BarChart, Post, ErrorPage, Result
 ### 핵심 자산 (난독화 없음)
 
 | 자산 | 설명 |
-|------|------|
+| ------ | ------ |
 | **모든 .d.ts 타입 정의** | Korean JSDoc 포함, 완벽한 API 계약서 |
 | **Foundation 패키지** | colors, typography, easings, spring-easing, color-utils |
 | **라이센스** | GPL-3.0 |
@@ -55,7 +64,7 @@ Carousel, BarChart, Post, ErrorPage, Result
 
 Toss 내부 프레임워크(`@granite-js`) 전용 — SDS에서 불필요:
 
-```
+```text
 Bridge, ExternalWebViewScreen, PartnerWebViewScreen, PartnerNavigation,
 PageNavbar, TabView, TopNavigation, Navigation, PreventFontScaling, OverlayExtension
 ```
@@ -86,7 +95,7 @@ TDS의 `@granite-js/native`, `@granite-js/react-native` 의존성을 완전 제�
 
 ### 패키지 구조
 
-```
+```text
 packages/sds/                       # @skkuverse/sds
 ├── src/
 │   ├── index.ts                    # barrel export
@@ -145,7 +154,7 @@ packages/sds/                       # @skkuverse/sds
 ### Tier 1 — 완료 (8개 + Provider)
 
 | 컴포넌트 | 전략 | 애니메이션 | 상태 |
-|----------|------|-----------|------|
+| ---------- | ------ | ----------- | ------ |
 | **SDSProvider** | 재구현 | — | ✅ 완료 |
 | **Txt** | .d.ts 재구현 | — | ✅ 완료 |
 | **Button** | beautify→TS | scale down + dim overlay + loading dots pulse | ✅ 완료 |
@@ -161,7 +170,7 @@ packages/sds/                       # @skkuverse/sds
 TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일치.
 
 | 컴포넌트 | 전략 | 핵심 기능 | 상태 |
-|----------|------|-----------|------|
+| ---------- | ------ | ----------- | ------ |
 | **TextButton** | beautify→TS | variant(arrow/underline/clear), fontWeight 제한, GestureResponderEvent | ✅ 완료 |
 | **IconButton** | beautify→TS | variant default='clear'(TDS), scale spring, label a11y, useAdaptive | ✅ 완료 |
 | **ListHeader** | beautify→TS | TitleParagraph, RightText, **RightArrow**, DescriptionParagraph, titleViewStyle/rightViewStyle | ✅ 완료 |
@@ -175,6 +184,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 | **Toast** | .d.ts 재구현 | Icon(check/warning/error/info), Button, position(top/bottom), auto-dismiss | ✅ 완료 |
 
 **TDS 비교 검증에서 수정된 항목:**
+
 - IconButton: default variant `fill` → `clear` (TDS 일치)
 - ListHeader: `RightArrow` compound 추가, `RightText` color grey500 → `grey700`
 - Skeleton: borderRadius default 8 → 6
@@ -185,6 +195,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 - Dialog: `closeOnDimmerClick`, `onEntered` 추가, `title` string → ReactNode
 
 **검증:**
+
 - TypeScript 컴파일: `npx tsc --noEmit` 통과 (SDS + mobile 모두 0 에러)
 - preview 화면: `apps/mobile/app/sds-preview.tsx` — 모든 상태 커버
 - SDSProvider: `apps/mobile/app/_layout.tsx`에 통합
@@ -196,7 +207,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 ### Tier 2 — ✅ 완료 (11개)
 
 | 컴포넌트 | 난독화 | 전략 | 난이도 | 용도 |
-|----------|--------|------|--------|------|
+| ---------- | -------- | ------ | -------- | ------ |
 | **Dialog** | 부분 | .d.ts 재구현 | 중 | ✅ Alert/Confirm 다이얼로그 |
 | **Toast** | 부분 | .d.ts 재구현 | 중 | ✅ 피드백 알림 |
 | **Skeleton** | readable | beautify→TS | 하 | ✅ 로딩 플레이스홀더 |
@@ -214,7 +225,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 복합 인터랙션이 필요한 컴포넌트. 대부분 부분 난독화 → .d.ts 재구현.
 
 | 컴포넌트 | 전략 | 핵심 기능 | 상태 |
-|----------|------|-----------|------|
+| ---------- | ------ | ----------- | ------ |
 | **Shadow** | beautify→TS | useShadow hook, presets (weak/medium/strong), iOS shadow/Android elevation | ✅ 완료 |
 | **Radio** | .d.ts 재구현 | Radio + Radio.Option compound, scale bounce animation, SVG circles | ✅ 완료 |
 | **Rating** | .d.ts 재구현 | editable + readOnly, variant(full/compact/iconOnly), SVG star | ✅ 완료 |
@@ -234,7 +245,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 특수 목적. 대부분 XOR 암호화 → 완전 재구현 필요.
 
 | 컴포넌트 | 난독화 | 난이도 | 상태 |
-|----------|--------|--------|------|
+| ---------- | -------- | -------- | ------ |
 | **ErrorPage** | XOR | 중 | ✅ 완료 — statusCode(400/404/500) 기반 에러 화면, SVG 아이콘, 좌/우 버튼 |
 | **Result** | XOR | 중 | ✅ 완료 — figure/title/description/button 결과 화면, Result.Button compound |
 | **Carousel** | XOR | 상 | 슬라이드 갤러리 |
@@ -251,7 +262,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 ## 난이도 기준
 
 | 난이도 | 설명 |
-|--------|------|
+| --- | --- |
 | **하** | readable → beautify + TS 변환만으로 완성. 1~2시간 |
 | **중** | .d.ts 기반 재구현 필요. 애니메이션/레이아웃 로직 직접 작성. 반나절 |
 | **상** | XOR 암호화 + 복잡한 인터랙션. 완전 재구현 + 테스트. 하루 이상 |
@@ -259,7 +270,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 ## 전략별 요약
 
 | 전략 | 컴포넌트 수 | 설명 |
-|------|------------|------|
+| ------ | ------------ | ------ |
 | **beautify→TS** | ~18개 | TDS JS를 prettier → 변수명 복원 → TS 변환 |
 | **.d.ts 재구현** | ~15개 | 타입 정의를 API 계약서로 삼아 처음부터 구현 |
 | **완전 재구현** | ~8개 | XOR 암호화된 코드, .d.ts만 참고 |

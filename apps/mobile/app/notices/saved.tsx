@@ -94,9 +94,9 @@ export default function SavedNoticesScreen() {
  * SectionList keyExtractor stays stable across re-renders.
  *
  * Summary is synthesized only when we cached a `summaryType` — without it
- * NoticeRow's deadline-pill renderer would treat empty fields as "active
- * deadline today" and mis-pill the row. Better to render no pill than a
- * wrong one.
+ * NoticeRow's deadline formatter would treat empty fields as "active
+ * deadline today" and prepend a wrong D-day to the summary line. Better to
+ * render no deadline than a wrong one.
  */
 function bookmarkToListItem(entry: BookmarkEntry): NoticeListItem {
   return {

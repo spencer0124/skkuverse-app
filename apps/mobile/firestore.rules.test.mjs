@@ -915,6 +915,27 @@ describe('feedback/{docId} rules — unified collection', () => {
     );
   });
 
+  test('valid source (second_bookmark) → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(feedbackCol(ctx).add(reviewDoc({ source: 'second_bookmark' })));
+  });
+
+  test('valid source (inja_shuttle) without noticeRef → allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(feedbackCol(ctx).add(reviewDoc({ source: 'inja_shuttle' })));
+  });
+
+  test('missing source (backward compat — old clients) → allow', async () => {
+    // Pre-v3 clients do not send `source`. The field is optional in the rule.
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(feedbackCol(ctx).add(reviewDoc()));
+  });
+
+  test('unknown source value → deny', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertFails(feedbackCol(ctx).add(reviewDoc({ source: 'hack_surface' })));
+  });
+
   test('unauthenticated client tries to create → deny', async () => {
     const ctx = testEnv.unauthenticatedContext();
     await assertFails(feedbackCol(ctx).add(reviewDoc()));

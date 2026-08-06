@@ -159,7 +159,7 @@ export default function TabLayout() {
         // every tab screen must return a ScrollView/SectionList/FlatList
         // as the screen root (or first Fragment child). Outer wrapping
         // <View> blocks the native discovery — see
-        // `docs/ios-26-native-tabs-minimize.md`.
+        // `docs/explanation/ios-26-native-tabs-minimize.md`.
         minimizeBehavior="onScrollDown"
         // bottomAccessory: requires patches/expo-router+6.0.23.patch (forwards
         // prop to react-native-screens BottomTabs) and patches/

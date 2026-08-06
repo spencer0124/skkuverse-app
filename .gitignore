@@ -66,3 +66,6 @@ firestore-export/
 # Project-level CLAUDE.md and any docs/plans intentionally live at the
 # repo root, NOT inside this directory.
 .claude/
+
+# Local MCP config — contains DB credentials, never commit
+.mcp.json

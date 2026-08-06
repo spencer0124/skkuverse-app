@@ -1,9 +1,18 @@
+---
+title: Toss UX Reference Guide
+type: reference
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: public
+---
+
 # Toss UI/UX 가이드
 
 > 앱인토스(Apps-in-Toss) 개발자센터의 UI/UX 가이드를 정리한 문서예요.
 > SDS 컴포넌트 개발 시 토스의 디자인 철학과 UX 원칙을 참고할 수 있어요.
 >
-> 출처: https://developers-apps-in-toss.toss.im/design/overview.html
+> 출처: <https://developers-apps-in-toss.toss.im/design/overview.html>
 
 ---
 
@@ -12,7 +21,7 @@
 토스의 모든 UI/UX는 아래 4가지 원칙을 따라야 해요.
 
 | Principle | 적용 기준 | 예시 |
-|---|---|---|
+| --- | --- | --- |
 | **Simplicity** | 명료해야 하며, 추가 설명 없이 의미를 이해할 수 있어야 함 | "지금 보기", "광고 보기" 등 명확 CTA 사용 |
 | **Clear Action** | 클릭 후 어떤 행동이 발생할지 사용자가 예측 가능해야 함 | 리디렉션·새창 이동 시 고지 문구 노출 |
 | **No Deception** | 예상치 못한 순간, 형태, 위치에서 등장하지 않아야 함 | 서비스 진입 직후 전면 배너 금지 |
@@ -193,6 +202,7 @@ CTA에 화면에서 설명한 가치를 그대로 반복해서 **어떤 행동�
 ### 검수 절차
 
 앱인토스는 4단계 검수를 거침 (평균 2~3일):
+
 1. **운영 검수**: 앱 정보, 노출 정보, 서류 확인
 2. **기능 검수**: 오류 없이 정상 작동하는지 확인
 3. **디자인 검수**: 토스 UI 가이드 준수 여부 검토
