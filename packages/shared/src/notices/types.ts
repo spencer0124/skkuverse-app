@@ -118,13 +118,13 @@ export interface NoticeDetailSummary {
 // ── Server-driven tab config (GET /notices/tabs) ──
 
 /**
- * Reason a department is intentionally unsupported, exposed by the server as
- * an i18n enum key. The localized copy lives in the client translations
- * (`onboarding.unsupportedDept.reason.<key>`).
+ * Reason a department is intentionally unsupported.
  *
- * Adding a new key requires updating this union AND the matching translation
- * key in the same release. The parser silently downgrades unknown keys to
- * `null` so a server-side enum addition doesn't break older clients.
+ * Since the server resolves the localized copy itself (`excludeReasonText`,
+ * sourced from the crawler's exclude-reasons.json SSOT), this union only
+ * enumerates keys whose copy is ALSO bundled in the app i18n
+ * (`onboarding.unsupportedDept.reason.<key>`) as an old-server fallback.
+ * New keys need no app release — the server ships their copy.
  */
 export type ExcludeReasonKey =
   | 'loginRequired'
@@ -146,10 +146,18 @@ export interface TabSource {
    */
   noticeAvailable: boolean;
   /**
-   * When `noticeAvailable` is false, the reason is exposed as an i18n key.
+   * When `noticeAvailable` is false, the reason key (crawler SSOT id).
    * `null` whenever `noticeAvailable` is true (biconditional invariant).
+   * Not narrowed to `ExcludeReasonKey`: the server may introduce keys this
+   * build doesn't know — display copy comes from `excludeReasonText`, with
+   * bundled i18n only as a legacy fallback for the known keys.
    */
-  excludeReason: ExcludeReasonKey | null;
+  excludeReason: string | null;
+  /**
+   * Localized reason copy resolved server-side (requested lang → en → ko).
+   * `null` on older servers that pre-date the field.
+   */
+  excludeReasonText: string | null;
 }
 
 export interface PickerTabConfig {

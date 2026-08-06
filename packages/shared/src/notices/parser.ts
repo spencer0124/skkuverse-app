@@ -32,13 +32,19 @@ const KNOWN_EXCLUDE_REASONS: ReadonlySet<ExcludeReasonKey> = new Set<ExcludeReas
   'temporarilyUnavailable',
 ]);
 
-function asExcludeReason(raw: unknown): ExcludeReasonKey | null {
-  // Forward-compat: unknown enum values from a newer server are downgraded to
-  // null rather than rejected, so an enum addition can be deployed
-  // server-first without breaking existing clients.
-  return typeof raw === 'string' && KNOWN_EXCLUDE_REASONS.has(raw as ExcludeReasonKey)
-    ? (raw as ExcludeReasonKey)
-    : null;
+/** True when the app bundle carries fallback i18n copy for this reason key. */
+export function hasBundledExcludeReasonCopy(
+  key: string | null,
+): key is ExcludeReasonKey {
+  return key !== null && KNOWN_EXCLUDE_REASONS.has(key as ExcludeReasonKey);
+}
+
+function asExcludeReason(raw: unknown): string | null {
+  // Keys are no longer whitelisted here: display copy comes from the
+  // server-resolved `excludeReasonText`, so an unknown key is fine — the
+  // UnsupportedDeptSheet falls back to bundled i18n only for known keys
+  // (hasBundledExcludeReasonCopy) and stays closed otherwise.
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
 }
 
 // ── Internal helpers ──
@@ -49,10 +55,15 @@ function asRecord(raw: unknown): Record<string, unknown> {
 
 /**
  * Server-side `date` field is contractually "YYYY-MM-DD" (per NoticeListItem
- * docs + formatRelativeDate / groupNoticesByDate consumers), but some sources
+ * docs + formatListDate / groupNoticesByDate consumers), but some sources
  * (e.g. ecostat-undergrad) emit "YYYY-MM-DD HH:MM" and ISO timestamps could
  * appear in the future. Truncate to the first 10 chars so downstream split('-')
  * always sees `[YYYY, MM, DD]` and items don't fall into the "기타" bucket.
+ *
+ * NOTE: the HH:MM some sources carry is dropped here on purpose. It is not a
+ * usable posting-time source for the UI — most sources emit date only, so any
+ * "today → show time" rule would fire for a minority of notices and silently
+ * fall back for the rest. Surfacing posting time needs a real backend field.
  */
 function normalizeNoticeDate(raw: string): string {
   return raw.slice(0, 10);
@@ -258,6 +269,8 @@ export function parseTabsConfig(envelope: ApiEnvelope<unknown>): NoticeTabsConfi
           // doesn't render every dept as unsupported.
           noticeAvailable: asBool(ss.noticeAvailable, true),
           excludeReason: asExcludeReason(ss.excludeReason),
+          // Server-resolved localized copy; null on pre-SSOT servers.
+          excludeReasonText: asNullableString(ss.excludeReasonText),
         };
       });
       const validIds = new Set(sources.map((s) => s.id));

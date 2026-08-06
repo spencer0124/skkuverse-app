@@ -21,6 +21,12 @@ import { primeAppCheck } from '@/services/app-check-prime';
 
 export interface FeedbackSubmission {
   text: string;
+  /**
+   * Surface identifier — matches the `reason` string passed to useReviewPrompt.
+   * Written to the `feedback` document so server-side analytics can distinguish
+   * feedback surfaces (e.g. 'second_bookmark' vs 'inja_shuttle').
+   */
+  source: string;
   /** Optional notice the user was looking at when they gave feedback. */
   noticeRef?: { sourceId: string; articleNo: number };
 }
@@ -45,6 +51,7 @@ export async function submitNegativeFeedback(
       .collection('feedback')
       .add({
         type: 'review_prompt',
+        source: payload.source,
         text: payload.text.slice(0, 2000),
         ...(payload.noticeRef && {
           sourceId: payload.noticeRef.sourceId,

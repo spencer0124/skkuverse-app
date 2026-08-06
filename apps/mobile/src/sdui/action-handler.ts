@@ -8,13 +8,18 @@
  */
 
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import type { ActionType } from '@skkuverse/shared';
+import { openWebView } from '@/features/webview/open';
 
 interface SduiAction {
   actionType: ActionType;
   actionValue: string;
   webviewTitle?: string;
+  /**
+   * Server-supplied theme colour. Accepted but unused: the old /webview screen
+   * declared it and never read it either. Kept on the interface so call sites
+   * and the server contract don't have to change.
+   */
   webviewColor?: string;
 }
 
@@ -22,7 +27,6 @@ export function handleSduiAction({
   actionType,
   actionValue,
   webviewTitle,
-  webviewColor,
 }: SduiAction): void {
   switch (actionType) {
     case 'route':
@@ -39,19 +43,13 @@ export function handleSduiAction({
       router.push(actionValue as never);
       break;
 
+    // Both land on the same shell. They stay distinct action types because the
+    // server still emits both and old clients treat them differently, but on
+    // this side the only difference is whether a title came along. What the
+    // loaded page may do is decided by its origin, not by which verb opened it.
     case 'webview':
-      router.push({
-        pathname: '/webview',
-        params: {
-          title: webviewTitle ?? '',
-          color: webviewColor ?? '003626',
-          url: actionValue,
-        },
-      } as never);
-      break;
-
     case 'external':
-      WebBrowser.openBrowserAsync(actionValue);
+      openWebView({ url: actionValue, title: webviewTitle });
       break;
   }
 }

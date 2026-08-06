@@ -64,6 +64,8 @@ export interface SdsBottomSheetProps {
   /** @default false */
   enableDynamicSizing?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** content wrapper에 머지되는 스타일 — 예: `flex:1`로 채워 scroll body 수용. */
+  contentStyle?: StyleProp<ViewStyle>;
 }
 
 function SdsBottomSheet({
@@ -74,6 +76,7 @@ function SdsBottomSheet({
   title,
   enableDynamicSizing = false,
   style,
+  contentStyle,
 }: SdsBottomSheetProps) {
   const sheetRef = useRef<GorhomBottomSheet>(null);
 
@@ -117,8 +120,8 @@ function SdsBottomSheet({
       backgroundStyle={styles.background}
       style={style}
     >
-      {title != null && <Header title={title} onClose={onClose} />}
-      <BottomSheetView style={styles.content}>
+      <BottomSheetView style={[styles.content, contentStyle]}>
+        {title != null && <Header title={title} onClose={onClose} />}
         {children}
       </BottomSheetView>
     </GorhomBottomSheet>
@@ -147,7 +150,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   closeButton: {
