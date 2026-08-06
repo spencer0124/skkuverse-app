@@ -113,7 +113,7 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 - **유니버셜 링크 prefix:** `/p/` (예: `skkuverse.com/p/search`) — 앱에서 자동 스트립
 - **허용 (정적):** `/`, `/home`, `/campus`, `/transit`, `/map/hssc`, `/search`
-- **허용 (동적):** 공지 `/notices/<sourceId>/<articleNo>` — 통과가 아니라 **가로채기**: `pendingExternalNoticeLink.set(...)` 후 `/(tabs)/notices` 반환, root layout의 `PendingNoticeLinkConsumer`가 상세를 push (뒤로가기가 공지 탭에 안착). 미니앱 `/m/<slug>` — registry 등록 slug만 `pendingMiniAppLink.set(...)` 후 `/(tabs)/home` 반환, `PendingMiniAppLinkConsumer`가 오픈.
+- **허용 (동적):** 공지 `/notices/<sourceId>/<articleNo>` — 통과가 아니라 **가로채기**: `pendingExternalNoticeLink.set(...)` 후 `/(tabs)/notices` 반환, root layout의 `PendingNoticeLinkConsumer`가 상세를 push (뒤로가기가 공지 탭에 안착). 미니앱 `/m/<slug>` — **shape만** 검사(`MINIAPP_PATH_RE`), registry 멤버십은 확인하지 않는다: slug를 `pendingMiniAppLink.set(...)`에 담고 `/(tabs)/home` 반환, root layout의 `PendingMiniAppLinkConsumer`가 `GET /miniapps/:id`로 확인해 shell을 열거나 **조용히 버린다**(unknown slug·조회 실패 둘 다 — 이미 홈이라 dead end 없음). 여기서 확인하지 않는 이유는 `docs/reference/deep-link.md` §미니앱 참조.
 - **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈(`/(tabs)/home`)으로 리다이렉트
 - **필터링은 cold/warm 균일:** 화이트리스트·공지·미니앱 로직이 `initial` 여부와 무관하게 동일 적용 (untrusted 딥링크가 `/login`·`/onboarding` 같은 내부 라우트로 push 못 하게). 유일한 분기는 **bare `/`** — cold는 `/(tabs)/<lastTab>` 복원(app/index.tsx 미마운트로 long-press 뒤로가기의 titleless phantom 회피), warm은 `/(tabs)/home`.
 - **앱 내부 네비게이션(`router.push`)은 영향 없음** — 단 SDUI 'route' action의 bare `/`는 `router.dismissTo('/(tabs)/home')`로 가로채서 동일한 phantom 회피

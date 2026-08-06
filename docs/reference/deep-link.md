@@ -3,7 +3,7 @@ title: Deep Link Reference
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-06
 audience: internal
 ---
 
@@ -59,7 +59,9 @@ sourceId/articleNo가 동적이라 정적 화이트리스트에 enumerable하지
 2. root layout의 `PendingMiniAppLinkConsumer`가 **레지스트리 멤버십을 여기서** 확인한다 — `queryClient.fetchQuery`로 `GET /miniapps/:id`를 조회해 성공하면 미니앱 shell을 홈 탭 위에 열고, 실패하면 조용히 버린다(이미 홈이므로 dead end 없음).
 
 > [!NOTE]
-> 멤버십 검사가 `+native-intent.tsx`에서 consumer로 옮겨간 이유: 레지스트리가 서버 소유(`GET /miniapps`)가 되면서 동기 조회가 불가능해졌다. `redirectSystemPath`는 React 트리 밖에서 앱 마운트 전에 실행되므로 await할 수 없다. 이 한 가지 질문에 답하려고 번들 사본을 남기면 서버 SSOT 전환이 무의미해지므로, await가 가능한 consumer로 옮겼다.
+> 멤버십 검사가 `+native-intent.tsx`에서 consumer로 옮겨간 이유: 레지스트리가 서버 소유(`GET /miniapps`)가 되면서 **동기** 조회가 불가능해졌고, 이 한 가지 질문에 답하려고 번들 사본을 남기면 서버 SSOT 전환이 무의미해진다.
+>
+> `redirectSystemPath` 자체가 async를 못 쓰는 건 아니다 — expo-router의 타입은 `=> Promise<string> | string`이고 실제로 await한다(`expo-router/build/link/linking.js`). 옮긴 이유는 **await 가능 여부가 아니라 await의 대가**다: 이 함수는 React 트리 밖에서 앱 마운트 전에 실행되므로 (1) shell이 읽는 `QueryClient` 캐시를 공유할 수 없어 같은 조회를 두 번 하게 되고, (2) 첫 네비게이션 전체가 네트워크 왕복에 묶여 오프라인 cold start면 axios 타임아웃까지 아무것도 그려지지 않는다. consumer는 이미 마운트된 뒤라 두 대가를 모두 피한다.
 >
 > 보안 등가성은 유지된다: unknown slug도 결국 `/(tabs)/home`에 착지하고 임의 내부 라우트로 push할 수 없다. 달라진 것은 "홈으로 리다이렉트"가 **인터셉트 전**이 아니라 **인터셉트 후 조회 실패**로 일어난다는 점뿐이다.
 
