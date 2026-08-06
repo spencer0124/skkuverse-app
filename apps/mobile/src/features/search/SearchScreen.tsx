@@ -13,11 +13,11 @@ import {
   Platform,
   View,
   TextInput,
-  ScrollView,
+  FlatList,
   Pressable,
   StyleSheet,
+  type ListRenderItem,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -56,6 +56,20 @@ type CampusFilter = 'all' | 'hssc' | 'nsc';
 
 /** Flattened space item with parent group reference */
 type FlatSpaceItem = SearchSpaceItem & { group: SpaceGroup };
+
+/**
+ * One row of the virtualized results list.
+ *
+ * Section headers and dividers are rows too, so both sections live in a single
+ * FlatList and every row is windowed. Collapsing a section simply drops its
+ * item rows from the array.
+ */
+type ListRow =
+  | { kind: 'buildingHeader' }
+  | { kind: 'building'; building: Building }
+  | { kind: 'divider' }
+  | { kind: 'spaceHeader' }
+  | { kind: 'space'; space: FlatSpaceItem };
 
 const DEBOUNCE_MS = 500;
 
@@ -103,13 +117,35 @@ export function SearchScreen() {
     });
   }, [debouncedQuery, data, campusFilter]);
 
-  const handleTextChange = useCallback((text: string) => {
-    setInputValue(text);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setDebouncedQuery(text.trim());
-    }, DEBOUNCE_MS);
+  /** Cancels a pending debounce so a stale keystroke cannot land later. */
+  const cancelPendingQuery = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
+
+  const handleTextChange = useCallback(
+    (text: string) => {
+      setInputValue(text);
+      cancelPendingQuery();
+      const trimmed = text.trim();
+      // Clearing the field applies immediately — waiting 500ms to show "no
+      // query" reads as lag, and there is no request to coalesce.
+      if (trimmed.length === 0) {
+        setDebouncedQuery('');
+        return;
+      }
+      timerRef.current = setTimeout(() => {
+        setDebouncedQuery(trimmed);
+      }, DEBOUNCE_MS);
+    },
+    [cancelPendingQuery],
+  );
+
+  // Without this, a timer armed by the last keystroke fires after the screen is
+  // gone and sets state on an unmounted component.
+  useEffect(() => cancelPendingQuery, [cancelPendingQuery]);
 
   const handleBuildingTap = useCallback(
     (building: Building) => {
@@ -166,6 +202,172 @@ export function SearchScreen() {
   const noQuery = debouncedQuery.length === 0;
   const noResults = !noQuery && data && !hasBuildings && !hasSpaces;
 
+  const listRows = useMemo<ListRow[]>(() => {
+    const rows: ListRow[] = [];
+    if (hasBuildings && data) {
+      rows.push({ kind: 'buildingHeader' });
+      if (buildingExpanded) {
+        for (const building of data.buildings) rows.push({ kind: 'building', building });
+      }
+    }
+    if (hasSpaces) {
+      if (rows.length > 0) rows.push({ kind: 'divider' });
+      rows.push({ kind: 'spaceHeader' });
+      if (spaceExpanded) {
+        for (const space of flatSpaces) rows.push({ kind: 'space', space });
+      }
+    }
+    return rows;
+  }, [data, hasBuildings, hasSpaces, buildingExpanded, spaceExpanded, flatSpaces]);
+
+  const rowKey = useCallback((row: ListRow, index: number): string => {
+    switch (row.kind) {
+      case 'building':
+        return `b-${row.building.skkuId}`;
+      case 'space':
+        // spaceCd is unique per building, not globally, so the group qualifies
+        // it; index keeps the key stable if the API ever repeats a pair.
+        return `s-${row.space.group.buildNo}-${row.space.spaceCd}-${index}`;
+      default:
+        return `${row.kind}-${index}`;
+    }
+  }, []);
+
+  const renderRow = useCallback<ListRenderItem<ListRow>>(
+    ({ item }) => {
+      switch (item.kind) {
+        case 'divider':
+          return <View style={styles.sectionDivider} />;
+
+        case 'buildingHeader':
+          return (
+            <ListHeader
+              title={
+                <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                  {t('building.building')}
+                </ListHeader.TitleParagraph>
+              }
+              right={
+                <View style={styles.sectionRight}>
+                  <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
+                    {data?.buildingCount}
+                  </Txt>
+                  {buildingExpanded ? (
+                    <CaretDownIcon size={16} color={SdsColors.grey400} />
+                  ) : (
+                    <CaretRightIcon size={16} color={SdsColors.grey400} />
+                  )}
+                </View>
+              }
+              onPress={() => {
+                logSearchContentSelect({
+                  content_type: 'section_buildings_toggle',
+                  item_id: buildingExpanded ? 'collapse' : 'expand',
+                });
+                setBuildingExpanded((prev) => !prev);
+              }}
+            />
+          );
+
+        case 'spaceHeader':
+          return (
+            <ListHeader
+              title={
+                <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
+                  {t('building.space')}
+                </ListHeader.TitleParagraph>
+              }
+              right={
+                <View style={styles.sectionRight}>
+                  <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
+                    {data?.spaceCount}
+                  </Txt>
+                  {spaceExpanded ? (
+                    <CaretDownIcon size={16} color={SdsColors.grey400} />
+                  ) : (
+                    <CaretRightIcon size={16} color={SdsColors.grey400} />
+                  )}
+                </View>
+              }
+              onPress={() => {
+                logSearchContentSelect({
+                  content_type: 'section_spaces_toggle',
+                  item_id: spaceExpanded ? 'collapse' : 'expand',
+                });
+                setSpaceExpanded((prev) => !prev);
+              }}
+            />
+          );
+
+        case 'building':
+          return (
+            <Pressable
+              style={styles.resultRow}
+              onPress={() => handleBuildingTap(item.building)}
+            >
+              <View style={styles.buildingBadge}>
+                <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
+                  {item.building.displayNo ?? '#'}
+                </Txt>
+              </View>
+              <View style={styles.resultTexts}>
+                <Txt typography="t6" fontWeight="regular">
+                  {getLocalizedText(item.building.name, lang)}
+                </Txt>
+                <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
+                  {item.building.campusLabel}
+                </Txt>
+              </View>
+            </Pressable>
+          );
+
+        case 'space':
+          return (
+            <Pressable
+              style={styles.resultRow}
+              onPress={() =>
+                handleSpaceTap(
+                  item.space.group,
+                  item.space.spaceCd,
+                  item.space.floor.ko,
+                )
+              }
+            >
+              <View style={styles.buildingBadge}>
+                <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
+                  {floorBadge(getLocalizedText(item.space.floor, lang))}
+                </Txt>
+              </View>
+              <View style={styles.resultTexts}>
+                <Txt typography="t6" fontWeight="regular">
+                  {getLocalizedText(item.space.name, lang)}
+                </Txt>
+                <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
+                  {getLocalizedText(item.space.group.buildingName, lang)}
+                </Txt>
+              </View>
+              <Badge
+                size="tiny"
+                color={SdsColors.grey400}
+                backgroundColor={SdsColors.grey100}
+              >
+                {item.space.spaceCd}
+              </Badge>
+            </Pressable>
+          );
+      }
+    },
+    [
+      data,
+      lang,
+      t,
+      buildingExpanded,
+      spaceExpanded,
+      handleBuildingTap,
+      handleSpaceTap,
+    ],
+  );
+
   const segmentedLabels = useMemo(() => {
     const showCount = !!(countData && debouncedQuery);
     const total = countData ? countData.counts.building.total + countData.counts.space.total : 0;
@@ -197,6 +399,10 @@ export function SearchScreen() {
             <Pressable
               onPress={() => {
                 logSearchContentSelect({ content_type: 'clear_button', item_id: 'x' });
+                // Cancel first: a timer armed by the keystroke just before the
+                // tap would otherwise fire 500ms later and restore the query
+                // the user just cleared.
+                cancelPendingQuery();
                 setInputValue('');
                 setDebouncedQuery('');
               }}
@@ -271,145 +477,23 @@ export function SearchScreen() {
 
       {/* Results */}
       {!noQuery && !noResults && (
-        <ScrollView
+        <FlatList
+          data={listRows}
+          keyExtractor={rowKey}
+          renderItem={renderRow}
           keyboardShouldPersistTaps="handled"
           bounces={false}
           contentContainerStyle={styles.list}
-        >
-          {/* ── Building section ── */}
-          {hasBuildings && (
-            <>
-              <ListHeader
-                title={
-                  <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
-                    {t('building.building')}
-                  </ListHeader.TitleParagraph>
-                }
-                right={
-                  <View style={styles.sectionRight}>
-                    <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
-                      {data.buildingCount}
-                    </Txt>
-                    {buildingExpanded ? (
-                      <CaretDownIcon size={16} color={SdsColors.grey400} />
-                    ) : (
-                      <CaretRightIcon size={16} color={SdsColors.grey400} />
-                    )}
-                  </View>
-                }
-                onPress={() => {
-                  logSearchContentSelect({
-                    content_type: 'section_buildings_toggle',
-                    item_id: buildingExpanded ? 'collapse' : 'expand',
-                  });
-                  setBuildingExpanded((prev) => !prev);
-                }}
-              />
-              {buildingExpanded && (
-                <Animated.View
-                  entering={FadeIn.duration(150)}
-                  exiting={FadeOut.duration(100)}
-                >
-                  {data.buildings.map((building) => (
-                    <Pressable
-                      key={building.skkuId}
-                      style={styles.resultRow}
-                      onPress={() => handleBuildingTap(building)}
-                    >
-                      <View style={styles.buildingBadge}>
-                        <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
-                          {building.displayNo ?? '#'}
-                        </Txt>
-                      </View>
-                      <View style={styles.resultTexts}>
-                        <Txt typography="t6" fontWeight="regular">
-                          {getLocalizedText(building.name, lang)}
-                        </Txt>
-                        <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
-                          {building.campusLabel}
-                        </Txt>
-                      </View>
-                    </Pressable>
-                  ))}
-                </Animated.View>
-              )}
-            </>
-          )}
-
-          {/* ── Space section ── */}
-          {hasSpaces && (
-            <>
-              <View style={styles.sectionDivider} />
-              <ListHeader
-                title={
-                  <ListHeader.TitleParagraph typography="t5" fontWeight="bold">
-                    {t('building.space')}
-                  </ListHeader.TitleParagraph>
-                }
-                right={
-                  <View style={styles.sectionRight}>
-                    <Txt typography="t7" fontWeight="regular" color={SdsColors.grey400}>
-                      {data.spaceCount}
-                    </Txt>
-                    {spaceExpanded ? (
-                      <CaretDownIcon size={16} color={SdsColors.grey400} />
-                    ) : (
-                      <CaretRightIcon size={16} color={SdsColors.grey400} />
-                    )}
-                  </View>
-                }
-                onPress={() => {
-                  logSearchContentSelect({
-                    content_type: 'section_spaces_toggle',
-                    item_id: spaceExpanded ? 'collapse' : 'expand',
-                  });
-                  setSpaceExpanded((prev) => !prev);
-                }}
-              />
-              {spaceExpanded && (
-                <Animated.View
-                  entering={FadeIn.duration(150)}
-                  exiting={FadeOut.duration(100)}
-                >
-                  {flatSpaces.map((space, i) => (
-                    <Pressable
-                      key={`${space.group.buildNo}-${space.spaceCd}-${i}`}
-                      style={styles.resultRow}
-                      onPress={() =>
-                        handleSpaceTap(
-                          space.group,
-                          space.spaceCd,
-                          space.floor.ko,
-                        )
-                      }
-                    >
-                      <View style={styles.buildingBadge}>
-                        <Txt typography="t7" fontWeight="bold" color={SdsColors.grey600}>
-                          {floorBadge(getLocalizedText(space.floor, lang))}
-                        </Txt>
-                      </View>
-                      <View style={styles.resultTexts}>
-                        <Txt typography="t6" fontWeight="regular">
-                          {getLocalizedText(space.name, lang)}
-                        </Txt>
-                        <Txt typography="t7" fontWeight="regular" color={SdsColors.grey500}>
-                          {getLocalizedText(space.group.buildingName, lang)}
-                        </Txt>
-                      </View>
-                      <Badge
-                        size="tiny"
-                        color={SdsColors.grey400}
-                        backgroundColor={SdsColors.grey100}
-                      >
-                        {space.spaceCd}
-                      </Badge>
-                    </Pressable>
-                  ))}
-                </Animated.View>
-              )}
-            </>
-          )}
-        </ScrollView>
+          // Virtualized because the server returns every room of a building —
+          // 168 for building 27, 801 for 기숙사신관, and ~1000 for a bare "2"
+          // while the user is still typing a room code. The previous ScrollView
+          // mounted all of them eagerly (~8 elements per row), which froze the
+          // UI on short queries.
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          removeClippedSubviews
+        />
       )}
     </View>
   );
