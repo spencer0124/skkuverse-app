@@ -15,7 +15,7 @@
  * 계속 이 파일에서 가져온다.
  *
  * 탭 추가/제거 절차: crawler 의 categories.json 을 고치고
- *   python3 <skkuverse>/tools/skkuverse_sync.py pull --repo app
+ *   python3 <skkuverse>/exported/sync_contracts.py pull --repo app
  * 을 돌린다. 빠뜨리면 `.contracts.lock.json` 해시 불일치로 CI 가 막는다 —
  * 예전처럼 "알림 0건 전송, 에러 없음" 으로 조용히 새지 않는다.
  * 계약 정의: skkuverse/contracts/manifest.json 의 `notices.tab-keys`.
