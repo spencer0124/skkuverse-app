@@ -1,0 +1,67 @@
+name: back-merge dev
+
+# `dev` is the integration branch: every PR targets it, so every PR branch
+# inherits whatever `dev` has. That makes a stale `dev` a repo-wide outage
+# rather than a local annoyance.
+#
+# It happened once. PR #23 fixed the umbrella's `exported/` tool path directly
+# on `main` and was never back-merged, leaving `dev` six commits behind. Every
+# open PR then failed `contracts.yml`'s integrity step on a path that had
+# already been corrected — the fix existed, just not where the PRs could see it.
+#
+# This closes that hole from the `main` side, since that is where the skip
+# happens: a hotfix goes straight to `main` because it is urgent, and the
+# back-merge is what gets forgotten.
+on:
+  push:
+    branches: [main]
+
+# Elevated only here and in contracts-sync.yml. The repo default stays read,
+# so declaring it is what grants it — an omitted block means a read-only token
+# and a push that fails at the remote.
+permissions:
+  contents: write
+
+# Two merges to `main` landing seconds apart would otherwise race to push
+# `dev`. Never cancel: a skipped run leaves `dev` behind, which is the exact
+# state this workflow exists to prevent.
+concurrency:
+  group: back-merge-dev
+  cancel-in-progress: false
+
+jobs:
+  ff:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: `merge-base` needs the real graph, and a shallow clone
+      # would make the ancestry test answer from a truncated view.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward dev to main
+        run: |
+          git fetch origin main dev
+          if git merge-base --is-ancestor origin/dev origin/main; then
+            # Not forced. A fast-forward is already guaranteed by the branch
+            # above, so `--force` could only ever paper over a race between
+            # the check and the push — better to let that fail.
+            git push origin origin/main:refs/heads/dev
+            echo "dev fast-forwarded to main"
+          else
+            # Deliberately not an auto-merge and deliberately not a PR.
+            #
+            # An auto-merge would resolve conflicts with no one watching. A PR
+            # opened here would never go green: pushes made with GITHUB_TOKEN
+            # do not trigger other workflows, so its checks sit unrun forever
+            # and the PR reads as broken rather than as pending.
+            #
+            # A diverged `dev` means someone made a real branching decision.
+            # Failing loudly puts that back in front of a human.
+            echo "::error::dev has diverged from main — manual back-merge needed"
+            exit 1
+          fi
+
+      # The skipped-trigger rule costs nothing on the happy path: a
+      # fast-forward makes `dev` byte-identical to `main`, whose content has
+      # already passed CI. There is no unscored work to re-score.
