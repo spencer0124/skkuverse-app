@@ -28,8 +28,15 @@ set -a
 source .env
 source .env.ota.local
 set +a
-RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform ios
-RELEASE_CHANNEL=beta npx eoas publish --branch beta --nonInteractive --platform android
+# eoas 버전 고정 — ota-release.sh의 EOAS_VERSION 주석 참조 (양쪽 동일하게 유지).
+EOAS_VERSION="2.3.19"
+# Publishing to the WRONG runtimeVersion succeeds silently and reaches no
+# device (2026-07-29 incident). Surface the target loudly before publishing;
+# verify it matches the store builds' runtime (see docs/how-to/ota-update.md).
+RT="$(grep -o 'runtimeVersion: *"[^"]*"' app.config.ts | head -1 | sed 's/.*"\(.*\)"/\1/')"
+echo "🎯 publishing for runtimeVersion=${RT} — store builds must match or nobody receives this"
+RELEASE_CHANNEL=beta npx -y "eoas@${EOAS_VERSION}" publish --branch beta --nonInteractive --platform ios
+RELEASE_CHANNEL=beta npx -y "eoas@${EOAS_VERSION}" publish --branch beta --nonInteractive --platform android
 
 # ── stage 3: compute tag (ISO-like date + time) ──
 TAG="ota/beta/$(date +%Y-%m-%dT%H%M)"

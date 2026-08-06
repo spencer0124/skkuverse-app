@@ -16,12 +16,15 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { ErrorBoundary } from '@/providers/ErrorBoundary';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { InitGate } from '@/providers/InitGate';
+import { useQueryClient } from '@tanstack/react-query';
 import { SDSProvider } from '@skkuverse/sds';
-import { useT } from '@skkuverse/shared';
+import { miniAppDetailKey, miniAppRepository, useT } from '@skkuverse/shared';
 import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
+import { openMiniAppById } from '@/features/mini-app/open';
 import { devLog } from '@/services/dev-log';
 
 export const unstable_settings = {
@@ -66,6 +69,9 @@ const SCREEN_NAMES: Record<string, string> = {
   // Auth / onboarding
   '/login': 'login_screen',
   '/onboarding': 'onboarding_root',
+  // Mini-app shell (was absent while the route was named /in-app-browser, so
+  // every mini-app open logged no screen_view at all).
+  '/mini-app': 'mini_app_screen',
   // Dev
   '/sds-preview': 'dev_sds_preview',
   '/debug-fcm': 'dev_debug_fcm',
@@ -145,6 +151,60 @@ function PendingNoticeLinkConsumer() {
     return pendingExternalNoticeLink.subscribe(tryConsume); // warm-start follow-ups
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.key]);
+
+  return null;
+}
+
+/**
+ * Mini-app deep-link consumer — same pattern as PendingNoticeLinkConsumer.
+ * `+native-intent.tsx` stashed a {id} for `/m/<slug>` and routed to home; once
+ * the nav root is ready we open the mini-app shell on top.
+ *
+ * This is also where REGISTRY MEMBERSHIP is checked. It used to happen in
+ * `+native-intent.tsx` via a synchronous `isMiniAppId()` against bundled JSON,
+ * but the registry is server-owned now and that function runs outside React
+ * before the app mounts, so it cannot await. Keeping a bundled copy purely to
+ * answer this one question would reintroduce the second source of truth the
+ * migration removed — so the check moved here, where awaiting is fine.
+ *
+ * `fetchQuery` (not a bare repository call) so the detail lands in the same
+ * React Query cache the shell reads from: validating the slug also warms it,
+ * and the screen doesn't refetch.
+ *
+ * An unknown slug is dropped silently. The user is already on home — pushing an
+ * error screen would let any stranger's link plant a confusing dead end.
+ */
+function PendingMiniAppLinkConsumer() {
+  const navState = useRootNavigationState();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!navState?.key) return; // wait until navigation root is mounted
+
+    const tryConsume = () => {
+      const p = pendingMiniAppLink.consume();
+      if (!p) return;
+      void queryClient
+        .fetchQuery({
+          queryKey: miniAppDetailKey(p.id),
+          queryFn: () => miniAppRepository.getDetail(p.id),
+        })
+        .then(() => {
+          // Defer a frame so the home navigate commits before we push the shell
+          // (avoids RNScreens dedupe coalescing the two transitions).
+          requestAnimationFrame(() => {
+            openMiniAppById(p.id);
+          });
+        })
+        .catch(() => {
+          // Unknown slug, or the registry is unreachable. Stay on home.
+          devLog('pendingMiniApp.unresolved', { id: p.id });
+        });
+    };
+
+    tryConsume(); // cold-start
+    return pendingMiniAppLink.subscribe(tryConsume); // warm-start follow-ups
+  }, [navState?.key, queryClient]);
 
   return null;
 }
@@ -270,8 +330,10 @@ export default function RootLayout() {
                   name="map/hssc-credit"
                   options={{ title: '인사캠 건물지도' }}
                 />
-                {/* Dynamic title — set inline in webview screen via <Stack.Screen options /> */}
+                {/* 범용 웹뷰(공지 원문·마크다운 링크·SDUI). 동적 타이틀은 화면 내 inline. */}
                 <Stack.Screen name="webview" />
+                {/* 미니앱 셸(레지스트리 등록 서비스 전용). 동적 타이틀은 화면 내 inline. */}
+                <Stack.Screen name="mini-app" />
 
                 {/* Modals/full-screen — keep headerless */}
                 <Stack.Screen
@@ -325,6 +387,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <PendingNoticeLinkConsumer />
+              <PendingMiniAppLinkConsumer />
               <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>

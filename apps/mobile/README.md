@@ -1,50 +1,46 @@
-# Welcome to your Expo app 👋
+---
+title: Mobile App (@skkuverse/mobile)
+type: reference
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-07-21
+audience: internal
+---
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+# apps/mobile
 
-## Get started
+> Expo 54 + React Native 0.81 모바일 앱 (iOS/Android). skkuverse의 메인 클라이언트.
 
-1. Install dependencies
+## 실행
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Expo Go는 사용하지 않는다 — 커스텀 네이티브 모듈(Firebase, Naver Maps) 때문에 항상 네이티브 빌드(CNG).
 
 ```bash
-npm run reset-project
+yarn start            # Expo dev server
+yarn ios              # 타입체크 후 iOS 네이티브 빌드 실행
+yarn android          # 타입체크 후 Android 네이티브 빌드 실행
+npx tsc --noEmit      # 타입체크만 (별도 typecheck 스크립트 없음)
+yarn lint             # expo lint (ESLint)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+네이티브에 영향을 주는 변경(패키지 추가/삭제, `app.config.ts` plugins 등) 후에는 `npx expo prebuild --clean` 후 재실행.
 
-## Learn more
+## 구조
 
-To learn more about developing your project with Expo, look at the following resources:
+- `app/` — Expo Router 파일 기반 라우팅 (`(tabs)/`에 4탭: home/campus/transit/notices)
+- `src/features/` — 기능 모듈 (home, bus, map, building, search, notices, …)
+- `src/sdui/` — Server-Driven UI 위젯
+- `firestore.rules` + `firestore.rules.test.mjs` — Firestore 보안 규칙 + 테스트 (루트에서 `yarn test:rules`)
+- `scripts/` — 로컬 빌드/배포/OTA 스크립트
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 빌드·배포·OTA
 
-## Join the community
+로컬 EAS Build + Fastlane. 런북:
 
-Join our community of developers creating universal apps.
+- [docs/how-to/ios-build-deploy.md](../../docs/how-to/ios-build-deploy.md)
+- [docs/how-to/android-build-deploy.md](../../docs/how-to/android-build-deploy.md)
+- [docs/how-to/ota-update.md](../../docs/how-to/ota-update.md)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 더 읽기
+
+아키텍처·패턴·네이티브 주의사항: 루트 [CLAUDE.md](../../CLAUDE.md) + [docs/](../../docs/README.md)

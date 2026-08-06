@@ -2,36 +2,32 @@ import { useMemo } from 'react';
 import {
   View,
   ScrollView,
+  // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
   StyleSheet,
-  // Pressable, // restore with bottom banner below
-  // Text, // restore with bottom banner below
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
-// import { CaretRightIcon } from 'phosphor-react-native'; // restore with bottom banner below
+// import { CaretRightIcon } from 'phosphor-react-native';  // 미니앱 섹션 전용
 import {
   SdsColors,
-  useAuthStore,
-  useSettingsStore,
+  // useMiniAppIndex,  // 미니앱 섹션과 함께 주석 처리
   useT,
 } from '@skkuverse/shared';
+// import { Txt } from '@skkuverse/sds';  // 미니앱 섹션 헤더 전용
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
+// import { openMiniAppById } from '@/features/mini-app/open';  // 미니앱 섹션 전용
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
-import { HomeOnboardingGateCard } from './HomeOnboardingGateCard';
 import { HeroBanner } from './HeroBanner';
 
 export function HomeScreen() {
   const { t } = useT();
   const router = useRouter();
-  const isAnonymous = useAuthStore((s) => s.isAnonymous);
-  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted);
-  const showOnboardingGate = isAnonymous || !onboardingCompleted;
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -39,7 +35,7 @@ export function HomeScreen() {
   // height so it tracks safe-area changes and large-title states.
   const headerHeight = useHeaderHeight();
 
-  const gridItems = useMemo<readonly TossfaceGridItem[]>(
+  const mainGridItems = useMemo<readonly TossfaceGridItem[]>(
     () => [
       {
         id: 'notices',
@@ -51,15 +47,19 @@ export function HomeScreen() {
           router.navigate('/(tabs)/notices' as never);
         },
       },
-      {
-        id: 'campus_map',
-        title: t('home.tile.campusMap'),
-        emoji: '\u{1F9ED}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'campus_map' });
-          router.navigate('/(tabs)/campus' as never);
-        },
-      },
+      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 영상 화면/라우트(/video-gallery)는
+      // 네이티브 의존(expo-screen-orientation, expo-linear-gradient) 때문에 feat/native로
+      // 옮겨졌고 dev에는 존재하지 않는다 — 복구는 3.6.0 네이티브 빌드와 함께. 번역 키
+      // (home.tile.originalSeries)만 여기 남겨둔다.
+      // {
+      //   id: 'original_series',
+      //   title: t('home.tile.originalSeries'),
+      //   emoji: '\u{1F3AC}',
+      //   onPress: () => {
+      //     logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
+      //     router.push('/video-gallery' as never);
+      //   },
+      // },
       {
         id: 'building_map',
         title: t('home.tile.buildingMap'),
@@ -67,11 +67,11 @@ export function HomeScreen() {
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'building_map' });
           router.navigate('/(tabs)/campus' as never);
+          // 네이티브 SVG 지도. 서버는 이미 `route` → /map/hssc로 바뀌었는데 이 타일만
+          // 죽은 webview 지도(webview.skkuuniverse.com/#/map/hssc)를 계속 열고 있었다.
           handleSduiAction({
-            actionType: 'webview',
-            actionValue: 'https://webview.skkuuniverse.com/#/map/hssc',
-            webviewTitle: t('home.tile.buildingMap'),
-            webviewColor: '003626',
+            actionType: 'route',
+            actionValue: '/map/hssc',
           });
         },
       },
@@ -88,9 +88,39 @@ export function HomeScreen() {
           });
         },
       },
+      // 오리지널 시리즈가 빠지며 생긴 4번째 칸 — 이동 탭 바로가기.
+      {
+        id: 'transit',
+        title: t('nav.transit'),
+        emoji: '\u{1F68C}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'transit' });
+          router.navigate('/(tabs)/transit' as never);
+        },
+      },
     ],
     [router, t],
   );
+
+  // 미니앱 그리드 — 임시 비노출 (2026-08-01). 서버 레지스트리(SSOT)에서 생성.
+  // 이름/URL/로고/순서 전부 서버에서. 로고는 원격 URL(`{uri}`) — 번들 require()
+  // 맵은 제거됨. 서버가 아직 응답하지 않았거나 로고가 없으면 undefined라 타일은
+  // 이모지 폴백으로 그려진다. 훅까지 같이 주석 처리해야 불필요한 /mini-apps
+  // 쿼리가 안 나간다 (JSX만 지우면 fetch는 계속 돎).
+  // const { data: miniApps } = useMiniAppIndex();
+  // const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
+  //   () =>
+  //     (miniApps ?? []).map((app) => ({
+  //       id: app.id,
+  //       title: app.shortName ?? app.name,
+  //       imageSource: app.logo ? { uri: app.logo.uri } : undefined,
+  //       onPress: () => {
+  //         logHomeContentSelect({ content_type: 'tile', item_id: app.id });
+  //         openMiniAppById(app.id);
+  //       },
+  //     })),
+  //   [miniApps],
+  // );
 
   return (
     <View style={styles.container}>
@@ -105,20 +135,39 @@ export function HomeScreen() {
         {/* ── Hero Banner (auto-playing intro animation) ── */}
         <HeroBanner />
 
-        {/* ── Grid Menu (tossface, matches Campus tab style) ── */}
+        {/* ── Grid Menu (main app tiles) ── */}
         <View style={styles.gridWrap}>
-          <TossfaceButtonGrid items={gridItems} />
+          <TossfaceButtonGrid items={mainGridItems} />
         </View>
 
-        {/* ── Dept latest notices (top 3) + 대외활동 — gated for non-onboarded users ── */}
-        {showOnboardingGate ? (
-          <HomeOnboardingGateCard />
-        ) : (
-          <>
-            <DeptNoticesSection />
-            <ExternalActivitiesSection />
-          </>
-        )}
+        {/* ── 미니앱 섹션 ── 임시 비노출 (2026-08-01). 되살릴 때 위쪽
+            useMiniAppIndex/miniAppItems 블록과 Pressable·CaretRightIcon·Txt
+            import도 함께 복구할 것.
+        <View style={styles.miniAppsSection}>
+          <View style={styles.sectionHeader}>
+            <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+              미니앱
+            </Txt>
+            <Pressable
+              style={({ pressed }) => [
+                styles.sectionMoreBtn,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={8}
+            >
+              <Txt typography="t7" color={SdsColors.grey500}>
+                더보기
+              </Txt>
+              <CaretRightIcon size={12} color={SdsColors.grey400} />
+            </Pressable>
+          </View>
+          <TossfaceButtonGrid items={miniAppItems} />
+        </View>
+        */}
+
+        {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
+        <DeptNoticesSection />
+        <ExternalActivitiesSection />
 
         {/* ── Bottom Banner ── (temporarily disabled — restore with CaretRightIcon import above)
         <Pressable style={styles.bottomBanner}>
@@ -155,7 +204,24 @@ const styles = StyleSheet.create({
 
   /* ── Grid wrap ── */
   gridWrap: {
-    marginBottom: 36,
+    marginBottom: 24,
+  },
+
+  /* ── 미니앱 섹션 ── */
+  miniAppsSection: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
   },
 
   /* ── Bottom Banner ── */

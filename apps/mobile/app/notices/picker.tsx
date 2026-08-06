@@ -22,7 +22,7 @@
  *   The modal mounts in a separate UIViewController. The root
  *   SafeAreaProvider measures the parent VC, not the modal — first paint
  *   loses top safe area without a per-modal wrap. See
- *   `docs/ios-modal-safe-area-provider.md`.
+ *   `docs/explanation/ios-modal-safe-area-provider.md`.
  *
  * Selection model (restore-on-dismiss is free)
  * ────────────────────────────────────────────
@@ -62,6 +62,7 @@ import {
 import { XIcon } from 'phosphor-react-native';
 import {
   filterPickerSources,
+  findCollegeUmbrella,
   recommendCollegeMates,
   resolvePickerSelection,
   SdsColors,
@@ -76,6 +77,7 @@ import {
 } from '@skkuverse/shared';
 import { SearchField, Txt } from '@skkuverse/sds';
 import { DeptRow } from '@/features/onboarding/components/DeptRow';
+import { UnsupportedDeptSheet } from '@/features/onboarding/components/UnsupportedDeptSheet';
 import { setPickerSelectionRemote } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 import { logNoticesContentSelect } from '@/services/analytics';
@@ -129,12 +131,25 @@ function NoticesPickerScreenInner() {
   const [pending, setPending] = useState<string[]>(originalIds);
   const [query, setQuery] = useState('');
 
+  // showUnsupported: true — unsupported depts used to be hidden here, but a
+  // dept that silently vanishes from search reads as "app is broken / dept
+  // doesn't exist". Now they render greyed with a warning marker and tapping
+  // opens the same explanation sheet onboarding uses.
   const sources = useMemo<TabSource[]>(
     () =>
       tab?.tabMode === 'picker' && tab.picker
-        ? filterPickerSources(tab.picker.sources, { showUnsupported: false })
+        ? filterPickerSources(tab.picker.sources, { showUnsupported: true })
         : [],
     [tab],
+  );
+
+  const [unsupportedTapped, setUnsupportedTapped] = useState<TabSource | null>(
+    null,
+  );
+  const umbrella = useMemo(
+    () =>
+      unsupportedTapped ? findCollegeUmbrella(unsupportedTapped, sources) : null,
+    [unsupportedTapped, sources],
   );
 
   const sourceById = useMemo(
@@ -396,6 +411,38 @@ function NoticesPickerScreenInner() {
         renderItem={({ item }) => {
           const isSelected = pending.includes(item.id);
           const atMax = pending.length >= maxSelection;
+          if (!item.noticeAvailable) {
+            // Grandfathered state: a source retired AFTER the user selected
+            // it stays in `pending` (resolvePickerSelection keeps any id
+            // still present in picker.sources). Render the real selection
+            // state and let tap deselect it like any other selected row —
+            // once deselected, tapping again hits the unselected branch and
+            // opens the explanation sheet (which also tells them why they
+            // can't re-add it).
+            return (
+              <DeptRow
+                name={item.name}
+                selected={isSelected}
+                unsupported
+                variant="checkbox"
+                onPress={() => {
+                  if (isSelected) {
+                    logNoticesContentSelect({
+                      content_type: 'picker_row',
+                      item_id: item.id,
+                    });
+                    handleToggle(item.id);
+                  } else {
+                    logNoticesContentSelect({
+                      content_type: 'picker_unsupported',
+                      item_id: item.id,
+                    });
+                    setUnsupportedTapped(item);
+                  }
+                }}
+              />
+            );
+          }
           return (
             <DeptRow
               name={item.name}
@@ -437,6 +484,18 @@ function NoticesPickerScreenInner() {
         ]}
         showsVerticalScrollIndicator={false}
         style={styles.list}
+      />
+
+      <UnsupportedDeptSheet
+        source={unsupportedTapped}
+        umbrella={umbrella}
+        onAccept={(alt) => {
+          // In the picker, "그렇게 할게요" adds the umbrella to the current
+          // selection (add-only — never toggle-removes an already-picked one).
+          if (!pending.includes(alt.id)) handleToggle(alt.id);
+          setUnsupportedTapped(null);
+        }}
+        onDismiss={() => setUnsupportedTapped(null)}
       />
     </View>
   );

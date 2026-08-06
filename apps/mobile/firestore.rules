@@ -120,14 +120,22 @@ service cloud.firestore {
     // request.time keeps writes forensic-grade (no client backdating). Anchored
     // regex `^[a-z0-9-]+$` — CEL matches() is partial by default (see the
     // bookmarks/{key} anchor-canary note).
+    //
+    // `source` is optional for backward compat with pre-v3 clients. When
+    // present it must be a known surface id — allowlist prevents arbitrary
+    // strings being injected into the anonymous collection.
     match /feedback/{docId} {
       allow read, update, delete: if false;
       allow create: if request.auth != null
                     && request.resource.data.type == 'review_prompt'
-                    && request.resource.data.keys().hasOnly(['type', 'text', 'sourceId', 'articleNo', 'createdAt'])
+                    && request.resource.data.keys().hasOnly(['type', 'source', 'text', 'sourceId', 'articleNo', 'createdAt'])
                     && request.resource.data.text is string
                     && request.resource.data.text.size() <= 2000
                     && request.resource.data.createdAt == request.time
+                    && (
+                      !('source' in request.resource.data) ||
+                      request.resource.data.source in ['second_bookmark', 'inja_shuttle']
+                    )
                     && (
                       !('sourceId' in request.resource.data) ||
                       (request.resource.data.sourceId is string
