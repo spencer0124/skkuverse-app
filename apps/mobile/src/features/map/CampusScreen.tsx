@@ -29,8 +29,11 @@ import {
   useMapConfig,
   useCampusSections,
   useMapLayerStore,
+  useEventMap,
+  useEventMapStore,
   SdsColors,
 } from '@skkuverse/shared';
+import { EventMapPinLayer } from '@/features/eventmap/EventMapPinLayer';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -86,6 +89,29 @@ export function CampusScreen() {
       initFromConfig(mapConfig.layers);
     }
   }, [mapConfig, initFromConfig]);
+
+  // ── Event map ──
+  const eventMap = useEventMap();
+  const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
+
+  // The snapshot pins one campus (nsc for ESKARA), so switching campus must hide
+  // the pins — and must do so with zero network, which is the whole reason the
+  // snapshot ships structure and items together.
+  const eventStacks =
+    eventMap.snapshot && eventMap.snapshot.campus === selectedCampus ? eventMap.stacks : [];
+
+  /**
+   * Base-map visibility with the event's override applied ON TOP, derived per
+   * render and never written to a store.
+   *
+   * The override normally hides 건물번호 while leaving 건물이름 up, so event pins
+   * are legible without stripping the map of orientation. Deriving it rather
+   * than forcing-then-restoring matters: a restore that never runs — app killed,
+   * activation flipped — would leave the user's building-number layer off
+   * permanently, with nothing on screen to explain why. Derived, the override
+   * simply stops existing when the event does.
+   */
+  const basemapOverride = eventStacks.length > 0 ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
 
   // ── Camera move on campus switch ──
   useEffect(() => {
@@ -165,6 +191,14 @@ export function CampusScreen() {
     detailSheetRef.current?.present();
   }, []);
 
+  // ── Event pin tap ──
+  const handleSelectStack = useCallback(
+    (stackKey: string) => {
+      setSelectedStackKey(stackKey);
+    },
+    [setSelectedStackKey],
+  );
+
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
     if (selectedSkkuId != null) logConnectionTap(selectedSkkuId, targetSkkuId);
@@ -185,8 +219,15 @@ export function CampusScreen() {
             style={StyleSheet.absoluteFill}
           >
             {mapConfig.layers.map((layer) => {
-              const layerState = layers[layer.id];
-              if (!layerState?.visible) return null;
+              // The event's override wins over the user's toggle while it is
+              // active, and disappears with it. initFromConfig deliberately
+              // preserves user toggles, so nothing here can un-hide a layer the
+              // event asked to hide.
+              const visible =
+                basemapOverride[layer.id] ??
+                layers[layer.id]?.visible ??
+                layer.defaultVisible;
+              if (!visible) return null;
 
               if (layer.type === 'polyline') {
                 return <MapPolylineLayer key={layer.id} layer={layer} />;
@@ -200,6 +241,15 @@ export function CampusScreen() {
                 />
               );
             })}
+            {/* Sibling of the config-driven layers: the event map is a separate
+                request precisely so a map-config failure cannot take it down,
+                and vice versa. CampusNaverMap forwards children verbatim, so no
+                change is needed there. */}
+            <EventMapPinLayer
+              stacks={eventStacks}
+              icons={eventMap.snapshot?.icons ?? {}}
+              onSelectStack={handleSelectStack}
+            />
           </CampusNaverMap>
         )}
 
