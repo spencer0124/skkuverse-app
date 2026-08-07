@@ -39,8 +39,19 @@ audience: internal
 | `skkuverse://search` | `https://skkuverse.com/p/search` | 건물/공간 검색 | `ALLOWED_PATHS` 통과 |
 | `skkuverse://notices/<sourceId>/<articleNo>` | `https://skkuverse.com/p/notices/<sourceId>/<articleNo>` | 공지 상세 | `NOTICE_PATH_RE` 인터셉트 (아래 참조) |
 | `skkuverse://m/<slug>` | `https://skkuverse.com/p/m/<slug>` | 미니앱 | `MINIAPP_PATH_RE` 인터셉트 (아래 참조) |
+| `skkuverse://map?place=<placeId>` | `https://skkuverse.com/p/map?place=<placeId>` | 캠퍼스 탭 + 해당 장소 시트 | `MAP_PATH_RE` 인터셉트 (아래 참조) |
 
 위 목록 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다. path 파싱 중 예외가 발생해도 `try/catch`로 홈에 떨어진다.
+
+### 동적 경로 0: 지도 장소 (`/map?place=<placeId>`)
+
+**범용 스킴이다.** 건물이든 부스든 똑같이 "장소"이므로 같은 주소 체계로 연다 (umbrella ADR 0004 invariant 1). 이벤트 전용 변종을 만들면 내년 행사가 또 새 스킴을 요구하게 된다.
+
+- `MAP_PATH_RE = /^\/map$/` — **화이트리스트가 아니라 인터셉트**다. `/map`을 `ALLOWED_PATHS`에도 넣으면 이 함수를 지나는 두 번째(도달 불가능한) 경로가 생긴다. 공지·미니앱도 같은 이유로 화이트리스트 항목이 없다.
+- **`/map/hssc`는 영향받지 않는다.** 정규식이 `/map`에서 끝나므로 경로 세그먼트가 있는 `/map/hssc`는 매치되지 않고 화이트리스트로 흘러 SVG 층별 지도로 간다.
+- `placeId`는 **형태만** 검사(`/^[a-z0-9-]+$/`)하고 조회하지 않는다 — 미니앱 slug와 같은 이유로, 이 함수는 React 트리 밖에서 돌아 조회가 중복 요청 + 첫 네비게이션 블로킹이 된다. 경로 traversal(`../../etc`)은 이 정규식에서 걸린다.
+- 매치되지 않는 id는 `pendingMapPlaceLink`에 담기지 않거나 스냅샷에서 해석되지 않아 **캠퍼스 탭에 시트 없이 안착**한다. 에러 화면은 없다.
+- 소비자는 root layout이 아니라 **`CampusScreen`**이다: `redirectSystemPath`가 이미 `/(tabs)/campus`를 반환했으므로 반드시 마운트돼 있고, placeId를 해석할 수 있는 유일한 곳이다.
 
 ### 동적 경로 1: 공지 상세 (`/notices/<sourceId>/<articleNo>`)
 

@@ -42,6 +42,7 @@ import { FilterSheet } from './components/FilterSheet';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useMapNavStore } from '@/features/search/store';
+import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
 import { logMarkerTap, logConnectionTap } from '@/services/analytics';
 
 // 이 자리에 하드코딩 그리드(CAMPUS_GRID_ITEMS)가 있었다. `useCampusSections()`가
@@ -99,9 +100,23 @@ export function CampusScreen() {
     });
   }, [selectedCampus, mapConfig]);
 
-  // ── Pending map navigation (search, and later a place deep link) ──
+  // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
   const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
   const clearPendingNavPayload = useMapNavStore((s) => s.clearPendingNavPayload);
+  const setPendingNavPayload = useMapNavStore((s) => s.setPendingNavPayload);
+
+  // A place deep link becomes a second producer for the same store. No
+  // root-layout consumer is needed the way notices and mini-apps have one:
+  // redirectSystemPath already returned /(tabs)/campus, so this screen is
+  // guaranteed mounted, and it is the only thing that can resolve a placeId.
+  useEffect(() => {
+    const tryConsume = () => {
+      const p = pendingMapPlaceLink.consume();
+      if (p) setPendingNavPayload({ kind: 'place', placeId: p.placeId });
+    };
+    tryConsume(); // cold start: set before this tree existed
+    return pendingMapPlaceLink.subscribe(tryConsume); // warm start
+  }, [setPendingNavPayload]);
 
   useEffect(() => {
     if (!pendingPayload) return;
