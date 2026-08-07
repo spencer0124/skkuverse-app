@@ -99,6 +99,75 @@ export async function safeGet<T>(
 }
 
 /**
+ * The raw materials for reconciling the device clock with the server's.
+ *
+ * `safeGet` discards headers, and this is deliberately a sibling rather than a
+ * widening of it: `safeGet` has ~15 call sites threading `Result<T>`, and a
+ * second axios call site outside this file is exactly the drift the file exists
+ * to prevent.
+ *
+ * Interpretation belongs to the caller, not here — see eventmap/clock.ts. In
+ * particular `age` matters: RFC 9111 §5.1 says a response carrying `Age` was
+ * not generated for this request, so its `Date` is the origin's original
+ * timestamp rather than "now", and using it as a clock reading is wrong by
+ * however long it sat in the cache.
+ */
+export interface TimedPayload<T> {
+  data: T;
+  /** `Date` response header as epoch ms, or null when absent or unparseable. */
+  serverDate: number | null;
+  /** `Age` response header in seconds, or null when absent. */
+  age: number | null;
+  /** `Date.now()` captured in the same tick as the response. */
+  fetchedAt: number;
+}
+
+/**
+ * GET with v2 envelope validation, keeping the timing headers.
+ *
+ * Note for web targets: `Date` and `Age` are not CORS-safelisted response
+ * headers, so on Expo web both read null unless the server sends
+ * `Access-Control-Expose-Headers`. That degrades to "trust the device", which is
+ * correct-but-uncorrected rather than wrong.
+ */
+export async function safeGetTimed<T>(
+  path: string,
+  parser: (envelope: ApiEnvelope<unknown>) => T,
+  options?: AxiosRequestConfig & { client?: AxiosInstance },
+): Promise<Result<TimedPayload<T>>> {
+  const { client, ...axiosConfig } = options ?? {};
+  try {
+    const response = await (client ?? getApiClient()).get(path, axiosConfig);
+    const fetchedAt = Date.now();
+    const raw = response.data;
+    if (!isValidEnvelope(raw)) {
+      return ResultHelper.error(Failure.parse('Invalid v2 envelope'));
+    }
+    return ResultHelper.ok({
+      data: parser(raw as ApiEnvelope<unknown>),
+      serverDate: parseDateHeader(response.headers?.date),
+      age: parseAgeHeader(response.headers?.age),
+      fetchedAt,
+    });
+  } catch (error) {
+    return ResultHelper.error(mapAxiosError(error));
+  }
+}
+
+function parseDateHeader(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : null;
+}
+
+function parseAgeHeader(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * POST with v2 envelope validation.
  * Parser receives the full envelope `{ meta, data }`.
  */

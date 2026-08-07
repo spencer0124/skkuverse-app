@@ -222,24 +222,34 @@ export {
   deriveItemStatus,
   deriveItems,
   evaluatePredicate,
+  eventMapSnapshotKey,
   isValidPredicate,
   nextBoundaryAfter,
   parseEventMapManifest,
   parseEventMapSnapshot,
   parseInstant,
+  readCachedEventMapBundle,
   readUsableOffset,
   selectVisibleStacks,
   serverNow,
+  useEventMap,
+  useEventMapManifest,
+  useEventMapSnapshot,
+  EVENTMAP_MANIFEST_KEY,
 } from './eventmap';
 export type {
   BuiltStacks,
   ClockOffset,
   DerivedItem,
   DroppedCounts,
+  EventMapBundle,
   EventMapStack,
   ParsedSnapshot,
   PredicateSubject,
+  UseEventMapResult,
 } from './eventmap';
+export { useEventMapStore } from './store/eventmap';
+export type { EventMapStore } from './store/eventmap';
 
 // ── Building parsers ──
 export {

@@ -18,3 +18,20 @@ export type { DroppedCounts, ParsedSnapshot } from './parser';
 
 export { buildStacks, deriveItems, selectVisibleStacks } from './derive';
 export type { BuiltStacks, DerivedItem, EventMapStack, VisibleStacksInput } from './derive';
+
+export {
+  fetchEventMapManifest,
+  fetchEventMapSnapshot,
+  readCachedEventMapBundle,
+  SnapshotGoneError,
+} from './repository';
+export type { EventMapBundle } from './repository';
+
+export {
+  eventMapSnapshotKey,
+  useEventMap,
+  useEventMapManifest,
+  useEventMapSnapshot,
+  EVENTMAP_MANIFEST_KEY,
+} from './useEventMap';
+export type { UseEventMapResult } from './useEventMap';
