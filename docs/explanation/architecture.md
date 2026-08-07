@@ -3,7 +3,7 @@ title: Architecture Overview
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-07
 audience: internal
 ---
 
@@ -18,10 +18,9 @@ Yarn workspaces 모노레포. workspace는 `apps/*` + `packages/*` (루트 `pack
 | 워크스페이스 | 역할 | 의존 방향 |
 | --- | --- | --- |
 | `apps/mobile/` | Expo + React Native 모바일 앱 (iOS/Android). 메인 클라이언트 | `packages/*` 전부 소비 |
-| `apps/webview/` | React + Vite SPA. 모바일 앱 안에 webview로 임베드 (지도, 버스 등) | `packages/bridge`, `packages/shared` 소비 |
 | `packages/shared/` | 데이터 레이어 — API 클라이언트(Axios), Zustand 스토어, React Query 훅, 타입, 디자인 토큰, i18n | 앱에 의존하지 않음 (하위 계층) |
 | `packages/sds/` | Skku Design System 컴포넌트 라이브러리. `SDSProvider`로 테마 제공 | `shared`의 토큰 소비 |
-| `packages/bridge/` | Web↔Native 메시지 패싱 계약 (`postToApp` / `parseWebMessage`) | 양쪽 앱이 공유하는 타입 SSOT |
+| `packages/bridge/` | Web↔Native 메시지 패싱 계약 (`postToApp` / `parseWebMessage`) | 타입 SSOT. 발신 측(skkuverse-web)이 byte 단위로 vendoring하는 **레포 간 계약** |
 | `functions/` | Firebase Cloud Functions — 클라이언트에 둘 수 없는 서버 로직 (FCM 발송, preferences derive/sync, 계정 삭제) | Firestore를 사이에 두고 앱과 간접 결합 |
 
 의존은 항상 **apps → packages** 한 방향이다. packages끼리는 `sds → shared(tokens)`만 허용. 패키지 국소 지식은 각 워크스페이스 README에 있다 ([docs/README.md](../README.md) "워크스페이스 README" 표 참조).
@@ -84,13 +83,14 @@ server↔client 계약의 SSOT는 [../reference/sdui-campus-spec.md](../referenc
 
 ## 시스템 경계
 
-앱을 둘러싼 전체 생태계. 형제 레포와의 결합점은 REST API·Firestore·HTTP endpoint 세 가지뿐이다.
+앱을 둘러싼 전체 생태계. 형제 레포와의 결합점은 REST API·Firestore·HTTP endpoint, 그리고 webview 페이지 로드와 그 위의 `packages/bridge` 메시지 계약이다.
 
 ```mermaid
 flowchart TB
-  APP["skkuverse-app<br/>(이 레포: mobile + webview + functions)"]
+  APP["skkuverse-app<br/>(이 레포: mobile + functions)"]
 
   subgraph backend["형제 레포"]
+    WEB["skkuverse-web<br/>webview SPA · 관리자 콘솔"]
     SRV["skkuverse-server<br/>NestJS · REST API"]
     CRW["skkuverse-crawler<br/>Python · 공지 크롤링"]
     AI["skkuverse-ai<br/>FastAPI · AI 요약"]
@@ -101,6 +101,7 @@ flowchart TB
   OTA["OTA 서버<br/>expo-open-ota (ota.skkuverse.com)"]
 
   APP -- "REST (Bearer idToken)" --> SRV
+  APP -- "webview 로드 + bridge postMessage" --> WEB
   APP -- "SDK 직접" --> FB
   APP -- "JS 번들 업데이트 체크" --> OTA
   SRV --> MDB
@@ -109,6 +110,7 @@ flowchart TB
   CRW -- "sendNotification HTTP CF 호출" --> FB
 ```
 
+- **skkuverse-web**은 앱이 `/webview` 셸에서 로드하는 페이지를 배포한다 (`webview.skkuverse.com`). 그 페이지가 네이티브 브리지에 닿을 수 있는지는 **서버가 정한다** — `skkuverse-server`의 origin allowlist가 `GET /app/config`로 내려오고, 클라이언트는 메시지마다 fail-closed로 재확인한다.
 - **skkuverse-crawler**가 공지를 수집해 MongoDB에 적재하고, 새 공지 발생 시 `functions/`의 `sendNotification` HTTP endpoint를 호출해 FCM 발송을 트리거한다.
 - **skkuverse-ai**는 크롤링된 공지의 AI 요약을 생성한다 (crawler↔ai는 서버 인프라 내부 결합, 앱과 무관).
 - **OTA 서버**는 JS-only 변경을 스토어 심사 없이 배포한다 → [../how-to/ota-update.md](../how-to/ota-update.md).

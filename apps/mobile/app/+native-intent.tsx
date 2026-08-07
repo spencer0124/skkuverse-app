@@ -28,12 +28,19 @@ const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
 // Same pending-holder pattern as notices — route to home, then the root layout's
 // PendingMiniAppLinkConsumer opens the mini-app on top.
 //
-// SHAPE ONLY — registry membership is NOT checked here. This function runs
-// outside the React tree before the app mounts, so it cannot await the registry,
-// and the registry is now server-owned (no bundled copy to read synchronously).
-// Keeping a bundled seed just to answer this one question would reintroduce the
-// second source of truth the migration removed, so the membership check moved
-// to PendingMiniAppLinkConsumer, which is inside React and can await.
+// SHAPE ONLY — registry membership is NOT checked here. The registry is
+// server-owned now, with no bundled copy to read synchronously; keeping a seed
+// just to answer this one question would reintroduce the second source of truth
+// the migration removed.
+//
+// Not because this function can't be async — expo-router types it
+// `=> Promise<string> | string` and awaits it. Because of what awaiting COSTS
+// here: it runs outside the React tree before mount, so (1) it can't share the
+// QueryClient cache the shell reads from, making it a duplicate request, and
+// (2) the app's entire first navigation would block on a network round-trip —
+// an offline cold start would paint nothing until the axios timeout. So the
+// membership check moved to PendingMiniAppLinkConsumer, which runs post-mount
+// and pays neither cost.
 //
 // Security is unchanged: an unknown slug still resolves to /(tabs)/home and
 // cannot push an arbitrary internal route. The consumer drops it on lookup

@@ -15,6 +15,7 @@
 This app is the primary client in the skkuverse ecosystem. It reads live data from **skkuverse-server** over HTTPS using a Firebase `Bearer <idToken>`, and manages user state directly via Firebase Firestore. Sibling services:
 
 - **skkuverse-server** (NestJS + MongoDB) — REST API for bus, notices, building, map, and UI data
+- **skkuverse-web** (React + Vite, `webview.skkuverse.com`) — every browser surface: the pages this app loads in a web view, and the admin console
 - **skkuverse-crawler** (Python) — crawls 147 SKKU department notice sources, triggers FCM dispatch
 - **skkuverse-ai** (FastAPI) — generates AI summaries for crawled notices
 - **skkuverse-codepush** (Expo EAS, `ota.skkuverse.com`) — OTA update server for this app
@@ -55,7 +56,7 @@ What the app delivers to students:
 ```text
 skkuverse-app/
 ├── apps/
-│   ├── mobile/                    # React Native + Expo app
+│   └── mobile/                    # React Native + Expo app
 │   │   ├── app/                   # Expo Router file-based routing
 │   │   │   ├── (tabs)/            # Bottom tab navigator
 │   │   │   │   ├── home/          # Home screen (SDUI-driven)
@@ -66,7 +67,6 @@ skkuverse-app/
 │   │   │   └── login.tsx, onboarding.tsx  # Auth flow
 │   │   ├── app.config.ts          # Expo app config (EAS, plugins)
 │   │   └── firestore.rules        # Firestore security rules + tests
-│   └── webview/                   # Embedded web view (in-app browser)
 ├── packages/                      # Shared monorepo packages
 ├── functions/                     # Firebase Cloud Functions
 │   └── src/                       # dispatchNotice, sync-preferences, triggers

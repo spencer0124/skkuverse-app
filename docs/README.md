@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-22
+last-updated: 2026-08-07
 audience: internal
 ---
 
@@ -100,7 +100,6 @@ audience: internal
 | README | 패키지 |
 | --- | --- |
 | [apps/mobile](../apps/mobile/README.md) | Expo 모바일 앱 — 실행·구조·빌드 링크 |
-| [apps/webview](../apps/webview/README.md) | Vite SPA (임베디드 webview) |
 | [packages/shared](../packages/shared/README.md) | 데이터 레이어 (API·스토어·훅·토큰·i18n) |
 | [packages/bridge](../packages/bridge/README.md) | Web↔Native 메시지 계약 |
 | [packages/sds](../packages/sds/README.md) | 디자인 시스템 (+ SDS.md, TOSS_UX_GUIDE.md) |

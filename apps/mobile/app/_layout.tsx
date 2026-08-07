@@ -162,10 +162,15 @@ function PendingNoticeLinkConsumer() {
  *
  * This is also where REGISTRY MEMBERSHIP is checked. It used to happen in
  * `+native-intent.tsx` via a synchronous `isMiniAppId()` against bundled JSON,
- * but the registry is server-owned now and that function runs outside React
- * before the app mounts, so it cannot await. Keeping a bundled copy purely to
+ * but the registry is server-owned now, and keeping a bundled copy purely to
  * answer this one question would reintroduce the second source of truth the
- * migration removed — so the check moved here, where awaiting is fine.
+ * migration removed.
+ *
+ * `+native-intent.tsx` could technically await (expo-router types
+ * `redirectSystemPath` as `=> Promise<string> | string`), but it runs before
+ * mount: no QueryClient to share, and the first navigation would block on the
+ * network. Here, post-mount, neither is true — which is the actual reason the
+ * check lives in this component.
  *
  * `fetchQuery` (not a bare repository call) so the detail lands in the same
  * React Query cache the shell reads from: validating the slug also warms it,
