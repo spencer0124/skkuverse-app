@@ -4,6 +4,8 @@
  * Flutter source: lib/features/building/model/*.dart
  */
 
+import type { Campus } from '../store/settings';
+
 // ── Localized text ──
 
 export interface LocalizedText {
@@ -136,13 +138,31 @@ export function floorBadge(name: string): string {
   return name.length > 3 ? name.substring(0, 3) : name;
 }
 
-// ── Navigation payload (search → map camera) ──
+// ── Navigation payload (search / deep link → map camera) ──
 
-export interface BuildingNavPayload {
-  skkuId: number;
-  lat: number;
-  lng: number;
-  campus: string;
-  highlightFloor?: string;
-  highlightSpaceCd?: string;
-}
+/**
+ * What a producer hands the map to say "show this".
+ *
+ * Discriminated because the two producers know different things. Search has
+ * already resolved a building and can supply coordinates; a
+ * `skkuverse://map?place=<id>` deep link carries only an id, and the coordinates
+ * live in an event map snapshot that may not have arrived yet — so the map has
+ * to resolve it after the snapshot lands rather than assume it is present.
+ */
+export type MapNavPayload =
+  | {
+      kind: 'building';
+      skkuId: number;
+      lat: number;
+      lng: number;
+      /**
+       * Optional because the source may genuinely not know: a space search result
+       * carries no campus, and the map must then leave the campus alone rather
+       * than guess and jump the user to the wrong one. `Campus` rather than
+       * `string` so an unrecognised value cannot reach `setSelectedCampus`.
+       */
+      campus?: Campus;
+      highlightFloor?: string;
+      highlightSpaceCd?: string;
+    }
+  | { kind: 'place'; placeId: string };

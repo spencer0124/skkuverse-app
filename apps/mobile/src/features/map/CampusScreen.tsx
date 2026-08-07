@@ -41,7 +41,7 @@ import { CampusToggle } from './components/CampusToggle';
 import { FilterSheet } from './components/FilterSheet';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
-import { useSearchResultStore } from '@/features/search/store';
+import { useMapNavStore } from '@/features/search/store';
 import { logMarkerTap, logConnectionTap } from '@/services/analytics';
 
 // 이 자리에 하드코딩 그리드(CAMPUS_GRID_ITEMS)가 있었다. `useCampusSections()`가
@@ -99,18 +99,23 @@ export function CampusScreen() {
     });
   }, [selectedCampus, mapConfig]);
 
-  // ── Search result navigation ──
-  const pendingPayload = useSearchResultStore((s) => s.pendingNavPayload);
-  const clearPendingNavPayload = useSearchResultStore(
-    (s) => s.clearPendingNavPayload,
-  );
+  // ── Pending map navigation (search, and later a place deep link) ──
+  const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
+  const clearPendingNavPayload = useMapNavStore((s) => s.clearPendingNavPayload);
 
   useEffect(() => {
     if (!pendingPayload) return;
     const payload = clearPendingNavPayload();
     if (!payload) return;
 
-    // 1. Switch campus if needed
+    // A 'place' payload carries only an id; its coordinates live in the event
+    // map snapshot, which may not have arrived yet, so it cannot be handled on
+    // this path. Nothing produces one until the deep-link commit adds both the
+    // producer and the resolver together.
+    if (payload.kind === 'place') return;
+
+    // 1. Switch campus if needed. Undefined means the producer could not say —
+    //    a space search result has no campus — so leave the map where it is.
     if (payload.campus && payload.campus !== selectedCampus) {
       setSelectedCampus(payload.campus);
     }

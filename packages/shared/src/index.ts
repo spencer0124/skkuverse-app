@@ -29,11 +29,13 @@ export { ApiConfig } from './api/config';
 // ── Safe request wrappers ──
 export {
   safeGet,
+  safeGetTimed,
   safePost,
   safeGetRaw,
   safeGetConditional,
   firePost,
 } from './api/safe-request';
+export type { TimedPayload } from './api/safe-request';
 
 // ── Auth ──
 export { setAuthTokenProvider } from './api/interceptors/auth';
@@ -45,7 +47,7 @@ export type { TranslationKey } from './i18n';
 // ── Stores ──
 export { authStore, useAuthStore } from './store/auth';
 export type { AuthState, AuthStore, AuthUser } from './store/auth';
-export { useSettingsStore } from './store/settings';
+export { useSettingsStore, CAMPUSES } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/settings';
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
@@ -145,7 +147,7 @@ export type {
   BuildingSearchResult,
   CampusCounts,
   SearchCounts,
-  BuildingNavPayload,
+  MapNavPayload,
 } from './types/building';
 export { getLocalizedText, floorBadge } from './types/building';
 

@@ -64,7 +64,7 @@ export type {
   SearchSpaceItem,
   SpaceGroup,
   BuildingSearchResult,
-  BuildingNavPayload,
+  MapNavPayload,
 } from './building';
 export { getLocalizedText } from './building';
 

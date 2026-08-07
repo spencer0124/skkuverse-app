@@ -3,7 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { mmkvStateStorage } from './mmkv-storage';
 
 /** HSSC = 인문사회과학캠퍼스, NSC = 자연과학캠퍼스 */
-export type Campus = 'hssc' | 'nsc';
+export const CAMPUSES = ['hssc', 'nsc'] as const;
+export type Campus = (typeof CAMPUSES)[number];
 
 export type AppLanguage = 'ko' | 'en' | 'zh';
 
