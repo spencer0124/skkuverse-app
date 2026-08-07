@@ -34,6 +34,7 @@ import {
   SdsColors,
 } from '@skkuverse/shared';
 import { EventMapPinLayer } from '@/features/eventmap/EventMapPinLayer';
+import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -56,11 +57,19 @@ import { logMarkerTap, logConnectionTap } from '@/services/analytics';
 // (`useCampusSections`는 절대 throw하지 않고 실패 시 DEFAULT_CAMPUS_SECTIONS를
 // 주므로, 그리드가 비는 경우는 없다.)
 
+/**
+ * How long a place deep link waits for the event map snapshot before giving up.
+ * Named rather than inlined because the number encodes a judgement: congested
+ * festival wifi on an uncached first run regularly exceeds 10s.
+ */
+const PLACE_LINK_ABANDON_MS = 20_000;
+
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<NaverMapViewRef>(null);
   const detailSheetRef = useRef<BottomSheetModal>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
+  const peekSheetRef = useRef<BottomSheetModal>(null);
 
   // ── Data ──
   const { data: mapConfig } = useMapConfig();
@@ -79,6 +88,7 @@ export function CampusScreen() {
   const [selectedSkkuId, setSelectedSkkuId] = useState<number | null>(null);
   const [highlightSpaceCd, setHighlightSpaceCd] = useState<string | undefined>();
   const [buildingSource, setBuildingSource] = useState<string>('marker');
+  const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null);
 
   // ── Sheet snap points ──
   const snapPoints = useMemo(() => ['30%', '50%', '85%'], []);
@@ -93,6 +103,16 @@ export function CampusScreen() {
   // ── Event map ──
   const eventMap = useEventMap();
   const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
+  const selectedStackKey = useEventMapStore((s) => s.selectedStackKey);
+  const selectedStack =
+    eventMap.stacks.find((s) => s.stackKey === selectedStackKey) ?? null;
+
+  // A stackKey can disappear mid-session — the server can flip stackKeyBy from
+  // placeId to zone to thin out a crowded plaza, which re-keys every stack. An
+  // empty sheet is worse than no sheet.
+  useEffect(() => {
+    if (selectedStackKey && !selectedStack) peekSheetRef.current?.dismiss();
+  }, [selectedStackKey, selectedStack]);
 
   // The snapshot pins one campus (nsc for ESKARA), so switching campus must hide
   // the pins — and must do so with zero network, which is the whole reason the
@@ -150,10 +170,12 @@ export function CampusScreen() {
     if (!payload) return;
 
     // A 'place' payload carries only an id; its coordinates live in the event
-    // map snapshot, which may not have arrived yet, so it cannot be handled on
-    // this path. Nothing produces one until the deep-link commit adds both the
-    // producer and the resolver together.
-    if (payload.kind === 'place') return;
+    // map snapshot, which a cold-start deep link can easily beat. Held until the
+    // snapshot settles, then resolved below.
+    if (payload.kind === 'place') {
+      setPendingPlaceId(payload.placeId);
+      return;
+    }
 
     // 1. Switch campus if needed. Undefined means the producer could not say —
     //    a space search result has no campus — so leave the map where it is.
@@ -182,6 +204,53 @@ export function CampusScreen() {
     }, 400);
   }, [pendingPayload, clearPendingNavPayload, selectedCampus, setSelectedCampus]);
 
+  // ── Resolve a place deep link, once the snapshot has actually settled ──
+  useEffect(() => {
+    if (!pendingPlaceId) return;
+
+    // Abandon rather than fire late. Offline with no cache means isSettled may
+    // never arrive, and without this the camera would yank minutes later when
+    // the network came back — long after the user moved on. Congested festival
+    // wifi on a first run regularly exceeds 10s, so this is generous; MMKV
+    // restore is instant, so it only governs the cold, uncached path.
+    const abandon = setTimeout(() => setPendingPlaceId(null), PLACE_LINK_ABANDON_MS);
+    if (!eventMap.isSettled) return () => clearTimeout(abandon);
+    clearTimeout(abandon);
+
+    setPendingPlaceId(null); // one shot, resolvable or not
+    const stack = eventMap.stacksByPlaceId.get(pendingPlaceId);
+    // An id that matches nothing lands on the campus tab with no sheet. That is
+    // the documented behaviour, not a swallowed error.
+    if (!stack) return;
+
+    const snapshotCampus = eventMap.snapshot?.campus;
+    if (snapshotCampus && snapshotCampus !== selectedCampus) {
+      setSelectedCampus(snapshotCampus);
+    }
+    // Same 100ms → camera(500ms) → 400ms → present choreography as the search
+    // handoff, so this screen has one such sequence rather than two.
+    setTimeout(() => {
+      mapRef.current?.animateCameraTo({
+        latitude: stack.lead.lat,
+        longitude: stack.lead.lng,
+        zoom: 17.5,
+        duration: 500,
+      });
+    }, 100);
+    setSelectedStackKey(stack.stackKey);
+    setTimeout(() => {
+      peekSheetRef.current?.present();
+    }, 400);
+  }, [
+    pendingPlaceId,
+    eventMap.isSettled,
+    eventMap.stacksByPlaceId,
+    eventMap.snapshot?.campus,
+    selectedCampus,
+    setSelectedCampus,
+    setSelectedStackKey,
+  ]);
+
   // ── Marker tap ──
   const handleMarkerTap = useCallback((skkuId: number) => {
     logMarkerTap(skkuId);
@@ -195,9 +264,14 @@ export function CampusScreen() {
   const handleSelectStack = useCallback(
     (stackKey: string) => {
       setSelectedStackKey(stackKey);
+      peekSheetRef.current?.present();
     },
     [setSelectedStackKey],
   );
+
+  const handlePeekDismiss = useCallback(() => {
+    setSelectedStackKey(null);
+  }, [setSelectedStackKey]);
 
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
@@ -301,6 +375,14 @@ export function CampusScreen() {
             <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
           </>
         )}
+
+        {/* Outside the mapConfig gate: the event map is a separate request so a
+            map-config hiccup cannot take it down, and vice versa. */}
+        <EventMapPeekSheet
+          ref={peekSheetRef}
+          stack={selectedStack}
+          onDismiss={handlePeekDismiss}
+        />
       </View>
   );
 }
