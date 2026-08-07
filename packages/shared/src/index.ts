@@ -168,7 +168,8 @@ export {
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
 export { resolveInitialTabRouteName } from './utils/resolveInitialTabRoute';
-export { normalizeIncomingPath } from './utils/normalizeIncomingPath';
+export { normalizeIncomingPath, parseIncomingLink } from './utils/normalizeIncomingPath';
+export type { IncomingLink } from './utils/normalizeIncomingPath';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';

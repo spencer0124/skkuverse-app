@@ -83,8 +83,10 @@ sourceId/articleNo가 동적이라 정적 화이트리스트에 enumerable하지
 
 | 구분 | `initial` | 입력 형태 | bare `/` 목적지 | 그 외 경로 |
 | --- | --- | --- | --- | --- |
-| Cold start (앱 꺼진 상태에서 실행) | `true` | launch URL 원본 (예: `skkuverse:///p/notices/x/y`) | `/(tabs)/<lastTab>` (MMKV-persisted Zustand sync read) | **warm과 동일** — 공지/미니앱 인터셉트 + 화이트리스트 균일 적용 |
-| Warm start (백그라운드 중 딥링크 수신) | `false` | 파싱된 pathname (예: `/p/notices/x/y`) | `/(tabs)/home` | 공지/미니앱 인터셉트 + 화이트리스트 |
+| Cold start (앱 꺼진 상태에서 실행) | `true` | launch URL 원본 (예: `skkuverse://notices/x/y`) | `/(tabs)/<lastTab>` (MMKV-persisted Zustand sync read) | **warm과 동일** — 공지/미니앱 인터셉트 + 화이트리스트 균일 적용 |
+| Warm start (백그라운드 중 딥링크 수신) | `false` | **cold와 동일하게 URL 원본** | `/(tabs)/home` | 공지/미니앱 인터셉트 + 화이트리스트 |
+
+> 입력 형태는 cold/warm 모두 **전체 URL**이다 (`expo-router`가 cold는 `{ path: initialUrl }`, warm은 `Linking` 이벤트의 `{ path: url }`을 넘긴다). 이전 표기는 warm을 "파싱된 pathname"이라고 적었지만 사실이 아니었고, `parseIncomingLink`가 두 형태를 모두 받도록 설계된 것도 그래서다.
 
 - **bare `/`를 특별 처리하는 이유:** 그대로 통과시키면 `app/index.tsx`의 `<Redirect href="/(tabs)/home" />`가 root Stack history에 titleless entry를 남겨 iOS long-press 뒤로가기에서 phantom 항목으로 보인다. 이를 회피하려고 redirect-only 화면을 아예 마운트하지 않게 직접 라우팅한다. 만에 하나 leak되어도 `app/_layout.tsx`의 `<Stack.Screen name="index" options={{ title: t('nav.home') }}/>` fallback 라벨로 blank를 회피한다.
 - **cold에서도 필터링이 균일한 이유:** cold start만 통과시키면 untrusted 딥링크가 앱 실행 한 번으로 임의 내부 라우트(`/login` 등)에 도달할 수 있다. `+native-intent.tsx`의 화이트리스트 주석이 이 의도를 명시한다.
@@ -93,15 +95,38 @@ sourceId/articleNo가 동적이라 정적 화이트리스트에 enumerable하지
 
 `router.push()` 등 앱 내부 네비게이션은 `redirectSystemPath`를 거치지 않으므로 화이트리스트의 영향을 받지 않는다. 단 하나의 예외적 미러: SDUI 'route' action에 bare `/`가 들어오면 `router.dismissTo('/(tabs)/home')`로 가로챈다 (`apps/mobile/src/sdui/action-handler.ts`) — 위와 같은 titleless phantom 회피.
 
-## path 파싱 (`normalizeIncomingPath`)
+## path 파싱 (`parseIncomingLink`)
 
-Expo native-intent 문서상 `path` 파라미터는 "path나 valid URL이라는 보장이 없다". cold는 launch URL 원본, warm은 파싱된 pathname이 들어오므로 `normalizeIncomingPath()`가 `new URL(rawPath, 'skkuverse://app')`로 양쪽을 균일하게 정규화한다:
+Expo native-intent 문서상 `path` 파라미터는 "path나 valid URL이라는 보장이 없다". launch URL 원본과 bare pathname 양쪽이 들어올 수 있으므로 `parseIncomingLink()`가 `{ pathname, params }`로 균일하게 정규화한다. `normalizeIncomingPath()`는 pathname만 필요한 호출부를 위해 남아 있으며 내부적으로 같은 파서에 위임한다 — 파서가 하나여야 수정이 한쪽에만 들어가는 사고가 없다.
 
-- 커스텀 스킴: `skkuverse://search` → `/search`
+### authority fold — `skkuverse:`는 non-special scheme
+
+WHATWG URL 명세에서 special scheme은 http/https/ws/wss/ftp/file **뿐**이다. `skkuverse:`는 여기 없으므로 `//` 뒤 첫 세그먼트가 **path가 아니라 authority**로 파싱된다:
+
+```text
+skkuverse://map?place=x   →  hostname "map",  pathname ""     ← place 쿼리까지 유실됐었다
+skkuverse:///map?place=x  →  hostname "",     pathname "/map"
+```
+
+두 표기는 같은 라우트를 뜻하므로 **우리 스킴에 한해** authority를 path 앞으로 되접는다. 이 처리가 없던 동안 `skkuverse://campus`·`//search`·`//m/<slug>`·`//notices/<a>/<b>`가 전부 `/`로 무너져 홈으로 갔다 — 이 문서 위쪽 표가 지원한다고 적어둔 것과 달리 실제로는 `/p/` 유니버셜 링크와 triple-slash 형태만 동작했다.
+
+되접을 때 주의할 세 가지 (전부 런타임 구현체 `whatwg-url-without-unicode`로 검증됨 — Expo가 RN 기본 shim 대신 설치하는 그것):
+
+| 입력 | 파서 결과 | 처리 |
+| --- | --- | --- |
+| `skkuverse://MAP/HSSC` | hostname `"MAP"` | opaque host는 **소문자화되지 않는다**. 포스터·QR의 대문자 링크가 화이트리스트를 못 맞추므로 **되접는 host 세그먼트만** `.toLowerCase()`. path는 대소문자 보존 (미니앱 slug가 case-sensitive) |
+| `skkuverse://map:8080/x` | host `"map:8080"` | `host`는 포트를 포함하므로 **`hostname`**을 쓴다 |
+| `skkuverse:map?place=x` | hostname `""`, pathname `"map"` | 슬래시 없는 형태(안드로이드 인텐트). 선행 `/` 보정 필요 |
+
+`http(s)`는 **절대 되접지 않는다** — 거기서 host는 실제 도메인이고, `https://evil.com/map`은 `/map`으로 남아야 한다.
+
+### 그 외 정규화
+
 - 유니버셜 링크: `https://skkuverse.com/p/map/hssc` → `/p/map/hssc` → `/p/` 스트립 → `/map/hssc`
-- triple-slash empty-host 형태(`skkuverse:///p/...`), query string, fragment 모두 처리
-- 빈 pathname (`skkuverse://`, host-only) → `/`
-- `URL` 생성 실패 시 수동 fallback (leading `/` 보정 + `?`/`#` 제거)
+- 빈 authority + 빈 pathname (`skkuverse://`) → `/`
+- 상대 형태(`/p/notices/x/y`)는 `skkuverse://app`을 base로 파싱한다. 이때 host `"app"`은 base가 공급한 것이지 링크의 일부가 아니므로 **되접지 않는다** — absolute 파싱을 먼저 시도하고 실패할 때만 base를 쓰는 2단 구조인 이유
+- 비 ASCII 경로는 퍼센트 인코딩된다 (`skkuverse://검색?q=1` → `/%EA%B2%80%EC%83%89`). 한글 경로를 쓸 계획이면 `ALLOWED_PATHS`도 인코딩된 형태로 맞춰야 한다
+- `URL` 생성 실패 시 수동 fallback (leading `/` 보정 + `?`/`#` 제거, params는 빈 값)
 
 ## 허용 경로 추가/변경
 
