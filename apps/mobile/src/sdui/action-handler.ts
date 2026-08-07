@@ -51,5 +51,29 @@ export function handleSduiAction({
     case 'external':
       openWebView({ url: actionValue, title: webviewTitle });
       break;
+
+    case 'content':
+    case 'miniapp':
+    case 'unknown':
+      // `content` is prose to render in place, and this dispatcher is
+      // fire-and-forget with no surface to render into — the sheet that owns the
+      // button handles it before ever calling here. Reaching this arm means a
+      // call site rendered a button for something that was never navigable.
+      //
+      // `miniapp` is deferred until the mini-app platform ships (eventmap §7.3).
+      //
+      // `unknown` is what an unrecognised action type parses to. It used to
+      // become 'external' and open a browser at whatever string arrived.
+      if (__DEV__) {
+        console.debug('[sdui] non-navigable action type ignored:', actionType);
+      }
+      break;
+
+    default: {
+      // Exhaustiveness check — a new ActionType is a compile error here rather
+      // than a silent no-op. Mirrors renderer.tsx.
+      const _exhaustive: never = actionType;
+      return _exhaustive;
+    }
   }
 }

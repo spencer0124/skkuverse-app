@@ -8,19 +8,45 @@
  *                 lib/core/model/campus_service_model.dart
  */
 
+import { asMember } from '../utils/allowlist';
+
 // ── Action types ──
 
-export type ActionType = 'route' | 'webview' | 'external';
+/**
+ * `'unknown'` is a client-side sentinel, never sent by the server. It exists so a
+ * value we cannot interpret has somewhere to land other than a real behaviour.
+ */
+export type ActionType =
+  | 'content'
+  | 'route'
+  | 'webview'
+  | 'external'
+  | 'miniapp'
+  | 'unknown';
+
+/** Everything the server may legitimately send. `'unknown'` is deliberately absent. */
+const WIRE_ACTION_TYPES = [
+  'content',
+  'route',
+  'webview',
+  'external',
+  'miniapp',
+] as const;
 
 /**
- * Parses raw action type string from server.
- * Server sends "url" for external links — maps to "external".
- * Unknown values default to "external" (matches Flutter's ActionType.fromString).
+ * Parses a raw action type from the server. `"url"` is a legacy spelling of
+ * `"external"`.
+ *
+ * Unknown values used to become `'external'`, inherited from Flutter's
+ * `ActionType.fromString`. That meant a typo'd or newer-than-this-build action
+ * type got handed to a URL opener — so the failure mode of not understanding
+ * something was to open it in a browser anyway. Now it becomes `'unknown'` and
+ * `handleSduiAction` does nothing with it. Doing nothing is recoverable; opening
+ * an arbitrary string is not.
  */
-export function parseActionType(raw: string): ActionType {
+export function parseActionType(raw: unknown): ActionType {
   if (raw === 'url') return 'external';
-  if (raw === 'route' || raw === 'webview' || raw === 'external') return raw;
-  return 'external';
+  return asMember(raw, WIRE_ACTION_TYPES) ?? 'unknown';
 }
 
 // ── Button item ──
