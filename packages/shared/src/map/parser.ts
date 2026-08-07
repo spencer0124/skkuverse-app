@@ -16,6 +16,10 @@ import type {
   RawMarkerData,
   PolylineCoord,
 } from '../types/map';
+import { asMember, toFiniteNumber } from '../utils/allowlist';
+
+const LAYER_TYPES = ['marker', 'polyline'] as const;
+const MARKER_STYLES = ['numberCircle', 'numberDot', 'textLabel'] as const;
 
 // ── Internal helpers ──
 
@@ -49,11 +53,15 @@ function parseLayerStyle(raw: Record<string, unknown>): MapLayerStyle {
 function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
   return {
     id: raw.id as string,
-    type: raw.type as 'marker' | 'polyline',
+    // Both fields used to be blind `as` casts. An unknown value was then typed as
+    // a member of the union while matching no branch, so the layer vanished with
+    // no error. 'marker' is the honest default here: CampusScreen's render loop is
+    // a binary else that already draws anything non-'polyline' as a marker layer.
+    type: asMember(raw.type, LAYER_TYPES) ?? 'marker',
     label: raw.label as string,
     defaultVisible: (raw.defaultVisible as boolean) ?? false,
     endpoint: raw.endpoint as string,
-    markerStyle: (raw.markerStyle as 'numberCircle' | 'numberDot' | 'textLabel') ?? undefined,
+    markerStyle: asMember(raw.markerStyle, MARKER_STYLES),
     style: raw.style
       ? parseLayerStyle(raw.style as Record<string, unknown>)
       : undefined,
@@ -82,21 +90,35 @@ export function parseMarkerData(
 ): RawMarkerData[] {
   const data = envelope.data as Record<string, unknown>;
   const markers = (data.markers as unknown[]) ?? [];
-  return markers.map((m) => {
+  return markers.flatMap((m) => {
     const raw = m as Record<string, unknown>;
-    return {
-      skkuId: raw.skkuId as number | undefined,
-      lat: Number(raw.lat ?? 0),
-      lng: Number(raw.lng ?? 0),
-      campus: (raw.campus as string) ?? 'hssc',
-      displayNo: (raw.displayNo as string) ?? undefined,
-      text: raw.text
-        ? {
-            ko: ((raw.text as Record<string, unknown>).ko as string) ?? '',
-            en: ((raw.text as Record<string, unknown>).en as string) ?? '',
-          }
-        : undefined,
-    };
+
+    // This was `Number(raw.lat ?? 0)`, and the `?? 0` was not even the whole bug:
+    // `Number(null)` is 0 too, so a nulled coordinate produced a marker at Null
+    // Island rather than no marker at all. Dropping is the only honest option —
+    // there is no sensible default position for a thing whose position is missing.
+    const lat = toFiniteNumber(raw.lat);
+    const lng = toFiniteNumber(raw.lng);
+    if (lat === null || lng === null) return [];
+    // A [lng, lat] swap raises no error and lands in the ocean (ADR 0004 invariant
+    // 3). Seoul's longitude is 126.97, so a swapped pair fails |lat| <= 90 here.
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
+
+    return [
+      {
+        skkuId: raw.skkuId as number | undefined,
+        lat,
+        lng,
+        campus: (raw.campus as string) ?? 'hssc',
+        displayNo: (raw.displayNo as string) ?? undefined,
+        text: raw.text
+          ? {
+              ko: ((raw.text as Record<string, unknown>).ko as string) ?? '',
+              en: ((raw.text as Record<string, unknown>).en as string) ?? '',
+            }
+          : undefined,
+      },
+    ];
   });
 }
 
