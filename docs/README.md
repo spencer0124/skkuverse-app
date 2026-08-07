@@ -67,6 +67,7 @@ audience: internal
 | [ios-26-native-tabs-minimize.md](explanation/ios-26-native-tabs-minimize.md) | NativeTabs minimize + contentInset의 chain root rule |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | 모달 라우트별 SafeAreaProvider 재마운트가 필요한 이유 |
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | 커스텀 뷰 마커 bitmap snapshot race와 해법 |
+| [eventmap-rendering.md](explanation/eventmap-rendering.md) | 이벤트 지도 클라이언트 — 서버 시계 오프셋, 술어 평가, stackKey 핀 렌더링 |
 | [splash-animation.md](explanation/splash-animation.md) | 스플래시 애니메이션 구현과 InitGate 연동 |
 
 ### decisions (ADR)

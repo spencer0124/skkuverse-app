@@ -1,3 +1,12 @@
+---
+title: Event Map Rendering
+type: explanation
+status: accepted
+owner: zoyoong124@gmail.com
+last-updated: 2026-08-07
+audience: internal
+---
+
 # Event Map Rendering
 
 > How the app consumes the event map contract. It decides nothing — which layers exist, what is open,
@@ -102,16 +111,61 @@ If counts ever ship, do **not** hand-maintain a second fixture. Register
 
 ## 5. Status derivation
 
-The snapshot is served `immutable, max-age=1y`, so it cannot also carry live status.
+The snapshot is served `immutable, max-age=1y`, so it cannot also carry live status. It ships
+`status` as of `materializedAt` plus the two instants, and the device re-derives. Implemented in
+`packages/shared/src/eventmap/clock.ts`.
+
+### 5.1 Skew comes from the manifest, never the snapshot
+
+RFC 9111 §5.1: `Age` conveys time since the response was generated or validated **at the origin**,
+and its presence means the response was not generated for this request — a cached response replays
+the origin's original `Date`, unrefreshed. The snapshot is `immutable, max-age=31536000`, so iOS
+`NSURLSession`'s default `URLCache` hands back yesterday's copy, `Date` and all. Measuring skew there
+puts the offset ~24 h out, which either freezes every pin at its shipped status or draws yesterday's
+map.
+
+So only the **manifest** (`max-age=15`) feeds the clock, and `computeOffset` additionally refuses any
+response carrying `Age > 0`, so a proxy cache in front of the manifest cannot poison it either.
+
+### 5.2 Apply the offset; do not discard on it
 
 ```ts
-const skew = Math.abs(deviceNow - serverDateAtFetch);
-if (skew > 60 * 60 * 1000)                       return item.status;   // broken clock
-if (item.startAt == null && item.endAt == null)  return item.status;
-return deriveStatus(item.startAt, item.endAt, deviceNow);
+// offset, measured ONCE per manifest response
+const offset = computeOffset(serverDate, age, deviceNowAtFetch);   // 0 when unusable
+const now = Date.now() + offset;
+
+// per item, per render
+if (item.startAt == null && item.endAt == null) return item.status;  // server says do not recompute
+if (item.startAt != null && now < startAt)      return 'upcoming';
+if (item.endAt   != null && now >= endAt)       return 'closed';     // half-open, matches the server
+return 'open';
 ```
 
-`serverDateAtFetch` is the `Date` response header captured when the snapshot was fetched.
+An earlier draft of this section discarded above an hour of skew and fell back to `item.status`. That
+abandons exactly the device that needed help — the low-end Android three hours out is the one whose
+derivation is wrong without correction, and freezing it is the same symptom the recompute exists to
+prevent. There is no skew branch in derivation at all now; a threshold survives only inside
+`computeOffset`, as a guard against a value too large to describe a device.
+
+The offset is persisted and discarded after a week: the clock may have been corrected by NTP since,
+which would make a stale offset *introduce* the error it exists to remove.
+
+### 5.3 The next boundary is computed locally
+
+`nextBoundaryAfter(items, now)` scans the snapshot for the earliest instant still ahead. The manifest
+also carries `nextChangeAt` and is taken as a corroborating hint, but it cannot be the only source:
+the dead-network festival is precisely the case where the manifest fetch fails, so arming off it
+alone would mean a cached snapshot never flips status — and tracking status offline is the whole
+reason the cache exists.
+
+The timer delay is clamped to `2_147_483_647` ms. `setTimeout` stores it in a signed 32-bit int, so
+anything past ~24.8 days overflows and fires immediately, turning a far-future boundary into a
+refetch hot loop on festival day.
+
+> Firing the timer must bump a counter that the status memo depends on, not merely invalidate the
+> manifest query. An unchanged manifest returns byte-identical, React Query's structural sharing
+> preserves object identity, nothing re-renders — and 18:00 passes with every pin still reading
+> 준비중.
 
 ## 6. Rendering: pins, not clusters
 
@@ -165,12 +219,29 @@ One `<NaverMapMarkerOverlay>` per deduped `stackKey`:
 
 | Prop | Value |
 | --- | --- |
-| `image` | `{httpUri}` from the snapshot's `icons` dict; bundled fallback; unknown id → `{symbol:'green'}` |
+| `image` | resolved from `icons` **by `kind`** — see below |
 | `caption` | title, with `isHideCollidedCaptions` |
 | `alpha` | `status === 'closed' ? 0.45 : 1` — applies to icon *and* caption |
 | `minZoom` / `maxZoom` | from the layer |
 | `onTap` | `selectStack(stackKey)` |
 | children | **none** — sidesteps the Android bitmap-snapshot race in [`android-naver-map-markers.md`](android-naver-map-markers.md) |
+
+Icon resolution is by `kind`, in `apps/mobile/src/features/eventmap/icon.ts`:
+
+| `IconSpec` | → |
+| --- | --- |
+| `{kind:'symbol', symbol}` | `{symbol}` when the value is in the SDK's `MarkerSymbol` union |
+| `{kind:'remote', uri, width, height}` | `{httpUri: uri}` **plus** width/height — without them the SDK sizes from the downloaded bitmap, which differs between debug and release |
+| unknown id, unknown kind, symbol outside the union | `{symbol:'green'}` |
+
+An `{httpUri}`-only reading of this table would land every ESKARA pin on the green fallback: the live
+config ships **symbol icons exclusively**, and colour is the entire visual differentiation — bar red,
+booth blue, food yellow, stage pink, facility lightblue, every `*_off` gray. The allowlist lives in
+the app rather than `packages/shared` because `MarkerSymbol` is the SDK's union and shared must not
+depend on the SDK; the wire type is an open string, so the check belongs on the app side of that seam.
+
+`item.iconIdClosed` swaps in **alongside** the `alpha` dimming, not instead of it: the closed icon
+carries the meaning, the alpha carries the emphasis, and either alone reads as a rendering glitch.
 
 ## 7. Actions and the map scheme
 
@@ -192,8 +263,14 @@ no-ops it, and a `never` exhaustiveness guard is added (`renderer.tsx` has one; 
 does not).
 
 > `webview` is the **primary** type for ESKARA, which makes the origin gate in `app/webview.tsx` a
-> hard dependency rather than a mini-app concern. On `dev` that file has no gate at all — it runs
-> `Linking.openURL` unconditionally. The gate arrives with the `integrate/app-backlog` merge.
+> hard dependency rather than a mini-app concern. That gate is in place: `handleMessage` re-resolves
+> `resolveWebviewCapabilities(event.nativeEvent.url, getBridgeOrigins())` **per message**, against
+> the document that actually posted it rather than once at open time.
+
+`content` is handled by the sheet that renders the button, not by `handleSduiAction` — that
+dispatcher is fire-and-forget and has no surface to render prose into. `miniapp` and `unknown` render
+no button at all: the parser keeps them for contract fidelity, but a button that does nothing is
+worse than a missing one.
 
 ### 7.2 Universal map scheme
 
@@ -202,34 +279,37 @@ skkuverse://map?place=<placeId>
 ```
 
 Independent of any consumer. A booth and a building are addressed identically, because both are
-places. Almost no new machinery is needed — the search→map handoff already does this work:
+places. It needed almost no new machinery — the search→map handoff already did this work, so a deep
+link became a **second producer** for the same store (`useMapNavStore`, in `features/search/store.ts`).
 
-`features/search/store.ts` holds a `pendingNavPayload`, and `CampusScreen.tsx:148-177` consumes it by
-switching campus, animating the camera to 17.5, then presenting the sheet once it settles. A deep
-link is a **second producer** for that store.
+`MapNavPayload` is discriminated because the two producers know different things:
 
-- Widen `BuildingNavPayload` (`packages/shared/src/types/building.ts:141`) into a discriminated
-  `MapNavPayload`:
+```ts
+export type MapNavPayload =
+  | { kind: 'building'; skkuId: number; lat: number; lng: number; campus?: Campus;
+      highlightFloor?: string; highlightSpaceCd?: string }
+  // A deep link carries only an id — coordinates are resolved from the snapshot.
+  | { kind: 'place'; placeId: string };
+```
 
-  ```ts
-  export type MapNavPayload =
-    | { kind: 'building'; skkuId: number; lat: number; lng: number; campus: Campus;
-        highlightFloor?: string; highlightSpaceCd?: string }
-    // A deep link carries only an id — coordinates are resolved from the snapshot.
-    | { kind: 'place'; placeId: string };
-  ```
+`campus` is **optional**, and that is load-bearing: a space search result genuinely has none, and the
+map must then leave the campus alone rather than guess and jump the user to the wrong one.
 
-  `campus` is `string` today; align it to the `Campus` union while touching this.
-- Rename `useSearchResultStore` → `useMapNavStore`. Its docblock already describes a generic
-  mechanism; only the name is producer-specific.
-- `+native-intent.tsx`: whitelist bare `/map` and stash the payload, as the notice intercept does.
-  **`/map/hssc` must keep routing to the webview SVG floor map.**
+`+native-intent.tsx` **intercepts** `/map`, and deliberately does not add it to `ALLOWED_PATHS` —
+that would leave a second, unreachable path through the same function, which is why notices and
+mini-apps have no whitelist entry either. `MAP_PATH_RE` ends at `/map`, so **`/map/hssc` keeps
+falling through to the webview SVG floor map.** The `place` id is shape-checked but not looked up:
+this runs outside the React tree, so a lookup would be a duplicate request blocking the app's first
+navigation.
 
-> A `{kind:'place'}` payload has no coordinates, and a cold-start deep link can arrive before the
-> snapshot is fetched. `CampusScreen` must resolve `placeId` → item **after** the snapshot lands. An
-> unresolvable id lands on the campus tab with no sheet — never an error.
+> A `{kind:'place'}` payload has no coordinates, and a cold-start deep link routinely beats the
+> snapshot. `CampusScreen` resolves `placeId` → stack only **after** `isSettled`, and abandons after
+> 20 s — offline with no cache, settled may never arrive, and a late fire would yank the camera
+> minutes after the user moved on. An unresolvable id lands on the campus tab with no sheet, which is
+> also the permanent behaviour for an id matching nothing, never an error.
 
-No new screen: `skkuverse://map?place=X` resolves to `/(tabs)/campus` plus a pending payload.
+No new screen: `skkuverse://map?place=X` resolves to `/(tabs)/campus` plus a pending payload. Details
+and the full route table: [`../reference/deep-link.md`](../reference/deep-link.md).
 
 ### 7.3 Deferred — the `miniapp` action
 
@@ -254,43 +334,72 @@ release.
 
 ## 8. State
 
-A new `useEventMapStore` (Zustand), persisting **layer visibility only**:
+A new `useEventMapStore` (Zustand):
 
 ```ts
 { activeLayerSetId, layerVisibility, selectedChips: Record<groupId, string[]>,
-  filterSelections, sortId, selectedStackKey }
+  sortId, selectedStackKey, clockOffset }
 ```
 
-`initFromSnapshot` seeds defaults for **unknown ids only**, mirroring `initFromConfig` so user
-toggles survive a refetch.
+Persisted: everything except `selectedStackKey` — a peek sheet reopening on cold start, for a booth
+tapped yesterday, is never right.
+
+`initFromSnapshot` seeds defaults for **unknown ids only**, mirroring `initFromConfig` so user toggles
+survive a refetch — except when `activeLayerSetId` changes, which means a different event entirely and
+starts clean. That reset is what bounds the persisted blob to one event's worth of keys.
 
 **`useMapLayerStore` is left untouched** — two stores, two lifetimes. Coupling per-event state into
 the permanent campus-layer store would leave dead `eskara-2026` keys in persisted state forever.
 
-`basemapOverride` must **force** visibility, not default: `initFromConfig` deliberately preserves user
-toggles and will not hide a building layer the user turned on.
+### 8.1 `basemapOverride` is derived, never persisted
 
-## 9. Files touched
+The snapshot names base-map layers the event forces to a visibility — normally hiding 건물번호 while
+leaving 건물이름 up, so pins stay legible without stripping the map of orientation. Those are two
+separate layers in `/map/config` (`building_numbers`, `building_labels`), so this needs no new concept.
 
-| File | Change |
+It is applied as an overlay at render time:
+
+```ts
+const visible = basemapOverride[id] ?? userToggle[id] ?? layer.defaultVisible;
+```
+
+and deliberately **not** written into the store. A force-then-restore design loses the user's real
+toggle whenever the restore does not run — app killed, activation flipped between the write and the
+restore — leaving a layer off permanently with nothing on screen to explain why. Derived, the override
+simply stops existing when the event does, and no restore code is needed. Same reasoning that put
+event state in its own store, one level down.
+
+## 9. Where the code lives
+
+Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issues/15)):
+
+| File | What |
 | --- | --- |
-| `features/eventmap/*` | **new** — `EventMapPinLayer`, `EventMapChipRow`, `EventMapList`, `CardRenderer`, `EventMapPeekSheet`, `useVisibleItems` |
-| `packages/shared/src/eventmap/*` | **new** — types, `predicate.ts`, `parser.ts`, `useEventMap.ts`, store |
-| `features/search/store.ts` | rename → `useMapNavStore`; payload becomes `MapNavPayload` |
-| `packages/shared/src/types/building.ts` | `BuildingNavPayload` → discriminated `MapNavPayload`; `campus` → `Campus` |
-| `app/+native-intent.tsx` | whitelist bare `/map`, stash the place payload; leave `/map/hssc` alone |
-| `features/map/CampusScreen.tsx` | pin layer as a sibling of existing layer children; chip row into the floating `controlRow`; wire `FilterButton` + `filterSheetRef.present()`; resolve `{kind:'place'}` after the snapshot lands |
-| `features/map/components/CampusNaverMap.tsx` | forwards a fixed prop set — new map-level props need a passthrough |
-| `features/map/components/MapMarkerLayer.tsx` | caption `color` is hardcoded (`'black'` / `'#333333'`); read from `layer.style?.color` |
-| `features/map/components/FilterSheet.tsx` | extend with event filter groups + sort, keeping campus/base-layer pills |
-| `packages/shared/src/map/parser.ts` | allowlist replaces both `as`-casts; drop items whose coordinates are not finite |
-| `packages/shared/src/map/defaults.ts` | repoint `campus_buildings` to `/map/markers/campus?overlay=number` |
-| `packages/shared/src/types/sdui.ts` | add `content`; `parseActionType` unknown → `'unknown'` |
-| `sdui/action-handler.ts` | `case 'content'`, `case 'unknown'`, `never` exhaustiveness guard |
-| `services/notification-router.ts` | notification taps resolve as **actions**, defaulting to the ESKARA inbox page |
+| `packages/shared/src/types/eventmap.ts` | wire types, mirrored from the server with a name-mapping table in the header |
+| `packages/shared/src/eventmap/clock.ts` | offset, status derivation, `nextBoundaryAfter` (§5) |
+| `packages/shared/src/eventmap/predicate.ts` | `evaluatePredicate` + `isValidPredicate` (§4) |
+| `packages/shared/src/eventmap/parser.ts` | tolerant parse → `{ snapshot, dropped }` (§3) |
+| `packages/shared/src/eventmap/derive.ts` | status re-derivation, stack building, visible-stack selection (§6.2) |
+| `packages/shared/src/eventmap/{repository,useEventMap}.ts` | fetch, MMKV last-known-good, hooks (§2) |
+| `packages/shared/src/store/eventmap.ts` | client state (§8) |
+| `packages/shared/src/api/safe-request.ts` | `safeGetTimed` — the only reader of `Date`/`Age` |
+| `apps/mobile/src/features/eventmap/icon.ts` | `IconSpec` → SDK image prop (§6.3) |
+| `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack |
+| `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | stacked-place sheet + action buttons |
+| `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
+| `apps/mobile/src/features/map/CampusScreen.tsx` | mounts the pin layer as a sibling; applies `basemapOverride`; resolves place links |
 
-**`FilterSheet` and `FilterButton` are currently dead code** — the sheet is rendered but `.present()`
-is never called and the button is imported nowhere. This work gives them an entry point.
+Fixed on the way through: the map parser's unchecked union casts and silent `(0,0)` coordinates,
+`parseActionType`'s unknown → `'external'`, the stale offline `DEFAULT_MAP_CONFIG`, hardcoded caption
+colours, and the custom-scheme authority defect that had silently broken every
+`skkuverse://<segment>` link.
+
+`CampusNaverMap` needed **no change** — it already forwards `children` verbatim into `NaverMapView`,
+and Phase 3 needs no new map-level prop.
+
+Still Phase 6 ([#18](https://github.com/spencer0124/skkuverse/issues/18)): `EventMapChipRow`,
+`EventMapList`, `CardRenderer` (swapping out this sheet's `ItemBody`), sorts, and giving the dead
+`FilterSheet` / `FilterButton` an entry point.
 
 ## 10. Gotchas
 
@@ -300,8 +409,10 @@ is never called and the button is imported nowhere. This work gives them an entr
 - **zh.** `MapMarkerLayer` picks text with `lang === 'en' ? en : ko`, so **zh silently falls back to
   ko** on the existing marker path. Event text is resolved server-side to flat strings, so event pins
   get correct zh for free.
-- **`parseActionType`** — ship the `'unknown'` fix with the `content` action. Small cleanup, not
-  architectural: OTA lands immediately and no released client expects a `miniapp` action.
+- **`parseActionType` unknown → `'unknown'` is live for ALL SDUI**, not only the event map. A section
+  with a typo'd `actionType` used to be handed to the webview opener and now does nothing. That is
+  the intended direction — the failure mode of not understanding an action should not be to open it —
+  but it reads as a regression in QA unless you know.
 - **`expo-location` is not a dependency.** Distance sort requires adding it — a native module, so a
   fresh dev-client build. If permission is denied, **hide** the sort rather than showing a dead control.
 - **Do not bump `@mj-studio/react-native-naver-map`.** 2.9.0 changes nothing about clustering and
@@ -317,9 +428,5 @@ is never called and the button is imported nowhere. This work gives them an entr
 - [Server API reference](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/eventmap-api.md)
 - [Implementation plan — skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11)
 - [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race the pin layer avoids
-- [App ADR 0006 — mini-app webview & push architecture](decisions/0006-miniapp-webview-push-architecture.md)
-- [App ADR 0002 — no notification inbox](decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts, cited in §4.1.)*
-
-> The last two links do not resolve yet: `docs/decisions/` arrives with the `integrate/app-backlog`
-> merge, which is Phase 0 of [skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11) and a
-> prerequisite for the webview origin gate this document depends on (§7.1).
+- [App ADR 0006 — mini-app webview & push architecture](../decisions/0006-miniapp-webview-push-architecture.md)
+- [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts, cited in §4.1.)*
