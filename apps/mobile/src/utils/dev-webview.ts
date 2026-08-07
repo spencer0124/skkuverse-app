@@ -1,5 +1,5 @@
 /**
- * Dev-only seam for rewriting webview URLs (e.g. localhost Vite redirect).
+ * Dev-only seam for rewriting webview URLs.
  *
  * Currently a passthrough in production: returns the server-provided URL
  * unchanged, or `undefined` when the server says the bus has no info page
@@ -16,6 +16,8 @@
  */
 
 export function devRewriteInfoUrl(serverUrl: string | undefined): string | undefined {
-  // TODO: 개발 모드에서 localhost Vite 서버로 리다이렉트 복원 예정
+  // TODO: 개발 모드에서 로컬 dev 서버로 리다이렉트 복원 예정. SPA는 이제
+  // skkuverse-web에 있으므로, 그 레포를 체크아웃해 `pnpm dev`로 띄운 주소를
+  // 가리키게 된다.
   return serverUrl;
 }

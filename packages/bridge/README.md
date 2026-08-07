@@ -3,7 +3,7 @@ title: Bridge Package (@skkuverse/bridge)
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-07
 audience: internal
 ---
 

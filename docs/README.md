@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-22
+last-updated: 2026-08-07
 audience: internal
 ---
 

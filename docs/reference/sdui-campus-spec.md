@@ -3,7 +3,7 @@ title: SDUI Campus Tab Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-07
 audience: public
 ---
 
@@ -54,7 +54,7 @@ audience: public
             "title": "분실물",
             "emoji": "🧳",
             "actionType": "webview",
-            "actionValue": "https://webview.skkuuniverse.com/#/skku/lostandfound",
+            "actionValue": "https://webview.skkuverse.com/#/skku/lostandfound",
             "webviewTitle": "분실물",
             "webviewColor": "003626"
           }
@@ -135,7 +135,7 @@ audience: public
 | actionType | 동작 | 예시 |
 | --- | --- | --- |
 | `route` | 앱 내 화면 이동 (Expo Router) | `/map/hssc`, `/search` |
-| `webview` | 인앱 WebView | `https://webview.skkuuniverse.com/...` |
+| `webview` | 인앱 WebView | `https://webview.skkuverse.com/...` |
 | `external` (또는 `url`) | 외부 브라우저/앱 | `http://pf.kakao.com/...` |
 
 `external`과 `url`은 동일하게 처리됨 (서버 어느 쪽이든 사용 가능).
