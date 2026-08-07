@@ -66,7 +66,6 @@ skkuverse-app/
 │   │   │   └── login.tsx, onboarding.tsx  # Auth flow
 │   │   ├── app.config.ts          # Expo app config (EAS, plugins)
 │   │   └── firestore.rules        # Firestore security rules + tests
-│   └── webview/                   # Embedded web view (in-app browser)
 ├── packages/                      # Shared monorepo packages
 ├── functions/                     # Firebase Cloud Functions
 │   └── src/                       # dispatchNotice, sync-preferences, triggers

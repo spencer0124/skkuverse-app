@@ -8,12 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorepo** with a React Native mobile app and a companion webview SPA.
+Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorepo** for the React Native mobile app. Every browser surface — the pages the app loads in a web view, and the admin console — lives in the sibling repo [skkuverse-web](https://github.com/spencer0124/skkuverse-web); see [umbrella ADR 0005](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0005-web-surfaces-dedicated-repo.md).
 
 ## Monorepo Layout
 
 - **`apps/mobile/`** — Expo 54 + React Native 0.81 mobile app (iOS/Android)
-- **`apps/webview/`** — React 19 + Vite 6 SPA embedded as webviews in the mobile app
 - **`packages/shared/`** — API client (Axios), Zustand stores, React Query hooks, types, design tokens, i18n
 - **`packages/sds/`** — Skku Design System component library (37+ components)
 - **`packages/bridge/`** — Web↔Native message-passing layer (`postToApp`, `parseWebMessage`)
@@ -32,11 +31,6 @@ yarn android          # Type-check then run Android
 npx tsc --noEmit      # Type-check only (apps/mobile에는 별도 typecheck 스크립트 없음)
 yarn lint             # expo lint (ESLint)
 npx expo prebuild --clean  # 네이티브 변경 후 clean prebuild
-
-# Webview
-cd apps/webview
-yarn dev              # Vite dev server
-yarn build            # tsc + vite build
 
 # Root
 yarn lint             # ESLint across the monorepo
@@ -84,11 +78,13 @@ ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider �
 - **React Query hooks:** `useCampusSections`, `useTransitList`, `useBusConfig`, `useMapConfig`, `useBuildings`, etc.
 - **i18n:** `useT()` hook, `SUPPORTED_LANGUAGES`.
 
-### Webview App (`apps/webview/`)
+### Web surfaces (sibling repo)
 
-Hash-based routing (React Router). Communicates with the native app via `@skkuverse/bridge`. Styled with Tailwind CSS (custom color `deep-green: #1A8A5C`, font `WantedSans`).
+The pages the app loads in a web view ship from [skkuverse-web](https://github.com/spencer0124/skkuverse-web) `apps/webview`, deployed to `webview.skkuverse.com` on Cloudflare Pages. They are not in this repo.
 
-Pages: `hsscmap/`, `nscmap/` (Naver Maps), `bus/`, `lostandfound/`, `error`.
+What crosses the boundary is `packages/bridge` — the message contract, vendored there and hash-checked by the umbrella's contract registry — and the design token values in `packages/shared/src/tokens/`. Components do not cross: `packages/sds` is React Native. Editing the vendored copy on the web side turns its CI red; change it here instead.
+
+The origin allowlist that grants those pages the native bridge is **server-owned** (`skkuverse-server` `src/infra/origins.ts` → `GET /app/config`), so a new host grants nothing until the server ships it.
 
 ### Notices Feature (`src/features/notices/`)
 

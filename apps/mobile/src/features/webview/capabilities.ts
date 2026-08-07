@@ -44,7 +44,8 @@ export type WebMessageType = WebToAppMessage['type'];
 /**
  * Messages a first-party page may send.
  *
- * Only what `apps/webview/src/bridge.ts` actually posts. `web:navigate` is
+ * Only what skkuverse-web's `apps/webview/src/bridge.ts` actually posts (the SPA
+ * moved to that repo; see umbrella ADR 0005). `web:navigate` is
  * deliberately ABSENT: our SPA has never sent it, yet the old handler ran
  * `router.push(msg.path)` on it unconditionally — an unguarded navigation sink
  * kept safe only by the fact that nothing untrusted had reached the screen yet.

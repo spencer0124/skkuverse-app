@@ -18,7 +18,6 @@ Yarn workspaces 모노레포. workspace는 `apps/*` + `packages/*` (루트 `pack
 | 워크스페이스 | 역할 | 의존 방향 |
 | --- | --- | --- |
 | `apps/mobile/` | Expo + React Native 모바일 앱 (iOS/Android). 메인 클라이언트 | `packages/*` 전부 소비 |
-| `apps/webview/` | React + Vite SPA. 모바일 앱 안에 webview로 임베드 (지도, 버스 등) | `packages/bridge`, `packages/shared` 소비 |
 | `packages/shared/` | 데이터 레이어 — API 클라이언트(Axios), Zustand 스토어, React Query 훅, 타입, 디자인 토큰, i18n | 앱에 의존하지 않음 (하위 계층) |
 | `packages/sds/` | Skku Design System 컴포넌트 라이브러리. `SDSProvider`로 테마 제공 | `shared`의 토큰 소비 |
 | `packages/bridge/` | Web↔Native 메시지 패싱 계약 (`postToApp` / `parseWebMessage`) | 양쪽 앱이 공유하는 타입 SSOT |
@@ -88,9 +87,10 @@ server↔client 계약의 SSOT는 [../reference/sdui-campus-spec.md](../referenc
 
 ```mermaid
 flowchart TB
-  APP["skkuverse-app<br/>(이 레포: mobile + webview + functions)"]
+  APP["skkuverse-app<br/>(이 레포: mobile + functions)"]
 
   subgraph backend["형제 레포"]
+    WEB["skkuverse-web<br/>webview SPA · 관리자 콘솔"]
     SRV["skkuverse-server<br/>NestJS · REST API"]
     CRW["skkuverse-crawler<br/>Python · 공지 크롤링"]
     AI["skkuverse-ai<br/>FastAPI · AI 요약"]
