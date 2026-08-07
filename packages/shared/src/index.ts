@@ -191,6 +191,56 @@ export {
   DEFAULT_MAP_CONFIG,
 } from './map';
 
+// ── Event map ──
+export type {
+  EventMapAction,
+  EventMapCardSlot,
+  EventMapCardTemplate,
+  EventMapChip,
+  EventMapChipGroup,
+  EventMapItem,
+  EventMapLayer,
+  EventMapManifest,
+  EventMapSnapshot,
+  EventMapSort,
+  IconSpec,
+  ItemStatus,
+  LayerRender,
+  Predicate,
+  SortKey,
+} from './types/eventmap';
+export {
+  EVENTMAP_SCHEMA_VERSION,
+  ITEM_STATUSES,
+  LAYER_RENDERS,
+  PREDICATE_KINDS,
+  SORT_KEYS,
+} from './types/eventmap';
+export {
+  buildStacks,
+  computeOffset,
+  deriveItemStatus,
+  deriveItems,
+  evaluatePredicate,
+  isValidPredicate,
+  nextBoundaryAfter,
+  parseEventMapManifest,
+  parseEventMapSnapshot,
+  parseInstant,
+  readUsableOffset,
+  selectVisibleStacks,
+  serverNow,
+} from './eventmap';
+export type {
+  BuiltStacks,
+  ClockOffset,
+  DerivedItem,
+  DroppedCounts,
+  EventMapStack,
+  ParsedSnapshot,
+  PredicateSubject,
+} from './eventmap';
+
 // ── Building parsers ──
 export {
   parseBuildingList,
