@@ -40,7 +40,12 @@ export const DEFAULT_CAMPUS_SECTIONS: CampusSectionsResponse = {
           title: '분실물',
           emoji: '\u{1F9F3}',
           actionType: 'webview',
-          actionValue: 'https://webview.skkuuniverse.com/#/skku/lostandfound',
+          // The same hazard as `building_map` above, caught before it fired.
+          // This named the older webview deployment in hash form long after the
+          // server moved to webview.skkuverse.com and path routing, so an API
+          // failure would have reopened a URL the live bundle no longer routes.
+          // skkuverse#46.
+          actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
           webviewTitle: '분실물',
           webviewColor: '003626',
         },
