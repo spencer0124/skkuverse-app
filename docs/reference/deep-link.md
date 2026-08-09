@@ -27,6 +27,23 @@ audience: internal
 
 유니버셜 링크는 `/p/` prefix로 홈페이지 자체 경로와 네임스페이스를 분리한다. 앱에서는 `parseIncomingLink()`가 `/p/`를 자동으로 스트립한 뒤 화이트리스트를 검사하므로, 아래 표의 경로는 전부 스트립 이후 기준이다.
 
+### `/p/`는 "공유 링크" 네임스페이스다 — 모든 라우트의 웹 쌍둥이가 아니다
+
+딥링크는 **두 종류**이고, `/p/`를 받는 건 한쪽뿐이다.
+
+| 종류 | 진입 경로 | 목적 | 예 |
+| --- | --- | --- | --- |
+| **공유 링크** | `skkuverse://…` **+** `https://skkuverse.com/p/…` | 사람이 **남에게 보내는** 링크. 앱이 있으면 앱, 없으면 웹 랜딩 페이지로 자동 폴백 | 공지, 미니앱 |
+| **네비게이션 숏컷** | `skkuverse://…` **만** | 앱 내부·QR·푸시에서 특정 화면을 여는 용도 | 홈·캠퍼스·교통·검색·층별지도·지도 장소 |
+
+> [!IMPORTANT]
+> **경로가 `/p/` 항목을 얻는 조건은 단 하나 — 웹 랜딩 페이지가 있는가.**
+> 폴백이 없으면 `/p/`도 없다. 앱이 없는 사람에게 404를 보내는 링크는 공유 링크가 아니다.
+>
+> "캠퍼스 탭 열기"를 웹 URL로 남에게 보낼 일은 없고, 보낸다 해도 착지할 페이지가 없다. 그래서 네비게이션 숏컷은 커스텀 스킴만 쓴다 — 이건 누락이 아니라 설계다.
+
+새 경로를 추가할 때 순서: **웹 랜딩 페이지를 먼저 만들고**, 그 다음에 AASA `paths`에 넣는다. 반대로 하면 앱 미설치 사용자에게 깨진 링크를 배포하는 것이 된다.
+
 ### 유니버셜 링크는 앱 설정만으로 동작하지 않는다
 
 앱이 경로를 **주장(claim)** 하는 것과 OS가 그 주장을 **허용**하는 것은 별개다. 양쪽이 다 맞아야 링크가 앱으로 들어온다.
@@ -44,26 +61,35 @@ audience: internal
 
 ## 허용 경로
 
+### 공유 링크 (커스텀 스킴 + `/p/` 유니버셜 링크)
+
+웹 랜딩 페이지가 있어 앱 미설치 시 자동 폴백된다. AASA `paths`에 등재되는 것은 **이 표뿐이다.**
+
 | 커스텀 스킴 | 유니버셜 링크 | 화면 | 처리 방식 |
 | --- | --- | --- | --- |
-| `skkuverse://` | `https://skkuverse.com/p/` ⚠️ | 홈 탭 (cold는 lastTab) | bare `/` 특별 분기 |
-| `skkuverse://home` | `https://skkuverse.com/p/home` ⚠️ | 홈 탭 | `TAB_PATHS` 매핑 |
-| `skkuverse://campus` | `https://skkuverse.com/p/campus` | 캠퍼스 탭 | `TAB_PATHS` 매핑 |
-| `skkuverse://transit` | `https://skkuverse.com/p/transit` | 교통 탭 | `TAB_PATHS` 매핑 |
-| `skkuverse://map/hssc` | `https://skkuverse.com/p/map/hssc` | 인사캠 지도 | `ALLOWED_PATHS` 통과 |
-| `skkuverse://search` | `https://skkuverse.com/p/search` | 건물/공간 검색 | `ALLOWED_PATHS` 통과 |
-| `skkuverse://notices/<sourceId>/<articleNo>` | `https://skkuverse.com/p/notices/<sourceId>/<articleNo>` | 공지 상세 | `NOTICE_PATH_RE` 인터셉트 (아래 참조) |
-| `skkuverse://m/<slug>` | `https://skkuverse.com/p/m/<slug>` | 미니앱 | `MINIAPP_PATH_RE` 인터셉트 (아래 참조) |
-| `skkuverse://map?place=<placeId>` | `https://skkuverse.com/p/map?place=<placeId>` | 캠퍼스 탭 + 해당 장소 시트 | `MAP_PATH_RE` 인터셉트 (아래 참조) |
+| `skkuverse://notices/<sourceId>/<articleNo>` | `https://skkuverse.com/p/notices/<sourceId>/<articleNo>` | 공지 상세 | `NOTICE_PATH_RE` 인터셉트 |
+| `skkuverse://m/<slug>` | `https://skkuverse.com/p/m/<slug>` | 미니앱 | `MINIAPP_PATH_RE` 인터셉트 |
 
-위 목록 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다. path 파싱 중 예외가 발생해도 `try/catch`로 홈에 떨어진다.
+### 네비게이션 숏컷 (커스텀 스킴 전용)
 
-> [!WARNING]
-> ⚠️ 표시한 두 유니버셜 링크는 **현재 동작하지 않는다.** 앱은 `/home`을 처리할 수 있지만 AASA `paths` 목록에 `/p/home`도 `/p/`도 없어서 iOS가 앱 대신 Safari를 연다 (시뮬레이터에서 확인: 웹 라우트도 없어 빈 페이지). 커스텀 스킴(`skkuverse://home`, `skkuverse://`)은 정상이다.
+앱 내부·QR·푸시 진입용. 공유 대상이 아니므로 `/p/` 유니버셜 링크가 **없다** — 착지할 웹 페이지가 없기 때문이다.
+
+| 커스텀 스킴 | 화면 | 처리 방식 |
+| --- | --- | --- |
+| `skkuverse://` | 홈 탭 (cold는 lastTab) | bare `/` 특별 분기 |
+| `skkuverse://home` | 홈 탭 | `TAB_PATHS` 매핑 |
+| `skkuverse://campus` | 캠퍼스 탭 | `TAB_PATHS` 매핑 |
+| `skkuverse://transit` | 교통 탭 | `TAB_PATHS` 매핑 |
+| `skkuverse://map/hssc` | 인사캠 지도 | `ALLOWED_PATHS` 통과 |
+| `skkuverse://search` | 건물/공간 검색 | `ALLOWED_PATHS` 통과 |
+| `skkuverse://map?place=<placeId>` | 캠퍼스 탭 + 해당 장소 시트 | `MAP_PATH_RE` 인터셉트 (아래 참조) |
+
+위 두 표 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다. path 파싱 중 예외가 발생해도 `try/catch`로 홈에 떨어진다.
+
+> [!NOTE]
+> **앱은 `/p/` 여부를 구분하지 않는다.** `parseIncomingLink()`가 `/p/`를 스트립한 뒤 같은 화이트리스트를 태우므로, 네비게이션 숏컷에 `/p/`를 붙여 보내도 앱까지만 도달하면 정상 동작한다. 두 표를 가르는 것은 앱 코드가 아니라 **AASA에 등재됐는지** — 즉 앱 미설치 사용자가 착지할 곳이 있는지다.
 >
-> 반대 방향 불일치도 하나 있다: AASA에는 `/p/bus/*`가 있는데 앱의 `ALLOWED_PATHS`에는 `/bus/*`가 없다. 링크를 누르면 앱이 열린 뒤 아무 설명 없이 홈으로 떨어진다.
->
-> 둘 다 **웹 레포**(`skkuverse.com/functions/.well-known/apple-app-site-association.ts`)에서 고쳐야 한다 — 앱 레포에서 할 수 있는 일이 없다. 고칠 때 이 표의 ⚠️와 이 블록을 지울 것.
+> 그래서 AASA 정리는 **웹 레포**(`skkuverse.com/functions/.well-known/apple-app-site-association.ts`) 작업이다. 목표 상태는 `NOT` 규칙 + `/p/notices/*` + `/p/m/*`뿐이며, 폴백이 없는 `/p/campus`·`/p/transit`·`/p/search`·`/p/map/*`·`/p/bus/*`는 제거 대상이다. (`NOT` 규칙은 반드시 목록 맨 앞 — AASA는 먼저 매치되는 항목이 이긴다.)
 
 ### 동적 경로 0: 지도 장소 (`/map?place=<placeId>`)
 
@@ -155,7 +181,7 @@ skkuverse:///map?place=x  →  hostname "",     pathname "/map"
 
 ### 그 외 정규화
 
-- 유니버셜 링크: `https://skkuverse.com/p/map/hssc` → `/p/map/hssc` → `/p/` 스트립 → `/map/hssc`
+- 유니버셜 링크: `https://skkuverse.com/p/notices/cse/5847` → `/p/notices/cse/5847` → `/p/` 스트립 → `/notices/cse/5847`
 - 빈 authority + 빈 pathname (`skkuverse://`) → `/`
 - 상대 형태(`/p/notices/x/y`)는 `skkuverse://app`을 base로 파싱한다. 이때 host `"app"`은 base가 공급한 것이지 링크의 일부가 아니므로 **되접지 않는다** — absolute 파싱을 먼저 시도하고 실패할 때만 base를 쓰는 2단 구조인 이유
 - 비 ASCII 경로는 퍼센트 인코딩된다 (`skkuverse://검색?q=1` → `/%EA%B2%80%EC%83%89`). 한글 경로를 쓸 계획이면 `ALLOWED_PATHS`도 인코딩된 형태로 맞춰야 한다
@@ -204,9 +230,11 @@ xcrun simctl openurl booted "skkuverse://webview?url=https://evil.com"
 xcrun simctl openurl booted "skkuverse://bus/realtime?groupId=1"
 xcrun simctl openurl booted "skkuverse://map?place=../../etc"      # id shape 검사
 
-# 유니버셜 링크
-xcrun simctl openurl booted "https://skkuverse.com/p/search"
-xcrun simctl openurl booted "https://skkuverse.com/privacy"        # Safari로 열려야 정상
+# 유니버셜 링크 — 공유 링크만 앱으로 들어와야 한다
+xcrun simctl openurl booted "https://skkuverse.com/p/notices/cse/5847"  # 앱
+xcrun simctl openurl booted "https://skkuverse.com/p/m/skkuw"           # 앱
+xcrun simctl openurl booted "https://skkuverse.com/privacy"             # Safari
+xcrun simctl openurl booted "https://skkuverse.com/p/search"            # AASA 정리 후엔 Safari
 ```
 
 > [!NOTE]

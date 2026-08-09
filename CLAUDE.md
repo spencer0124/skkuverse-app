@@ -107,9 +107,9 @@ Provides themed components via `SDSProvider`. Design tokens (colors, typography,
 
 커스텀 스킴 `skkuverse://`와 유니버셜 링크 `https://skkuverse.com/p/...`로 외부에서 앱 진입 가능. `app/+native-intent.tsx`에서 화이트리스트 기반 필터링 (둘 다 동일 로직).
 
-- **유니버셜 링크 prefix:** `/p/` (예: `skkuverse.com/p/search`) — 앱에서 자동 스트립
+- **`/p/`는 "공유 링크" 네임스페이스** (예: `skkuverse.com/p/notices/cse/5847`) — 앱에서 자동 스트립. **웹 랜딩 페이지가 있는 경로만** `/p/`와 AASA 등재를 받는다(현재 공지·미니앱뿐). 홈·캠퍼스·교통·검색·지도는 남에게 보내는 링크가 아니고 착지할 웹 페이지도 없으므로 **커스텀 스킴 전용** — 누락이 아니라 설계다. 앱 코드는 둘을 구분하지 않으며, 차이는 AASA 등재 여부뿐.
 - **허용 (정적):** `/`, `/home`, `/campus`, `/transit`, `/map/hssc`, `/search`
-- **허용 (동적):** 공지 `/notices/<sourceId>/<articleNo>` — 통과가 아니라 **가로채기**: `pendingExternalNoticeLink.set(...)` 후 `/(tabs)/notices` 반환, root layout의 `PendingNoticeLinkConsumer`가 상세를 push (뒤로가기가 공지 탭에 안착). 미니앱 `/m/<slug>` — **shape만** 검사(`MINIAPP_PATH_RE`), registry 멤버십은 확인하지 않는다: slug를 `pendingMiniAppLink.set(...)`에 담고 `/(tabs)/home` 반환, root layout의 `PendingMiniAppLinkConsumer`가 `GET /miniapps/:id`로 확인해 shell을 열거나 **조용히 버린다**(unknown slug·조회 실패 둘 다 — 이미 홈이라 dead end 없음). 여기서 확인하지 않는 이유는 `docs/reference/deep-link.md` §미니앱 참조.
+- **허용 (동적):** 지도 장소 `/map?place=<placeId>` — `MAP_PATH_RE = /^\/map$/`로 **가로채기**(화이트리스트 아님). 앵커의 `$`가 `/map/hssc`를 보호한다. `placeId`는 shape만 검사. 공지 `/notices/<sourceId>/<articleNo>` — 통과가 아니라 **가로채기**: `pendingExternalNoticeLink.set(...)` 후 `/(tabs)/notices` 반환, root layout의 `PendingNoticeLinkConsumer`가 상세를 push (뒤로가기가 공지 탭에 안착). 미니앱 `/m/<slug>` — **shape만** 검사(`MINIAPP_PATH_RE`), registry 멤버십은 확인하지 않는다: slug를 `pendingMiniAppLink.set(...)`에 담고 `/(tabs)/home` 반환, root layout의 `PendingMiniAppLinkConsumer`가 `GET /miniapps/:id`로 확인해 shell을 열거나 **조용히 버린다**(unknown slug·조회 실패 둘 다 — 이미 홈이라 dead end 없음). 여기서 확인하지 않는 이유는 `docs/reference/deep-link.md` §미니앱 참조.
 - **차단:** `/webview`, `/bus/*`, `/sds-preview` 등 나머지 전부 → 홈(`/(tabs)/home`)으로 리다이렉트
 - **필터링은 cold/warm 균일:** 화이트리스트·공지·미니앱 로직이 `initial` 여부와 무관하게 동일 적용 (untrusted 딥링크가 `/login`·`/onboarding` 같은 내부 라우트로 push 못 하게). 유일한 분기는 **bare `/`** — cold는 `/(tabs)/<lastTab>` 복원(app/index.tsx 미마운트로 long-press 뒤로가기의 titleless phantom 회피), warm은 `/(tabs)/home`.
 - **앱 내부 네비게이션(`router.push`)은 영향 없음** — 단 SDUI 'route' action의 bare `/`는 `router.dismissTo('/(tabs)/home')`로 가로채서 동일한 phantom 회피
