@@ -34,11 +34,13 @@ import {
   SORT_KEYS,
 } from '../types/eventmap';
 import { parseActionType } from '../types/sdui';
+// Imported, never redeclared: a second `['hssc','nsc'] as const` in this file
+// would be a closed set with two homes, and the two would drift.
+import { CAMPUSES } from '../constants/campus';
+import { SUPPORTED_LANGUAGES } from '../i18n/constants';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { isValidPredicate } from './predicate';
 
-const CAMPUSES = ['hssc', 'nsc'] as const;
-const LANGS = ['ko', 'en', 'zh'] as const;
 const HTTPS_RE = /^https:\/\//;
 /** A route must be absolute and single-slash: `//evil.com` is protocol-relative. */
 const ROUTE_RE = /^\/(?!\/)\S*$/;
@@ -455,7 +457,7 @@ export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
       schemaVersion,
       id,
       version,
-      lang: asMember(obj.lang, LANGS) ?? 'ko',
+      lang: asMember(obj.lang, SUPPORTED_LANGUAGES) ?? 'ko',
       materializedAt: asString(obj.materializedAt) ?? '',
       nextChangeAt: asNullableString(obj.nextChangeAt),
       timezone: asString(obj.timezone) ?? 'Asia/Seoul',

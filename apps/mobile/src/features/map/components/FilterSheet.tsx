@@ -11,6 +11,7 @@ import {
   useMapLayerStore,
   useT,
   type MapConfig,
+  type Campus,
   SdsColors,
   SdsTypo,
   SdsSpacing,
@@ -30,7 +31,7 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
     const toggleLayer = useMapLayerStore((s) => s.toggleLayer);
 
     const handleCampusPress = useCallback(
-      (campusId: string) => {
+      (campusId: Campus) => {
         setSelectedCampus(campusId);
       },
       [setSelectedCampus],

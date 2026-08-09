@@ -39,8 +39,6 @@ import {
   type SpaceGroup,
   type SearchSpaceItem,
   type MapNavPayload,
-  type Campus,
-  CAMPUSES,
   getLocalizedText,
   floorBadge,
   useSettingsStore,
@@ -53,15 +51,6 @@ import {
   logSearchFilterChange,
   logSearchContentSelect,
 } from '@/services/analytics';
-
-/**
- * `Building.campus` / `SpaceGroup.campus` are untrusted API strings, and a space
- * result legitimately carries `''`. Undefined then means "the map should leave
- * the campus alone" rather than guessing and jumping the user to 인사캠.
- */
-function asCampus(raw: string): Campus | undefined {
-  return (CAMPUSES as readonly string[]).includes(raw) ? (raw as Campus) : undefined;
-}
 
 type CampusFilter = 'all' | 'hssc' | 'nsc';
 
@@ -135,10 +124,7 @@ export function SearchScreen() {
         skkuId: building.skkuId,
         lat: building.lat,
         lng: building.lng,
-        // Narrowed rather than cast: Building.campus is an untrusted API string,
-        // and an unrecognised value must not reach setSelectedCampus. Undefined
-        // means "leave the campus alone".
-        campus: asCampus(building.campus),
+        campus: building.campus,
       };
       setPendingNavPayload(payload);
       router.back();
@@ -162,7 +148,9 @@ export function SearchScreen() {
         // camera move for (0, 0) and only opens the sheet.
         lat: 0,
         lng: 0,
-        campus: asCampus(group.campus),
+        // null (API did not say) becomes undefined, which CampusScreen reads as
+              // "leave the campus alone" rather than guessing.
+        campus: group.campus ?? undefined,
         highlightSpaceCd: spaceCd,
         highlightFloor: floor,
       };

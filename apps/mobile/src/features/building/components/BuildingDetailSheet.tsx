@@ -31,6 +31,7 @@ import { ConnectionsSection } from './ConnectionsSection';
 import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMapping';
 import {
   logBuildingView,
+  type BuildingDetailSource,
   logFloorExpand,
   logSpaceShowAll,
   logConnectionMapOpen,
@@ -40,7 +41,7 @@ import {
 interface BuildingDetailSheetProps {
   skkuId: number | null;
   highlightSpaceCd?: string;
-  source?: string;
+  source?: BuildingDetailSource;
   onConnectionTap: (targetSkkuId: number) => void;
 }
 

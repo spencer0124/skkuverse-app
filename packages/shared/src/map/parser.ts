@@ -17,6 +17,7 @@ import type {
   PolylineCoord,
 } from '../types/map';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
+import { CAMPUSES } from '../constants/campus';
 
 const LAYER_TYPES = ['marker', 'polyline'] as const;
 const MARKER_STYLES = ['numberCircle', 'numberDot', 'textLabel'] as const;
@@ -27,9 +28,16 @@ function parseNaverConfig(raw: Record<string, unknown>): NaverConfig {
   return { styleId: (raw.styleId as string) ?? undefined };
 }
 
-function parseCampusDef(raw: Record<string, unknown>): CampusDef {
+/**
+ * Returns null for an unrecognised campus id. Defaulting would be worse than
+ * dropping: it would render a toggle button for a campus whose markers all
+ * belong to a different one.
+ */
+function parseCampusDef(raw: Record<string, unknown>): CampusDef | null {
+  const id = asMember(raw.id, CAMPUSES);
+  if (!id) return null;
   return {
-    id: raw.id as string,
+    id,
     label: raw.label as string,
     centerLat: Number(raw.centerLat),
     centerLng: Number(raw.centerLng),
@@ -76,9 +84,9 @@ export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
     naver: parseNaverConfig(
       (data.naver as Record<string, unknown>) ?? {},
     ),
-    campuses: ((data.campuses as unknown[]) ?? []).map((c) =>
-      parseCampusDef(c as Record<string, unknown>),
-    ),
+    campuses: ((data.campuses as unknown[]) ?? [])
+      .map((c) => parseCampusDef(c as Record<string, unknown>))
+      .filter((c): c is CampusDef => c !== null),
     layers: ((data.layers as unknown[]) ?? []).map((l) =>
       parseLayerDef(l as Record<string, unknown>),
     ),
@@ -104,12 +112,19 @@ export function parseMarkerData(
     // 3). Seoul's longitude is 126.97, so a swapped pair fails |lat| <= 90 here.
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
 
+    // Same reasoning as the coordinates: a marker we cannot place on a known
+    // campus is not drawn. Defaulting to 'hssc' would put it on the wrong map,
+    // which is worse than the old behaviour — an unrecognised string used to
+    // fail the `m.campus === selectedCampus` filter and simply never render.
+    const campus = asMember(raw.campus, CAMPUSES);
+    if (!campus) return [];
+
     return [
       {
         skkuId: raw.skkuId as number | undefined,
         lat,
         lng,
-        campus: (raw.campus as string) ?? 'hssc',
+        campus,
         displayNo: (raw.displayNo as string) ?? undefined,
         text: raw.text
           ? {

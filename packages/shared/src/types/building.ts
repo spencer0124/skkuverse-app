@@ -43,7 +43,7 @@ export interface Building {
   buildNo?: string;
   displayNo?: string;
   type: string; // "building" | "facility"
-  campus: string; // "hssc" | "nsc"
+  campus: Campus;
   campusLabel: string;
   name: LocalizedText;
   description?: LocalizedText;
@@ -99,7 +99,11 @@ export interface SpaceGroup {
   skkuId?: number;
   buildNo: string;
   displayNo?: string;
-  campus: string;
+  /**
+   * `null` when the API did not say. A space result legitimately has no campus,
+   * and `Campus | null` says that where a bare `string` holding `''` did not.
+   */
+  campus: Campus | null;
   campusLabel: string;
   buildingName: LocalizedText;
   items: SearchSpaceItem[];

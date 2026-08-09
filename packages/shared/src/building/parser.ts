@@ -8,6 +8,8 @@
  */
 
 import type { ApiEnvelope } from '../api/types';
+import { asMember } from '../utils/allowlist';
+import { CAMPUSES } from '../constants/campus';
 import type {
   Building,
   BuildingDetail,
@@ -62,7 +64,7 @@ function parseBuilding(raw: Record<string, unknown>): Building {
     buildNo: (raw.buildNo as string) ?? undefined,
     displayNo: (raw.displayNo as string) ?? undefined,
     type: (raw.type as string) ?? 'building',
-    campus: (raw.campus as string) ?? 'hssc',
+    campus: asMember(raw.campus, CAMPUSES) ?? 'hssc',
     campusLabel: (raw.campusLabel as string) ?? '',
     name: parseLocalizedText(raw.name),
     description: raw.description
@@ -118,7 +120,7 @@ function parseSpaceGroup(raw: Record<string, unknown>): SpaceGroup {
     skkuId: (raw.skkuId as number) ?? undefined,
     buildNo: (raw.buildNo as string) ?? '',
     displayNo: (raw.displayNo as string) ?? undefined,
-    campus: (raw.campus as string) ?? '',
+    campus: asMember(raw.campus, CAMPUSES) ?? null,
     campusLabel: (raw.campusLabel as string) ?? '',
     buildingName: parseLocalizedText(raw.buildingName),
     items: ((raw.items as unknown[]) ?? []).map((i) =>

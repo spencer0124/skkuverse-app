@@ -47,7 +47,11 @@ import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useMapNavStore } from '@/features/search/store';
 import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
-import { logMarkerTap, logConnectionTap } from '@/services/analytics';
+import {
+  logMarkerTap,
+  logConnectionTap,
+  type BuildingDetailSource,
+} from '@/services/analytics';
 
 // 이 자리에 하드코딩 그리드(CAMPUS_GRID_ITEMS)가 있었다. `useCampusSections()`가
 // 서버 button_grid를 이미 받아오는데도 `s.type !== 'button_grid'`로 걸러 버리고
@@ -87,7 +91,7 @@ export function CampusScreen() {
   // ── Building detail state ──
   const [selectedSkkuId, setSelectedSkkuId] = useState<number | null>(null);
   const [highlightSpaceCd, setHighlightSpaceCd] = useState<string | undefined>();
-  const [buildingSource, setBuildingSource] = useState<string>('marker');
+  const [buildingSource, setBuildingSource] = useState<BuildingDetailSource>('marker');
   const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null);
 
   // ── Sheet snap points ──

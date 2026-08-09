@@ -1,5 +1,5 @@
 import analytics from '@react-native-firebase/analytics';
-import type { NoticeSummaryType } from '@skkuverse/shared';
+import type { Campus, NoticeSummaryType } from '@skkuverse/shared';
 
 /**
  * Centralized analytics service — fire-and-forget wrapper around Firebase Analytics.
@@ -73,8 +73,8 @@ export function logMarkerTap(skkuId: number) {
 export function logBuildingView(params: {
   skkuId: number;
   buildingName: string;
-  campus: string;
-  source: string;
+  campus: Campus;
+  source: BuildingDetailSource;
 }) {
   logEvent('building_view', {
     skku_id: params.skkuId,
@@ -116,16 +116,24 @@ export function logSearchPerform(params: {
   });
 }
 
+/** Where a building detail sheet was opened from. */
+export type BuildingDetailSource = 'marker' | 'search' | 'connection' | 'direct';
+
+export type SearchResultType = 'building' | 'space';
+
 export function logSearchResultTap(params: {
-  resultType: string;
+  resultType: SearchResultType;
   resultName: string;
-  campus: string;
+  /** null when the result carried no campus (space results). */
+  campus: Campus | null;
   skkuId?: number;
 }) {
   logEvent('search_result_tap', {
     result_type: params.resultType,
     result_name: truncate(params.resultName),
-    campus: params.campus,
+    // Firebase params take no null, and omitting the key would make "no campus"
+    // indistinguishable from an older build that never sent one.
+    campus: params.campus ?? 'unknown',
     ...(params.skkuId != null && { skku_id: params.skkuId }),
   });
 }

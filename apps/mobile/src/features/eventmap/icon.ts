@@ -22,7 +22,7 @@ import type { IconSpec } from '@skkuverse/shared';
  * green, lightblue, pink, red, yellow); the cluster entries are here only so the
  * allowlist matches the type rather than a subset of it.
  */
-const MARKER_SYMBOLS: ReadonlySet<string> = new Set<MarkerSymbol>([
+const MARKER_SYMBOLS = [
   'blue',
   'gray',
   'green',
@@ -34,7 +34,17 @@ const MARKER_SYMBOLS: ReadonlySet<string> = new Set<MarkerSymbol>([
   'lowDensityCluster',
   'mediumDensityCluster',
   'highDensityCluster',
-]);
+] as const satisfies readonly MarkerSymbol[];
+
+/**
+ * A real type guard rather than `Set<string>.has()` plus a cast. The cast form
+ * compiles even if the list and the SDK union drift apart; `satisfies` above
+ * makes that a compile error, and the predicate carries the narrowing so the
+ * call site needs no assertion at all.
+ */
+function isMarkerSymbol(value: string): value is MarkerSymbol {
+  return (MARKER_SYMBOLS as readonly string[]).includes(value);
+}
 
 export interface ResolvedIcon {
   image: MapImageProp;
@@ -56,9 +66,7 @@ export function resolveIcon(
   if (spec.kind === 'symbol') {
     // An unknown symbol string would render nothing at all on native, so it has
     // to fall back rather than pass through.
-    return MARKER_SYMBOLS.has(spec.symbol)
-      ? { image: { symbol: spec.symbol as MarkerSymbol } }
-      : FALLBACK;
+    return isMarkerSymbol(spec.symbol) ? { image: { symbol: spec.symbol } } : FALLBACK;
   }
 
   if (spec.kind === 'remote') {
