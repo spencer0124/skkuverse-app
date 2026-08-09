@@ -3,151 +3,238 @@ title: Mini App Webview & Push Architecture
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-22
+last-updated: 2026-08-10
 audience: internal
 ---
 
-# 0006. 미니앱 webview·푸시 아키텍처
+# 0006. Mini app webview and push architecture
 
-> 한 줄 요약: webview 미니앱이 **어떤 계약 위에서 돌고**, 앱은 **무엇을 준비하며**, 앱 버전과 lockstep이 불가능한 외부 웹 콘텐츠의 **backward-compatibility를 어떻게 보장하는가**. 제품·기획 맥락은 [미니앱 플랫폼 기획](../plans/miniapp-platform.md)을 본다.
+> What contract a webview mini app runs on, what the app has to provide, and how backward compatibility survives for external web content that can never update in lockstep with the app. For the product and planning context, read the [mini app platform plan](../plans/miniapp-platform.md).
 
 ## Status
 
-Accepted — 2026-07-22. **§Decision-1·2는 구현 완료(2026-08-01, `feat/webview-shell-split` + 서버 `feat/webview-ssot-miniapps`).** 나머지(§3~8, SDK·푸시)는 미착수.
+Accepted — 2026-07-22. **Decisions 1 and 2 are implemented** (2026-08-01,
+`feat/webview-shell-split` plus the server's `feat/webview-ssot-miniapps`). The rest,
+sections 3 to 8 covering the SDK and push, has not been started.
 
-구현 회차에서 이 ADR 범위 밖의 결정이 하나 추가됐다 — **범용 `/webview` 셸의 origin 게이트**. 미니앱 SDK(§4)와 같은 신뢰 경계 문제지만 대상이 다르다(1st-party SPA vs 임의 외부 페이지). 아래 §Decision-9 참조.
+Building it surfaced one decision outside this ADR's original scope: an origin gate on
+the general-purpose `/webview` shell. It is the same trust-boundary problem as the mini app
+SDK in section 4, but with a different subject, a first-party SPA rather than an arbitrary
+external page. See section 9.
 
 ## Context
 
-skkuverse에 **푸시 가능한 webview 미니앱**을 추가한다(동기·사례는 [기획 문서](../plans/miniapp-platform.md)). 솔로 개발이라 webview-only, 3rd-party는 단계적으로 연다(Phase 1 curated → Phase 2 self-serve).
+skkuverse is adding **webview mini apps that can send push**. The motivation and the use
+cases are in the [plan](../plans/miniapp-platform.md). Solo development means webview only,
+opening to third parties in stages: curated in phase 1, self-serve in phase 2.
 
-핵심 난점은 기능이 아니라 **backward-compatibility**다. 미니앱은 **앱 버전과 lockstep 업데이트가 불가능한 외부 웹 콘텐츠**다. 동아리가 특정 시점의 계약에 맞춰 미니앱을 만들면, 구버전 앱을 깐 유저 앞에서도 계속 동작해야 한다. 이건 기능 문제가 아니라 **플랫폼 SDK 버저닝 문제**이며, 아키텍처 선택이 곧 이 문제의 답이다.
+The hard part is not the feature, it is **backward compatibility**. A mini app is external
+web content that cannot update in lockstep with the app. When a club builds one against the
+contract as it stands today, it has to keep working in front of users running an old build.
+That is a platform SDK versioning problem rather than a feature problem, and the
+architecture choice is the answer to it.
 
-### 탐색으로 확인한 기존 자산 (재사용 대상)
+### What already exists, found by exploring
 
-미니앱 하부구조는 이미 상당 부분 존재한다. 이 ADR은 "새로 짓기"가 아니라 "잇고 계약화하기"다.
+Much of the substructure is already there. This ADR connects and formalises rather than
+builds.
 
-| 조각 | 위치 | 현재 상태 |
+| Piece | Location | State |
 | --- | --- | --- |
-| 미니앱 레지스트리 | ~~`packages/shared/src/miniapps/{schema,repository,index.json,details/*}`~~ → **서버 `src/miniapps/`** | **구현됨** — `GET /miniapps`, `GET /miniapps/:id`. 클라 번들 JSON 삭제, `assertValidRegistry`는 서버 부팅 시 fail-loud |
-| server-driven 전환 seam | `packages/shared/src/miniapps/repository.ts` `miniAppRepository` alias | `remoteMiniAppRepository`로 flip하도록 주석까지 준비 |
-| 미니앱 렌더러 | ~~`apps/mobile/app/in-app-browser.tsx`~~ → **`apps/mobile/app/mini-app.tsx`** | **구현됨** — 레지스트리 등록 미니앱 전용. 임의 URL은 `app/webview.tsx`로 분리 |
-| 딥링크 | `apps/mobile/app/+native-intent.tsx` `MINIAPP_PATH_RE` | `skkuverse://m/<slug>` 라우팅됨 |
-| pending holder + consumer | `apps/mobile/src/lib/pending-mini-app-link.ts` + `app/_layout.tsx` | **이미 존재** — 푸시 tap 라우팅 재사용 가능 |
-| WebView↔RN protocol 씨앗 | `apps/mobile/src/features/mini-app/protocol.ts` | 정의됐으나 미배선 (page-extraction 부분은 온디바이스 AI 제거로 dead code — 삭제 후보) |
-| 1st-party 브릿지 | `packages/bridge/` | web→app만 배선, native→web은 placeholder |
-| 푸시 delivery CF | `functions/src/send-notification.ts` | `switch(body.type)`에 `case 'notice'`만. 단일 `FCM_API_KEY`, **임의 caller가 임의 topic 타게팅 가능** |
-| 토픽 파생 | `functions/src/notifications/{derive,tabsContract}.ts` | topic = Firestore 라벨. `array-contains-any` 멀티캐스트 |
-| 푸시 tap 라우팅 | `apps/mobile/src/services/notification-router.ts` | `navigateFromNotification`에 `case 'notice'`만 |
+| Mini app registry | ~~`packages/shared/src/miniapps/{schema,repository,index.json,details/*}`~~ → **server `src/miniapps/`** | **Implemented.** `GET /miniapps`, `GET /miniapps/:id`. The bundled client JSON is gone, and `assertValidRegistry` aborts server boot on an invalid registry |
+| Server-driven seam | `packages/shared/src/miniapps/repository.ts`, the `miniAppRepository` alias | Prepared, comment and all, to flip to `remoteMiniAppRepository` |
+| Mini app renderer | ~~`apps/mobile/app/in-app-browser.tsx`~~ → **`apps/mobile/app/mini-app.tsx`** | **Implemented.** Registered mini apps only. Arbitrary URLs split out to `app/webview.tsx` |
+| Deep link | `apps/mobile/app/+native-intent.tsx`, `MINIAPP_PATH_RE` | `skkuverse://m/<slug>` routes already |
+| Pending holder and consumer | `apps/mobile/src/lib/pending-mini-app-link.ts` plus `app/_layout.tsx` | **Already exists**, and push tap routing can reuse it |
+| WebView-to-RN protocol seed | `apps/mobile/src/features/mini-app/protocol.ts` | Defined but unwired. The page-extraction half is dead code since on-device AI was removed, and is a deletion candidate |
+| First-party bridge | `packages/bridge/` | Web to app is wired; native to web is a placeholder |
+| Push delivery CF | `functions/src/send-notification.ts` | `switch(body.type)` has `case 'notice'` alone. A single `FCM_API_KEY`, so **any caller can target any topic** |
+| Topic derivation | `functions/src/notifications/{derive,tabsContract}.ts` | A topic is a Firestore label. Multicast by `array-contains-any` |
+| Push tap routing | `apps/mobile/src/services/notification-router.ts` | `navigateFromNotification` has `case 'notice'` alone |
 
 > [!NOTE]
-> 결정적 사실: skkuverse "topic"은 native FCM 구독이 아니라 `devices` 문서의 `subscribedTopics` **라벨**이고, 발송은 `array-contains-any` 토큰 멀티캐스트다([fcm-architecture](../explanation/fcm-architecture.md)). 따라서 미니앱 푸시 = (1) `miniapp:<id>` 토픽 프리픽스 + (2) CF·router의 `miniapp` case + (3) 동아리별 발송 스코프(신규 보안 경계)의 조합이다.
+> Everything else follows from this. A skkuverse "topic" is not a native FCM
+> subscription. It is a label in the `devices` document's `subscribedTopics`, and delivery is
+> an `array-contains-any` token multicast (see
+> [fcm-architecture](../explanation/fcm-architecture.md)). So mini app push is the
+> combination of a `miniapp:<id>` topic prefix, a `miniapp` case in the CF and the router,
+> and a per-club sending scope, which is a new security boundary.
 
 ## Decision
 
-### 1. 렌더러 재사용 (구현됨)
+### 1. Reuse the renderer (implemented)
 
-신규 화면을 만들지 않고 기존 인앱 브라우저를 미니앱 호스트로 승격한다. 이미 레지스트리 구동·chrome·딥링크를 갖췄다.
+Rather than build a new screen, promote the existing in-app browser to the mini app host. It
+already has registry lookup, chrome and deep links.
 
-구현 시 한 가지가 추가로 드러났다: 그 화면은 **미니앱 셸이자 동시에 임의 외부 링크 뷰어**였다. `openInAppBrowser()`가 `openMiniApp()`의 한 줄 래퍼여서, 공지 원문·마크다운 링크·SDUI `external`이 전부 북마크 버튼과 "홈 화면에 추가"가 달린 미니앱 셸로 들어갔다. 승격은 곧 **분리**를 뜻했다:
+Building it exposed something else. That screen was at once the mini app shell and the
+viewer for arbitrary external links. `openInAppBrowser()` was a one-line wrapper around
+`openMiniApp()`, so notice bodies, markdown links and SDUI `external` targets were all routed
+to a mini app shell complete with a bookmark button and "add to home screen". Promotion
+meant **separation**:
 
-- `app/mini-app.tsx` — 레지스트리 등록 미니앱 전용. slug만 라우트를 건너고 나머지는 레지스트리에서 해석.
-- `app/webview.tsx` — 그 외 모든 URL. 최소 chrome(네이티브 헤더 + 콘텐츠 + 광고 배너).
-- `openInAppBrowser()`는 삭제. 두 문을 다시 흐릴 헬퍼를 남기지 않는다.
+- `app/mini-app.tsx` for registered mini apps alone. Only the slug travels in the route; the
+  rest is resolved from the registry.
+- `app/webview.tsx` for every other URL, with minimal chrome: a native header, the content,
+  and an ad banner.
+- `openInAppBrowser()` is deleted. No helper is left behind that could blur the two doors
+  again.
 
-### 2. 레지스트리 server-driven 전환 (구현됨)
+### 2. Make the registry server-driven (implemented)
 
-`miniAppRepository`를 `remoteMiniAppRepository`로 flip한다(seam은 이미 존재). → **앱 릴리스 없이 미니앱 온보딩**. 계약 규율:
+Flip `miniAppRepository` to `remoteMiniAppRepository`. The seam already exists. This means
+**onboarding a mini app without an app release**. The contract discipline that comes with it:
 
-- 스키마는 **additive-only**. 필드 제거·의미 변경 금지.
-- breaking change는 `MINIAPP_REGISTRY_VERSION` 게이트로만.
-- 클라는 **unknown 필드를 무시**(forward-compat) — 신버전 서버가 내려준 새 필드를 구버전 앱이 만나도 죽지 않는다.
+- The schema is **additive only**. Do not remove a field or change what one means.
+- A breaking change goes through the `MINIAPP_REGISTRY_VERSION` gate, and nowhere else.
+- The client **ignores unknown fields** for forward compatibility, so an old build meeting a
+  new field from a newer server does not die.
 
-### 3. 미니앱 SDK = skkuverse 호스팅 (backward-compat 핵심)
+### 3. Host the mini app SDK ourselves (the heart of backward compatibility)
 
-동아리는 SDK를 번들하지 않고 `<script src="https://skkuverse.com/miniapp-sdk/vN.js">`로 로드한다(LIFF 모델). → **skkuverse가 구버전 앱을 SDK 레벨에서 shim**할 수 있다. 계약이 동아리 코드에 박제되지 않는 것이 이 선택의 전부다.
+Clubs do not bundle the SDK. They load
+`<script src="https://skkuverse.com/miniapp-sdk/vN.js">`, the LIFF model. That is what lets
+**skkuverse shim old app versions at the SDK level**. Keeping the contract out of the club's
+compiled code is the entire point of this choice.
 
-### 4. native 브릿지 = 미니앱 전용 채널
+### 4. Treat the native bridge as a mini-app-only channel
 
-`protocol.ts` 씨앗을 `in-app-browser.tsx`의 `onMessage` + `injectedJavaScriptBeforeContentLoaded`에 배선한다.
+Wire the `protocol.ts` seed into the host's `onMessage` and
+`injectedJavaScriptBeforeContentLoaded`.
 
-- **등록된 `startUrl` origin으로 게이트** — 화이트리스트 origin에서 온 메시지만 처리.
-- **capability-scoped** — 미니앱은 허용된 메시지 집합만 호출 가능.
-- 1st-party `@skkuverse/bridge`와 **분리**한다 — 신뢰 경계가 다르다(1st-party는 신뢰, 3rd-party 미니앱은 불신). Phase 1 curated에서 일부 코드는 공유해도 되나, **경계는 코드가 아니라 origin·capability로 긋는다**.
+- **Gate on the registered `startUrl` origin.** Handle messages from allowlisted origins
+  only.
+- **Scope by capability.** A mini app can call only the message set it was granted.
+- **Keep it separate from the first-party `@skkuverse/bridge`.** The trust boundaries
+  differ: first-party is trusted, a third-party mini app is not. Sharing some code during
+  the curated phase 1 is fine, but **the boundary is drawn by origin and capability, not by
+  which module the code lives in**.
 
-### 5. 버전 협상 handshake
+### 5. Negotiate versions with a handshake
 
-미니앱은 `getCapabilities()`로 호스트 SDK 버전·지원 메시지 집합을 질의하고 **feature-detect 후 graceful degrade**한다. `postToApp`은 webview 밖/구버전 호스트에서 no-op이므로, "메시지가 처리된다"는 가정을 계약으로 금지한다. → SDK v3용 미니앱이 SDK v1 앱에서도 축소 동작한다.
+A mini app asks `getCapabilities()` for the host SDK version and its supported message set,
+then feature-detects and degrades gracefully. `postToApp` is a no-op outside a webview and
+on older hosts, so the contract forbids assuming a message was handled. A mini app written
+for SDK v3 still runs, reduced, on an app carrying SDK v1.
 
-### 6. 푸시 구독 — `miniapp:<id>` 토픽
+### 6. Push subscription through a `miniapp:<id>` topic
 
-신규 토픽 프리픽스 `miniapp:<id>`를 도입한다.
+Introduce the topic prefix `miniapp:<id>`.
 
-- `deriveSubscribedTopics`(`functions/src/notifications/derive.ts`)와 `tabsContract.ts`에 파생 규칙 추가(또는 별도 `miniAppSelections` intent 필드 — 구현 시 결정).
-- 유저의 bell 토글이 `preferences/main` intent write → 기존 derive→sync 체인이 `devices.subscribedTopics`에 반영. **푸시 파이프라인 자체는 손대지 않는다.**
+- Add the derivation rule to `deriveSubscribedTopics`
+  (`functions/src/notifications/derive.ts`) and `tabsContract.ts`, or add a separate
+  `miniAppSelections` intent field. Decide that when the code is written.
+- A user's bell toggle writes intent to `preferences/main`, and the existing derive-then-sync
+  chain carries it to `devices.subscribedTopics`. **The push pipeline itself is untouched.**
 
-### 7. 푸시 origination — no-code 콘솔 + 서버 스코프
+### 7. Originate push from a no-code console, scoped by the server
 
-skkuverse 호스팅 관리 콘솔에서 동아리가 작성·발송한다. 콘솔 백엔드가 신규 payload로 CF를 호출한다.
+Clubs write and send from a skkuverse-hosted admin console, whose backend calls the CF with
+a new payload.
 
 ```ts
-// functions/src/types.ts 에 추가할 형태 (예시)
+// The shape to add to functions/src/types.ts (illustrative)
 interface MiniAppNotificationPayload {
   type: 'miniapp';
-  miniAppId: string;      // 스코프 키
+  miniAppId: string;      // the scope key
   title_ko: string;
   body_ko: string;
   title_en?: string | null;
   body_en?: string | null;
-  // topics 는 caller가 못 정한다 — 서버가 miniapp:<miniAppId> 로 강제
+  // The caller does not choose topics - the server forces miniapp:<miniAppId>
 }
 ```
 
-- **서버가 topic을 `miniapp:<miniAppId>`로 강제** → 현행 "any key → any topic" 갭을 여기서 닫는다. 동아리는 자기 토픽 외로 발송 불가.
-- 동아리 인증 = **콘솔 로그인**. raw 공유 키를 동아리에 노출하지 않는다. per-club API 키(자체 서버 호출)는 Phase 2+ 옵션.
+- **The server forces the topic to `miniapp:<miniAppId>`**, which closes today's "any key
+  targets any topic" gap right here. A club cannot send outside its own topic.
+- A club authenticates by **logging into the console**. No raw shared key is ever handed to
+  a club. A per-club API key, for clubs calling from their own server, is a phase 2 option.
 
-### 8. CF·tap 라우팅 확장
+### 8. Extend the CF and tap routing
 
-- `functions/src/send-notification.ts`에 `case 'miniapp'` + 형제 핸들러 `handle-miniapp.ts`(`handle-notice.ts` 미러: 로케일 버킷팅, `Record<string,string>` data, 멀티캐스트, 토큰 정리).
-- `apps/mobile/src/services/notification-router.ts` `navigateFromNotification`에 `case 'miniapp'` → `router.navigate('/(tabs)/home')` + `pendingMiniAppLink.set({ id })`. **기존 `PendingMiniAppLinkConsumer`를 그대로 재사용.**
+- Add `case 'miniapp'` to `functions/src/send-notification.ts` plus a sibling
+  `handle-miniapp.ts`, mirroring `handle-notice.ts` for locale bucketing, the
+  `Record<string,string>` data payload, multicast, and token cleanup.
+- Add `case 'miniapp'` to `navigateFromNotification` in
+  `apps/mobile/src/services/notification-router.ts`, routing to
+  `router.navigate('/(tabs)/home')` with `pendingMiniAppLink.set({ id })`. **The existing
+  `PendingMiniAppLinkConsumer` is reused unchanged.**
 
-### 9. 범용 `/webview` origin 게이트 (구현됨 — 구현 회차 추가 결정)
+### 9. An origin gate on the general-purpose `/webview` (implemented, added during implementation)
 
-§1의 분리로 **임의 외부 페이지가 처음으로 `/webview`에 도달**하게 됐다. 그 화면은 그때까지 1st-party SPA(분실물·버스 안내)만 받았고, 그 전제 위에서 어떤 메시지든 무조건 처리했다 — `web:open-url` → `Linking.openURL(msg.url)`, `web:navigate` → `router.push(msg.path)`. 공지 원문을 여기로 보내는 순간 그 전제가 깨진다. 그래서 게이트는 이 변경의 후속이 아니라 **전제조건**이다.
+The separation in section 1 meant **an arbitrary external page could reach `/webview` for
+the first time**. Until then that screen only ever received first-party SPAs, lost-and-found
+and the bus guide, and on that assumption it handled any message unconditionally:
+`web:open-url` called `Linking.openURL(msg.url)`, `web:navigate` called
+`router.push(msg.path)`. Sending a notice body there breaks the assumption. The gate is
+a precondition of that change rather than a follow-up to it.
 
-- **capability는 로드된 문서의 origin으로 결정한다** — 화면을 연 호출부가 아니라. 웹뷰는 이동하므로, 열 때 부여한 권한은 아무도 검증하지 않은 origin에서 계속 살아있게 된다. 따라서 `event.nativeEvent.url` 기준으로 **메시지마다** 재평가한다.
-- **allowlist는 서버 소유** — `GET /app/config` → `webview.bridgeOrigins` (서버 `src/infra/origins.ts` `BRIDGE_ORIGINS`). 호출부가 넘기는 capability prop은 두 번째(그리고 낡은) SSOT가 된다.
-- **fail-closed** — 설정 미수신·fetch 실패·파싱 불가·origin 불일치 → `[]`. 이 패키지의 다른 fallback 방향(`useCampusSections`가 실패 시 defaults를 주는 것)과 **의도적으로 반대**다. 빈 탭보다 낡은 탭이 낫지만, 여기서 관대하게 실패하면 검증 안 된 페이지에 `Linking.openURL`을 넘기게 된다.
-- **`web:navigate`는 grant 집합에서 제외** — `apps/webview`가 한 번도 보낸 적 없는데 핸들러만 무방비로 살아있었다. path allowlist 없이 되살리지 말 것.
+- **Capability is decided by the origin of the loaded document**, not by the caller that
+  opened the screen. A webview navigates, so a permission granted at open time would live on
+  at an origin nobody checked. Re-evaluate `event.nativeEvent.url` **per message**.
+- **The allowlist is server-owned**: `GET /app/config` returns `webview.bridgeOrigins`, from
+  `BRIDGE_ORIGINS` in the server's `src/infra/origins.ts`. A capability prop passed by the
+  caller would become a second, and staler, source of truth.
+- **Fail closed.** No config, a failed fetch, unparseable data, or an origin mismatch all
+  yield `[]`. This is **deliberately the opposite** of how the rest of this package fails,
+  where `useCampusSections` hands back defaults. A stale tab beats an empty one, but failing
+  open here would hand `Linking.openURL` to an unvetted page.
+- **`web:navigate` is excluded from the grant set.** `apps/webview` has never sent it, yet
+  the handler sat there unguarded. Do not revive it without a path allowlist.
 
 > [!WARNING]
-> 이 게이트가 못 막는 것: Android에서 child iframe이 bridge로 post할 수 있는데 `nativeEvent.url`은 **top-level 문서**를 가리킨다. 즉 allowlist된 1st-party 페이지가 신뢰 불가 iframe을 embed하면 권한이 새어나간다. 현재 유일한 bridged origin인 자체 SPA는 그런 iframe이 없지만, 이는 코드가 아니라 **allowlist의 불변식**이다 — `BRIDGE_ORIGINS`에 항목을 추가하는 것이 신뢰 결정인 이유.
+> What this gate does not stop: on Android a child iframe can post to the bridge, while
+> `nativeEvent.url` reports the **top-level** document. An allowlisted first-party page that
+> embeds an untrusted iframe therefore leaks its permissions. The only bridged origin today
+> is our own SPA, which embeds no such iframe, but that is an **invariant of the allowlist**
+> rather than a property of the code. It is why adding an entry to `BRIDGE_ORIGINS` is a
+> trust decision.
 
-## Backward-compatibility 원칙
+## Backward-compatibility principles
 
-이 ADR의 심장. 미니앱 계약이 앱 버전을 가로질러 살아남게 하는 규율.
+The heart of this ADR: the discipline that keeps a mini app contract alive across app
+versions.
 
-- **제품은 코드가 아니라 계약이다.** 3개 계약 표면을 각각 버전 + additive-only로 관리한다:
-  1. 레지스트리 스키마(`schema.ts`, `MINIAPP_REGISTRY_VERSION`)
-  2. 미니앱 SDK 메시지 집합(§Decision-4·5)
-  3. 푸시 payload + 토픽 네이밍(§Decision-6·7)
-- **호스트 호스팅 SDK**(§3)로 구버전 앱을 shim → 계약 진화의 부담을 앱 릴리스에서 떼어낸다.
-- **capability negotiation**(§5)으로 신규 SDK 대상 미니앱이 구버전 앱에서도 degrade 동작.
-- **danger zone = app-version-bound 표면.** native 브릿지 핸들러·tap 라우팅·`notification-router`는 JS라 대부분 OTA 가능하지만, **OTA 미수신 유저**가 위험하다. 대응:
-  - webview **채널 + handshake는 바이너리에 조기 탑재**(핸들러 로직은 OTA로 반복 개선).
-  - 푸시 tap `miniapp` case는 **어떤 동아리가 발송하기 전에 먼저 배포**한다. 미배포 앱에서 unknown type은 **no-op degrade**(배너는 OS가 그대로 노출, 탭이 무동작일 뿐 크래시 없음).
+- **The product is the contract, not the code.** Three contract surfaces are each versioned
+  and additive-only:
+  1. The registry schema (`schema.ts`, `MINIAPP_REGISTRY_VERSION`)
+  2. The mini app SDK message set (decisions 4 and 5)
+  3. The push payload and topic naming (decisions 6 and 7)
+- **A host-hosted SDK** (decision 3) shims old app versions, which detaches the cost of
+  evolving the contract from the app release cycle.
+- **Capability negotiation** (decision 5) lets a mini app built for a newer SDK degrade on an
+  older app.
+- **The danger zone is anything bound to the app version.** Native bridge handlers, tap
+  routing and `notification-router` are JS and mostly reachable by OTA, but **users who never
+  receive the OTA** are the risk. The response:
+  - Put the webview channel and the handshake into the binary early, and keep improving the
+    handler logic over OTA.
+  - Ship the `miniapp` push tap case **before any club can send**. On an app without it, an
+    unknown type degrades to a no-op: the OS still shows the banner, the tap does nothing,
+    and nothing crashes.
 
 ## Consequences
 
-- (+) 인프라 재사용 최대 — 렌더러·딥링크·pending consumer·FCM 파이프라인·레지스트리 seam을 그대로 잇는다.
-- (+) 레지스트리 remote 전환으로 **앱 릴리스 없는 온보딩**.
-- (+) 서버 토픽 스코프(§7)가 현행 "any key → any topic" 보안 갭을 닫는다.
-- (−) **신규 보안 경계가 유일 방어선** — 콘솔 인증 + 서버 토픽 스코프. Firestore Rules처럼 중간 검증 계층이 없으므로([ADR 0005](0005-user-firebase-public-mongodb.md)) `functions` verify 스크립트(emulator)로 스코프 불변식을 고정해야 한다.
-- (−) 크로스-레포 계약 미러 1건 추가 — 콘솔 ↔ CF `MiniAppNotificationPayload`([add-notice-tab](../how-to/add-notice-tab.md)의 미러 패턴과 동류).
-- (−) origin 게이트·capability 집합을 Phase 2 self-serve에서 심사·유지해야 한다.
+- (+) Maximum reuse. The renderer, deep links, the pending consumer, the FCM pipeline and the
+  registry seam are all connected rather than rebuilt.
+- (+) A remote registry means **onboarding without an app release**.
+- (+) Server-side topic scoping (decision 7) closes today's "any key targets any topic" gap.
+- (−) **A new security boundary becomes the only defense**: console authentication plus
+  server-side topic scoping. There is no intermediate validation layer, exactly as with
+  Firestore Rules ([ADR 0005](0005-user-firebase-public-mongodb.md)), so the scope invariants
+  have to be pinned by the emulator-backed `functions` verify scripts.
+- (−) One more cross-repo contract mirror: the console and the CF's
+  `MiniAppNotificationPayload`, of the same kind as the mirror pattern in
+  [add-notice-tab](../how-to/add-notice-tab.md).
+- (−) The origin gate and the capability set have to be reviewed and maintained once phase 2
+  is self-serve.
 
-### 반려한 대안
+### Alternatives rejected
 
-- **동아리가 SDK 번들** — 계약이 빌드 시점에 박제되어 구버전 앱 shim 불가. §3의 반대라 반려.
-- **1st-party `@skkuverse/bridge` 재사용** — 신뢰 경계가 다른데(3rd-party 불신) privileged 메시지를 노출할 위험. §4에서 분리.
-- **클라(webview JS)가 직접 푸시 발송** — webview는 신뢰 불가 환경. 발송 권한을 클라에 두면 임의 스팸이 가능. §7에서 서버 스코프로 반려.
+- **Clubs bundle the SDK.** The contract freezes at build time, so old app versions cannot be
+  shimmed. Rejected as the opposite of decision 3.
+- **Reuse the first-party `@skkuverse/bridge`.** Different trust boundary, and it risks
+  exposing privileged messages to code we do not trust. Separated in decision 4.
+- **Let the client, the webview JS, send push directly.** A webview is an untrusted
+  environment, and putting send rights there allows arbitrary spam. Rejected in favour of
+  the server scope in decision 7.
