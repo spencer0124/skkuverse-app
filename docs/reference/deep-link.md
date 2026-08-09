@@ -22,17 +22,32 @@ audience: internal
 | 커스텀 스킴 | `skkuverse://` | `apps/mobile/app.config.ts` → `scheme: "skkuverse"` |
 | 유니버셜 링크 | `https://skkuverse.com` + `/p/` prefix | iOS `associatedDomains`, Android `intentFilters` |
 | 필터 진입점 | `redirectSystemPath()` | `apps/mobile/app/+native-intent.tsx` |
-| path 정규화 | `normalizeIncomingPath()` | `packages/shared/src/utils/normalizeIncomingPath.ts` |
+| path 정규화 | `parseIncomingLink()` | `packages/shared/src/utils/normalizeIncomingPath.ts` |
 | 라우팅 | Expo Router 파일 기반 (별도 linking config 없음) | `apps/mobile/app/` |
 
-유니버셜 링크는 `/p/` prefix로 홈페이지 자체 경로와 네임스페이스를 분리한다. 앱에서는 `normalizeIncomingPath()`가 `/p/`를 자동으로 스트립한 뒤 화이트리스트를 검사하므로, 아래 표의 경로는 전부 스트립 이후 기준이다.
+유니버셜 링크는 `/p/` prefix로 홈페이지 자체 경로와 네임스페이스를 분리한다. 앱에서는 `parseIncomingLink()`가 `/p/`를 자동으로 스트립한 뒤 화이트리스트를 검사하므로, 아래 표의 경로는 전부 스트립 이후 기준이다.
+
+### 유니버셜 링크는 앱 설정만으로 동작하지 않는다
+
+앱이 경로를 **주장(claim)** 하는 것과 OS가 그 주장을 **허용**하는 것은 별개다. 양쪽이 다 맞아야 링크가 앱으로 들어온다.
+
+| 레이어 | 어디 | 무엇을 정하나 |
+| --- | --- | --- |
+| iOS 허용 목록 | `skkuverse.com` `/.well-known/apple-app-site-association` (**웹 레포**) | 어떤 경로를 앱으로 넘길지. `NOT /privacy` 같은 제외 규칙 포함 |
+| Android 허용 목록 | `skkuverse.com` `/.well-known/assetlinks.json` (**웹 레포**) | 호스트 단위 권한 부여 (`handle_all_urls`) |
+| 앱의 주장 | `app.config.ts` → `android.intentFilters[].data.pathPrefix` | 앱이 실제로 가로챌 경로 |
+
+**Android `pathPrefix`는 `/p/`(끝 슬래시 포함)여야 한다.** `pathPrefix`는 단순 문자열 prefix라 `/p`로 두면 `/privacy`까지 매치된다 — 즉 아무것도 고쳐지지 않는다. 이 필터가 무제한이던 동안 Android는 `skkuverse.com`의 **모든** URL을 가로챘고, 개인정보처리방침 링크를 눌러도 앱이 열려 화이트리스트에 걸린 뒤 홈으로 떨어졌다. iOS는 AASA의 `NOT` 규칙으로 처음부터 제외돼 있었다.
+
+> [!IMPORTANT]
+> `intentFilters`는 네이티브 설정이다. 변경 후 `npx expo prebuild --platform android` + 리빌드를 해야 반영되며, **OTA로는 전달되지 않는다.**
 
 ## 허용 경로
 
 | 커스텀 스킴 | 유니버셜 링크 | 화면 | 처리 방식 |
 | --- | --- | --- | --- |
-| `skkuverse://` | `https://skkuverse.com/p/` | 홈 탭 (cold는 lastTab) | bare `/` 특별 분기 |
-| `skkuverse://home` | `https://skkuverse.com/p/home` | 홈 탭 | `TAB_PATHS` 매핑 |
+| `skkuverse://` | `https://skkuverse.com/p/` ⚠️ | 홈 탭 (cold는 lastTab) | bare `/` 특별 분기 |
+| `skkuverse://home` | `https://skkuverse.com/p/home` ⚠️ | 홈 탭 | `TAB_PATHS` 매핑 |
 | `skkuverse://campus` | `https://skkuverse.com/p/campus` | 캠퍼스 탭 | `TAB_PATHS` 매핑 |
 | `skkuverse://transit` | `https://skkuverse.com/p/transit` | 교통 탭 | `TAB_PATHS` 매핑 |
 | `skkuverse://map/hssc` | `https://skkuverse.com/p/map/hssc` | 인사캠 지도 | `ALLOWED_PATHS` 통과 |
@@ -42,6 +57,13 @@ audience: internal
 | `skkuverse://map?place=<placeId>` | `https://skkuverse.com/p/map?place=<placeId>` | 캠퍼스 탭 + 해당 장소 시트 | `MAP_PATH_RE` 인터셉트 (아래 참조) |
 
 위 목록 외의 경로는 모두 홈(`/(tabs)/home`)으로 리다이렉트된다. path 파싱 중 예외가 발생해도 `try/catch`로 홈에 떨어진다.
+
+> [!WARNING]
+> ⚠️ 표시한 두 유니버셜 링크는 **현재 동작하지 않는다.** 앱은 `/home`을 처리할 수 있지만 AASA `paths` 목록에 `/p/home`도 `/p/`도 없어서 iOS가 앱 대신 Safari를 연다 (시뮬레이터에서 확인: 웹 라우트도 없어 빈 페이지). 커스텀 스킴(`skkuverse://home`, `skkuverse://`)은 정상이다.
+>
+> 반대 방향 불일치도 하나 있다: AASA에는 `/p/bus/*`가 있는데 앱의 `ALLOWED_PATHS`에는 `/bus/*`가 없다. 링크를 누르면 앱이 열린 뒤 아무 설명 없이 홈으로 떨어진다.
+>
+> 둘 다 **웹 레포**(`skkuverse.com/functions/.well-known/apple-app-site-association.ts`)에서 고쳐야 한다 — 앱 레포에서 할 수 있는 일이 없다. 고칠 때 이 표의 ⚠️와 이 블록을 지울 것.
 
 ### 동적 경로 0: 지도 장소 (`/map?place=<placeId>`)
 
@@ -162,21 +184,41 @@ const TAB_PATHS: Record<string, string> = {
 ## 테스트
 
 ```bash
-# 커스텀 스킴 — 허용
+# 커스텀 스킴 — 허용 (전부 double-slash로 검증할 것. authority fold의 회귀 지점)
 xcrun simctl openurl booted "skkuverse://search"
+xcrun simctl openurl booted "skkuverse://campus"
+xcrun simctl openurl booted "skkuverse://transit"
+xcrun simctl openurl booted "skkuverse://m/skkuw"
+xcrun simctl openurl booted "skkuverse://notices/cse/5847"
+
+# 지도 장소 — 세 표기가 모두 캠퍼스 탭으로 가야 한다
+xcrun simctl openurl booted "skkuverse://map?place=nsc-truck-01"
+xcrun simctl openurl booted "skkuverse:///map?place=nsc-truck-01"
+xcrun simctl openurl booted "skkuverse://MAP?place=nsc-truck-01"   # host 소문자화
+
+# 인터셉트에 먹히면 안 되는 것 — SVG 층별 지도로 가야 한다
 xcrun simctl openurl booted "skkuverse://map/hssc"
 
-# 커스텀 스킴 — 차단 → 홈
+# 차단 → 홈
 xcrun simctl openurl booted "skkuverse://webview?url=https://evil.com"
 xcrun simctl openurl booted "skkuverse://bus/realtime?groupId=1"
+xcrun simctl openurl booted "skkuverse://map?place=../../etc"      # id shape 검사
 
-# 유니버셜 링크 (시뮬레이터에서는 AASA 없이 제한적)
+# 유니버셜 링크
 xcrun simctl openurl booted "https://skkuverse.com/p/search"
-xcrun simctl openurl booted "https://skkuverse.com/p/transit"
+xcrun simctl openurl booted "https://skkuverse.com/privacy"        # Safari로 열려야 정상
 ```
 
 > [!NOTE]
-> 유니버셜 링크는 `skkuverse.com/.well-known/apple-app-site-association` (iOS)과 `assetlinks.json` (Android)이 서버에 호스팅되어야 실제 동작한다. 시뮬레이터에서는 커스텀 스킴으로 테스트하는 것이 확실하다.
+> **시뮬레이터는 AASA를 실제로 강제한다.** `https://skkuverse.com/privacy`가 앱이 아니라 Safari로 열리는 것으로 확인했다 — 즉 유니버셜 링크도 시뮬레이터에서 유효하게 테스트할 수 있다. 앱으로 들어오는지 Safari로 빠지는지가 그대로 AASA 목록을 반영한다.
+>
+> 결과는 화면으로 판별한다: `xcrun simctl io booted screenshot out.png`. 목적지 화면은 서로 시각적으로 구분되므로 탭 바가 가려져도 알 수 있다.
+
+### 회귀 주의점
+
+- **`/map/hssc`** — `MAP_PATH_RE = /^\/map$/`의 `$`가 없으면 `/map` 인터셉트가 층별 지도를 삼킨다. 삼켜도 "캠퍼스 탭이 열렸다"로 보여서 버그처럼 안 보인다.
+- **double-slash 표기** — `skkuverse://<segment>`는 non-special scheme이라 첫 세그먼트가 authority로 파싱된다. 이게 깨지면 `//campus`·`//search`·`//m/<slug>`·`//notices/...`가 **한꺼번에** 조용히 홈으로 무너진다. 표의 링크를 triple-slash로만 테스트하면 못 잡는다.
+- **공지 상세** — 라우팅 성공과 콘텐츠 로드는 별개다. 없는 articleNo를 넣으면 상세 화면이 push된 뒤 "공지를 불러오지 못했어요"가 뜨는데, 이는 라우팅 **통과**다.
 
 ## 관련 문서
 
