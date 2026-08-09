@@ -37,4 +37,4 @@ FCM 푸시 알림을 설계하면서 "지난 알림을 앱 안에서 다시 볼 
 - (−) 시스템 알림 센터에서 지워진 알림은 다시 볼 수 없다. **공지 자체는 notices 탭에 남아 있으므로 수용** — 재열람 니즈는 공지 리스트가 흡수한다.
 - (−) 공지가 아닌 알림(예: 미래의 일회성 안내)은 놓치면 복구 경로가 없다 — 그런 유형이 늘어나면 이 결정을 재검토한다.
 
-관련: `CLAUDE.md` FCM 섹션, `docs/plans/fcm-push-notifications.md` (superseded plan).
+관련: `CLAUDE.md` FCM 섹션, `docs/explanation/fcm-architecture.md` (current SSOT), `docs/plans/fcm-push-notifications.md` (superseded plan).

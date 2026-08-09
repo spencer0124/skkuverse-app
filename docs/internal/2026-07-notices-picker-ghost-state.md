@@ -69,7 +69,7 @@ audience: internal
 **Well**
 
 - ACCEPT 경로엔 Alert+재시도 규율이 이미 있었음 → 실측 대조: 그 경로(`seed-intent`)는 29명 전원 1회 회복, 무음 경로(`finalize`)는 유령 25명. 수정은 이 규율의 복제
-- 과거 디버깅 기록(`docs/plans/fcm-push-notifications.md`)의 latency-compensation 지식이 가설 절반을 즉시 기각
+- The latency-compensation knowledge now written up in [`how-to/firestore-debugging.md`](../how-to/firestore-debugging.md) ruled out half the hypotheses immediately
 
 **Wrong**
 

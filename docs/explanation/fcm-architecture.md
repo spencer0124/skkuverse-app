@@ -12,7 +12,7 @@ audience: internal
 > 한 줄 요약: 스꾸버스 푸시 알림(FCM)의 현행 아키텍처 — v5 SSOT("기록은 의도, 전송은 파생"), tabsContract 미러, drift sync, delivery path, auth transition을 다룬다. FCM 관련 코드를 만지기 전에 읽는다.
 
 > [!NOTE]
-> 이 문서는 [`docs/plans/fcm-push-notifications.md`](../plans/fcm-push-notifications.md)(status: superseded)의 후계자다. 계획 문서는 이력 가치로만 보존하며, 현행 아키텍처의 SSOT는 이 문서다. 단 Phase 3 디버깅 기록 등 과거 트러블슈팅 이력은 계획 문서에만 있다.
+> This document supersedes [`docs/plans/fcm-push-notifications.md`](../plans/fcm-push-notifications.md), which is now a short record that the work happened. This file is the SSOT for the current architecture. The troubleshooting history that used to live only in the plan was moved out before it was retired: see [`internal/2026-04-fcm-preferences-devices-drift.md`](../internal/2026-04-fcm-preferences-devices-drift.md), [`app-check.md`](app-check.md), and [`how-to/firestore-debugging.md`](../how-to/firestore-debugging.md).
 
 ## 개요
 
@@ -100,7 +100,7 @@ preferences와 devices 복제 필드의 drift를 막는 Cloud Function (2026-04-
 | 권한 | Admin SDK (Security Rules 우회) |
 | 구현 | `functions/src/sync-preferences-to-devices.ts` |
 
-운영 주의사항은 [`docs/plans/fcm-push-notifications.md`](../plans/fcm-push-notifications.md) Phase 3 디버깅 기록 #2 섹션 참조.
+For why each of this trigger's guards exists, and the incident that produced it, see [`internal/2026-04-fcm-preferences-devices-drift.md`](../internal/2026-04-fcm-preferences-devices-drift.md).
 
 ## Delivery path — `sendNotification`
 
@@ -159,7 +159,8 @@ anon↔Google 전환 시 `devices/{deviceId}.uid`가 stale해져 `firestore/perm
 
 ## 관련 문서
 
-- [plans/fcm-push-notifications.md](../plans/fcm-push-notifications.md) — superseded 구현 계획 (이력 + Phase 3 디버깅 기록)
+- [internal/2026-04-fcm-preferences-devices-drift.md](../internal/2026-04-fcm-preferences-devices-drift.md) — why preferences replicate to devices through a trigger, and how to operate it
+- [plans/fcm-push-notifications.md](../plans/fcm-push-notifications.md) — the superseded implementation plan, kept as a record
 - [app-check.md](app-check.md) — Firestore write 앞의 App Check 토큰 준비 (`primeAppCheck`)
 - [internal/2026-07-notices-picker-ghost-state.md](../internal/2026-07-notices-picker-ghost-state.md) — 유령 preferences 포스트모템 (시드 write 실패 사고)
 - [ADR 0002 — 알림함 없는 푸시 설계](../decisions/0002-no-notification-inbox.md)
