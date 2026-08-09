@@ -3,118 +3,125 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-07
+last-updated: 2026-08-10
 audience: internal
 ---
 
 # Docs Index & Conventions
 
-> skkuverse-app 문서의 인덱스이자 문서 작성 규칙의 단일 진실 출처(SSOT). 새 문서를 쓰기 전에 이 파일을 읽는다.
+> The index of skkuverse-app's documentation, and the single source of truth for how to write it. Read this before starting a new document.
 
-## 폴더 구조 (Diátaxis)
+## Folder structure (Diátaxis)
 
-문서는 [Diátaxis](https://diataxis.fr/) 4분류 + 내부 전용 3분류로 나눈다. **분류 기준은 주제가 아니라 독자의 니즈**다.
+Documents are filed under the four [Diátaxis](https://diataxis.fr/) categories plus three
+internal ones. **The category follows the reader's need, not the subject matter.**
 
-| 폴더 | 니즈 | 내용 | 예시 |
+| Folder | Need | Contents | Examples |
 | --- | --- | --- | --- |
-| `tutorials/` | 배우기 (학습) | 손잡고 따라가는 온보딩 레슨 | 개발 환경 셋업 |
-| `how-to/` | 해내기 (작업) | 특정 목표를 달성하는 절차 런북 | 빌드·배포, OTA 발행 |
-| `reference/` | 찾아보기 (정보) | 계약·스펙·규칙의 권위 있는 사실 | API 스펙, 딥링크 계약, UX 라이팅 규칙 |
-| `explanation/` | 이해하기 (맥락) | 왜 이렇게 되어 있는지, 네이티브 메커니즘 | iOS 26 탭바, SafeArea, 마커 버그 |
-| `decisions/` | — | ADR (Architecture Decision Records) | `NNNN-kebab-title.md` |
-| `internal/` | — | 포스트모템, 디버깅 기록 | `YYYY-MM-topic.md` |
-| `plans/` | — | 진행 중/완료된 구현 계획 (mutable, 초안 성격) | FCM 푸시 계획 |
+| `tutorials/` | Learning | A guided lesson for someone with no context | Setting up a dev machine |
+| `how-to/` | Doing | A runbook for one goal | Build and deploy, publishing an OTA |
+| `reference/` | Looking up | Authoritative facts: contracts, specs, rules | API specs, the deep link contract, UX writing rules |
+| `explanation/` | Understanding | Why something is shaped this way, and the native mechanism behind it | iOS 26 tab bar, safe area, the marker bug |
+| `decisions/` | — | ADRs (Architecture Decision Records) | `NNNN-kebab-title.md` |
+| `internal/` | — | Postmortems and debugging records | `YYYY-MM-topic.md` |
+| `plans/` | — | Work plans, still open or already done. Mutable and draft by nature | The FCM push plan |
 
-**한 문서 = 한 니즈.** 절차와 배경 설명이 섞이면 문서를 쪼개고 서로 링크한다.
+A document serves one need. When a procedure and its background start sharing a page, split
+them and link the halves.
 
-패키지 국소 지식(해당 패키지에서만 유효한 내용)은 이 폴더가 아니라 **각 워크스페이스의 `README.md`** 또는 패키지 내 문서(`packages/sds/SDS.md` 등)에 둔다. 여기는 패키지 경계를 넘는(cross-cutting) 지식 전용.
+Knowledge that is local to one package belongs in **that workspace's `README.md`**, or in a
+document inside the package such as `packages/sds/SDS.md`. This folder is for knowledge that
+crosses package boundaries.
 
-## 문서 인덱스
+## Index
 
-### tutorials (학습)
+### tutorials
 
-| 문서 | 요약 |
+| Document | Summary |
 | --- | --- |
-| [getting-started.md](tutorials/getting-started.md) | 새 머신 → 앱 실행까지 (Node/JDK/SDK, 비밀 파일, 네이티브 빌드) |
+| [getting-started.md](tutorials/getting-started.md) | New machine to running app: Node/JDK/SDK, secret files, native build |
 
-### how-to (런북)
+### how-to
 
-| 문서 | 요약 |
+| Document | Summary |
 | --- | --- |
-| [ios-build-deploy.md](how-to/ios-build-deploy.md) | iOS 로컬 빌드(EAS `--local`) → TestFlight/App Store 배포 |
-| [android-build-deploy.md](how-to/android-build-deploy.md) | Android 로컬 빌드 → Google Play 배포 |
-| [ota-update.md](how-to/ota-update.md) | OTA 업데이트 발행 (beta/production 채널) |
-| [firestore-debugging.md](how-to/firestore-debugging.md) | Firestore 디버깅 절차 — 증상별 판별표, REST server truth, emulator 검증 |
-| [add-notice-tab.md](how-to/add-notice-tab.md) | 공지 탭 추가 크로스-레포 체크리스트 (server categories.json ↔ tabsContract 미러) |
+| [ios-build-deploy.md](how-to/ios-build-deploy.md) | iOS local build (EAS `--local`), then TestFlight or the App Store |
+| [android-build-deploy.md](how-to/android-build-deploy.md) | Android local build, then Google Play |
+| [ota-update.md](how-to/ota-update.md) | Publishing an OTA update to the beta or production channel |
+| [firestore-debugging.md](how-to/firestore-debugging.md) | Firestore debugging, from the symptom table through REST server truth to emulator checks |
+| [add-notice-tab.md](how-to/add-notice-tab.md) | Cross-repo checklist for adding a notice tab (server categories.json to the tabsContract mirror) |
 
-### reference (계약·스펙)
+### reference
 
-| 문서 | 요약 |
+| Document | Summary |
 | --- | --- |
-| [deep-link.md](reference/deep-link.md) | `skkuverse://` + 유니버셜 링크 화이트리스트 계약 |
-| [map-config-api-spec.md](reference/map-config-api-spec.md) | `GET /map/config` 등 지도 API 계약 (server↔client) |
-| [sdui-campus-spec.md](reference/sdui-campus-spec.md) | Campus 탭 Server-Driven UI 계약 |
-| [ux-writing.md](reference/ux-writing.md) | UX 라이팅 규칙 (해요체 등 6대 규칙 + 8원칙) |
+| [deep-link.md](reference/deep-link.md) | The `skkuverse://` and universal link whitelist contract |
+| [map-config-api-spec.md](reference/map-config-api-spec.md) | Map API contract between server and client, including `GET /map/config` |
+| [sdui-campus-spec.md](reference/sdui-campus-spec.md) | Server-driven UI contract for the campus tab |
+| [ux-writing.md](reference/ux-writing.md) | UX writing rules: six required rules and eight principles |
 
-### explanation (메커니즘·배경)
+### explanation
 
-| 문서 | 요약 |
+| Document | Summary |
 | --- | --- |
-| [architecture.md](explanation/architecture.md) | 전체 아키텍처 — monorepo 경계, 데이터 흐름, provider stack, 시스템 다이어그램 |
-| [fcm-architecture.md](explanation/fcm-architecture.md) | 현행 FCM 아키텍처 — v5 SSOT, tabsContract, delivery, auth transition |
-| [notices-feature.md](explanation/notices-feature.md) | 공지 기능 — 서버 주도 탭, 마크다운 렌더링, 온보딩 게이트 + 자동복원 |
-| [app-check.md](explanation/app-check.md) | App Check — 디버그 토큰 주입 경로, Play Integrity 스로틀 + prime 캐시 |
-| [ios-26-native-tabs-minimize.md](explanation/ios-26-native-tabs-minimize.md) | NativeTabs minimize + contentInset의 chain root rule |
-| [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | 모달 라우트별 SafeAreaProvider 재마운트가 필요한 이유 |
-| [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | 커스텀 뷰 마커 bitmap snapshot race와 해법 |
-| [eventmap-rendering.md](explanation/eventmap-rendering.md) | 이벤트 지도 클라이언트 — 서버 시계 오프셋, 술어 평가, stackKey 핀 렌더링 |
-| [splash-animation.md](explanation/splash-animation.md) | 스플래시 애니메이션 구현과 InitGate 연동 |
+| [architecture.md](explanation/architecture.md) | The whole system, from monorepo boundaries and data flow through to the provider stack and its diagrams |
+| [fcm-architecture.md](explanation/fcm-architecture.md) | Current FCM architecture: v5 SSOT, tabsContract, delivery, auth transition |
+| [notices-feature.md](explanation/notices-feature.md) | Notices: server-driven tabs, markdown rendering, the onboarding gate and auto-restore |
+| [app-check.md](explanation/app-check.md) | App Check: debug token injection paths, Play Integrity throttling and cache priming |
+| [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
+| [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | Why every modal route needs its own SafeAreaProvider |
+| [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | The custom view marker bitmap snapshot race, and the fix |
+| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering the server clock offset, predicate evaluation and stackKey pin rendering |
+| [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 
 ### decisions (ADR)
 
-| 문서 | 상태 |
+Each ADR's own frontmatter carries its status. It is not repeated here, because a value
+copied to a second place is a value that will disagree with the first.
+
+| Document | Summary |
 | --- | --- |
-| [0001-adopt-diataxis-docs-structure.md](decisions/0001-adopt-diataxis-docs-structure.md) | accepted |
-| [0002-no-notification-inbox.md](decisions/0002-no-notification-inbox.md) | accepted (백필) |
-| [0003-local-eas-build-fastlane.md](decisions/0003-local-eas-build-fastlane.md) | accepted (백필) |
-| [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | accepted (백필) |
-| [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | accepted (백필) |
-| [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | accepted |
+| [0001-adopt-diataxis-docs-structure.md](decisions/0001-adopt-diataxis-docs-structure.md) | Filing documents by reader need |
+| [0002-no-notification-inbox.md](decisions/0002-no-notification-inbox.md) | Push without an in-app inbox, with a locally computed badge |
+| [0003-local-eas-build-fastlane.md](decisions/0003-local-eas-build-fastlane.md) | Building locally with EAS `--local` and Fastlane rather than in the cloud |
+| [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | Self-hosted OTA with a fixed runtimeVersion instead of fingerprinting |
+| [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | User data in Firebase, public data in MongoDB behind the backend |
+| [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | Mini app shell, web view bridge, and how push reaches it |
 
-### internal (포스트모템·디버깅)
+### internal (postmortems and debugging)
 
-| 문서 | 요약 |
+| Document | Summary |
 | --- | --- |
-| [2026-07-notices-picker-ghost-state.md](internal/2026-07-notices-picker-ghost-state.md) | 학과 picker 유령 preferences 상태 포스트모템 |
+| [2026-07-notices-picker-ghost-state.md](internal/2026-07-notices-picker-ghost-state.md) | Postmortem: ghost preferences state in the department picker |
 
-### plans (구현 계획)
+### plans
 
-| 문서 | 상태 |
+| Document | Summary |
 | --- | --- |
-| [fcm-push-notifications.md](plans/fcm-push-notifications.md) | superseded — 완료. 현행 SSOT는 `CLAUDE.md` FCM 섹션 |
-| [miniapp-platform.md](plans/miniapp-platform.md) | draft — 미니앱 플랫폼 기획(사례·온보딩). 앱측 결정은 ADR 0006 |
+| [fcm-push-notifications.md](plans/fcm-push-notifications.md) | Superseded. The current architecture lives in [fcm-architecture.md](explanation/fcm-architecture.md) |
+| [miniapp-platform.md](plans/miniapp-platform.md) | Mini app platform planning: use cases and onboarding. The app-side decision is ADR 0006 |
 
-### 워크스페이스 README (co-located)
+### Workspace READMEs (co-located)
 
-패키지 국소 지식은 각 워크스페이스 README에 있다:
+Package-local knowledge lives next to the package:
 
-| README | 패키지 |
+| README | Package |
 | --- | --- |
-| [apps/mobile](../apps/mobile/README.md) | Expo 모바일 앱 — 실행·구조·빌드 링크 |
-| [packages/shared](../packages/shared/README.md) | 데이터 레이어 (API·스토어·훅·토큰·i18n) |
-| [packages/bridge](../packages/bridge/README.md) | Web↔Native 메시지 계약 |
-| [packages/sds](../packages/sds/README.md) | 디자인 시스템 (+ SDS.md, TOSS_UX_GUIDE.md) |
-| [functions](../functions/README.md) | Cloud Functions (트리거·verify 스크립트) |
+| [apps/mobile](../apps/mobile/README.md) | The Expo mobile app, how to run it, and links to the build runbooks |
+| [packages/shared](../packages/shared/README.md) | Data layer: API client, stores, hooks, tokens, i18n |
+| [packages/bridge](../packages/bridge/README.md) | The web-to-native message contract |
+| [packages/sds](../packages/sds/README.md) | Design system, plus SDS.md and TOSS_UX_GUIDE.md |
+| [functions](../functions/README.md) | Cloud Functions: triggers and verify scripts |
 
-## 문서 작성 규칙
+## Writing rules
 
-### 1. Frontmatter (필수)
+### 1. Frontmatter (required)
 
-모든 문서는 YAML frontmatter로 시작한다:
+Every document opens with YAML frontmatter:
 
 ```yaml
 ---
-title: <Title Case 제목>
+title: <Title Case>
 type: how-to | reference | explanation | tutorial | adr | plan | postmortem
 status: draft | accepted | superseded | deprecated
 owner: zoyoong124@gmail.com
@@ -123,43 +130,64 @@ audience: internal | public
 ---
 ```
 
-- `status: superseded/deprecated`일 때는 본문 첫머리에 현행 SSOT 링크를 남긴다.
-- 문서 내용을 실질적으로 고칠 때마다 `last-updated`를 갱신한다.
+- The `status` and `audience` values are checked by the umbrella's `lint_conventions.py`.
+  The `type` list is this repo's own convention: the checker requires the key, not any
+  particular value, so a typo there fails review rather than CI.
+- When `status` is `superseded` or `deprecated`, open the body with a link to the current SSOT.
+- Update `last-updated` whenever you change what the document says.
 
-### 2. 골격
+### 2. Skeleton
 
-frontmatter 다음은 반드시:
+Immediately after the frontmatter:
 
-1. `# H1` — 문서당 정확히 하나
-2. `> 한 줄 요약` — 이 문서가 무엇이고 누가 읽어야 하는지
+1. `# H1`, exactly one per document
+2. `> one-line summary` saying what the document is and who should read it
 
-이후 `##` 섹션. 레벨 건너뛰기 금지. 새 문서는 [`_template.md`](_template.md)를 복사해서 시작한다.
+Then `##` sections, with no skipped levels. Start a new document by copying
+[`_template.md`](_template.md).
 
-### 3. 값을 복사하지 말고 출처를 가리켜라
+### 3. Point at the source, do not copy the value
 
-**버전·수치·개수를 문서에 하드코딩하지 않는다.** 코드가 바뀌면 문서가 조용히 거짓말을 시작하는 것이 이 레포 staleness의 근본 원인이었다 (OTA 문서의 `runtimeVersion` 박제, rules 테스트 개수 박제 등).
+**Never hardcode a version, measurement, or count into a document.** When the code changes,
+a copied value starts lying silently, and that was the root cause of staleness across this
+repo: a `runtimeVersion` frozen into the OTA runbook, a rules-test count frozen into a plan.
 
-- ❌ `runtimeVersion은 3.5.0이다`
-- ✅ `runtimeVersion은 apps/mobile/app.config.ts에서 확인한다`
-- 예시 값이 꼭 필요하면 `<runtime-version>` 플레이스홀더나 "작성 시점 기준" 명시를 쓴다.
+- Wrong: `runtimeVersion is 3.5.0`
+- Right: `runtimeVersion is defined in apps/mobile/app.config.ts`
+- When an example value is genuinely needed, use a `<runtime-version>` placeholder or say
+  explicitly that it was accurate at the time of writing.
 
-### 4. 파일명
+### 4. File names
 
-- **kebab-case, 소문자, `.md`** — `ios-build-deploy.md`
-- ADR: `NNNN-kebab-title.md` (0패딩 일련번호, 동사 시작 권장) — `0001-adopt-diataxis-docs-structure.md`
-- 포스트모템: `YYYY-MM-topic.md` — `2026-07-notices-picker-ghost-state.md`
-- ALL-CAPS는 GitHub 특수 파일만 (`README`, `CONTRIBUTING`, `LICENSE`)
+- **kebab-case, lowercase, `.md`**, as in `ios-build-deploy.md`
+- ADRs: `NNNN-kebab-title.md`, zero-padded, preferably starting with a verb, as in
+  `0001-adopt-diataxis-docs-structure.md`
+- Postmortems: `YYYY-MM-topic.md`, as in `2026-07-notices-picker-ghost-state.md`
+- ALL-CAPS names are reserved for the files GitHub treats specially: `README`,
+  `CONTRIBUTING`, `LICENSE`
 
-### 5. 서식
+### 5. Formatting
 
-- 코드펜스는 **언어 태그 필수** (`bash`, `ts`, `tsx`, `json`, `yaml` — `typescript` 말고 `ts`)
-- 구조화된 사실(파라미터, 경로, 옵션)은 표로
-- 주의·경고는 GitHub admonition: `> [!NOTE]`, `> [!WARNING]`
-- 본문 언어는 한국어, 기술 용어는 영어 그대로
-- 린트: `yarn lint:md` (markdownlint-cli2, 설정은 루트 `.markdownlint-cli2.jsonc`)
+- Every code fence declares a language: `bash`, `ts`, `tsx`, `json`, `yaml`. Use `ts`, not
+  `typescript`.
+- Structured facts, such as parameters, paths and options, go in tables.
+- Warnings use GitHub admonitions: `> [!NOTE]` and `> [!WARNING]`.
+- **Write in English.** This is a fleet-wide policy, defined in the umbrella repository's
+  `CLAUDE.md` and enforced by its `lint_conventions.py`, which fails on Korean anywhere
+  outside declared product copy. Korean that is itself the product, such as an i18n bundle or a
+  UX copy example, stays Korean: mark the individual line with a
+  `<!-- conventions:allow-korean: reason -->` comment, or declare a whole path under
+  `productCopy` in `.conventions.json` when the entire file is product data.
+- Lint with `yarn lint:md`, which runs markdownlint-cli2. The rule set is vendored from the
+  umbrella as `.markdownlint.jsonc`; this repo's `.markdownlint-cli2.jsonc` names only which
+  paths to lint.
 
-### 6. 라이프사이클
+### 6. Lifecycle
 
-- 계획(`plans/`)이 구현 완료되면: 정착한 지식은 `reference/`/`explanation/`으로 옮기거나 새로 쓰고, 계획 문서는 `status: superseded`로 표시 (삭제하지 않음 — 이력 가치)
-- 구조적 결정을 내렸으면 `decisions/`에 ADR 한 편 (Context / Decision / Consequences)
-- 문서가 코드와 어긋난 걸 발견하면 그 자리에서 고치거나, 최소한 `> [!WARNING] stale` 표시를 남긴다
+- When a plan in `plans/` ships, move the knowledge that settled into `reference/` or
+  `explanation/`, or rewrite it there, and mark the plan `status: superseded`. Do not delete
+  it, since the history has value.
+- After a structural decision, write one ADR in `decisions/` covering Context, Decision and
+  Consequences.
+- When you find a document that disagrees with the code, fix it where you stand, or at
+  minimum leave a `> [!WARNING]` saying it is stale.
