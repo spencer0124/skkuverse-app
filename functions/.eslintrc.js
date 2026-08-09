@@ -4,7 +4,10 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2021,
     sourceType: 'module',
-    project: './tsconfig.json',
+    // Not tsconfig.json: that one includes src/** alone, so type-aware rules
+    // would error "file does not match your project config" on test/ and
+    // scripts/. See tsconfig.eslint.json.
+    project: './tsconfig.eslint.json',
     tsconfigRootDir: __dirname,
   },
   plugins: ['@typescript-eslint'],

@@ -57,9 +57,8 @@ firestore-export/
 .github/*
 !.github/workflows/
 .github/workflows/*
-!.github/workflows/claude-code-review.yml
+!.github/workflows/ci.yml
 !.github/workflows/claude.yml
-!.github/workflows/contracts.yml
 !.github/workflows/contracts-sync.yml
 !.github/workflows/back-merge-dev.yml
 
@@ -70,3 +69,6 @@ firestore-export/
 
 # Local MCP config — contains DB credentials, never commit
 .mcp.json
+
+# explain-diff plugin output — generated HTML walkthroughs, regenerable
+explain-diff/

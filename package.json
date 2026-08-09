@@ -10,9 +10,11 @@
   "scripts": {
     "android": "cd apps/mobile && expo run:android",
     "ios": "cd apps/mobile && expo run:ios",
-    "lint": "expo lint && yarn lint:md",
+    "lint": "expo lint --max-warnings 0 && yarn lint:md",
     "lint:md": "markdownlint-cli2",
-    "test:rules": "JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin:$PATH firebase emulators:exec --only firestore \"node --test apps/mobile/firestore.rules.test.mjs\"",
+    "typecheck": "tsc --noEmit -p apps/mobile && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/sds && tsc --noEmit -p packages/bridge",
+    "test": "yarn workspace @skkuverse/shared test && yarn workspace mobile test",
+    "test:rules": "bash scripts/test-rules.sh",
     "postinstall": "patch-package"
   },
   "dependencies": {

@@ -1,0 +1,134 @@
+name: CI
+
+# Split into jobs by what a red result means, so the job name carries the
+# diagnosis: `conventions` says the fleet's shared rules are violated,
+# `workspace` and `functions` say this repo's own code is, `rules` says the
+# security boundary is, and `prose` says the writing drifted. Conflating them
+# makes the failure name useless.
+on:
+  pull_request:
+    # dev, not just main: dev is the real integration branch here, and gating
+    # only main would let drift sit in dev indefinitely.
+    branches: [main, dev]
+  push:
+    branches: [main]
+
+# Never cancel on main — a push there is the record of what shipped.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Offline and dependency-free: ubuntu-latest ships python3 and the umbrella's
+  # exported/ scripts are stdlib-only, so adopting the fleet's rules costs no
+  # install step and no entry in any manifest here.
+  conventions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cloned to RUNNER_TEMP rather than into the workspace, where the lint
+      # and typecheck jobs would see it.
+      - name: Fetch umbrella tooling
+        run: git clone --depth 1 https://github.com/spencer0124/skkuverse "$RUNNER_TEMP/sv"
+
+      # tabsContract.generated.ts mirrors skkuverse-server's categories.json.
+      # Adding a *fixed* tab without updating the mirror is otherwise
+      # undetectable — derive() warns on an unknown picker key, but a missing
+      # fixed key just means that tab's subscribers receive nothing, with no
+      # error anywhere. Offline: it compares against this repo's own
+      # .contracts.lock.json, so it can never go red because someone edited a
+      # category upstream.
+      - name: Contract integrity
+        run: python3 "$RUNNER_TEMP/sv/exported/sync_contracts.py" check --repo app --root .
+
+      # The shared conventions, defined once in the umbrella. Same clone, so
+      # this adds no dependency.
+      #
+      # `--only` while docs/ is still being translated: `language` fails today
+      # for reasons no single PR can fix, and turning the whole check off until
+      # the translation finishes would leave the two rules this repo already
+      # satisfies ungated for however long that takes. Drop the flags once
+      # docs/, README.md and CLAUDE.md are English.
+      - name: Conventions
+        run: |
+          python3 "$RUNNER_TEMP/sv/exported/lint_conventions.py" --root . \
+            --only frontmatter --only structure
+
+  # apps/ and packages/ — 316 tests and the whole ESLint + markdownlint surface
+  # that had only ever run on a laptop.
+  workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn typecheck
+      - run: yarn lint
+      - run: yarn test
+
+  functions:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v4
+
+      # functions/ is not a yarn workspace member (root workspaces are apps/*
+      # and packages/*) and carries its own package-lock.json, so this is a
+      # plain npm ci untouched by the Expo toolchain. Same node version as the
+      # workspace job: .nvmrc now agrees with functions/package.json engines.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: npm test
+
+  # Its own job because it needs a JDK and an emulator download that nothing
+  # else here wants, and because a rules failure is a security-boundary
+  # failure rather than a code failure. ADR 0005 makes these rules the only
+  # thing standing between a signed-in user and someone else's data.
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      # The Firestore emulator is a Java program. setup-java exports JAVA_HOME,
+      # which is exactly what scripts/test-rules.sh looks for first — so the
+      # script's macOS discovery branch never runs here.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - run: yarn install --frozen-lockfile
+
+      # The emulator jar is fetched on first run and is large. Keyed on the OS
+      # alone: firebase-tools is pinned below, so the jar it wants only changes
+      # when that pin does.
+      - name: Cache the Firestore emulator
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}
+
+      # Pinned exactly, like every other dependency in the fleet. Installed
+      # globally rather than as a root devDependency: it is ~100 MB that no
+      # local workflow needs inside node_modules, and a developer machine
+      # already has the CLI on PATH.
+      - run: npm i -g firebase-tools@15.15.0
+
+      - run: yarn test:rules

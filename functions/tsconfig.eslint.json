@@ -1,0 +1,12 @@
+{
+  // Parser-only project for ESLint. tsconfig.json is the *build* project and
+  // deliberately includes src/** alone, because test/ and scripts/ are run
+  // directly with `node --experimental-strip-types` and must never reach lib/.
+  // Type-aware linting still needs every file it lints to belong to some
+  // project, so this widens the include without widening the build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"]
+}
