@@ -65,32 +65,35 @@ audience: public
     ],
     "layers": [
       {
-        "id": "campus_buildings",
+        "id": "building_numbers",
         "type": "marker",
+        "markerStyle": "numberCircle",
         "label": "건물번호",
         "defaultVisible": true,
-        "endpoint": "/map/markers/campus"
+        "endpoint": "/map/markers/campus?overlay=number"
       },
       {
-        "id": "bus_route_hssc",
-        "type": "polyline",
-        "label": "인사캠 셔틀노선",
+        "id": "building_labels",
+        "type": "marker",
+        "markerStyle": "textLabel",
+        "label": "건물이름",
         "defaultVisible": true,
-        "endpoint": "/bus/hssc/overlay",
-        "style": { "color": "2D8C4E" }
-      },
-      {
-        "id": "bus_route_nsc",
-        "type": "polyline",
-        "label": "자과캠 셔틀노선",
-        "defaultVisible": true,
-        "endpoint": "/bus/nsc/overlay",
-        "style": { "color": "1A5FA8" }
+        "endpoint": "/map/markers/campus?overlay=label"
       }
     ]
   }
 }
 ```
+
+> [!NOTE]
+> 이 예시는 2026-08-09 기준 실제 `GET /map/config` 응답과 일치한다 (권위는 서버
+> `src/map/map-config.data.ts`). 이전 판에는 존재하지 않는 `campus_buildings`
+> 단일 레이어와 `bus_route_*` 폴리라인이 적혀 있었다 — 폴리라인은 서버에서
+> 주석 처리된 상태다.
+>
+> **건물번호와 건물이름이 별개 레이어라는 점이 계약의 일부다.** 이벤트 기간에
+> 건물번호만 숨기고 건물이름은 남기는 동작이 이 분리 위에서 성립한다
+> ([eventmap-rendering.md](../explanation/eventmap-rendering.md) §8.1).
 
 ### 응답 (304)
 
