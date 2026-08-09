@@ -11,5 +11,9 @@ import { backgroundMessageHandler } from './src/services/background-messaging';
 
 messaging().setBackgroundMessageHandler(backgroundMessageHandler);
 
-// Expo Router default entry — must come after handler registration
+// Expo Router default entry — must come after handler registration.
+// Hoisting this to the top would register the component before
+// setBackgroundMessageHandler runs, which is the exact failure the file
+// header describes, so the rule is suppressed rather than satisfied.
+// eslint-disable-next-line import/first
 import 'expo-router/entry';

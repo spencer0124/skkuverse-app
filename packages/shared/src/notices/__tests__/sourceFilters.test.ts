@@ -9,6 +9,8 @@ const crawlable: TabSource = {
   college: '소프트웨어융합대학',
   noticeAvailable: true,
   excludeReason: null,
+  // Biconditional with excludeReason: no reason, no copy to resolve.
+  excludeReasonText: null,
 };
 
 const unsupported: TabSource = {
@@ -18,6 +20,7 @@ const unsupported: TabSource = {
   college: '의과대학',
   noticeAvailable: false,
   excludeReason: 'loginRequired',
+  excludeReasonText: '로그인이 필요한 사이트예요',
 };
 
 describe('filterPickerSources', () => {
