@@ -33,7 +33,7 @@ user only through the action union (§7).
 
 ## 2. Fetch path
 
-Cold start is two requests; every poll after is one small request that usually returns **304**. The
+Cold start is two requests. Every poll after that is one small request that usually returns **304**. The
 snapshot carries structure and items together, so toggling a layer or chip costs **zero** network.
 
 | Hook | Endpoint | staleTime | On failure |
@@ -44,8 +44,8 @@ snapshot carries structure and items together, so toggling a layer or chip costs
 `staleTime: Infinity` is **correct, not a shortcut**: the URL is version-scoped, so a new version is a
 new query key and there is nothing to revalidate.
 
-**`nextChangeAt` scheduling.** Polling alone is not enough — a 주점 opening at 18:00 would read
-"준비중" until the next poll. `useEventMapManifest` also schedules a **one-shot timer** at
+**`nextChangeAt` scheduling.** Polling alone is not enough — a night stall opening at 18:00 would
+still read "준비중" until the next poll. <!-- conventions:allow-korean: the literal string the app shows --> `useEventMapManifest` also schedules a **one-shot timer** at
 `nextChangeAt` that refetches and re-derives status. One timer, not a per-second tick; cleared on
 unmount, re-armed on each manifest change. Guard a past/absent value (no timer) and clamp a distant
 one — `setTimeout` overflows its 32-bit delay and fires immediately.
@@ -58,7 +58,7 @@ surface an error.
 
 ## 3. Tolerant parsing
 
-The server fails loud on config it can fix; the client fails soft on a payload it can only render.
+The server fails loud on config it can fix. The client fails soft on a payload it can only render.
 Every drop is counted and returned alongside the parsed snapshot so unknowns can be logged rather
 than vanishing silently.
 
@@ -95,7 +95,7 @@ The evaluator only needs a twin if the **server** also evaluates predicates, whi
 compute filter option counts — and counts are on the cut list. While they stay cut, this file lives
 in the app alone and there is nothing to keep in sync.
 
-If counts ever ship, do **not** hand-maintain a second fixture. Register
+If counts ever arrive, never hand-maintain a second fixture. Register
 `predicate-vectors.json` through the fleet contract system, governed by
 [umbrella ADR 0002 — pull-based config contracts](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0002-pull-based-config-contracts.md):
 
@@ -165,7 +165,7 @@ refetch hot loop on festival day.
 > Firing the timer must bump a counter that the status memo depends on, not merely invalidate the
 > manifest query. An unchanged manifest returns byte-identical, React Query's structural sharing
 > preserves object identity, nothing re-renders — and 18:00 passes with every pin still reading
-> 준비중.
+> 준비중. <!-- conventions:allow-korean: the literal string the app shows -->
 
 ## 6. Rendering: pins, not clusters
 
@@ -175,7 +175,7 @@ Verified against the current release, not assumed: we run 2.7.0, latest is 2.9.0
 | | `NaverMapMarkerOverlay` | `ClusterMarkerProp` |
 | --- | --- | --- |
 | `caption` / `subCaption` | ✅ | ❌ |
-| `alpha` (dim when closed) | ✅ icon *and* caption | ❌ |
+| `alpha` (dim when closed) | ✅ icon together with caption | ❌ |
 | per-marker `onTap` | ✅ | ❌ map-level `onTapClusterLeaf` |
 | `anchor`, `tintColor`, `minZoom`/`maxZoom` | ✅ | ❌ |
 | `zIndex` / `globalZIndex`, children | ✅ | ❌ |
@@ -204,13 +204,13 @@ by the maintainer in 2024 promising these options and was stale-bot closed undel
 
 ### 6.2 `stackKey`
 
-Same plot, two occupants (day booth + night 주점) = two items at identical coordinates.
+Same plot, two occupants (a daytime booth and a night stall) means two items at identical coordinates.
 
 The server emits `stackKey` and `pinPriority`. The client renders **at most one marker per
 `stackKey`**, keeping the highest priority (ties broken by status rank
 `open > upcoming > closed > unknown`); a tap opens a peek sheet listing every item sharing the key.
 
-Generic on purpose: `stackKey` is a string the server chooses. Normally `placeId`; if 대운동장 is too
+Generic on purpose: `stackKey` is a string the server chooses. Normally `placeId`; if the main field is too
 dense the server switches it to `zone`. **No data change, no app release.**
 
 ### 6.3 `EventMapPinLayer`
@@ -221,7 +221,7 @@ One `<NaverMapMarkerOverlay>` per deduped `stackKey`:
 | --- | --- |
 | `image` | resolved from `icons` **by `kind`** — see below |
 | `caption` | title, with `isHideCollidedCaptions` |
-| `alpha` | `status === 'closed' ? 0.45 : 1` — applies to icon *and* caption |
+| `alpha` | `status === 'closed' ? 0.45 : 1` — applies to icon together with caption |
 | `minZoom` / `maxZoom` | from the layer |
 | `onTap` | `selectStack(stackKey)` |
 | children | **none** — sidesteps the Android bitmap-snapshot race in [`android-naver-map-markers.md`](android-naver-map-markers.md) |
@@ -353,8 +353,9 @@ the permanent campus-layer store would leave dead `eskara-2026` keys in persiste
 
 ### 8.1 `basemapOverride` is derived, never persisted
 
-The snapshot names base-map layers the event forces to a visibility — normally hiding 건물번호 while
-leaving 건물이름 up, so pins stay legible without stripping the map of orientation. Those are two
+The snapshot names base-map layers the event forces to a visibility — normally hiding building
+numbers while leaving building names up, so pins stay legible without stripping the map of
+orientation. Those are two
 separate layers in `/map/config` (`building_numbers`, `building_labels`), so this needs no new concept.
 
 It is applied as an overlay at render time:
@@ -363,7 +364,7 @@ It is applied as an overlay at render time:
 const visible = basemapOverride[id] ?? userToggle[id] ?? layer.defaultVisible;
 ```
 
-and deliberately **not** written into the store. A force-then-restore design loses the user's real
+and deliberately kept out of the store. A force-then-restore design loses the user's real
 toggle whenever the restore does not run — app killed, activation flipped between the write and the
 restore — leaving a layer off permanently with nothing on screen to explain why. Derived, the override
 simply stops existing when the event does, and no restore code is needed. Same reasoning that put

@@ -22,12 +22,12 @@ This app is the primary client in the skkuverse ecosystem. It reads live data fr
 
 What the app delivers to students:
 
-- **Real-time shuttle positions** — HSSC campus shuttle + 종로02/07 city bus (live polling)
+- **Real-time shuttle positions** — HSSC campus shuttle plus the Jongno 02 and 07 city buses, polled live
 - **Campus shuttle schedules** — Inja–Jain intercampus, no-service on holidays and SKKU rest days
-- **Bus stop ETAs** — 혜화역 arrival info
+- **Bus stop ETAs** — arrival times at Hyehwa Station
 - **Department notices** — 147-source feed with AI summaries, per-source subscriptions, FCM push
 - **Building & space search** — SKKU campus map with room-level detail
-- **Server-driven UI** — home screen sections and map config served dynamically
+- **Server-driven UI** — home screen sections and map config decided by the server
 
 ---
 
