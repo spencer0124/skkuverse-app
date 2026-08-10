@@ -11,8 +11,8 @@
     "shell": "npm run build && firebase functions:shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint --ext .ts src",
-    "test": "node --experimental-strip-types --test --test-reporter=spec test/derive.test.ts test/tabsContract.test.ts test/equality.test.ts",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint --ext .ts src test scripts",
+    "test": "node --experimental-strip-types --test --test-reporter=spec 'test/**/*.test.ts'",
     "verify:trigger": "npm run build && firebase emulators:exec --only functions,firestore --project demo-skku-verify-trigger \"node --experimental-strip-types scripts/verify-trigger.ts\"",
     "verify:delete-account": "npm run build && JAVA_HOME=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@25/libexec/openjdk.jdk/Contents/Home/bin:$PATH firebase emulators:exec --only functions,firestore,auth --project demo-skku-delete-account \"node --experimental-strip-types scripts/verify-delete-account.ts\""
   },

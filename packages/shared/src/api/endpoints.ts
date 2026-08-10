@@ -31,6 +31,12 @@ export const ApiEndpoints = {
   mapConfig: () => '/map/config',
   aroundPlace: () => '/map/v1/getaroundplacedata',
 
+  // ── Event map ──
+  // Only the manifest is listed. The snapshot URL is formed server-side and
+  // already carries `/:layerSetId/:version?lang=`; the client joins the
+  // manifest's `snapshotUrl` to the base URL and never builds one itself.
+  eventMapManifest: () => '/eventmap/manifest',
+
   // ── App config ──
   appConfig: () => '/app/config',
 

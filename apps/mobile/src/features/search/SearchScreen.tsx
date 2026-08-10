@@ -5,7 +5,7 @@
  * SegmentedControl (전체 / 인사캠 / 자과캠)
  * Collapsible sections with ListHeader: 건물 / 공간
  *
- * On item tap: set BuildingNavPayload in store, call router.back()
+ * On item tap: set MapNavPayload in store, call router.back()
  */
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
@@ -38,13 +38,13 @@ import {
   type Building,
   type SpaceGroup,
   type SearchSpaceItem,
-  type BuildingNavPayload,
+  type MapNavPayload,
   getLocalizedText,
   floorBadge,
   useSettingsStore,
 } from '@skkuverse/shared';
 import { Badge, ListHeader, SegmentedControl, Txt } from '@skkuverse/sds';
-import { useSearchResultStore } from './store';
+import { useMapNavStore } from './store';
 import {
   logSearchPerform,
   logSearchResultTap,
@@ -73,7 +73,7 @@ export function SearchScreen() {
   const [buildingExpanded, setBuildingExpanded] = useState(true);
   const [spaceExpanded, setSpaceExpanded] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const setPendingNavPayload = useSearchResultStore(
+  const setPendingNavPayload = useMapNavStore(
     (s) => s.setPendingNavPayload,
   );
 
@@ -119,7 +119,8 @@ export function SearchScreen() {
         campus: building.campus,
         skkuId: building.skkuId,
       });
-      const payload: BuildingNavPayload = {
+      const payload: MapNavPayload = {
+        kind: 'building',
         skkuId: building.skkuId,
         lat: building.lat,
         lng: building.lng,
@@ -140,11 +141,16 @@ export function SearchScreen() {
         campus: group.campus,
         skkuId: group.skkuId,
       });
-      const payload: BuildingNavPayload = {
+      const payload: MapNavPayload = {
+        kind: 'building',
         skkuId: group.skkuId,
+        // A space result has no coordinates of its own; CampusScreen skips the
+        // camera move for (0, 0) and only opens the sheet.
         lat: 0,
         lng: 0,
-        campus: group.campus,
+        // null (API did not say) becomes undefined, which CampusScreen reads as
+              // "leave the campus alone" rather than guessing.
+        campus: group.campus ?? undefined,
         highlightSpaceCd: spaceCd,
         highlightFloor: floor,
       };

@@ -82,7 +82,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         action: "VIEW",
         autoVerify: true,
-        data: [{ scheme: "https", host: "skkuverse.com" }],
+        // `pathPrefix` scopes this to the universal-link namespace. Without it the
+        // app claimed EVERY https://skkuverse.com URL — so tapping a link to the
+        // privacy policy opened the app, which then whitelist-rejected the path
+        // and dropped the user on the home tab. The policy and terms pages were
+        // unreachable from a link tap on Android, while iOS excluded them all
+        // along via the AASA's `NOT /privacy` / `NOT /terms` rules. This restores
+        // the symmetry.
+        //
+        // The trailing slash is load-bearing: `pathPrefix` is a plain string
+        // prefix, so "/p" would still match "/privacy" and change nothing.
+        data: [{ scheme: "https", host: "skkuverse.com", pathPrefix: "/p/" }],
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],

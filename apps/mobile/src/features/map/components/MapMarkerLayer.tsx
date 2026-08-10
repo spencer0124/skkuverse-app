@@ -19,6 +19,22 @@ const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
 const DOT_SIZE = 16;
 
+/** Bare hex, no `#` — 3, 6 or 8 digits. */
+const BARE_HEX_RE = /^[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?$/;
+
+/**
+ * `MapLayerStyle.color` arrives as hex *without* a leading `#` (the server's
+ * commented-out bus layers read `color: "4CAF50"`, and MapPolylineLayer's
+ * hexToRgba strips one defensively). React Native needs the `#`, and would
+ * otherwise silently fall back to black — which is exactly the hardcoded value
+ * this is meant to make configurable. Anything that is not bare hex (a named
+ * colour, an already-prefixed value) passes through untouched.
+ */
+function toCssColor(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback;
+  return BARE_HEX_RE.test(raw) ? `#${raw}` : raw;
+}
+
 const NumberDotMarker = React.memo(function NumberDotMarker({
   displayNo,
 }: {
@@ -78,7 +94,7 @@ export function MapMarkerLayer({
               caption={{
                 text,
                 textSize: layer.style?.captionTextSize ?? 7,
-                color: 'black',
+                color: toCssColor(layer.style?.color, 'black'),
                 requestedWidth: 200,
               }}
               isHideCollidedCaptions
@@ -105,8 +121,8 @@ export function MapMarkerLayer({
               anchor={{ x: 0.5, y: 1.0 }}
               caption={{
                 text,
-                textSize: 9,
-                color: '#333333',
+                textSize: layer.style?.captionTextSize ?? 9,
+                color: toCssColor(layer.style?.color, '#333333'),
                 requestedWidth: 200,
                 offset: 40,
               }}

@@ -24,6 +24,7 @@ function pickerTab(
         college: null,
         noticeAvailable: true,
         excludeReason: null,
+        excludeReasonText: null,
       })),
       maxSelection,
       defaultIds,

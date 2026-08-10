@@ -1,0 +1,38 @@
+// Canonical markdownlint rules for every SKKUverse repository.
+//
+// Declared as the contract `conventions.markdownlint`, which each consumer
+// vendors as `.markdownlint.jsonc` and pins by content hash. Whether that
+// contract is enforced yet is state, so it is generated onto the landing page
+// rather than written here. Never edit a vendored copy: edit this file and run
+// `sync_contracts.py pull --all`.
+//
+// This file carries only the rule set. Each repo names its own paths in its
+// own `.markdownlint-cli2.jsonc`, for the reason given in
+// conventions/README.md.
+//
+// Consume it like this:
+//
+//     // .markdownlint-cli2.jsonc
+//     {
+//       "config": { "extends": ".markdownlint.jsonc" },
+//       "globs": ["docs/**/*.md"],
+//       "ignores": ["**/CHANGELOG.md"]
+//     }
+{
+  "default": true,
+
+  // ── Disabled: rules that fight this workspace's prose style ──
+  "MD013": false, // line-length — prose is wrapped by meaning, not column count
+  "MD033": false, // inline HTML — <details> and <br> are used deliberately
+  "MD024": { "siblings_only": true }, // duplicate headings — banned only among siblings, so release-note and timeline patterns work
+  "MD036": false, // emphasis-as-heading — a run-in heading opening a list item is the documented idiom. Bold used mid-sentence is a different thing, and internal/check/prose.py catches that
+  "MD028": false, // blanks-inside-blockquote — `> summary` followed by `> [!NOTE]` is the documented doc skeleton
+
+  // ── Enforced. Listed explicitly even where `default: true` already covers
+  //    them, so the intent is on the record rather than inherited by accident.
+  "MD001": true, // no skipped heading levels
+  "MD003": { "style": "atx" }, // `#` headings only
+  "MD025": { "front_matter_title": "" }, // exactly one H1 per document; the frontmatter `title` is not counted, since the schema has both
+  "MD040": true, // every fenced code block declares a language
+  "MD041": false // first line need not be a heading — every document starts with frontmatter
+}

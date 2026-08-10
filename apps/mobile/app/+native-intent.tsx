@@ -1,9 +1,10 @@
 import {
-  normalizeIncomingPath,
+  parseIncomingLink,
   resolveInitialTabRouteName,
   useSettingsStore,
 } from '@skkuverse/shared';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
+import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
 import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
 
 const ALLOWED_PATHS = ['/home', '/campus', '/transit', '/map/hssc', '/search'];
@@ -47,6 +48,21 @@ const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
 // failure, so the worst case is a deep link that lands on home.
 const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 
+// Universal map entry: `skkuverse://map?place=<placeId>`. A booth and a building
+// are addressed identically, because both are places (umbrella ADR 0004
+// invariant 1) — this is deliberately NOT an event-specific scheme, so next
+// year's event needs no new one.
+//
+// Intercepted rather than whitelisted. `/map` is not in ALLOWED_PATHS: adding it
+// too would leave a second, unreachable path through this function, exactly as
+// notices and mini-apps are intercepted without a whitelist entry.
+//
+// `/map/hssc` does NOT match — it has a path segment where this expects the end
+// of the path — so it keeps falling through to the whitelist and on to the SVG
+// floor map.
+const MAP_PATH_RE = /^\/map$/;
+const PLACE_ID_RE = /^[a-z0-9-]+$/;
+
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full
   // form "skkuverse:///p/notices/x/y" — while warm start receives the parsed
@@ -58,7 +74,7 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
   // MMKV is sync (Zustand+MMKV), safe to read here even though +native-intent
   // runs outside the React tree.
   try {
-    const pathname = normalizeIncomingPath(path);
+    const { pathname, params } = parseIncomingLink(path);
 
     if (pathname === '/') {
       if (initial) {
@@ -91,6 +107,21 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     if (miniAppMatch) {
       pendingMiniAppLink.set({ id: miniAppMatch[1] });
       return '/(tabs)/home';
+    }
+
+    // Map place → stash the id + route to the campus tab. CampusScreen resolves
+    // it once the event map snapshot lands; an id that matches nothing lands on
+    // the campus tab with no sheet, which is a fine place to be, never an error.
+    //
+    // The id is shape-checked but NOT looked up here, for the same reason as the
+    // mini-app slug above: this runs outside the React tree, so a lookup would
+    // be a duplicate request that blocks the app's first navigation.
+    if (MAP_PATH_RE.test(pathname)) {
+      const placeId = params.get('place');
+      if (placeId && PLACE_ID_RE.test(placeId)) {
+        pendingMapPlaceLink.set({ placeId });
+      }
+      return '/(tabs)/campus';
     }
 
     // Whitelist — anything else falls back to home (uniform across cold/warm

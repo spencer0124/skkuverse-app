@@ -4,6 +4,8 @@
  * Flutter source: lib/features/campus_map/model/map_config.dart
  */
 
+
+import type { Campus } from '../store/settings';
 // ── Naver Map config ──
 
 export interface NaverConfig {
@@ -13,8 +15,9 @@ export interface NaverConfig {
 // ── Campus definitions ──
 
 export interface CampusDef {
-  id: string; // "hssc" | "nsc"
-  label: string; // "인사캠" | "자과캠"
+  /** A comment listing the values used to stand here. The union is the comment. */
+  id: Campus;
+  label: string; // "인사캠" | "자과캠" — server-driven display text, genuinely open
   centerLat: number;
   centerLng: number;
   defaultZoom: number;
@@ -56,7 +59,7 @@ export interface RawMarkerData {
   skkuId?: number;
   lat: number;
   lng: number;
-  campus: string;
+  campus: Campus;
   displayNo?: string;
   text?: { ko: string; en: string };
 }

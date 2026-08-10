@@ -506,6 +506,13 @@ const ko = {
   // ── Settings — contact ──
   'settings.contact.title': '문의하기',
   'settings.contact.subtitle': '카카오톡 채널로 연결',
+
+  // ── Event map ──
+  'eventmap.status.open': '운영중',
+  'eventmap.status.upcoming': '준비중',
+  'eventmap.status.closed': '종료',
+  'eventmap.status.unknown': '정보 없음',
+  'eventmap.stack.othersHere': '같은 자리의 다른 부스',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -949,6 +956,13 @@ const en: TranslationMap = {
   // ── Settings — contact ──
   'settings.contact.title': 'Contact us',
   'settings.contact.subtitle': 'Connect via KakaoTalk channel',
+
+  // ── Event map ──
+  'eventmap.status.open': 'Open',
+  'eventmap.status.upcoming': 'Opening soon',
+  'eventmap.status.closed': 'Closed',
+  'eventmap.status.unknown': 'No info',
+  'eventmap.stack.othersHere': 'Also at this spot',
 };
 
 const zh: TranslationMap = {
@@ -1381,6 +1395,13 @@ const zh: TranslationMap = {
   // ── Settings — contact ──
   'settings.contact.title': '联系我们',
   'settings.contact.subtitle': '通过KakaoTalk渠道连接',
+
+  // ── Event map ──
+  'eventmap.status.open': '营业中',
+  'eventmap.status.upcoming': '准备中',
+  'eventmap.status.closed': '已结束',
+  'eventmap.status.unknown': '暂无信息',
+  'eventmap.stack.othersHere': '同一位置的其他摊位',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

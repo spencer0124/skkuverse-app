@@ -3,30 +3,33 @@ title: SDUI Campus Tab Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-07
+last-updated: 2026-08-10
 audience: public
 ---
 
 # SDUI (Server-Driven UI) — Campus Tab
 
-> 캠퍼스 탭의 UI 구성을 서버에서 제어하는 섹션 템플릿 SDUI 계약. 섹션/위젯을 추가·변경하는 서버/클라이언트 개발자가 읽는다.
+> The section-template SDUI contract that lets the server control how the campus tab is laid out. Read this before adding or changing a section or widget, on either side.
 
-## 요약
+## Summary
 
-서버가 `sections` 배열로 "어떤 섹션을 어떤 순서로 보여줄지" 결정하고, 클라이언트는 미리 정의된 위젯으로 각 섹션을 렌더링한다. 토스의 HomeDST에서 영감을 받은 구조이며, SKKUBUS 규모에 맞게 단순화했다.
+The server decides which sections appear and in what order through a `sections` array, and
+the client renders each one with a predefined widget. The shape is inspired by Toss's
+HomeDST, simplified to SKKUBUS's scale.
 
-**핵심 원칙:**
+**The principles it rests on:**
 
-- `sections` 배열 순서 = 렌더링 순서 (서버에서 순서만 바꾸면 UI 순서 변경)
-- `type` 필드가 컴포넌트 매핑 키
-- 모르는 `type` → `null` 반환 (구버전 앱 크래시 방지)
-- 위젯은 SDUI 컨텍스트 외에서도 하드코딩으로 재사용 가능
+- The order of the `sections` array is the render order, so reordering on the server
+  reorders the UI.
+- The `type` field is the key that maps a section to a component.
+- An unknown `type` renders as `null`, so an older app does not crash.
+- A widget can be reused directly, outside any SDUI context.
 
 ## API
 
 ### `GET /ui/home/campus`
 
-```json
+```jsonc
 {
   "meta": { "lang": "ko" },
   "data": {
@@ -35,7 +38,7 @@ audience: public
       {
         "type": "section_title",
         "id": "campus_title",
-        "title": "캠퍼스 서비스"
+        "title": "캠퍼스 서비스" // conventions:allow-korean: live server payload
       },
       {
         "type": "button_grid",
@@ -44,18 +47,18 @@ audience: public
         "items": [
           {
             "id": "building_map",
-            "title": "건물지도",
+            "title": "건물지도", // conventions:allow-korean: live server payload
             "emoji": "🏢",
             "actionType": "route",
             "actionValue": "/map/hssc"
           },
           {
             "id": "lost_found",
-            "title": "분실물",
+            "title": "분실물", // conventions:allow-korean: live server payload
             "emoji": "🧳",
             "actionType": "webview",
             "actionValue": "https://webview.skkuverse.com/#/skku/lostandfound",
-            "webviewTitle": "분실물",
+            "webviewTitle": "분실물", // conventions:allow-korean: live server payload
             "webviewColor": "003626"
           }
         ]
@@ -65,99 +68,105 @@ audience: public
 }
 ```
 
+> [!NOTE]
+> The `//` comments mark Korean that is live payload, for the conventions linter. They are
+> not part of the response.
+
 ### `minAppVersion`
 
-이 응답을 제대로 렌더링하기 위한 최소 앱 버전. 평소에는 모르는 type 무시로 하위호환을 유지하고, breaking change 시에만 이 값을 올려 업데이트를 유도한다. 클라이언트에서 optional로 파싱하며, 현재는 사용하지 않음.
+The minimum app version that can render this response correctly. Backward compatibility
+normally rests on ignoring unknown types; this value is raised only for a breaking change,
+to prompt an update. The client parses it as optional and does not use it today.
 
-## Section Types
+## Section types
 
 ### `button_grid`
 
-이모지+텍스트 버튼을 N열 그리드로 배치.
+Emoji-and-text buttons in an N-column grid.
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `columns` | int | 열 수 (기본 4) |
-| `items` | array | 버튼 아이템 배열 |
+| `columns` | int | Number of columns, defaulting to 4 |
+| `items` | array | The button items |
 
-각 item 필드:
+Each item:
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | 고유 식별자 |
-| `title` | string | 표시 텍스트 (i18n) |
-| `emoji` | string | Unicode 이모지 (Tossface 폰트로 렌더링) |
-| `actionType` | string | `route` / `webview` / `external` |
-| `actionValue` | string | 네비게이션 대상 |
-| `webviewTitle` | string? | 웹뷰 타이틀바 텍스트 |
-| `webviewColor` | string? | 웹뷰 테마 색상 (hex, # 없이) |
+| `id` | string | Unique identifier |
+| `title` | string | Display text, localised |
+| `emoji` | string | A Unicode emoji, rendered in the Tossface font |
+| `actionType` | string | `route`, `webview`, or `external` |
+| `actionValue` | string | The navigation target |
+| `webviewTitle` | string? | Title bar text for the web view |
+| `webviewColor` | string? | Theme colour for the web view, hex without a `#` |
 
 ### `section_title`
 
-섹션 구분 제목.
+A heading that separates sections.
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `title` | string | 표시 텍스트 |
+| `title` | string | Display text |
 
 ### `notice`
 
-상단 공지 바. 탭하면 액션 실행.
+A notice bar at the top. Tapping it runs the action.
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `title` | string | 공지 텍스트 |
-| `actionType` | string | `route` / `webview` / `external` |
-| `actionValue` | string | 네비게이션 대상 |
+| `title` | string | Notice text |
+| `actionType` | string | `route`, `webview`, or `external` |
+| `actionValue` | string | The navigation target |
 
 ### `banner`
 
-이미지 배너. 탭하면 액션 실행.
+An image banner. Tapping it runs the action.
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `imageUrl` | string | 배너 이미지 URL |
-| `actionType` | string | `route` / `webview` / `external` |
-| `actionValue` | string | 네비게이션 대상 |
+| `imageUrl` | string | Banner image URL |
+| `actionType` | string | `route`, `webview`, or `external` |
+| `actionValue` | string | The navigation target |
 
 ### `spacer`
 
-섹션 간 여백.
+Vertical space between sections.
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `height` | number? | 높이 (px). 기본 16 |
+| `height` | number? | Height in px, defaulting to 16 |
 
-## Action Types
+## Action types
 
-모든 섹션에서 동일한 액션 체계를 사용.
+Every section uses the same action vocabulary.
 
-| actionType | 동작 | 예시 |
+| actionType | Behaviour | Example |
 | --- | --- | --- |
-| `route` | 앱 내 화면 이동 (Expo Router) | `/map/hssc`, `/search` |
-| `webview` | 인앱 WebView | `https://webview.skkuverse.com/...` |
-| `external` (또는 `url`) | 외부 브라우저/앱 | `http://pf.kakao.com/...` |
+| `route` | Navigate inside the app through Expo Router | `/map/hssc`, `/search` |
+| `webview` | Open the in-app WebView | `https://webview.skkuverse.com/...` |
+| `external` (or `url`) | Open the external browser or app | `http://pf.kakao.com/...` |
 
-`external`과 `url`은 동일하게 처리됨 (서버 어느 쪽이든 사용 가능).
+`external` and `url` are handled identically, so the server may send either.
 
-## Client Architecture
+## Client architecture
 
-### 파일 구조
+### File layout
 
 ```text
 apps/mobile/src/sdui/
-├── types.ts                  # Section 타입 정의 (discriminated union)
-├── action-handler.ts         # 공통 액션 핸들러 (route/webview/external)
+├── types.ts                  # Section types (discriminated union)
+├── action-handler.ts         # Shared action handler (route/webview/external)
 └── widgets/
-    ├── index.ts              # type → Component dispatcher
-    ├── ButtonGrid.tsx        # GridView 렌더링
-    ├── SectionTitle.tsx      # 제목 텍스트
-    ├── Notice.tsx            # 공지 바
-    ├── Banner.tsx            # 이미지 배너
-    └── Spacer.tsx            # 여백
+    ├── index.ts              # type-to-component dispatcher
+    ├── ButtonGrid.tsx        # GridView rendering
+    ├── SectionTitle.tsx      # Heading text
+    ├── Notice.tsx            # Notice bar
+    ├── Banner.tsx            # Image banner
+    └── Spacer.tsx            # Vertical space
 ```
 
-### Discriminated Union 구조
+### The discriminated union
 
 ```ts
 type SduiSection =
@@ -168,41 +177,42 @@ type SduiSection =
   | { type: 'spacer'; id: string; height?: number }
 ```
 
-모르는 `type`은 dispatcher에서 `null` 반환 → 렌더링하지 않음.
+The dispatcher returns `null` for an unknown `type`, so nothing renders.
 
 ## Fallback
 
-API 호출 실패 시 React Query의 캐시 또는 기본 데이터가 사용됨.
+When the API call fails, React Query's cache or the default data is used.
 
 ## i18n
 
-| 항목 | 값 |
+| Item | Value |
 | --- | --- |
-| 로케일 결정 | 서버가 `Accept-Language` 헤더 기반으로 로케일별 텍스트 반환 |
-| 지원 로케일 | `ko` (기본), `en`, `zh` |
-| 로케일 의존 필드 | `title`, `label` 등 사용자 노출 문구 |
-| 로케일 독립 필드 | `id`, `type`, `actionType`, `actionValue`, `emoji` |
+| How the locale is chosen | The server returns per-locale text based on the `Accept-Language` header |
+| Supported locales | `ko` (default), `en`, `zh` |
+| Locale-dependent fields | User-facing copy such as `title` and `label` |
+| Locale-independent fields | `id`, `type`, `actionType`, `actionValue`, `emoji` |
 
-## 새 Section Type 추가하기
+## Adding a section type
 
-1. **서버**: sections 배열에 새 객체 추가
-2. **클라이언트** (앱 업데이트 필요):
-   - `types.ts`에 새 타입 추가
-   - `widgets/`에 컴포넌트 파일 생성
-   - `widgets/index.ts`의 dispatcher에 케이스 추가
-3. **하위호환**: 구버전 앱은 모르는 type을 무시 → 크래시 없음
+1. **Server:** add the new object to the sections array.
+2. **Client**, which needs an app update:
+   - add the type to `types.ts`
+   - create the component file under `widgets/`
+   - add the case to the dispatcher in `widgets/index.ts`
+3. **Backward compatibility:** an older app ignores the unknown type, so nothing crashes.
 
-### 향후 확장 후보
+### Candidates for later
 
-| type | 설명 |
+| type | Description |
 | --- | --- |
-| `list` | 세로 목록 |
-| `card` | 카드형 UI |
-| `countdown` | D-day 카운트다운 |
-| `carousel` | 배너 슬라이드 |
+| `list` | A vertical list |
+| `card` | A card-shaped UI |
+| `countdown` | A D-day countdown |
+| `carousel` | A sliding banner |
 
-## 관련 문서
+## Related
 
-- [map-config-api-spec.md](map-config-api-spec.md) — 같은 서버 주도 패턴을 쓰는 지도 레이어 계약
-- [ux-writing.md](ux-writing.md) — 사용자 노출 문구(`title` 등) 작성 규칙
-- [../README.md](../README.md) — 문서 작성 규칙
+- [map-config-api-spec.md](map-config-api-spec.md) — the map layer contract, which uses the
+  same server-driven pattern
+- [ux-writing.md](ux-writing.md) — the rules for user-facing copy such as `title`
+- [../README.md](../README.md) — the writing rules

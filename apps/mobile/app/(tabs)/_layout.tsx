@@ -103,7 +103,13 @@ export default function TabLayout() {
   // switch, causing NativeTabs to re-render with prop toggled. rn-screens
   // animates setBottomAccessory:nil on unmount (animated:YES) so transition
   // between tabs is smooth.
-  const segments = useSegments();
+  // Widened on purpose. The inferred type comes from .expo/types/router.d.ts,
+  // which only Metro generates and .gitignore excludes, so on a clean checkout
+  // this infers a 1-tuple and every segments[1] read below fails to compile.
+  // Annotating rather than passing a type argument, because the hook's
+  // constraint is itself that generated tuple and string[] does not satisfy it.
+  // Reading positions as plain strings is what this code actually does.
+  const segments: string[] = useSegments();
   const isNoticesTab =
     segments[0] === '(tabs)' && segments[1] === 'notices';
   // Auth/onboarding gate must be evaluated at THIS level so the

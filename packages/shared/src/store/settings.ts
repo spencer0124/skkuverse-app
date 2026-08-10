@@ -2,8 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { mmkvStateStorage } from './mmkv-storage';
 
-/** HSSC = 인문사회과학캠퍼스, NSC = 자연과학캠퍼스 */
-export type Campus = 'hssc' | 'nsc';
+// Re-exported for the many call sites that already import Campus from here.
+// It is DEFINED in constants/campus.ts so pure parsers can use it without
+// pulling zustand and react-native into a vitest run.
+import type { Campus } from '../constants/campus';
+export { CAMPUSES, type Campus } from '../constants/campus';
 
 export type AppLanguage = 'ko' | 'en' | 'zh';
 

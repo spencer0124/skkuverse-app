@@ -29,11 +29,13 @@ export { ApiConfig } from './api/config';
 // ── Safe request wrappers ──
 export {
   safeGet,
+  safeGetTimed,
   safePost,
   safeGetRaw,
   safeGetConditional,
   firePost,
 } from './api/safe-request';
+export type { TimedPayload } from './api/safe-request';
 
 // ── Auth ──
 export { setAuthTokenProvider } from './api/interceptors/auth';
@@ -45,7 +47,7 @@ export type { TranslationKey } from './i18n';
 // ── Stores ──
 export { authStore, useAuthStore } from './store/auth';
 export type { AuthState, AuthStore, AuthUser } from './store/auth';
-export { useSettingsStore } from './store/settings';
+export { useSettingsStore, CAMPUSES } from './store/settings';
 export type { SettingsStore, Campus, AppLanguage, TabRoute } from './store/settings';
 export { useMapLayerStore } from './store/map';
 export type { MapLayerStore } from './store/map';
@@ -145,7 +147,7 @@ export type {
   BuildingSearchResult,
   CampusCounts,
   SearchCounts,
-  BuildingNavPayload,
+  MapNavPayload,
 } from './types/building';
 export { getLocalizedText, floorBadge } from './types/building';
 
@@ -168,7 +170,8 @@ export {
 // ── Version utils ──
 export { isVersionLessThan } from './utils/version';
 export { resolveInitialTabRouteName } from './utils/resolveInitialTabRoute';
-export { normalizeIncomingPath } from './utils/normalizeIncomingPath';
+export { normalizeIncomingPath, parseIncomingLink } from './utils/normalizeIncomingPath';
+export type { IncomingLink } from './utils/normalizeIncomingPath';
 
 // ── SDUI ──
 export { parseCampusResponse, DEFAULT_CAMPUS_SECTIONS } from './sdui';
@@ -189,6 +192,66 @@ export {
   parsePolylineData,
   DEFAULT_MAP_CONFIG,
 } from './map';
+
+// ── Event map ──
+export type {
+  EventMapAction,
+  EventMapCardSlot,
+  EventMapCardTemplate,
+  EventMapChip,
+  EventMapChipGroup,
+  EventMapItem,
+  EventMapLayer,
+  EventMapManifest,
+  EventMapSnapshot,
+  EventMapSort,
+  IconSpec,
+  ItemStatus,
+  LayerRender,
+  Predicate,
+  SortKey,
+} from './types/eventmap';
+export {
+  EVENTMAP_SCHEMA_VERSION,
+  ITEM_STATUSES,
+  LAYER_RENDERS,
+  PREDICATE_KINDS,
+  SORT_KEYS,
+} from './types/eventmap';
+export {
+  buildStacks,
+  computeOffset,
+  deriveItemStatus,
+  deriveItems,
+  evaluatePredicate,
+  eventMapSnapshotKey,
+  isValidPredicate,
+  nextBoundaryAfter,
+  parseEventMapManifest,
+  parseEventMapSnapshot,
+  parseInstant,
+  readCachedEventMapBundle,
+  readUsableOffset,
+  selectVisibleStacks,
+  serverNow,
+  useEventMap,
+  useEventMapManifest,
+  useEventMapSnapshot,
+  EVENTMAP_MANIFEST_KEY,
+} from './eventmap';
+export type {
+  BuiltStacks,
+  ClockOffset,
+  DerivedItem,
+  DroppedCounts,
+  EventMapBundle,
+  EventMapStack,
+  ParsedSnapshot,
+  PredicateSubject,
+  UseEventMapResult,
+} from './eventmap';
+export { useEventMapStore } from './store/eventmap';
+export type { EventMapStore } from './store/eventmap';
 
 // ── Building parsers ──
 export {

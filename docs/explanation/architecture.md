@@ -3,122 +3,164 @@ title: Architecture Overview
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-07
+last-updated: 2026-08-10
 audience: internal
 ---
 
 # Architecture Overview
 
-> skkuverse-app의 중간 고도(mid-altitude) 아키텍처 설명 — 모노레포 경계, 데이터 흐름, 앱 구동 구조를 처음 파악하려는 개발자용. 세부 계약·수치는 각 SSOT 문서/코드를 가리킨다.
+> Where the monorepo boundaries sit, how data flows, and how the app is assembled, at mid altitude. Written for someone meeting the codebase for the first time. Detailed contracts and figures point at their own SSOT document or the code.
 
-## 모노레포 경계
+## Monorepo boundaries
 
-Yarn workspaces 모노레포. workspace는 `apps/*` + `packages/*` (루트 `package.json`), `functions/`는 workspace 밖의 독립 npm 패키지다.
+A Yarn workspaces monorepo. The workspaces are `apps/*` and `packages/*`, declared in the
+root `package.json`. `functions/` sits outside them as its own npm package.
 
-| 워크스페이스 | 역할 | 의존 방향 |
+| Workspace | Role | Direction of dependency |
 | --- | --- | --- |
-| `apps/mobile/` | Expo + React Native 모바일 앱 (iOS/Android). 메인 클라이언트 | `packages/*` 전부 소비 |
-| `packages/shared/` | 데이터 레이어 — API 클라이언트(Axios), Zustand 스토어, React Query 훅, 타입, 디자인 토큰, i18n | 앱에 의존하지 않음 (하위 계층) |
-| `packages/sds/` | Skku Design System 컴포넌트 라이브러리. `SDSProvider`로 테마 제공 | `shared`의 토큰 소비 |
-| `packages/bridge/` | Web↔Native 메시지 패싱 계약 (`postToApp` / `parseWebMessage`) | 타입 SSOT. 발신 측(skkuverse-web)이 byte 단위로 vendoring하는 **레포 간 계약** |
-| `functions/` | Firebase Cloud Functions — 클라이언트에 둘 수 없는 서버 로직 (FCM 발송, preferences derive/sync, 계정 삭제) | Firestore를 사이에 두고 앱과 간접 결합 |
+| `apps/mobile/` | The Expo and React Native app for iOS and Android, and the main client | Consumes all of `packages/*` |
+| `packages/shared/` | The data layer. Holds the Axios API client, the Zustand stores, the React Query hooks, the shared types, the design tokens and i18n | Depends on nothing above it |
+| `packages/sds/` | The Skku Design System component library, themed through `SDSProvider` | Consumes `shared`'s tokens |
+| `packages/bridge/` | The web-to-native message contract (`postToApp`, `parseWebMessage`) | The type SSOT, and a **cross-repo contract**: skkuverse-web vendors it byte for byte |
+| `functions/` | Firebase Cloud Functions, for server logic that cannot live on the client. Sends FCM and runs the preferences derive-and-sync chain. Account deletion lives here too | Coupled to the app only indirectly, through Firestore |
 
-의존은 항상 **apps → packages** 한 방향이다. packages끼리는 `sds → shared(tokens)`만 허용. 패키지 국소 지식은 각 워크스페이스 README에 있다 ([docs/README.md](../README.md) "워크스페이스 README" 표 참조).
+Dependencies always run **apps to packages**, one way. Between packages only
+`sds → shared(tokens)` is allowed. Package-local knowledge lives in each workspace README;
+see the workspace README table in [docs/README.md](../README.md).
 
-## 데이터 흐름: 유저 데이터 vs 공공 데이터
+## Data flow: user data against public data
 
-저장소 원칙은 데이터 소유자 기준으로 갈린다.
+Which store a piece of data belongs in follows from who owns it.
 
-- **유저 데이터** (인증, 알림 preferences, 디바이스 토큰, 북마크): **Firebase** — 앱이 Auth/Firestore SDK로 **직접** 읽고 쓴다. 서버 API를 거치지 않는다. 무결성은 `apps/mobile/firestore.rules`가 강제하고, 파생 상태(`subscribedTopics` 등)는 `functions/`의 Firestore trigger가 계산한다.
-- **공공 데이터** (공지, 버스, 건물, 지도 config, SDUI 섹션): **skkuverse-server**(별도 레포, NestJS + MongoDB)의 REST API 경유. 인증은 Firebase `Bearer <idToken>`.
+- **User data**, meaning auth, notification preferences, device tokens and bookmarks, lives
+  in **Firebase**. The app reads and writes it **directly** through the Auth and Firestore
+  SDKs, without a server API in between. Integrity is enforced by
+  `apps/mobile/firestore.rules`, and derived state such as `subscribedTopics` is computed by
+  a Firestore trigger in `functions/`.
+- **Public data**, meaning notices, buses, buildings, map config and SDUI sections, arrives
+  through the REST API of **skkuverse-server**, a separate repo running NestJS and MongoDB.
+  Requests authenticate with a Firebase `Bearer <idToken>`.
 
 ```mermaid
 flowchart LR
   subgraph mobile["apps/mobile"]
-    UI["화면 / React Query 훅"]
+    UI["Screens / React Query hooks"]
   end
 
-  UI -- "Auth/Firestore SDK 직접" --> FB[("Firebase<br/>Auth · Firestore")]
+  UI -- "Auth/Firestore SDK, directly" --> FB[("Firebase<br/>Auth · Firestore")]
   FB -- "onWrite trigger" --> CF["functions/<br/>derive · sync · FCM"]
   CF --> FB
   UI -- "REST + Bearer idToken<br/>(@skkuverse/shared Axios)" --> SRV["skkuverse-server<br/>(NestJS)"]
   SRV --> MDB[("MongoDB")]
 ```
 
-앱 쪽 진입점은 전부 `@skkuverse/shared`다 — Axios 클라이언트는 `Result<T>` (success/failure union)로 감싸고, React Query 훅(`useCampusSections`, `useTransitList`, `useBuildings` 등)이 화면에 공급한다.
+Every entry point on the app side is `@skkuverse/shared`. The Axios client wraps responses in
+`Result<T>`, a success-or-failure union, and React Query hooks such as `useCampusSections`,
+`useTransitList` and `useBuildings` feed the screens.
 
-## Provider Stack (app/_layout.tsx)
+## The provider stack (app/_layout.tsx)
 
-루트 레이아웃의 프로바이더 계층. 순서 자체가 제약이다.
+The provider layers in the root layout. The order itself is a set of constraints.
 
 ```text
 ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider
   → QueryProvider → InitGate → BottomSheetModalProvider → Stack
 ```
 
-- **ErrorBoundary** — 최외곽. 아래 모든 자식의 렌더 에러를 잡아야 하므로 가장 바깥.
-- **GestureHandlerRootView** — `@gorhom/bottom-sheet` 등 gesture-handler 기반 컴포넌트의 필수 루트.
-- **SafeAreaProvider** — 루트에서 insets 측정. 단, modal 라우트는 별도 native VC에 마운트되므로 **각 modal 화면 안에서 재마운트**가 필요하다 → [ios-modal-safe-area-provider.md](ios-modal-safe-area-provider.md).
-- **SDSProvider** — 디자인 시스템 테마 + overlay. UI를 그리는 모든 하위 컴포넌트보다 위.
-- **QueryProvider** — QueryClient가 어떤 쿼리보다도 먼저 존재해야 하므로 화면 트리보다 위.
-- **InitGate** — auth 준비 전까지 네비게이션을 게이트 (스플래시 연동 → [splash-animation.md](splash-animation.md)).
-- **BottomSheetModalProvider** — 바텀시트 포털. gesture 루트와 테마 안쪽, 화면 Stack 바로 바깥.
-- **Stack** — Expo Router 루트 native stack.
+- **ErrorBoundary** is outermost, because it has to catch render errors from every child
+  below it.
+- **GestureHandlerRootView** is the required root for gesture-handler components such as
+  `@gorhom/bottom-sheet`.
+- **SafeAreaProvider** measures insets at the root. A modal route mounts in its own native
+  view controller, so it needs **its own provider inside the modal screen**. See
+  [ios-modal-safe-area-provider.md](ios-modal-safe-area-provider.md).
+- **SDSProvider** supplies the design system theme and overlays, so it sits above everything
+  that draws UI.
+- **QueryProvider** goes above the screen tree, because the QueryClient has to exist before
+  any query does.
+- **InitGate** holds navigation until auth is ready, working with the splash. See
+  [splash-animation.md](splash-animation.md).
+- **BottomSheetModalProvider** is the bottom sheet portal, inside the gesture root and the
+  theme, and immediately outside the screen Stack.
+- **Stack** is the Expo Router root native stack.
 
-## 탭 구조: per-tab nested Stack
+## Tab structure: a nested Stack per tab
 
-`app/(tabs)/` 아래 4개 탭(`home/`, `campus/`, `transit/`, `notices/`)이 **각자 자기 `_layout.tsx`(Stack) + `index.tsx`(화면)** 를 가진다. 탭마다 독립 Stack을 두는 이유: 부모 Stack 하나가 헤더를 소유하면 탭 전환 시 `headerShown` 토글로 콘텐츠가 위아래로 슬라이드하는 layout shift가 생긴다. 헤더는 `react-native-screens` native-stack을 직접 사용하고, 공통 옵션은 `apps/mobile/src/lib/header-options.ts`에 있다.
+The four tabs under `app/(tabs)/` — `home/`, `campus/`, `transit/` and `notices/` — each
+have **their own `_layout.tsx` holding a Stack, plus an `index.tsx` holding the screen**.
+Each tab gets an independent Stack for a reason: when one parent Stack owns the header,
+switching tabs toggles `headerShown` and the content slides up and down, which is a visible
+layout shift. Headers use the `react-native-screens` native stack directly, and the shared
+options are in `apps/mobile/src/lib/header-options.ts`.
 
-상세(cold-start 라우팅, iOS long-press phantom 회피, iOS 26 NativeTabs 제약)는 루트 `CLAUDE.md`의 탭 구조 섹션과 [ios-26-native-tabs-minimize.md](ios-26-native-tabs-minimize.md) 참조.
+The details, covering cold-start routing, avoiding the iOS long-press phantom, and the iOS 26
+NativeTabs constraint, are in the tab structure section of the root `CLAUDE.md` and in
+[ios-26-native-tabs-minimize.md](ios-26-native-tabs-minimize.md).
 
 ## Server-Driven UI (SDUI)
 
-홈/캠퍼스 화면의 섹션 구성은 코드가 아니라 **서버 config**가 결정한다. 앱은 config를 fetch해서 `apps/mobile/src/sdui/`의 위젯으로 렌더한다.
+The section layout of the home and campus screens is decided by **server config** rather than
+by code. The app fetches the config and renders it with the widgets in
+`apps/mobile/src/sdui/`.
 
-- `src/sdui/renderer.tsx` — 섹션 config → 위젯 매핑
-- `src/sdui/widgets/` — Banner, ButtonGrid, Notice, SectionTitle 등 위젯 구현
-- `src/sdui/action-handler.ts` — 'route' 등 서버 정의 액션 처리 (bare `/`는 phantom 회피 위해 가로챔)
+- `src/sdui/renderer.tsx` maps a section config to a widget.
+- `src/sdui/widgets/` holds the widget implementations: Banner, ButtonGrid, Notice,
+  SectionTitle and the rest.
+- `src/sdui/action-handler.ts` handles server-defined actions such as 'route', intercepting a
+  bare `/` to avoid the phantom history entry.
 
-server↔client 계약의 SSOT는 [../reference/sdui-campus-spec.md](../reference/sdui-campus-spec.md).
+The SSOT for the contract between server and client is
+[../reference/sdui-campus-spec.md](../reference/sdui-campus-spec.md).
 
-## 시스템 경계
+## System boundaries
 
-앱을 둘러싼 전체 생태계. 형제 레포와의 결합점은 REST API·Firestore·HTTP endpoint, 그리고 webview 페이지 로드와 그 위의 `packages/bridge` 메시지 계약이다.
+The ecosystem around the app. What couples it to its sibling repos is the REST API, Firestore,
+an HTTP endpoint, and the webview pages it loads along with the `packages/bridge` message
+contract on top of them.
 
 ```mermaid
 flowchart TB
-  APP["skkuverse-app<br/>(이 레포: mobile + functions)"]
+  APP["skkuverse-app<br/>(this repo: mobile + functions)"]
 
-  subgraph backend["형제 레포"]
-    WEB["skkuverse-web<br/>webview SPA · 관리자 콘솔"]
+  subgraph backend["Sibling repos"]
+    WEB["skkuverse-web<br/>webview SPA · admin console"]
     SRV["skkuverse-server<br/>NestJS · REST API"]
-    CRW["skkuverse-crawler<br/>Python · 공지 크롤링"]
-    AI["skkuverse-ai<br/>FastAPI · AI 요약"]
+    CRW["skkuverse-crawler<br/>Python · notice crawling"]
+    AI["skkuverse-ai<br/>FastAPI · AI summaries"]
   end
 
-  MDB[("MongoDB<br/>공공 데이터")]
+  MDB[("MongoDB<br/>public data")]
   FB[("Firebase<br/>Auth · Firestore · FCM")]
-  OTA["OTA 서버<br/>expo-open-ota (ota.skkuverse.com)"]
+  OTA["OTA server<br/>expo-open-ota (ota.skkuverse.com)"]
 
   APP -- "REST (Bearer idToken)" --> SRV
-  APP -- "webview 로드 + bridge postMessage" --> WEB
-  APP -- "SDK 직접" --> FB
-  APP -- "JS 번들 업데이트 체크" --> OTA
+  APP -- "loads webview + bridge postMessage" --> WEB
+  APP -- "SDK, directly" --> FB
+  APP -- "checks for a JS bundle update" --> OTA
   SRV --> MDB
   CRW --> MDB
-  CRW -- "AI 요약 요청" --> AI
-  CRW -- "sendNotification HTTP CF 호출" --> FB
+  CRW -- "requests an AI summary" --> AI
+  CRW -- "calls the sendNotification HTTP CF" --> FB
 ```
 
-- **skkuverse-web**은 앱이 `/webview` 셸에서 로드하는 페이지를 배포한다 (`webview.skkuverse.com`). 그 페이지가 네이티브 브리지에 닿을 수 있는지는 **서버가 정한다** — `skkuverse-server`의 origin allowlist가 `GET /app/config`로 내려오고, 클라이언트는 메시지마다 fail-closed로 재확인한다.
-- **skkuverse-crawler**가 공지를 수집해 MongoDB에 적재하고, 새 공지 발생 시 `functions/`의 `sendNotification` HTTP endpoint를 호출해 FCM 발송을 트리거한다.
-- **skkuverse-ai**는 크롤링된 공지의 AI 요약을 생성한다 (crawler↔ai는 서버 인프라 내부 결합, 앱과 무관).
-- **OTA 서버**는 JS-only 변경을 스토어 심사 없이 배포한다 → [../how-to/ota-update.md](../how-to/ota-update.md).
+- **skkuverse-web** deploys the pages the app loads in its `/webview` shell, at
+  `webview.skkuverse.com`. Whether such a page can reach the native bridge is **the server's
+  decision**: skkuverse-server's origin allowlist arrives through `GET /app/config`, and the
+  client re-checks it fail-closed on every message.
+- **skkuverse-crawler** collects notices into MongoDB and calls the `sendNotification` HTTP
+  endpoint in `functions/` when a new one appears, which triggers the FCM send.
+- **skkuverse-ai** produces AI summaries of crawled notices. The crawler-to-ai coupling is
+  internal to the server infrastructure and does not involve the app.
+- **The OTA server** delivers JS-only changes without a store review. See
+  [../how-to/ota-update.md](../how-to/ota-update.md).
 
-## 관련 문서
+## Related
 
-- [../reference/deep-link.md](../reference/deep-link.md) — 외부 진입 (커스텀 스킴 + 유니버셜 링크) 계약
-- [../reference/sdui-campus-spec.md](../reference/sdui-campus-spec.md) — SDUI server↔client 계약
-- [ios-26-native-tabs-minimize.md](ios-26-native-tabs-minimize.md) — 탭 화면 chain root rule (native 메커니즘)
-- [../decisions/](../decisions/) — 구조적 결정의 ADR 모음
-- [../README.md](../README.md) — 문서 인덱스 + 워크스페이스 README 목록
+- [../reference/deep-link.md](../reference/deep-link.md) — the contract for entering from
+  outside, through the custom scheme and universal links
+- [../reference/sdui-campus-spec.md](../reference/sdui-campus-spec.md) — the SDUI contract
+  between server and client
+- [ios-26-native-tabs-minimize.md](ios-26-native-tabs-minimize.md) — the chain root rule for
+  tab screens, and the native mechanism behind it
+- [../decisions/](../decisions/) — the ADRs for structural decisions
+- [../README.md](../README.md) — the docs index and the workspace README list

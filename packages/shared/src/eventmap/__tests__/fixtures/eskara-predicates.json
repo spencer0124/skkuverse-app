@@ -1,0 +1,115 @@
+{
+  "source": "skkuverse-server/src/eventmap/config/eskara-2026.json",
+  "configVersion": 1,
+  "predicates": [
+    {
+      "where": "layer:bar",
+      "predicate": [
+        "has",
+        "cat:bar"
+      ]
+    },
+    {
+      "where": "layer:booth",
+      "predicate": [
+        "has",
+        "cat:booth"
+      ]
+    },
+    {
+      "where": "layer:food",
+      "predicate": [
+        "has",
+        "cat:food"
+      ]
+    },
+    {
+      "where": "layer:stage",
+      "predicate": [
+        "has",
+        "cat:stage"
+      ]
+    },
+    {
+      "where": "layer:facility",
+      "predicate": [
+        "has",
+        "cat:facility"
+      ]
+    },
+    {
+      "where": "chip:day/day_all",
+      "predicate": [
+        "all"
+      ]
+    },
+    {
+      "where": "chip:day/day_1",
+      "predicate": [
+        "has",
+        "day:1"
+      ]
+    },
+    {
+      "where": "chip:day/day_2",
+      "predicate": [
+        "has",
+        "day:2"
+      ]
+    },
+    {
+      "where": "chip:slot/slot_day",
+      "predicate": [
+        "has",
+        "slot:day"
+      ]
+    },
+    {
+      "where": "chip:slot/slot_night",
+      "predicate": [
+        "has",
+        "slot:night"
+      ]
+    },
+    {
+      "where": "chip:category/cat_food",
+      "predicate": [
+        "hasAny",
+        [
+          "cat:food",
+          "cat:bar"
+        ]
+      ]
+    },
+    {
+      "where": "chip:category/cat_booth",
+      "predicate": [
+        "has",
+        "cat:booth"
+      ]
+    },
+    {
+      "where": "chip:category/cat_stage",
+      "predicate": [
+        "has",
+        "cat:stage"
+      ]
+    },
+    {
+      "where": "chip:category/cat_facility",
+      "predicate": [
+        "has",
+        "cat:facility"
+      ]
+    },
+    {
+      "where": "chip:now/open_now",
+      "predicate": [
+        "status",
+        [
+          "open"
+        ]
+      ]
+    }
+  ]
+}

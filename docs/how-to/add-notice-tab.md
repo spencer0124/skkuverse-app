@@ -3,99 +3,134 @@ title: Add a Notice Tab (Cross-Repo Runbook)
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-10
 audience: internal
 ---
 
-# 공지 탭 추가 런북 (크로스-레포)
+# Add a Notice Tab (Cross-Repo Runbook)
 
-> 새 공지 탭(fixed 또는 picker)을 추가할 때 서버·Cloud Functions·앱에 걸쳐 무엇을 어떤 순서로 고쳐야 하는지의 절차. 탭 추가/제거/이름 변경을 하는 사람이 읽는다.
+> What to change, and in what order, across the server, Cloud Functions and the app when adding a notice tab, fixed or picker. Read this before adding, removing or renaming a tab.
 
 > [!NOTE]
-> 이 작업은 **3개 레포**(skkuverse-crawler → skkuverse-server → skkuverse-app)를 관통한다. 한 레포만 고치면 조용히 깨진다 — 특히 functions 미러 누락은 런타임 에러 없이 "알림 0건 전송"으로 나타난다.
+> This work crosses **three repositories**: skkuverse-crawler, then skkuverse-server, then
+> skkuverse-app. Changing only one breaks the feature silently. A missing functions mirror in
+> particular produces no runtime error at all, only "zero notifications sent".
 
-## 개요 — 계약 구조
+## The contract chain
 
-Source of truth 체인 (상류 → 하류):
+Source of truth, upstream to downstream:
 
-| 위치 | 역할 |
+| Location | Role |
 | --- | --- |
-| `skkuverse-crawler/categories.json` | SSOT — `tabConfig.ts` 헤더 주석 기준 categories.json/sources.json은 crawler가 관리 |
-| `skkuverse-server/src/notices/categories.json` | 서버가 실제로 읽는 사본. `tabConfig.ts`가 부팅 시 로드·검증 (`GET /notices/tabs` 응답 + FCM topic 계산의 근거) |
-| `skkuverse-app/functions/src/notifications/tabsContract.ts` | **하드코딩 미러** — `FIXED_TAB_KEYS` 5개 + `KNOWN_PICKER_KEYS` 4개. `derive.ts`가 subscribedTopics 파생에 사용 |
-| `skkuverse-app` 클라이언트 | 탭 UI는 server-driven (`GET /notices/tabs`)이라 자동 반영. 단 `TabToggleRow.tsx`의 `TAB_EMOJI` 매핑은 하드코딩 (fallback 📌 있음 — cosmetic) |
+| `skkuverse-crawler/categories.json` | The SSOT. Per the header comment in `tabConfig.ts`, the crawler owns categories.json and sources.json |
+| `skkuverse-server/src/notices/categories.json` | The copy the server actually reads. `tabConfig.ts` loads and validates it at boot, and it backs both the `GET /notices/tabs` response and the FCM topic computation |
+| `skkuverse-app/functions/src/notifications/tabsContract.ts` | **A hardcoded mirror**, holding `FIXED_TAB_KEYS` and `KNOWN_PICKER_KEYS`. `derive.ts` uses it to derive subscribedTopics |
+| The skkuverse-app client | The tab UI is server-driven through `GET /notices/tabs`, so it updates by itself. The one exception is the `TAB_EMOJI` map in `TabToggleRow.tsx`, which is hardcoded with a 📌 fallback, so a miss is cosmetic |
 
 > [!WARNING]
-> `tabsContract.ts` 헤더 주석과 `CLAUDE.md`는 소스 경로를 `skkuverse-server/features/notices/categories.json`으로 적고 있으나, 서버 레포 재구조화로 **실제 경로는 `skkuverse-server/src/notices/categories.json`** 이다 (2026-07-21 확인).
+> The header comment in `tabsContract.ts` and `CLAUDE.md` both give the source path as
+> `skkuverse-server/features/notices/categories.json`. After the server repo was
+> restructured, **the real path is `skkuverse-server/src/notices/categories.json`**, confirmed
+> on 2026-07-21.
 
-### categories.json 항목 구조 (실측)
+### What an entry in categories.json looks like
 
-```json
-{ "id": "academic", "label": { "ko": "학사", "en": "Academic" },
+```jsonc
+{ "id": "academic", "label": { "ko": "학사", "en": "Academic" }, // conventions:allow-korean: live server payload
   "tabMode": "fixed", "sourceId": "skku-notice02" }
 ```
 
-```json
-{ "id": "library", "label": { "ko": "도서관", "en": "Library" },
+```jsonc
+{ "id": "library", "label": { "ko": "도서관", "en": "Library" }, // conventions:allow-korean: live server payload
   "tabMode": "picker", "sourceIds": ["lib-hssc", "lib-nsc", "lib-all"],
   "maxSelection": 3, "defaultIds": ["lib-all"],
   "campusDefaultIds": { "hssc": ["lib-hssc"], "nsc": ["lib-nsc"] } }
 ```
 
-- **fixed**: `sourceId` 하나. 모든 `sourceId`는 같은 폴더의 `sources.json`에 존재해야 함 — 없으면 서버가 부팅 시 fail-fast (`process.exit(1)`).
-- **picker**: `sourceIds[]` + `maxSelection` 필수. `defaultIds`·`campusDefaultIds`(키는 `hssc`/`nsc`만)는 선택. per-campus seed(공통 defaults ∪ campus defaults)가 `maxSelection`을 넘으면 검증 실패.
+- **fixed** takes one `sourceId`. Every `sourceId` has to exist in the `sources.json` beside
+  it, and the server fail-fasts at boot with `process.exit(1)` when one does not.
+- **picker** requires `sourceIds[]` and `maxSelection`. `defaultIds` and `campusDefaultIds`,
+  whose keys may only be `hssc` and `nsc`, are optional. Validation fails when the per-campus
+  seed, meaning the shared defaults combined with the campus defaults, exceeds
+  `maxSelection`.
 
-### FCM topic 컨벤션
+### The FCM topic convention
 
-서버 `notices.topics.ts` `buildTopics()`와 functions `derive.ts`가 **동일 포맷**을 독립적으로 생성한다 (translation layer 없음):
+The server's `buildTopics()` in `notices.topics.ts` and the functions' `derive.ts` produce
+**the same format** independently, with no translation layer between them:
 
-| tabMode | topic 포맷 | 예시 |
+| tabMode | Topic format | Example |
 | --- | --- | --- |
 | fixed | `category:<tab.id>` | `category:academic` |
 | picker | `<tab.id>:<sourceId>` | `library:lib-hssc` |
 
-**컨벤션: picker tab key === topic prefix (identity 매핑).** `KNOWN_PICKER_KEYS` 자체가 prefix 집합이며, 별도 prefix 매핑 상수는 폐기됐다. 새 picker 탭의 `id`가 곧 topic prefix가 되므로 다른 이름을 쓸 수 없다.
+**The convention is that a picker tab key is its topic prefix, an identity mapping.**
+`KNOWN_PICKER_KEYS` is itself the set of prefixes, and the separate prefix-mapping constant
+that used to exist has been removed. A new picker tab's `id` becomes its topic prefix, so it
+cannot be named anything else.
 
-## 단계 체크리스트
+## Step checklist
 
-1. **(상류) crawler에 소스/카테고리 정의** — `skkuverse-crawler/categories.json` 갱신 + 새 sourceId면 `sources.json`에 크롤 소스 등록. crawler → server 사본 동기화 방식(수동 복사 vs 스크립트)은 **확인 필요**.
+1. **Upstream: define the source and category in the crawler.** Update
+   `skkuverse-crawler/categories.json`, and register the crawl source in `sources.json` when
+   the sourceId is new. How the crawler copy reaches the server, by hand or by script,
+   **still needs confirming**.
 
-2. **서버 `src/notices/categories.json`에 탭 추가** — 위 구조대로. `sources.json`에 sourceId가 있는지 먼저 확인. 서버는 부팅 시 검증이므로 **redeploy해야 반영**.
+2. **Add the tab to the server's `src/notices/categories.json`**, in the shape above. Check
+   first that the sourceId exists in `sources.json`. The server validates at boot, so this
+   **needs a redeploy** to take effect.
 
-3. **같은 release에서 functions 미러 갱신** — `functions/src/notifications/tabsContract.ts`:
-   - fixed 탭 → `FIXED_TAB_KEYS`에 추가
-   - picker 탭 → `KNOWN_PICKER_KEYS`에 추가
-   - 스냅샷 테스트 `functions/test/tabsContract.test.ts`의 expected 리스트와 총 탭 개수 assert도 **의도적으로** 갱신 (이 테스트가 드리프트 안전망)
+3. **Update the functions mirror in the same release**, in
+   `functions/src/notifications/tabsContract.ts`:
+   - a fixed tab goes into `FIXED_TAB_KEYS`
+   - a picker tab goes into `KNOWN_PICKER_KEYS`
+   - update the expected list and the total-count assertion in the snapshot test
+     `functions/test/tabsContract.test.ts` **deliberately**, since that test is the drift net
 
-4. **(필요 시) Android 알림 채널** — `functions/src/channels.ts` `mapCategoryToChannel()`은 일부 카테고리만 전용 채널로 매핑하고 나머지는 `notice_general`로 fallback. 새 fixed 탭에 전용 채널을 주려면 여기와 **앱 쪽 미러 `apps/mobile/src/services/notification-channels.ts`(notifee 사전 등록)를 문자열 동일하게** 함께 갱신. 채널 ID 불일치 시 Android가 조용히 default 채널로 fallback.
+4. **If needed, the Android notification channel.** `mapCategoryToChannel()` in
+   `functions/src/channels.ts` maps only some categories to a dedicated channel and falls
+   back to `notice_general` for the rest. Giving a new fixed tab its own channel means
+   updating that **and its app-side mirror**,
+   `apps/mobile/src/services/notification-channels.ts`, where notifee registers channels in
+   advance, **with byte-identical strings**. A channel id mismatch makes Android fall back to
+   the default channel silently.
 
-5. **검증**
+5. **Verify**
 
    ```bash
    cd functions
-   npm test              # derive + tabsContract 스냅샷 + equality 테스트
-   npm run verify:trigger  # firebase emulators:exec 통합 시나리오
+   npm test                # derive, the tabsContract snapshot, and equality tests
+   npm run verify:trigger  # firebase emulators:exec integration scenarios
    ```
 
-6. **배포 순서 — functions 먼저, 서버 나중 (코드에서 유추한 권장안)**
-   - `derive.ts`는 `noticeTabEnabled[key] !== false` default-on 정책이라, 미러가 먼저 배포되면 유저의 다음 preferences write 시점부터 새 topic이 구독에 추가된다 (서버가 아직 그 topic으로 발송 안 하므로 무해).
-   - 반대로 서버가 먼저 새 topic으로 발송하면 구독 디바이스 0 → **조용한 미전송**.
-   - 단, `onPreferencesWrite` 트리거는 preferences **write 시에만** 재파생한다 — 기존 유저의 `subscribedTopics`가 즉시 갱신되지 않음. 전체 유저 backfill 절차 존재 여부는 **확인 필요** (없으면 새 탭 알림이 활성 유저에게만 점진 전파됨).
+6. **Deploy order: functions first, then the server.** This is inferred from the code rather
+   than written down anywhere else.
+   - `derive.ts` treats `noticeTabEnabled[key] !== false` as on by default, so deploying the
+     mirror first means the new topic joins a user's subscription on their next preferences
+     write. That is harmless, because the server is not sending to it yet.
+   - The other order has the server sending to a topic no device subscribes to, which is a
+     **silent non-delivery**.
+   - Note that the `onPreferencesWrite` trigger re-derives **only on a preferences write**, so
+     existing users' `subscribedTopics` do not update immediately. Whether a backfill
+     procedure exists for all users **needs confirming**. Without one, notifications for a new
+     tab reach active users gradually.
 
-## Footgun 표
+## Footguns
 
-| Footgun | 증상 | 감지 |
+| Footgun | Symptom | How it is caught |
 | --- | --- | --- |
-| 새 **fixed** key 미러 누락 | topic 미구독 → 해당 탭 알림 0건 전송 | **자체 감지 불가** — derive는 fixed key 목록을 그대로 순회할 뿐. 개발자 조율 + `tabsContract.test.ts` 갱신이 유일한 방어 |
-| 새 **picker** key 미러 누락 | 해당 picker 선택이 topic으로 emit 안 됨 | `derive.ts`가 `notifications.derive.unknown_picker_key`를 `logger.warn` → Cloud Logging에서 조기 감지 (fail은 안 함) |
-| `sources.json`에 없는 sourceId | 서버 부팅 실패 | fail-fast `exit(1)` — 배포 시 즉시 드러남 (좋은 실패) |
-| 채널 매핑 미갱신 | Android에서 `notice_general` 채널로 조용히 fallback | 육안 확인만 |
-| picker id ≠ topic prefix로 명명 | topic 계약 파괴 | 컨벤션 위반 — identity 매핑 강제 |
-| `pickerSelections.dept[0] === ''` sentinel | (기존 동작) "내 학과 없음" 마커. derive의 falsy 필터가 `dept:` invalid topic 누수 차단 | 필터 로직 건드릴 때만 유의 |
-| 'dept' 키 하드코딩 3 sites | dept 탭 rename 시 `notices/index.tsx` 핸들러 + `useAppInit.ts` + `tabsContract.ts` coordinated rename 필요 | 개발자 조율 |
+| A new **fixed** key missing from the mirror | The topic is never subscribed, so that tab sends zero notifications | **Nothing catches it.** derive simply iterates the fixed key list. Coordination plus the `tabsContract.test.ts` update is the only defense |
+| A new **picker** key missing from the mirror | That picker selection never becomes a topic | `derive.ts` logs `notifications.derive.unknown_picker_key` at warn level, so Cloud Logging shows it early, though nothing fails |
+| A sourceId absent from `sources.json` | The server fails to boot | fail-fast `exit(1)`, visible at deploy time, which is a good failure |
+| The channel mapping not updated | Android falls back to `notice_general` silently | Only by looking |
+| A picker id named differently from its topic prefix | The topic contract breaks | A convention violation, since the mapping is identity |
+| `pickerSelections.dept[0] === ''` sentinel | Existing behaviour, marking "my department is not listed". derive's falsy filter stops an invalid `dept:` topic leaking | Only matters when touching the filter logic |
+| The 'dept' key hardcoded in three places | Renaming the dept tab needs a coordinated rename across the `notices/index.tsx` handler, `useAppInit.ts` and `tabsContract.ts` | Coordination |
 
-## 관련 문서
+## Related
 
-- [../explanation/fcm-architecture.md](../explanation/fcm-architecture.md) — derive/trigger/delivery 파이프라인이 왜 이렇게 생겼는지
-- [../explanation/notices-feature.md](../explanation/notices-feature.md) — 공지 탭 UI·온보딩 게이트 배경
-- `functions/README.md` — verify 스크립트 상세
+- [../explanation/fcm-architecture.md](../explanation/fcm-architecture.md) — why the derive,
+  trigger and delivery pipeline is shaped this way
+- [../explanation/notices-feature.md](../explanation/notices-feature.md) — background on the
+  notice tab UI and the onboarding gate
+- `functions/README.md` — the verify scripts in detail

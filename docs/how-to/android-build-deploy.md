@@ -3,59 +3,62 @@ title: Android Build & Deploy
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-10
 audience: internal
 ---
 
 # Android Build & Deploy
 
-> Android 앱을 로컬에서 빌드(EAS Build `--local`)하고 Google Play internal testing/production에 배포(Fastlane supply)하는 절차 런북. Android 배포를 실행하는 사람이 읽는다.
+> The runbook for building the Android app locally with EAS Build `--local` and uploading it to Google Play internal testing or production with Fastlane supply. Read this before running an Android release.
 
-## 개요
+## Overview
 
-iOS와 동일하게 Expo CNG 프로젝트. 빌드는 **EAS Build (`--local`)**, 업로드는 **Fastlane supply**로 분리되어 있다. EAS 클라우드 빌드는 사용하지 않는다.
+An Expo CNG project, the same as iOS. **EAS Build (`--local`)** produces the artifact and
+**Fastlane supply** uploads it. EAS cloud builds are not used.
 
 ```text
 apps/mobile/
 ├── scripts/
-│   ├── android-build.sh          # 빌드만
-│   ├── android-beta.sh           # 빌드 + GP internal testing
-│   └── android-release.sh        # 빌드 + GP production (draft)
+│   ├── android-build.sh          # build only
+│   ├── android-beta.sh           # build + GP internal testing
+│   └── android-release.sh        # build + GP production (draft)
 ├── fastlane/
-│   ├── Fastfile                  # android upload_beta, upload_release lane
-│   └── play-store-key.json       # Google Play 서비스 계정 키
+│   ├── Fastfile                  # the android upload_beta and upload_release lanes
+│   └── play-store-key.json       # Google Play service account key
 ├── certs/
-│   └── upload-keystore.jks       # Upload keystore (Flutter에서 가져옴)
-├── credentials.json              # EAS 로컬 인증 설정 (iOS + Android)
-├── Gemfile                       # Fastlane 의존성
-└── eas.json                      # EAS Build 프로필
+│   └── upload-keystore.jks       # upload keystore, carried over from Flutter
+├── credentials.json              # EAS local credentials config, iOS and Android
+├── Gemfile                       # Fastlane dependencies
+└── eas.json                      # EAS Build profiles
 ```
 
 > [!NOTE]
-> 에뮬레이터 개발 실행은 배포 파이프라인과 무관하게 `cd apps/mobile && npx expo run:android`.
+> Running on an emulator during development has nothing to do with this pipeline:
+> `cd apps/mobile && npx expo run:android`.
 
-## 사전 준비
+## Prerequisites
 
-### 빌드 환경 요구사항
+### Build environment
 
-빌드 스크립트에서 자동 설정하지만, 수동 빌드 시 확인 필요:
+The build scripts set these up, but a manual build needs them checked:
 
-| 항목 | 요구사항 |
+| Item | Requirement |
 | --- | --- |
-| JDK | 17+ (`/usr/libexec/java_home -v 17`) |
+| JDK | 17 or newer (`/usr/libexec/java_home -v 17`) |
 | ANDROID_HOME | `~/Library/Android/sdk` |
-| jq | `brew install jq` (version increment에 사용) |
+| jq | `brew install jq`, used for the version increment |
 
 ### Credentials
 
-| 항목 | 값 |
+| Item | Value |
 | --- | --- |
-| Package Name | `com.zoyoong.skkubus` |
-| Keystore | `certs/upload-keystore.jks` (Flutter에서 가져온 동일 키) |
-| Key Alias | `upload` |
-| EAS Project ID | `43e326a2-2f25-4317-a341-a107a52c5405` |
+| Package name | `com.zoyoong.skkubus` |
+| Keystore | `certs/upload-keystore.jks`, the same key carried over from Flutter |
+| Key alias | `upload` |
+| EAS project ID | `43e326a2-2f25-4317-a341-a107a52c5405` |
 
-**Google Play 서비스 계정 키:** `fastlane/play-store-key.json` — Google Cloud Console에서 생성한 서비스 계정 JSON 키. 연결 테스트:
+**The Google Play service account key** is `fastlane/play-store-key.json`, a service account
+JSON key created in the Google Cloud console. To test the connection:
 
 ```bash
 bundle exec fastlane run validate_play_store_json_key json_key:fastlane/play-store-key.json
@@ -63,104 +66,123 @@ bundle exec fastlane run validate_play_store_json_key json_key:fastlane/play-sto
 
 ### .easignore
 
-iOS와 동일한 `.easignore` 사용 (`.gitignore` 대신 적용됨). Firebase 설정 파일은 빌드에 포함:
+The same `.easignore` as iOS, applied in place of `.gitignore`. The Firebase config files
+have to reach the build:
 
-| 파일 | .gitignore | .easignore | 이유 |
+| File | .gitignore | .easignore | Why |
 | --- | :---: | :---: | --- |
-| `google-services.json` | 제외 | **포함** | Android Firebase 설정 |
-| `.env` | 제외 | **포함** | `EXPO_PUBLIC_*` 환경변수 |
+| `google-services.json` | excluded | **included** | Android Firebase config |
+| `.env` | excluded | **included** | The `EXPO_PUBLIC_*` variables |
 
-### 버전 관리 (자동 — 알아만 두기)
+### Versioning happens by itself
 
-- `eas.json`에서 `appVersionSource: "remote"` 설정 — EAS 서버에서 빌드 번호 관리
-- `autoIncrement: true`가 beta/production 프로필 모두에 설정됨 — `--local` 빌드에서도 동작 확인
-- 빌드 시 EAS가 자동으로 현재 번호 +1 증가 후 빌드 (수동 관리 불필요)
-- EAS remote에서 플랫폼별 독립 관리 (iOS buildNumber와 Android versionCode는 별도)
-- 초기값: Flutter 마지막 versionCode(67)보다 높은 100에서 시작
-- 현재 번호 확인:
+- `eas.json` sets `appVersionSource: "remote"`, so EAS keeps the build number.
+- `autoIncrement: true` is on for both the beta and production profiles, and it does work
+  under `--local`.
+- Each build increments the current number by one before building, so there is nothing to
+  maintain by hand.
+- EAS tracks the platforms independently, so the iOS buildNumber and the Android versionCode
+  move separately.
+- The starting point was 100, chosen to sit above Flutter's last versionCode of 67.
+- To read the current number:
 
   ```bash
   eas build:version:get -p android --non-interactive --json
   ```
 
-## 단계
+## Steps
 
-1. **Release Notes 수정** — 배포 시 Google Play에 표시되는 변경사항. `fastlane/metadata/android/` 아래 locale별 `default.txt`를 수정하면 업로드 시 자동 포함된다. 수정 안 하면 기존 내용 그대로 올라간다. 최대 500자.
+1. **Update the release notes.** These are the changes shown on Google Play. Edit the
+   per-locale `default.txt` under `fastlane/metadata/android/` and it is included
+   automatically at upload. Leaving them alone re-uploads whatever is there. The limit is 500
+   characters.
 
    ```text
    fastlane/metadata/android/
-   ├── ko-KR/changelogs/default.txt    ← 한국어
-   ├── en-US/changelogs/default.txt    ← 영어
-   └── zh-CN/changelogs/default.txt    ← 중국어
+   ├── ko-KR/changelogs/default.txt    ← Korean
+   ├── en-US/changelogs/default.txt    ← English
+   └── zh-CN/changelogs/default.txt    ← Chinese
    ```
 
-2. **빌드 + 업로드 스크립트 실행**
+2. **Run the build and upload script**
 
    ```bash
    cd apps/mobile
 
-   ./scripts/android-build.sh     # .aab 빌드만
-   ./scripts/android-beta.sh      # 빌드 + Google Play internal testing 업로드
-   ./scripts/android-release.sh   # 빌드 + Google Play production (draft) 업로드
+   ./scripts/android-build.sh     # build the .aab only
+   ./scripts/android-beta.sh      # build and upload to Google Play internal testing
+   ./scripts/android-release.sh   # build and upload to Google Play production as a draft
    ```
 
-   스크립트 내부는 2단계로 동작한다.
+   Each script runs in two stages.
 
-   **1단계 — EAS Build (`--local`):**
+   **Stage 1, EAS Build (`--local`):**
 
    ```bash
    eas build --platform android --profile production --local --non-interactive --output ./build.aab
    ```
 
-   - 프로젝트를 `.tar.gz`로 압축 → 임시 디렉토리에서 빌드
-   - `credentials.json`의 keystore 정보로 signing config 자동 주입 (CNG이므로 build.gradle 직접 수정 불필요)
-   - 출력: `build.aab` (Android App Bundle)
+   - Compresses the project into a `.tar.gz` and builds it in a temporary directory.
+   - Injects the signing config from the keystore details in `credentials.json`. Under CNG
+     there is no build.gradle to edit by hand.
+   - Produces `build.aab`, an Android App Bundle.
 
-   **2단계 — Fastlane Upload:**
+   **Stage 2, the Fastlane upload:**
 
    ```bash
-   bundle exec fastlane android upload_beta aab:"./build.aab"       # Internal testing
-   bundle exec fastlane android upload_release aab:"./build.aab"    # Production (draft)
+   bundle exec fastlane android upload_beta aab:"./build.aab"       # internal testing
+   bundle exec fastlane android upload_release aab:"./build.aab"    # production (draft)
    ```
 
-   - Google Play 서비스 계정 키로 인증 (`play-store-key.json`)
-   - `upload_beta`: internal track, 즉시 배포 (TestFlight 대응)
-   - `upload_release`: production track, draft 상태 (수동 배포 필요)
+   - Authenticates with the Google Play service account key, `play-store-key.json`.
+   - `upload_beta` goes to the internal track and releases immediately, matching TestFlight.
+   - `upload_release` goes to the production track as a draft, which still needs releasing by
+     hand.
 
-## 트러블슈팅
+## Troubleshooting
 
 ### JAVA_HOME invalid directory
 
-빌드 스크립트에 `export JAVA_HOME="$(/usr/libexec/java_home -v 17)"` 포함되어 있음. 수동 빌드 시 JDK 17이 설치되어 있는지 확인.
+The build scripts include `export JAVA_HOME="$(/usr/libexec/java_home -v 17)"`. For a manual
+build, check that JDK 17 is installed.
 
 ### SDK location not found
 
-빌드 스크립트에 `export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"` 포함. Android SDK가 `~/Library/Android/sdk`에 없으면 직접 경로 지정.
+The build scripts include
+`export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"`. If the Android SDK is
+somewhere other than `~/Library/Android/sdk`, set the path directly.
 
-### supply 첫 업로드 실패
+### The first supply upload fails
 
-Fastlane `supply`는 앱이 Play Console에 최소 1회 수동 업로드된 상태여야 동작. Flutter로 이미 올린 적 있으면 문제없음.
+Fastlane's `supply` needs the app to have been uploaded to the Play console by hand at least
+once. Having already published it from Flutter satisfies that.
 
-### versionCode 충돌
+### versionCode conflict
 
-Flutter 앱의 마지막 versionCode(67)보다 높은 값으로 시작해야 함. `eas build:version:get -p android`로 현재 값 확인 가능.
+The number has to start above Flutter's last versionCode of 67. Read the current value with
+`eas build:version:get -p android`.
 
 ### splashscreen_logo not found
 
-`expo-splash-screen` 플러그인은 `styles.xml`에 `@drawable/splashscreen_logo` 참조를 항상 추가함. `app.config.ts`에서 `image`를 지정하지 않으면 drawable 파일이 생성되지 않아 빌드 실패:
+The `expo-splash-screen` plugin always adds a reference to `@drawable/splashscreen_logo` in
+`styles.xml`. Without an `image` in `app.config.ts`, the drawable is never generated and the
+build fails:
 
 ```text
 error: resource drawable/splashscreen_logo (aka com.zoyoong.skkubus:drawable/splashscreen_logo) not found.
 ```
 
-**해결:** `expo-splash-screen` 설정에 `image` 필드 필수. 아이콘 없이 흰 배경만 원하면 `transparent_1x1.png` 사용:
+**The fix** is to always set the `image` field in the `expo-splash-screen` config. For a plain
+white background with no icon, point it at `transparent_1x1.png`:
 
 ```ts
 ["expo-splash-screen", { backgroundColor: "#ffffff", image: "./assets/images/transparent_1x1.png" }]
 ```
 
-## 관련 문서
+## Related
 
-- [ios-build-deploy.md](../how-to/ios-build-deploy.md) — 동일 파이프라인의 iOS 판 (monorepo 필수 설정 등 공통 함정 포함)
-- [ota-update.md](../how-to/ota-update.md) — 빌드 채널(beta/production)과 연동되는 OTA 발행
-- [docs/README.md](../README.md) — 문서 작성 규칙
+- [ios-build-deploy.md](../how-to/ios-build-deploy.md) — the iOS half of the same pipeline,
+  including the shared monorepo traps
+- [ota-update.md](../how-to/ota-update.md) — publishing an OTA, which follows the same beta
+  and production channels
+- [docs/README.md](../README.md) — the writing rules

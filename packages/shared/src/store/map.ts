@@ -10,7 +10,7 @@
 
 import { create } from 'zustand';
 import type { MapLayerDef } from '../types/map';
-import { useSettingsStore } from './settings';
+import { useSettingsStore, type Campus } from './settings';
 
 type LayerStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -20,14 +20,19 @@ interface LayerState {
 }
 
 interface MapLayerState {
-  selectedCampus: string;
+  /**
+   * `Campus`, not `string`. It is seeded from `preferredCampus` (already a
+   * `Campus`) and written back to it, so widening here only created a round trip
+   * that had to be cast away again on the way out.
+   */
+  selectedCampus: Campus;
   layers: Record<string, LayerState>;
 }
 
 interface MapLayerActions {
   initFromConfig: (layerDefs: MapLayerDef[]) => void;
   toggleLayer: (id: string) => void;
-  setSelectedCampus: (id: string) => void;
+  setSelectedCampus: (id: Campus) => void;
   setLayerStatus: (id: string, status: LayerStatus) => void;
 }
 
@@ -65,8 +70,8 @@ export const useMapLayerStore = create<MapLayerStore>((set) => ({
 
   setSelectedCampus: (id) => {
     set({ selectedCampus: id });
-    // Sync back to persisted settings
-    useSettingsStore.getState().setPreferredCampus(id as 'hssc' | 'nsc');
+    // Sync back to persisted settings. No cast — `id` is already a Campus.
+    useSettingsStore.getState().setPreferredCampus(id);
   },
 
   setLayerStatus: (id, status) => {

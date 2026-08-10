@@ -3,11 +3,11 @@ title: Adopt Diátaxis Docs Structure
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-10
 audience: internal
 ---
 
-# 0001. Diátaxis 기반 문서 구조 채택
+# 0001. Adopt a Diátaxis-based docs structure
 
 ## Status
 
@@ -15,28 +15,47 @@ Accepted — 2026-07-21
 
 ## Context
 
-`docs/`에 11개 문서가 평면으로 쌓이며 세 가지 문제가 겹쳤다:
+Documents had piled up flat in `docs/`, and the problems compounded:
 
-1. **Staleness** — 문서가 코드에서 값을 복사해 박제 (OTA `runtimeVersion` 3.5.0 박제, rules 테스트 개수 26/30 박제 등 감사에서 9건 확인). 코드가 바뀌어도 문서는 조용히 낡는다.
-2. **분류 부재** — 런북·네이티브 노트·API 계약·포스트모템·진행 중 계획이 한 폴더에 섞여, 정착한 스펙과 초안을 구분할 수 없음.
-3. **형식 부재** — frontmatter/상태/갱신일 메타데이터 없음. `docs/internal/`의 포스트모템 한 편만 구조화되어 있었음.
+1. **Staleness.** Documents copied values out of the code and froze them: a `runtimeVersion`
+   in the OTA runbook, a rules-test count, nine such cases found in one audit. When the code
+   moves, the document goes quietly out of date.
+2. **Nothing separated the categories.** Runbooks, native notes, API contracts, postmortems
+   and in-progress plans shared one folder, so a settled spec and a draft looked alike.
+3. **Documents had no metadata at all.** Frontmatter was missing, and with it any record of
+   a document's status or age. The single postmortem in `docs/internal/` was the only
+   structured document in the tree.
 
 ## Decision
 
-- **[Diátaxis](https://diataxis.fr/) 4분류 폴더** (`tutorials/`·`how-to/`·`reference/`·`explanation/`) + 내부 전용 3폴더 (`decisions/`·`internal/`·`plans/`) 채택. 분류 축은 주제가 아니라 **독자의 니즈**.
-- 모든 문서에 **frontmatter** (`title/type/status/owner/last-updated/audience`) + H1 하나 + 한 줄 요약 골격 강제.
-- **값 복사 금지 규칙**: 버전·수치는 하드코딩하지 않고 source-of-truth 파일을 가리킨다.
-- **워크스페이스별 `README.md`** 신설 — 패키지 국소 지식은 코드 옆에 co-locate, `docs/`는 cross-cutting 전용.
-- **markdownlint-cli2**를 루트에 도입 (`yarn lint:md`), 규칙은 `.markdownlint-cli2.jsonc`. Prettier는 도입하지 않음 — 이 monorepo에 Prettier가 원래 없고, 새 포매터 도입은 스코프 초과라 lint `--fix`로 갈음.
-- 파일명 kebab-case, ADR은 `NNNN-kebab-title.md` (MADR-lite: Context/Decision/Consequences).
+- Adopt the four [Diátaxis](https://diataxis.fr/) folders (`tutorials/`, `how-to/`,
+  `reference/`, `explanation/`) plus three internal ones (`decisions/`, `internal/`,
+  `plans/`). The axis is the reader's need, not the subject matter.
+- Require frontmatter (`title/type/status/owner/last-updated/audience`), one H1, and a
+  one-line summary in every document.
+- **Never copy a value.** Versions and measurements point at their source-of-truth file
+  rather than being written out.
+- Add a `README.md` per workspace, so package-local knowledge sits beside the code and
+  `docs/` holds only what crosses package boundaries.
+- Add markdownlint-cli2 at the root as `yarn lint:md`, configured by
+  `.markdownlint-cli2.jsonc`. Prettier is not adopted: this monorepo never had it, and
+  introducing a formatter is beyond this decision's scope, so lint `--fix` covers the gap.
+- File names are kebab-case, and ADRs are `NNNN-kebab-title.md` following a light MADR
+  shape of Context, Decision and Consequences.
 
-전체 규칙의 SSOT는 [docs/README.md](../README.md).
+The SSOT for all of it is [docs/README.md](../README.md).
 
 ## Consequences
 
-- (+) 문서의 목적이 경로만으로 드러남. 초안(`plans/`, `status: draft`)과 권위 문서(`reference/`)가 물리적으로 구분됨.
-- (+) staleness의 주범이던 값 박제가 컨벤션+린트로 차단됨. `last-updated`로 낡음이 가시화됨.
-- (+) AI 에이전트가 frontmatter `type/status/audience`를 기계적으로 읽고 문서 신뢰도를 판단 가능.
-- (−) 기존 `docs/*.md` 평면 경로를 참조하던 `CLAUDE.md`·`README.md`·소스 주석 전부 갱신 필요 (이 ADR과 같은 브랜치에서 일괄 수행).
-- (−) 새 문서 작성 시 분류 판단 비용 발생 — 애매하면 [docs/README.md](../README.md)의 니즈 표 기준으로 판정.
-- 문서 볼륨이 커지거나 공개 사이트가 필요해지면 VitePress 도입을 재검토 (현재는 보류).
+- (+) A document's purpose is legible from its path alone. A draft in `plans/` and an
+  authority in `reference/` are physically separated.
+- (+) The frozen values behind most staleness are blocked by convention and lint, and
+  `last-updated` makes age visible.
+- (+) An agent can read `type`, `status` and `audience` mechanically and judge how far to
+  trust a document.
+- (−) Every reference to the old flat `docs/*.md` paths in `CLAUDE.md`, `README.md` and
+  source comments had to be updated, which happened on this ADR's own branch.
+- (−) Writing a new document now costs a categorisation decision. When it is unclear, use
+  the reader-need table in [docs/README.md](../README.md).
+- Revisit VitePress if the volume grows or a public site is needed, which is not the case
+  today.

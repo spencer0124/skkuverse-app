@@ -11,6 +11,7 @@ function dept(overrides: Partial<TabSource> & Pick<TabSource, 'id' | 'name'>): T
     college: null,
     noticeAvailable: true,
     excludeReason: null,
+    excludeReasonText: null,
     ...overrides,
   };
 }

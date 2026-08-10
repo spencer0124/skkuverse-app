@@ -3,37 +3,61 @@ title: Self-Hosted OTA with Fixed-String runtimeVersion
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-10
 audience: internal
 ---
 
-# 0004. 셀프호스팅 expo-open-ota + 고정 문자열 runtimeVersion
+# 0004. Self-hosted expo-open-ota with a fixed-string runtimeVersion
 
 ## Status
 
-Accepted — OTA 인프라 구축 시 결정 (정확한 시점 기록 없음, 2026-07-21 백필 기록). eoas 버전 고정은 2026-07 (커밋 54153d9).
+Accepted — decided while building the OTA infrastructure. The exact date was not recorded;
+this entry was written on 2026-07-21. The eoas version was pinned in 2026-07, commit
+`54153d9`.
 
 ## Context
 
-JS-only 변경을 스토어 심사 없이 배포하기 위해 OTA 업데이트가 필요했다. EAS Update(클라우드) 대신 셀프호스팅을 택한 상태에서, 두 가지 하위 결정이 있었다:
+Releasing JS-only changes without a store review needs OTA updates. Having already chosen to
+self-host rather than use EAS Update, two sub-decisions remained.
 
-1. **runtimeVersion 정책** — Expo의 fingerprint 방식(네이티브 코드 해시 자동 계산) vs 고정 문자열 수동 관리. fingerprint는 EAS build와 eoas(expo-open-ota CLI) 간 해시 **불일치 이슈**가 있어 같은 네이티브 빌드가 서로 다른 runtime으로 계산되는 문제가 있었다.
-2. **eoas CLI 버전** — 미고정 `npx eoas`는 메이저 점프를 그대로 타서 배포 스크립트가 예고 없이 깨질 수 있다 (실제 사고 → 커밋 54153d9).
+**The runtimeVersion policy.** Expo can derive it as a fingerprint by hashing the native
+code. The alternative is a fixed string maintained by hand. The fingerprint route had a
+hash mismatch between EAS build and eoas, the expo-open-ota CLI, so the same native build
+could be assigned two different runtimes.
+
+**The eoas CLI version.** An unpinned `npx eoas` follows major version jumps as they land,
+which can break the deploy scripts without warning. It did, which is what commit `54153d9`
+is.
 
 ## Decision
 
-- **셀프호스팅 expo-open-ota 서버** (`https://ota.skkuverse.com`)를 쓴다.
-- **runtimeVersion은 고정 문자열** (실제 값은 `apps/mobile/app.config.ts`에서 확인). fingerprint 방식은 쓰지 않는다.
-- **채널 분리**: `*-beta.sh` 빌드 → "beta" 채널, `*-release.sh` 빌드 → "production" 채널. `EAS_BUILD_PROFILE` 환경변수로 `app.config.ts`가 채널 자동 결정. 워크플로우는 beta OTA → 검증 → production OTA.
-- **네이티브 변경 시 runtimeVersion 수동 bump 규율**: 새 네이티브 모듈·SDK 업그레이드·plugins 변경이면 반드시 bump. bump는 명시적 유저 지시로만 (자동 bump 금지).
-- **eoas 버전 고정** (커밋 54153d9, 고정 값은 해당 스크립트에서 확인) — 미고정 npx의 메이저 점프 사고 방지.
+- Run a self-hosted expo-open-ota server at `https://ota.skkuverse.com`.
+- **Keep runtimeVersion a fixed string**, defined in `apps/mobile/app.config.ts`. Do not use
+  the fingerprint route.
+- **Separate the channels.** A `*-beta.sh` build goes to the "beta" channel and a
+  `*-release.sh` build to "production", with `app.config.ts` choosing from the
+  `EAS_BUILD_PROFILE` environment variable. The workflow is an OTA to beta, then
+  verification, then an OTA to production.
+- **Bump runtimeVersion by hand whenever native code changes**: a new native module, an SDK
+  upgrade, or a change to plugins. Bumps happen only on an explicit instruction, never
+  automatically.
+- **Pin the eoas version** (commit `54153d9`; the value itself is in the script) so an
+  unpinned `npx` cannot jump a major version underneath a release.
 
 ## Consequences
 
-- (+) OTA 서버·채널을 완전 제어, EAS Update 종속·비용 없음.
-- (+) 고정 문자열이라 "이 빌드가 어떤 runtime인가"가 결정적 — fingerprint 불일치로 인한 업데이트 미수신/오수신 클래스 제거.
-- (−) **수동 bump 규율이 유일한 방어선**: 네이티브 모듈을 추가하고 bump를 잊으면, 새 JS를 구버전 네이티브 바이너리가 받아 hard-import 시점에 **크래시**할 수 있다. 리스크는 사람이 진다 — 네이티브 변경 PR 리뷰 시 bump 여부를 반드시 확인.
-- (−) 셀프호스팅 서버 운영 부담 (가용성·인증 `EXPO_TOKEN` 관리는 `.env.ota.local`).
-- eoas 고정 버전은 SDK 업그레이드 시 재검토 필요 (호환 범위 이동).
+- (+) Full control of the OTA server and its channels, with no dependency on EAS Update and
+  no cost.
+- (+) A fixed string makes "which runtime is this build" a decided question, which removes
+  the whole class of updates that reach the wrong binaries because two fingerprints
+  disagreed.
+- (−) **The manual bump is the only defense.** Add a native module, forget the bump, and an
+  older native binary can receive JS that hard-imports something it does not have, crashing
+  at import time. A human carries that risk, so a native-change review has to confirm the
+  bump.
+- (−) The server has to be operated: availability, and the `EXPO_TOKEN` credential kept in
+  `.env.ota.local`.
+- The pinned eoas version needs revisiting at each SDK upgrade, since its compatible range
+  moves.
 
-관련: [../how-to/ota-update.md](../how-to/ota-update.md).
+Related: [../how-to/ota-update.md](../how-to/ota-update.md).

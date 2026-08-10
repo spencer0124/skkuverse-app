@@ -3,6 +3,30 @@
   "repo": "app",
   "note": "Written by sync_contracts.py. Do not hand-edit, and never resolve a merge conflict here by hand - take either side, then re-run `pull --repo app`.",
   "contracts": {
+    "conventions.docs-template": {
+      "path": "docs/_template.md",
+      "sha256": "8d9a74eb073480a90a0e46e3d4149315bf53a1709987fcffd0a3a243465f90c2",
+      "producer": {
+        "repo": "umbrella",
+        "path": "docs/_template.md",
+        "ref": "main",
+        "commit": "2faecacaac1acc496bddca55dec3ecf567496b63",
+        "sha256": "8d9a74eb073480a90a0e46e3d4149315bf53a1709987fcffd0a3a243465f90c2"
+      },
+      "syncedAt": "2026-08-10T04:06:01Z"
+    },
+    "conventions.markdownlint": {
+      "path": ".markdownlint.jsonc",
+      "sha256": "e9657ea55ddfdca15b1a7a3e81be94c8d4845fd6da452f6d5689f12dabb865a5",
+      "producer": {
+        "repo": "umbrella",
+        "path": "conventions/markdownlint.jsonc",
+        "ref": "main",
+        "commit": "2faecacaac1acc496bddca55dec3ecf567496b63",
+        "sha256": "e9657ea55ddfdca15b1a7a3e81be94c8d4845fd6da452f6d5689f12dabb865a5"
+      },
+      "syncedAt": "2026-08-10T04:06:01Z"
+    },
     "notices.tab-keys": {
       "path": "functions/src/notifications/tabsContract.generated.ts",
       "sha256": "821642179d62719cd9809b75aab10cb9c2a5415a8bf1d5a595c31f5b96c5b0d3",
@@ -10,7 +34,7 @@
         "repo": "crawler",
         "path": "py/generated/server-categories.json",
         "ref": "main",
-        "commit": "e02b95fb08ee0e090a8afef094d6f8fea29b2ec8",
+        "commit": "3c6c08de969b739d43ef8f65446e13e970f46d98",
         "sha256": "36e26285167b79517800f6136a1fc729445e6a2795747c4bac7fcb92b7513ce2"
       },
       "syncedAt": "2026-08-05T08:24:39Z"
