@@ -3,61 +3,64 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-07-21
+last-updated: 2026-08-10
 audience: public
 ---
 
 # Map Config API Specification
 
-> `GET /map/config` 중심의 서버 주도(server-driven) 지도 레이어 계약. 지도 레이어를 추가·변경하는 서버/클라이언트 개발자가 읽는다.
+> The server-driven map layer contract, centred on `GET /map/config`. Read this before adding or changing a map layer, on either the server or the client.
 
-## 요약
+## Summary
 
-`/map/config` 시스템은 하드코딩된 캠퍼스 마커와 흩어져 있던 버스 노선 오버레이 로직을 하나의 서버 주도 레이어 레지스트리로 통합한다. 클라이언트는 앱 시작 시 레이어 정의를 받아 필터 UI를 동적으로 렌더링하고, 각 레이어의 데이터는 필요할 때 lazy 로드한다.
+The `/map/config` system replaces hardcoded campus markers and scattered bus route overlay
+logic with one server-driven layer registry. The client fetches the layer definitions at
+startup and renders the filter UI from them. Each layer's own data loads lazily, when it is
+first needed.
 
-| 엔드포인트 | 용도 |
+| Endpoint | Purpose |
 | --- | --- |
-| `GET /map/config` | 레이어 레지스트리 + 캠퍼스 정의 |
-| `GET /map/markers/campus` | 캠퍼스 건물 마커 전체 |
-| (레이어별 `endpoint` 값) | polyline 좌표 데이터 |
+| `GET /map/config` | The layer registry and the campus definitions |
+| `GET /map/markers/campus` | Every campus building marker |
+| The `endpoint` value of a layer | Polyline coordinate data |
 
-모든 응답은 v2 envelope 포맷(`{ meta, data }`)을 따른다.
+Every response uses the v2 envelope format, `{ meta, data }`.
 
-## `GET /map/config` — 레이어 레지스트리 + 캠퍼스 정의
+## `GET /map/config`: the layer registry and campus definitions
 
-캠퍼스 정의와 사용 가능한 지도 레이어 목록을 반환한다.
+Returns the campus definitions and the list of available map layers.
 
-### 요청 헤더
+### Request headers
 
-| 헤더 | 값 | 필수 | 설명 |
+| Header | Value | Required | Description |
 | --- | --- | --- | --- |
-| `Accept-Language` | `ko` \| `en` \| `zh` | 아니오 | 로케일 (기본 `ko`) |
-| `If-None-Match` | 이전 ETag 값 | 아니오 | 조건부 요청 (캐시 검증) |
+| `Accept-Language` | `ko` \| `en` \| `zh` | No | Locale, defaulting to `ko` |
+| `If-None-Match` | A previous ETag | No | Conditional request for cache validation |
 
-### 응답 헤더 (필수)
+### Response headers (required)
 
-| 헤더 | 설명 |
+| Header | Description |
 | --- | --- |
-| `ETag` | opaque string (예: content hash 또는 `"{version}:{timestamp}"`) |
-| `Vary: Accept-Language` | 캐시/CDN이 로케일별로 별도 사본을 저장하도록 보장 |
+| `ETag` | An opaque string, such as a content hash or `"{version}:{timestamp}"` |
+| `Vary: Accept-Language` | Makes caches and CDNs keep a separate copy per locale |
 
-### 응답 (200)
+### Response (200)
 
-```json
+```jsonc
 {
   "meta": {},
   "data": {
     "campuses": [
       {
         "id": "hssc",
-        "label": "인사캠",
+        "label": "인사캠", // conventions:allow-korean: live server payload
         "centerLat": 37.587241,
         "centerLng": 126.992858,
         "defaultZoom": 15.8
       },
       {
         "id": "nsc",
-        "label": "자과캠",
+        "label": "자과캠", // conventions:allow-korean: live server payload
         "centerLat": 37.293580,
         "centerLng": 126.974942,
         "defaultZoom": 15.8
@@ -68,7 +71,7 @@ audience: public
         "id": "building_numbers",
         "type": "marker",
         "markerStyle": "numberCircle",
-        "label": "건물번호",
+        "label": "건물번호", // conventions:allow-korean: live server payload
         "defaultVisible": true,
         "endpoint": "/map/markers/campus?overlay=number"
       },
@@ -76,7 +79,7 @@ audience: public
         "id": "building_labels",
         "type": "marker",
         "markerStyle": "textLabel",
-        "label": "건물이름",
+        "label": "건물이름", // conventions:allow-korean: live server payload
         "defaultVisible": true,
         "endpoint": "/map/markers/campus?overlay=label"
       }
@@ -86,53 +89,57 @@ audience: public
 ```
 
 > [!NOTE]
-> 이 예시는 2026-08-09 기준 실제 `GET /map/config` 응답과 일치한다 (권위는 서버
-> `src/map/map-config.data.ts`). 이전 판에는 존재하지 않는 `campus_buildings`
-> 단일 레이어와 `bus_route_*` 폴리라인이 적혀 있었다 — 폴리라인은 서버에서
-> 주석 처리된 상태다.
+> The sample matched the live `GET /map/config` response as of 2026-08-09. The authority is
+> the server's `src/map/map-config.data.ts`. An earlier revision of this document described
+> a single `campus_buildings` layer and `bus_route_*` polylines, neither of which exists:
+> the polylines are commented out on the server.
 >
-> **건물번호와 건물이름이 별개 레이어라는 점이 계약의 일부다.** 이벤트 기간에
-> 건물번호만 숨기고 건물이름은 남기는 동작이 이 분리 위에서 성립한다
-> ([eventmap-rendering.md](../explanation/eventmap-rendering.md) §8.1).
+> The `//` comments mark Korean that is live payload, for the conventions linter. They are
+> not part of the response.
+>
+> **Building numbers and building names being separate layers is part of the contract.**
+> Hiding the numbers during an event while keeping the names depends on that split. See
+> [eventmap-rendering.md](../explanation/eventmap-rendering.md), section 8.1.
 
-### 응답 (304)
+### Response (304)
 
-빈 body. 클라이언트는 캐시된 config를 그대로 유지한다.
+An empty body. The client keeps its cached config.
 
-### Campus 필드
+### Campus fields
 
-| 필드 | 타입 | 필수 | 설명 |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | string | 예 | 캠퍼스 식별자 (`"hssc"` 또는 `"nsc"`) |
-| `label` | string | 예 | 로케일 적용된 표시 이름 |
-| `centerLat` | number | 예 | 캠퍼스 중심 위도 (WGS84) |
-| `centerLng` | number | 예 | 캠퍼스 중심 경도 (WGS84) |
-| `defaultZoom` | number | 아니오 | 기본 지도 줌 레벨. 기본값 `15.8` |
+| `id` | string | Yes | Campus identifier, `"hssc"` or `"nsc"` |
+| `label` | string | Yes | Display name, already localised |
+| `centerLat` | number | Yes | Latitude of the campus centre (WGS84) |
+| `centerLng` | number | Yes | Longitude of the campus centre (WGS84) |
+| `defaultZoom` | number | No | Initial map zoom, defaulting to `15.8` |
 
-### Layer 필드
+### Layer fields
 
-| 필드 | 타입 | 필수 | 설명 |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | string | 예 | 레이어 고유 식별자. 클라이언트가 state key로 사용 |
-| `type` | string | 예 | `"marker"` 또는 `"polyline"`. 모르는 type은 클라이언트가 무시 |
-| `label` | string | 예 | 필터 UI에 표시할 로케일 적용 텍스트 |
-| `defaultVisible` | boolean | 아니오 | 초기 로드 시 표시 여부. 기본값 `false` |
-| `endpoint` | string | 예 | 레이어 데이터(마커 또는 좌표)를 가져올 경로 |
-| `style` | object | 아니오 | 렌더링 힌트. 현재는 `color`만 지원 |
+| `id` | string | Yes | Unique layer identifier, used by the client as a state key |
+| `type` | string | Yes | `"marker"` or `"polyline"`. The client ignores a type it does not know |
+| `label` | string | Yes | Localised text for the filter UI |
+| `defaultVisible` | boolean | No | Whether the layer shows on first load, defaulting to `false` |
+| `endpoint` | string | Yes | Where to fetch this layer's markers or coordinates |
+| `style` | object | No | Rendering hints. Only `color` is supported today |
 
-### `style` 필드
+### `style` fields
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `color` | string | `#` 없는 6자리 hex (예: `"2D8C4E"`). polyline stroke 색상 |
+| `color` | string | Six hex digits without a `#`, such as `"2D8C4E"`. The polyline stroke colour |
 
-## `GET /map/markers/campus` — 캠퍼스 건물 마커
+## `GET /map/markers/campus`: campus building markers
 
-인사캠(HSSC)·자과캠(NSC) **전체** 건물 마커를 반환한다. 캠퍼스별 필터링은 클라이언트가 `campus` 필드로 수행한다.
+Returns **every** building marker for both the humanities campus (HSSC) and the natural
+sciences campus (NSC). The client filters by campus itself, using the `campus` field.
 
-### 응답
+### Response
 
-```json
+```jsonc
 {
   "meta": {},
   "data": {
@@ -140,7 +147,7 @@ audience: public
       {
         "id": "hssc_1",
         "code": "1",
-        "name": "수선관",
+        "name": "수선관", // conventions:allow-korean: live server payload
         "campus": "hssc",
         "lat": 37.587361,
         "lng": 126.994479
@@ -150,20 +157,20 @@ audience: public
 }
 ```
 
-### Marker 필드
+### Marker fields
 
-| 필드 | 타입 | 필수 | 설명 |
+| Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `id` | string | 예 | 고유 ID. 포맷 `{campus}_{code}`. 지도 마커 ID로 사용 |
-| `code` | string | 아니오 | 건물 번호 (마커 캡션으로 표시) |
-| `name` | string | 예 | 건물 이름 (검색/인포윈도우용) |
-| `campus` | string | 예 | `"hssc"` 또는 `"nsc"`. 클라이언트가 이 값으로 필터링 |
-| `lat` | number | 예 | 위도 (WGS84) |
-| `lng` | number | 예 | 경도 (WGS84) |
+| `id` | string | Yes | Unique id in the form `{campus}_{code}`, used as the map marker id |
+| `code` | string | No | Building number, shown as the marker caption |
+| `name` | string | Yes | Building name, for search and the info window |
+| `campus` | string | Yes | `"hssc"` or `"nsc"`, which the client filters on |
+| `lat` | number | Yes | Latitude (WGS84) |
+| `lng` | number | Yes | Longitude (WGS84) |
 
-## Polyline 오버레이 엔드포인트
+## Polyline overlay endpoints
 
-클라이언트는 레이어 config의 `endpoint`에 지정된 경로에서 polyline 데이터를 기대한다.
+The client expects polyline data at whatever path a layer's `endpoint` names.
 
 ```json
 {
@@ -177,39 +184,43 @@ audience: public
 }
 ```
 
-| 필드 | 타입 | 설명 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `coords` | `number[][]` | 순서 있는 `[lat, lng]` 쌍 배열. 최소 2개 |
+| `coords` | `number[][]` | An ordered array of `[lat, lng]` pairs, at least two |
 
-## 캐싱 전략 (ETag)
+## Caching with ETag
 
-- 클라이언트는 HTTP ETag(RFC 7232)를 사용한다. 별도 version 엔드포인트 없음.
-- 서버는 모든 `GET /map/config` 응답에 `ETag` 헤더를 반환한다.
-- 클라이언트는 ETag를 메모리에 저장한다. cold start마다 새로 fetch.
-- 앱 resume 시 클라이언트가 `If-None-Match: {stored_etag}`를 전송한다.
-  - `304 Not Modified` → 캐시가 신선함, body 전송 0.
-  - `200 OK` → 새 데이터, 클라이언트가 캐시와 저장 ETag를 갱신.
-- 언어 변경 시 → 클라이언트가 저장 ETag를 버리고 fresh fetch.
+- The client uses HTTP ETags (RFC 7232). There is no separate version endpoint.
+- The server returns an `ETag` header on every `GET /map/config` response.
+- The client holds the ETag in memory and fetches afresh on each cold start.
+- On resume the client sends `If-None-Match: {stored_etag}`.
+  - `304 Not Modified` means the cache is fresh, with no body transferred.
+  - `200 OK` means new data, so the client updates both its cache and the stored ETag.
+- Changing the language makes the client discard the stored ETag and fetch afresh.
 
 ## i18n
 
-| 항목 | 값 |
+| Item | Value |
 | --- | --- |
-| 로케일 결정 | 서버가 `Accept-Language` 헤더를 읽음 |
-| 지원 로케일 | `ko` (기본), `en`, `zh` |
-| 로케일 의존 필드 | campus `label`, layer `label` |
-| 로케일 독립 필드 | `id`, `endpoint`, `style`, `type`, 좌표 |
-| 필수 응답 헤더 | `Vary: Accept-Language` |
+| How the locale is chosen | The server reads the `Accept-Language` header |
+| Supported locales | `ko` (default), `en`, `zh` |
+| Locale-dependent fields | The campus `label` and the layer `label` |
+| Locale-independent fields | `id`, `endpoint`, `style`, `type`, and coordinates |
+| Required response header | `Vary: Accept-Language` |
 
-## 확장 계획 (Future Extensibility)
+## Future extensibility
 
-- 새 레이어 type (예: `"heatmap"`, `"circle"`)은 `type` 필드로 추가. 클라이언트는 모르는 type을 무시.
-- `style`은 클라이언트를 깨지 않고 확장 가능 (`width`, `opacity`, `icon` 등).
-- POI 카테고리 레이어(식당, ATM 등)는 추가 `"marker"` type 레이어로 — future phase.
-- 계층형 필터 UI를 위한 레이어 그룹핑(`"group": "campus"`) — future phase.
-- `campuses` 배열은 클라이언트 변경 없이 확장 가능 (예: 새 분교 캠퍼스).
+- A new layer type, such as `"heatmap"` or `"circle"`, arrives through the `type` field, and
+  a client that does not know it ignores it.
+- `style` can grow without breaking a client, with `width`, `opacity` or `icon`.
+- POI category layers for restaurants or ATMs would be additional `"marker"` layers, in a
+  later phase.
+- Grouping layers for a hierarchical filter UI, with something like `"group": "campus"`, is
+  also a later phase.
+- The `campuses` array can grow without a client change, for a new satellite campus.
 
-## 관련 문서
+## Related
 
-- [sdui-campus-spec.md](sdui-campus-spec.md) — 같은 서버 주도 패턴을 쓰는 Campus 탭 UI 계약
-- [../README.md](../README.md) — 문서 작성 규칙
+- [sdui-campus-spec.md](sdui-campus-spec.md) — the campus tab UI contract, which uses the
+  same server-driven pattern
+- [../README.md](../README.md) — the writing rules
