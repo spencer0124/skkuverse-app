@@ -21,7 +21,7 @@ a native build is required" below.
 - **Dashboard:** `https://ota.skkuverse.com/dashboard/`
 - **Infrastructure repo:** `skkuverse-codepush`
 
-### The two channels
+### Channels
 
 - The `beta` channel reaches apps built by `ios-beta.sh` or `android-beta.sh`, meaning
   TestFlight and Internal Testing.
