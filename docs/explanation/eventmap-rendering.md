@@ -9,7 +9,7 @@ audience: internal
 
 # Event Map Rendering
 
-> How the app consumes the event map contract. It decides nothing — which layers exist, what is open,
+> How the app consumes the event map contract. It decides nothing: which layers exist, what is open,
 > what a chip means all arrive as data. Ownership is
 > [ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md);
 > the server side is [`eventmap-api.md`](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/eventmap-api.md).
@@ -19,16 +19,16 @@ audience: internal
 | | |
 | --- | --- |
 | Requests | `GET /eventmap/manifest` (poll) → `GET /eventmap/snapshot/:id/:version` (immutable) |
-| New shared code | `packages/shared/src/eventmap/` — types, predicate, parser, hooks, store |
+| New shared code | `packages/shared/src/eventmap/`: types, predicate, parser, hooks, store |
 | New app code | `apps/mobile/src/features/eventmap/` |
 | Touched | `CampusScreen`, `CampusNaverMap`, `MapMarkerLayer`, `FilterSheet`, `map/parser.ts`, `types/sdui.ts`, `features/search/store.ts`, `+native-intent.tsx` |
-| Rendering | `<NaverMapMarkerOverlay>` children — **no clustering** (§6) |
+| Rendering | `<NaverMapMarkerOverlay>` children, with **no clustering** (§6) |
 
 The app computes exactly three things, none of them a business rule: **predicate evaluation** (string
 comparison against `item.tags`), **distance** (GPS is only on the device), and **status** (recomputed
 against the device clock, §5).
 
-The map renders **places**. It has no concept of an event, a booth, or a mini-app — those reach the
+The map renders **places**. It has no concept of an event, a booth, or a mini-app; those reach the
 user only through the action union (§7).
 
 ## 2. Fetch path
@@ -44,7 +44,7 @@ snapshot carries structure and items together, so toggling a layer or chip costs
 `staleTime: Infinity` is **correct, not a shortcut**: the URL is version-scoped, so a new version is a
 new query key and there is nothing to revalidate.
 
-**`nextChangeAt` scheduling.** Polling alone is not enough — a night stall opening at 18:00 would
+**`nextChangeAt` scheduling.** Polling alone is not enough, because a night stall opening at 18:00 would
 still read "준비중" until the next poll. <!-- conventions:allow-korean: the literal string the app shows --> `useEventMapManifest` also schedules a **one-shot timer** at
 `nextChangeAt` that refetches and re-derives status. One timer, not a per-second tick; cleared on
 unmount, re-armed on each manifest change. Guard a past/absent value (no timer) and clamp a distant

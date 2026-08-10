@@ -13,8 +13,8 @@ audience: internal
 
 ## The problem
 
-iOS 26 NativeTabs — `expo-router/unstable-native-tabs`, which is
-`RNSBottomTabsHostComponentView` in `react-native-screens` 4.19 and later — has two
+iOS 26 NativeTabs (`expo-router/unstable-native-tabs`, which is
+`RNSBottomTabsHostComponentView` in `react-native-screens` 4.19 and later) has two
 behaviours that go silently and permanently dead on some screens.
 
 | Behaviour | How it works | Symptom when broken |

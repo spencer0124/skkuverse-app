@@ -16,8 +16,8 @@ audience: internal
 The app needed a brand animation to show while it checks for an OTA update and initialises.
 The motion is a Toss-style one where the "스꾸버스" wordmark splits apart and becomes <!-- conventions:allow-korean: the wordmark the app renders -->
 "스꾸유니버스". A web prototype, `skkuverse-splash.jsx`, was ported one to one to React Native <!-- conventions:allow-korean: the wordmark the app renders -->
-and Reanimated. Several CSS features have no React Native equivalent — per-property
-transitions, gradients, filter blur, em units — so each needed a substitute, and those
+and Reanimated. Several CSS features have no React Native equivalent (per-property
+transitions, gradients, filter blur, em units), so each needed a substitute, and those
 mapping decisions are what this document is about.
 
 ## Where the code is
