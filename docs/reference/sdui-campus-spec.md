@@ -3,7 +3,7 @@ title: SDUI Campus Tab Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-15
 audience: public
 ---
 
@@ -57,7 +57,7 @@ HomeDST, simplified to SKKUBUS's scale.
             "title": "분실물", // conventions:allow-korean: live server payload
             "emoji": "🧳",
             "actionType": "webview",
-            "actionValue": "https://webview.skkuverse.com/#/skku/lostandfound",
+            "actionValue": "https://webview.skkuverse.com/skku/lostandfound",
             "webviewTitle": "분실물", // conventions:allow-korean: live server payload
             "webviewColor": "003626"
           }
