@@ -42,8 +42,17 @@ import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { isValidPredicate } from './predicate';
 
 const HTTPS_RE = /^https:\/\//;
-/** A route must be absolute and single-slash: `//evil.com` is protocol-relative. */
-const ROUTE_RE = /^\/(?!\/)\S*$/;
+/**
+ * A route must be absolute and single-slash: `//evil.com` is protocol-relative.
+ *
+ * The backslash is the same escape with a different keystroke, and it is the one
+ * an anchored `(?!\/)` misses. WHATWG folds `\` into `/` for special schemes, so
+ * `new URL('/\\evil.com', 'https://host/')` resolves to `https://evil.com/` —
+ * verified, not assumed. A `route` value reaches `router.push` rather than a URL
+ * opener today, so this is not reachable; it is closed here because the guard's
+ * whole purpose is this class of escape, and the server's twin has it too.
+ */
+const ROUTE_RE = /^\/(?![/\\])\S*$/;
 
 /** Counts, plus a capped sample so an unknown value is identifiable without a log flood. */
 export interface DroppedCounts {

@@ -1,15 +1,27 @@
 /**
  * Tolerant parsing.
  *
- * The round-trip fixture is not hand-written: it is the output of the SERVER's
- * own compiled `materialize()` run over its real `eskara-2026.json` config and
- * the demo seed dataset (see the header inside the fixture). So a contract
- * change on the server side shows up here as a failing parse rather than as a
- * blank map during the festival.
+ * The fixture is in the SERVER's wire shape — its structure members come from the
+ * real `eskara-2026.json`, and every key and its order match what `materialize()`
+ * emits — but the six sessions are **curated, not seeded**. `seed-eventmap-demo.js`
+ * publishes fourteen, on different ids, with minute-scale offsets; this file has
+ * six on round hours, chosen to cover one case each: a permanent facility, a
+ * two-occupant stack, a closed window, a cancelled session with both bounds null,
+ * and an upcoming one.
  *
- * It also happens to carry NO `basemapOverride` — which is exactly the shape of
- * every snapshot published before that field existed, and those are immutable
- * and cached forever. Requiring the field would drop them whole.
+ * So it is **maintained by hand**, and re-running the seed would not reproduce it —
+ * it would replace it, taking those cases with it. When the server changes what
+ * `materialize()` emits, apply that delta here.
+ *
+ * Which is the weakness worth naming: nothing enforces the shape agreement. The
+ * server has no test that its output parses here and this repo cannot run the
+ * server, so a new member added there is caught only by someone remembering. The
+ * fix is a generator, not a stricter sentence in this comment.
+ *
+ * The pre-`basemapOverride` shape is asserted explicitly (`delete raw.basemapOverride`
+ * below) rather than by leaving the fixture behind the server. That shape still
+ * matters — it is every snapshot published before the field existed, and those are
+ * served immutable for a year.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -40,17 +52,43 @@ describe('parseEventMapSnapshot — real server output', () => {
     expect(Object.keys(snapshot!.icons)).toHaveLength(12);
   });
 
-  it('defaults basemapOverride to {} when the field is absent', () => {
-    // The fixture predates the field, like every snapshot already in a cache.
-    expect('basemapOverride' in snapshotFixture).toBe(false);
-    expect(parse(fixture()).snapshot!.basemapOverride).toEqual({});
+  it('reads the basemapOverride the server now ships', () => {
+    // ESKARA hides 건물번호 so pins stay legible, and leaves 건물이름
+    // (`building_labels`) up for orientation.
+    expect(parse(fixture()).snapshot!.basemapOverride).toEqual({ building_numbers: false });
   });
 
-  it('reads basemapOverride when the server does send it', () => {
+  it('defaults basemapOverride to {} when the field is absent', () => {
+    // The shape of every snapshot published before the field existed. Those are
+    // served `immutable, max-age=1y`, so they are still in caches and must not
+    // be dropped whole for missing a member they could not have carried.
+    const raw = fixture();
+    delete raw.basemapOverride;
+    expect(parse(raw).snapshot!.basemapOverride).toEqual({});
+  });
+
+  it('drops a non-boolean override value rather than coercing it', () => {
     const raw = { ...fixture(), basemapOverride: { building_numbers: false, junk: 'nope' } };
-    // Non-boolean values are dropped rather than coerced — "nope" is not a
-    // visibility, and truthiness would silently force a layer ON.
+    // "nope" is not a visibility, and truthiness would silently force a layer ON
+    // — revealing a layer the event meant to hide is the unrecoverable direction.
     expect(parse(raw).snapshot!.basemapOverride).toEqual({ building_numbers: false });
+  });
+
+  it('pins the fixture to the webview URL rule the server now enforces', () => {
+    // This asserts about the fixture, NOT about the parser — worth being exact,
+    // because the parser accepts any whitespace-free https URL and would happily
+    // pass `https://…/#/eskara/entry` through. The real guard is server-side, in
+    // toWebviewUrl; a fragment there resolves to `/` at HTTP 200, below the
+    // webview's `statusCode >= 400` overlay, so the user lands on the wrong page
+    // and nothing logs it. What this catches is the fixture drifting back.
+    const { snapshot } = parse(fixture());
+    const actions = snapshot!.items.flatMap((i) => i.actions);
+    const webview = actions.filter((a) => a.actionType === 'webview');
+    expect(webview.length).toBeGreaterThan(0);
+    for (const a of webview) {
+      expect(a.actionValue.startsWith('https://webview.skkuverse.com/')).toBe(true);
+      expect(a.actionValue).not.toContain('#');
+    }
   });
 
   it('preserves the null bounds the server uses to say "do not recompute"', () => {
@@ -187,6 +225,12 @@ describe('parseEventMapSnapshot — action validation', () => {
   it('drops a protocol-relative route, which escapes to another origin', () => {
     // `//evil.com/x` handed to a router is the same trick one layer down.
     expect(got([{ id: 'a', label: 'L', actionType: 'route', actionValue: '//evil.com/x' }])).toEqual([]);
+  });
+
+  it('drops a backslash route, the same escape an anchored (?!/) misses', () => {
+    // WHATWG folds `\` into `/` for special schemes, so `/\evil.com` resolves to
+    // https://evil.com/ against any base. Verified with `new URL`, not assumed.
+    expect(got([{ id: 'a', label: 'L', actionType: 'route', actionValue: '/\\evil.com' }])).toEqual([]);
   });
 
   it('keeps a well-formed internal route', () => {
