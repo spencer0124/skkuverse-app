@@ -227,6 +227,12 @@ describe('parseEventMapSnapshot — action validation', () => {
     expect(got([{ id: 'a', label: 'L', actionType: 'route', actionValue: '//evil.com/x' }])).toEqual([]);
   });
 
+  it('drops a backslash route, the same escape an anchored (?!/) misses', () => {
+    // WHATWG folds `\` into `/` for special schemes, so `/\evil.com` resolves to
+    // https://evil.com/ against any base. Verified with `new URL`, not assumed.
+    expect(got([{ id: 'a', label: 'L', actionType: 'route', actionValue: '/\\evil.com' }])).toEqual([]);
+  });
+
   it('keeps a well-formed internal route', () => {
     expect(got([{ id: 'a', label: 'L', actionType: 'route', actionValue: '/(tabs)/transit' }])).toHaveLength(1);
   });
