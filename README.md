@@ -105,20 +105,24 @@ npx expo run:android
 
 ### Environment
 
-The app reads environment variables from `.env` at `apps/mobile/` (not committed; provisioned separately):
+Most of what used to live in `.env` does not any more. The API host, the Naver Maps client ID and
+the Google OAuth web client ID are committed constants in `apps/mobile/config/constants.js`, which
+records per value why it is already public. They never differed between a laptop and a release, and
+both eas-cli and eoas evaluate this project's config with `EXPO_NO_DOTENV=1`, so on a release path
+no dotenv file is read at all — a value survived there only because somebody remembered a `source`
+line in a shell script, and forgetting exactly that line is what shipped two OTA updates with no
+API host.
 
-```env
-EXPO_PUBLIC_BASE_URL=...
-EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=...
-```
+What remains in `.env` at `apps/mobile/` is per-machine or genuinely secret: the App Check debug
+tokens, plus two optional switches. **`apps/mobile/.env.example` is the schema** — copy it to
+`.env` and fill it in. The file is gitignored, and `.easignore` excludes it from the EAS build
+archive, so it never reaches an artifact.
 
-`EXPO_PUBLIC_BASE_URL` is required and has no default: with it unset, the app throws while the
-bundle is still starting rather than falling back to a host nobody chose. `app.config.ts` checks it
-a second time at build and publish time, where it also rejects a localhost value under a shipping
-profile — `.easignore` deliberately ships `.env` into the EAS sandbox and `eas.json` overrides the
-variable in no profile, so whatever `.env` last said is exactly what would go out.
-
-The full set of consumed variables is authoritative in `apps/mobile/app.config.ts` (`extra` block).
+`EXPO_PUBLIC_BASE_URL` is now a local override alone. `resolveBaseUrl()` in `app.config.ts` does
+not read it at all when `EAS_BUILD_PROFILE` or `RELEASE_CHANNEL` names a shipping profile — a dev
+host is unrepresentable in a release artifact rather than merely rejected. Unset means the
+production host, and a `__DEV__` build talking to it shows a persistent on-screen strip so that is
+never a surprise.
 
 Firebase config is bundled via `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) — not committed, provisioned separately per EAS environment.
 

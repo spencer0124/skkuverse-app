@@ -3,7 +3,7 @@ title: Getting Started
 type: tutorial
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -54,9 +54,10 @@ patch shows up later as a runtime crash, in the map markers among other places.
 Some files are never committed. Get them from an existing machine and drop them where they
 belong.
 
-1. **`apps/mobile/.env`**, which holds the `EXPO_PUBLIC_*` variables. The list of keys is in
-   the Environment section of the root [README.md](../../README.md) and in
-   `apps/mobile/app.config.ts`.
+1. **`apps/mobile/.env`**. Copy `apps/mobile/.env.example`, which is the schema and explains
+   each key. There is less in it than you might expect: the API host, the Naver Maps client ID
+   and the Google OAuth web client ID are committed constants in `apps/mobile/config/constants.js`,
+   so what remains is the App Check debug tokens plus two optional switches.
 2. **The Firebase config files**: `apps/mobile/google-services.json` for Android and
    `apps/mobile/GoogleService-Info.plist` for iOS. Download them from the Firebase console or
    get them separately.

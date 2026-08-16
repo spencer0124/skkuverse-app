@@ -14,39 +14,44 @@ string or a document about what is live in production.
    `EXPO_PUBLIC_BASE_URL` was unset when they were published — so every one of those installs fell
    through to the hardcoded legacy host and has been talking to it ever since. Nobody noticed,
    because a wrong-but-reachable host looks exactly like a working app until the day the host is
-   retired. The fallback is gone: the module throws at init (which fires while the bundle is still
-   coming up, since `api/client.ts` imports it), and `apps/mobile/app.config.ts` refuses to build
-   without the variable.
+   retired. The fallback is gone: the module throws at init, which fires while the bundle is still
+   coming up, since `api/client.ts` imports it. The host stopped being an environment variable at
+   the same time — `apps/mobile/config/constants.js` holds it as a committed constant, and
+   `resolveBaseUrl()` in `app.config.ts` writes that constant into `extra.baseUrl` without reading
+   `EXPO_PUBLIC_BASE_URL` at all on a shipping profile. So the runtime throw is now an assertion
+   about an old manifest rather than the thing standing between a release and a wrong host.
 
    → Takeaway: a fallback that makes a broken build look healthy is worse than no fallback. If a
    value is required, fail where the person who caused the mistake is still watching.
 
-2. **A guard must cover every route the artifact can leave the machine by.**
+2. **"Is this shipping?" has to cover every route the artifact can leave the machine by.**
 
-   The first version of that build-time guard keyed only on `EAS_BUILD_PROFILE`. That covers native
+   The first version of that build-time check keyed only on `EAS_BUILD_PROFILE`. That covers native
    builds, which run inside EAS — but `apps/mobile/scripts/ota-beta.sh` and `ota-release.sh` publish
    through eoas with `RELEASE_CHANNEL=<channel>` and never set `EAS_BUILD_PROFILE`, and the publish
-   path is exactly where the incident in #1 happened. `resolveBaseUrl` in `app.config.ts` now keys on
-   `process.env.EAS_BUILD_PROFILE ?? process.env.RELEASE_CHANNEL`.
+   path is exactly where the incident in #1 happened. `app.config.ts` now keys on
+   `process.env.EAS_BUILD_PROFILE ?? process.env.RELEASE_CHANNEL`, in both places that ask the
+   question: `resolveBaseUrl()`, to decide whether `EXPO_PUBLIC_BASE_URL` is read at all, and the
+   `extra` block, to decide whether the App Check debug tokens are included. When a new way to ship
+   appears, both need teaching about it.
 
-   → Takeaway: enumerate every way an artifact reaches users before writing the guard. A guard that
-   misses the one route the real failure took is worse than none, because it buys false confidence.
+   → Takeaway: enumerate every way an artifact reaches users before writing the check. One that
+   misses the route the real failure took is worse than none, because it buys false confidence.
 
-3. **`EXPO_PUBLIC_*` is inlined at bundle time and cached.**
+3. **A debug build's API host comes from the compiled binary, not from `.env`.**
 
-   Editing `apps/mobile/.env` and restarting Metro normally changes nothing: the transformer has
-   already cached the substituted literal, so the previous host stays baked into the bundle.
-   `npx expo start -c` is required, not superstition. The failure mode is the dangerous part —
-   with the app still pointed at production, the eventmap manifest returns `activeLayerSetId: null`
-   by design (`packages/shared/src/eventmap/parser.ts`), so the map shows zero pins, which is
-   indistinguishable from a bug in the feature under test.
+   `Constants.expoConfig.extra` is what `packages/shared/src/api/config.ts` reads, and this project
+   has no `expo-dev-client`, so in a plain `expo run:ios` debug build that object comes from
+   `EXConstants.bundle/app.config` **compiled into the `.app`** — the dev server never supplies it.
+   Editing `apps/mobile/.env` and restarting Metro leaves the binary talking to whatever host it was
+   built against, across relaunches, and `npx expo start -c` does not change that. Clearing the
+   transformer cache governs the `EXPO_PUBLIC_*` literals Metro inlines into **JS**, which is a
+   different half — and one this repo no longer has, since nothing outside `app.config.ts` reads
+   `process.env.EXPO_PUBLIC_*` any more.
 
-   And clearing the cache is only half of it. `-c` governs the `EXPO_PUBLIC_*` literals Metro inlines
-   into **JS**; it does nothing for `Constants.expoConfig.extra`, which is what
-   `packages/shared/src/api/config.ts` actually reads. This project has no `expo-dev-client`, so in a
-   plain `expo run:ios` debug build that object comes from `EXConstants.bundle/app.config` **compiled
-   into the `.app`** — the dev server never supplies it. A `.env` edit plus a Metro restart
-   leaves the binary talking to whatever host it was built against, across relaunches.
+   The failure mode is the dangerous part. With the app still pointed at production, the eventmap
+   manifest returns `activeLayerSetId: null` by design (`packages/shared/src/eventmap/parser.ts`),
+   so the map shows zero pins, which is indistinguishable from a bug in the feature under test.
 
    That cost real time twice. `DevProdHostBanner` was reported as "not rendering" when it was in fact
    entered, comparing correctly and returning `null`, because the installed binary had
@@ -57,8 +62,8 @@ string or a document about what is live in production.
    grep -ra "localhost" "$(xcrun simctl get_app_container booted com.example.skkumap)/EXConstants.bundle/app.config"
    ```
 
-   → Takeaway: after a `.env` change, `-c` fixes the JS half. Changing which host a debug build talks
-   to needs `npx expo run:ios`. Read the value out of the running app before trusting either.
+   → Takeaway: changing which host a debug build talks to needs `npx expo run:ios`, not a `.env`
+   edit and a Metro restart. Read the value out of the running app before trusting either.
 
 4. **A `BottomSheetModal` is painted outside the navigator.**
 

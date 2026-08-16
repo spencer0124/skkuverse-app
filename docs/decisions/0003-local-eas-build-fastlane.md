@@ -3,7 +3,7 @@ title: Local EAS Build + Fastlane over EAS Cloud
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -39,8 +39,10 @@ are not used.
 - (+) `autoIncrement: true` still works under `--local`, so versioning stays with the EAS
   remote version.
 - (−) **`.easignore` becomes a maintenance burden.** It replaces `.gitignore` for the build,
-  so the Firebase config, `.env` and `certs/certificate.pem` have to stay *included*.
-  Excluding one by accident breaks the artifact silently.
+  so the Firebase config and `certs/certificate.pem` have to stay *included*. Excluding one by
+  accident breaks the artifact silently, and the file has to be kept in step with `.gitignore`
+  by hand. It cuts both ways: `.env` has to stay *excluded*, since omitting a line there is
+  what includes a file, and that file holds the App Check debug tokens.
 - (−) The cloud's automatic `expo-channel-name` header is absent, so
   `updates.requestHeaders` in `app.config.ts` has to set it by hand.
 - (−) **A monorepo trap.** Some combinations break the embedded bundle inside the EAS local

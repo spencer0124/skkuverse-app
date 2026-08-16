@@ -2,16 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Load .env into the shell BEFORE invoking eas. eas-cli reads app.config.ts by
-# spawning `expo config` with EXPO_NO_DOTENV=1 hard-coded
-# (eas-cli/build/project/expoConfig.js), so the file itself is invisible to it —
-# only the inherited environment survives. Without this, app.config.ts's
-# EXPO_PUBLIC_BASE_URL guard throws and the build dies before it starts. Same
-# reason ota-{beta,release}.sh source .env, and the same mechanism behind the
-# OTA bundles that once shipped with EXPO_PUBLIC_* inlined as undefined.
-set -a
-source .env
-set +a
+# Deliberately no `source .env`. The three values that once needed it — API host,
+# Naver client ID, Google OAuth client ID — are committed constants in
+# config/constants.js, and nothing reads process.env.EXPO_PUBLIC_* any more. What
+# .env still holds must NOT reach a release: the App Check debug tokens are real
+# secrets, and an APP_ENV=development left over from simulator push work would give
+# this build the sandbox APNs entitlement. See apps/mobile/.env.example. A genuine
+# per-machine build value goes in the profile `env` block in eas.json, where review
+# can see it.
 
 # EAS local build must run in a symlink-free directory. macOS temp dirs (/tmp,
 # /var/folders) are symlinks under /private/...; in this yarn-workspaces monorepo

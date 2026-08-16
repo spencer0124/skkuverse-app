@@ -113,13 +113,15 @@ OCI A1 (ARM64, 4 OCPU, 24GB)
 - **`EXPO_TOKEN`** lives in `.env.ota.local`, which is gitignored, and the scripts read it
   automatically. Without one, create it at [expo.dev](https://expo.dev) under Settings,
   Access tokens, and add `EXPO_TOKEN=<token>` to `.env.ota.local`.
-- **Point `apps/mobile/.env` back at the deployed API host** before publishing. `app.config.ts`
-  throws when `EXPO_PUBLIC_BASE_URL` is unset, and also when it names a local host
-  (`localhost`, `127.0.0.1`, `10.0.2.2`, or any `http://` scheme) while `RELEASE_CHANNEL` is
-  `beta` or `production` — which is what `scripts/ota-{beta,release}.sh` set. The publish aborts
-  with the reason rather than shipping a bundle that points at a laptop. `RELEASE_CHANNEL` is
-  checked alongside `EAS_BUILD_PROFILE` precisely because a publish never goes through EAS, so
-  keying on the build variable alone would leave this path unguarded.
+- **No `.env` step before publishing.** A published bundle always carries `PROD_API_URL` from
+  `apps/mobile/config/constants.js`: `scripts/ota-{beta,release}.sh` invoke eoas with
+  `RELEASE_CHANNEL=<channel>`, and `resolveBaseUrl()` in `app.config.ts` does not read
+  `EXPO_PUBLIC_BASE_URL` at all once that variable names a shipping channel. A laptop host is
+  unrepresentable in a published bundle rather than merely rejected, so there is nothing to point
+  back and no abort to recognise. `RELEASE_CHANNEL` is checked alongside `EAS_BUILD_PROFILE`
+  precisely because a publish never goes through EAS, so keying on the build variable alone would
+  leave this path unguarded — the same pair also default-denies the App Check debug tokens out of
+  the manifest, which is why the scripts no longer `source .env` at all.
 - Check that the `updates` config in `app.config.ts` has this shape. The real
   `runtimeVersion` value is in `apps/mobile/app.config.ts`.
 
