@@ -26,6 +26,7 @@ import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
 import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
 import { openMiniAppById } from '@/features/mini-app/open';
 import { devLog } from '@/services/dev-log';
+import { DevProdHostBanner } from '@/components/DevProdHostBanner';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -74,7 +75,6 @@ const SCREEN_NAMES: Record<string, string> = {
   '/mini-app': 'mini_app_screen',
   // Dev
   '/sds-preview': 'dev_sds_preview',
-  '/debug-fcm': 'dev_debug_fcm',
 };
 
 function resolveScreenName(
@@ -363,13 +363,6 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
-                {/* TODO: Remove — temporary FCM debug screen */}
-                <Stack.Screen
-                  name="debug-fcm"
-                  options={{
-                    presentation: 'modal',
-                  }}
-                />
                 {/* Notices source picker — fullScreenModal (UIModalPresentation
                     FullScreen). We previously tried formSheet but hit
                     react-native-screens issue #2424 (PR #2436 unmerged): on
@@ -393,6 +386,17 @@ export default function RootLayout() {
               </Stack>
               <PendingNoticeLinkConsumer />
               <PendingMiniAppLinkConsumer />
+              {/* Dev-only "you are pointed at the production API" strip. Placed
+                  here — a sibling *after* <Stack>, inside SafeAreaProvider so
+                  it can read the top inset — for three reasons: later siblings
+                  paint on top, so it is never hidden by a screen; it is outside
+                  every tab's RNSScreen subtree, so it cannot become the
+                  `subviews[0]` that iOS 26 NativeTabs' scroll-view finder walks
+                  (which would kill tab-bar minimize and automatic contentInset
+                  app-wide); and it adds no wrapper, so the provider ordering
+                  above is untouched. `__DEV__` is a literal `false` in a
+                  release bundle, so the whole branch is dropped at minify. */}
+              {__DEV__ && <DevProdHostBanner />}
               <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>

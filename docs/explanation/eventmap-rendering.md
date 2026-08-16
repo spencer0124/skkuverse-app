@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-07
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -252,15 +252,21 @@ A sheet button carries one action. The app renders it; it never interprets what 
 | `actionType` | Handling | Status |
 | --- | --- | --- |
 | `content` | Render inline in the sheet, no navigation | **new** |
-| `route` | `router.push(actionValue)` | exists |
-| `webview` | `router.push('/webview', {url, title, color})` | exists — **ESKARA's primary type** |
-| `external` | `WebBrowser.openBrowserAsync(actionValue)` | exists |
+| `route` | `router.push(actionValue)`; a bare `/` is intercepted as `router.dismissTo('/(tabs)/home')` | exists |
+| `webview` | `openWebView({url, title})` → `router.push('/webview', {url, title})` | exists — **ESKARA's primary type** |
+| `external` | The **same** in-app `/webview` shell; a non-web scheme (`mailto:`, `tel:`) hands off to `Linking.openURL` | exists |
 | `miniapp` | Mini-app scheme | **deferred**, §7.3 |
 
-Three of five already exist in `packages/shared/src/types/sdui.ts`, so the work is `content` plus the
-parser cleanup: `parseActionType` returns `'unknown'` for unrecognized values, `handleSduiAction`
-no-ops it, and a `never` exhaustiveness guard is added (`renderer.tsx` has one; the action handler
-does not).
+`webview` and `external` are one code path in `handleSduiAction`, and `webviewColor` is accepted
+but never read. They stay distinct action types because the server still emits both and older
+clients treat them differently; on this side the only difference is whether a title came along.
+What a loaded page may do is decided by its origin, not by the verb that opened it — so the
+`external` row is not a weaker security posture, it is the same gate reached by a second name.
+
+Three of the five predated Phase 3 in `packages/shared/src/types/sdui.ts`; the work was `content`
+plus the parser cleanup, and all of it has shipped. `parseActionType` returns `'unknown'` for
+unrecognized values, `handleSduiAction` no-ops it, and both `renderer.tsx` and the action handler
+now carry a `never` exhaustiveness guard.
 
 > `webview` is the **primary** type for ESKARA, which makes the origin gate in `app/webview.tsx` a
 > hard dependency rather than a mini-app concern. That gate is in place: `handleMessage` re-resolves
@@ -271,6 +277,24 @@ does not).
 dispatcher is fire-and-forget and has no surface to render prose into. `miniapp` and `unknown` render
 no button at all: the parser keeps them for contract fidelity, but a button that does nothing is
 worse than a missing one.
+
+**The peek sheet dismisses itself before it navigates.** `ActionButton` calls
+`useBottomSheetModal().dismiss()` and only then `handleSduiAction`. This is not polish; without it
+the destination arrives damaged.
+
+A `BottomSheetModal` does not live in the screen that rendered it. `@gorhom/portal` mounts the host
+as a sibling that **follows** `children` inside `BottomSheetModalProvider`, and that provider wraps
+the root `<Stack>` in `app/_layout.tsx`. The sheet is therefore outside the navigator and painted
+after it, so a pushed `/webview` slides in **underneath** and lands with its lower half covered.
+Nothing on the pushing side can correct that; the sheet has to go first.
+
+The same constraint is why `BuildingDetailSheet` dismisses before pushing `/map/hssc`, and why
+`NoticeDetailScreen`'s original-notice link hands off to the system browser rather than pushing.
+
+Dismissing rather than minimising-and-restoring is also the behaviour wanted here: `onDismiss`
+clears `selectedStackKey` (§8), so backing out of the web view lands on the plain campus map instead
+of a sheet the user already navigated away from. It pairs with `stackBehavior="replace"`, which
+stops the default `'switch'` from resurrecting `BuildingDetailSheet` underneath.
 
 ### 7.2 Universal map scheme
 

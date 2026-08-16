@@ -3,7 +3,7 @@ title: iOS Modal Routes Need Their Own SafeAreaProvider
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -104,7 +104,7 @@ Every route registered in `app/_layout.tsx` with `presentation: 'modal'`,
 - `/onboarding` — **fixed, and the reason this document exists**
 - `/login` — modal presentation
 - `/sds-preview` — modal presentation
-- `/debug-fcm` — modal presentation
+- `/notices/picker` — fullScreenModal presentation
 
 Apply the same modal-local `<SafeAreaProvider>` wrap wherever the symptom appears.
 

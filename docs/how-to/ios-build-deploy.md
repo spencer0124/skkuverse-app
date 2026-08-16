@@ -3,7 +3,7 @@ title: iOS Build & Deploy
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -164,6 +164,16 @@ are commented out, and therefore included, in `.easignore`.
 
 If `.easignore` excludes `.env`, then `EXPO_PUBLIC_NAVER_MAP_CLIENT_ID` becomes an empty
 string. Check that `.env` is included.
+
+### The build aborts on EXPO_PUBLIC_BASE_URL
+
+`app.config.ts` guards that variable and throws rather than producing a config. It fails when
+the value is missing, empty or whitespace-only, and separately when it names a local host —
+`localhost`, `127.0.0.1`, `10.0.2.2`, or any `http://` scheme — while `EAS_BUILD_PROFILE` is
+`beta` or `production`. That second rule is the one that fires after a local API test: `.easignore`
+ships `.env` into the EAS sandbox and `eas.json` overrides the variable in no profile, so whatever
+`.env` last said is exactly what would have shipped. Point `apps/mobile/.env` back at the deployed
+API host. Local development is exempt from the localhost rule, so `expo run:ios` is unaffected.
 
 ### ARCHIVE FAILED with "Unable to resolve module .../apps/mobile/index.ts"
 

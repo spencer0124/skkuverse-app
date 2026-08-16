@@ -3,7 +3,7 @@ title: OTA Update
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -113,6 +113,13 @@ OCI A1 (ARM64, 4 OCPU, 24GB)
 - **`EXPO_TOKEN`** lives in `.env.ota.local`, which is gitignored, and the scripts read it
   automatically. Without one, create it at [expo.dev](https://expo.dev) under Settings,
   Access tokens, and add `EXPO_TOKEN=<token>` to `.env.ota.local`.
+- **Point `apps/mobile/.env` back at the deployed API host** before publishing. `app.config.ts`
+  throws when `EXPO_PUBLIC_BASE_URL` is unset, and also when it names a local host
+  (`localhost`, `127.0.0.1`, `10.0.2.2`, or any `http://` scheme) while `RELEASE_CHANNEL` is
+  `beta` or `production` — which is what `scripts/ota-{beta,release}.sh` set. The publish aborts
+  with the reason rather than shipping a bundle that points at a laptop. `RELEASE_CHANNEL` is
+  checked alongside `EAS_BUILD_PROFILE` precisely because a publish never goes through EAS, so
+  keying on the build variable alone would leave this path unguarded.
 - Check that the `updates` config in `app.config.ts` has this shape. The real
   `runtimeVersion` value is in `apps/mobile/app.config.ts`.
 

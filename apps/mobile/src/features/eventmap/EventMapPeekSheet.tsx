@@ -18,7 +18,11 @@
 
 import React, { forwardRef, useCallback, useMemo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { BottomSheetModal, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import {
+  BottomSheetModal,
+  BottomSheetScrollView,
+  useBottomSheetModal,
+} from '@gorhom/bottom-sheet';
 import {
   SdsColors,
   useT,
@@ -149,7 +153,28 @@ function ItemBody({ item }: { item: EventMapStack['lead'] }) {
 }
 
 function ActionButton({ action }: { action: EventMapAction }) {
+  // `dismiss()` with no key closes the top-most modal in the provider's queue,
+  // which is this sheet whenever one of its own buttons is being pressed.
+  const { dismiss } = useBottomSheetModal();
+
   const onPress = useCallback(() => {
+    // Close BEFORE navigating. A BottomSheetModal does not live in the screen
+    // that rendered it: @gorhom/portal mounts the host as a SIBLING THAT FOLLOWS
+    // `children` inside BottomSheetModalProvider, which in app/_layout.tsx wraps
+    // the root <Stack>. So the sheet is outside the navigator and painted after
+    // it — a pushed webview slides in UNDERNEATH and the destination arrives
+    // with its bottom half eaten. Nothing about the push can fix that from the
+    // other side; the sheet has to go first.
+    //
+    // Same reason BuildingDetailSheet dismisses before pushing /map/hssc, and
+    // the reason NoticeDetailScreen's 원본 공지 보기 hands off to the system
+    // browser instead of pushing.
+    //
+    // Dismissing (rather than restoring the sheet on the way back) is also the
+    // behaviour we want: onDismiss clears selectedStackKey, so backing out of
+    // the webview lands on the plain campus map instead of a sheet the user
+    // already navigated away from.
+    dismiss();
     handleSduiAction({
       actionType: action.actionType,
       actionValue: action.actionValue,
@@ -157,7 +182,7 @@ function ActionButton({ action }: { action: EventMapAction }) {
       // named after what they tapped.
       webviewTitle: action.label,
     });
-  }, [action]);
+  }, [action, dismiss]);
 
   const primary = action.style === 'primary';
   return (

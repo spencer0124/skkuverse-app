@@ -19,10 +19,29 @@ dist/
 ios/
 android/
 
-# Environment
+# Environment — 전부 제외. `.env`를 여기 적지 않는 것이 곧 "아카이브에 포함"이었다
+# (.easignore는 .gitignore를 대체하므로 미기재 = 포함). 예전 주석은 "빌드에 필요
+# (EXPO_PUBLIC_* 키 포함) — 시크릿이 아닌 public 키만 들어있음"이었는데, 두 전제가
+# 모두 깨졌다.
+#
+#   1. 더 이상 빌드에 필요하지 않다. 실제로 필요했던 값(API 호스트 / Naver 지도
+#      클라이언트 ID / Google OAuth 클라이언트 ID)은 apps/mobile/config/constants.js
+#      로 옮겨 커밋됐다. 어차피 eas-cli와 eoas 모두 EXPO_NO_DOTENV=1로 app config를
+#      평가하므로, 릴리스 경로에서 dotenv 파일은 애초에 읽히지도 않았다.
+#   2. "시크릿이 아닌 public 키만"이 사실이 아니었다. 남은 두 값
+#      FIREBASE_APP_CHECK_DEBUG_TOKEN_{IOS,ANDROID}는 진짜 시크릿이다 — 콘솔에
+#      등록된 디버그 토큰은 유효한 App Check 토큰을 발급받게 해주므로 App Attest /
+#      Play Integrity를 통째로 우회한다. 이 토큰이 실제로 공개 OTA 매니페스트로
+#      유출된 적이 있고, app.config.ts의 default-deny 스트립이 그 1차 방어선이다.
+#      이 줄은 2차 방어선: 시크릿이 빌드 아카이브에 아예 들어가지 않게 한다.
+#
+# 참고: `.env.example`은 이 패턴에 걸리지 않아 아카이브에 남는다 — 커밋된 플레이스홀더
+# 파일이라 무해하다. `eas build --profile development`로 dev client를 만들 일이
+# 생기면 App Check 디버그 토큰이 없는 상태가 되는데, 그 경우엔 프로파일 env로
+# 넘기는 게 맞다. `.env`를 다시 열어주는 게 아니라.
+.env
 .env.local
 .env.*.local
-# .env는 빌드에 필요 (EXPO_PUBLIC_* 키 포함) — 시크릿이 아닌 public 키만 들어있음
 
 # Firebase credentials — 빌드에 필요하므로 여기서는 제외하지 않음
 # GoogleService-Info.plist
