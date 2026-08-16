@@ -3,7 +3,7 @@ title: FCM Notifications Architecture
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -27,8 +27,11 @@ audience: internal
   app icon badge on the OS side and the tab bar badge inside the app. Both are local counters
   in Zustand and Notifee. The reasoning is in
   [ADR 0002](../decisions/0002-no-notification-inbox.md).
-- **A temporary diagnostic screen** lives at `apps/mobile/app/debug-fcm.tsx`, reachable from
-  the red "FCM" button at the top right of the campus tab. Remove it once dogfooding settles.
+- **On-device diagnosis** is the debug logs screen, `apps/mobile/app/settings/debug-logs.tsx`,
+  reached from settings, which shows the current FCM token next to the `devLog` buffer. It is
+  the only diagnostic surface in the app: the standalone FCM debug screen that once sat beside
+  it was deleted after its entry button went away and left it unreachable. Verifying the server
+  half is a separate path — see [How to verify](#how-to-verify).
 - **Where data lives:** user data such as devices and preferences goes to Firebase, meaning
   Firestore and Auth. Public data such as notice bodies goes to MongoDB, behind the backend
   API.
@@ -218,7 +221,7 @@ The fix for a bug where switching between anonymous and Google auth left
 | Auth transitions | `apps/mobile/src/hooks/useAppInit.ts`, `apps/mobile/src/services/google-auth.ts`, `apps/mobile/app/login.tsx` |
 | Rules, tests and indexes | `apps/mobile/firestore.rules`, `apps/mobile/firestore.rules.test.mjs`, `apps/mobile/firestore.indexes.json` |
 | Verification scripts | `functions/scripts/verify-trigger.ts` |
-| The diagnostic screen, temporary | `apps/mobile/app/debug-fcm.tsx` |
+| The on-device debug logs screen | `apps/mobile/app/settings/debug-logs.tsx` |
 
 ## Related
 

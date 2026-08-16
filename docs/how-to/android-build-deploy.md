@@ -3,7 +3,7 @@ title: Android Build & Deploy
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -145,6 +145,14 @@ have to reach the build:
 
 The build scripts include `export JAVA_HOME="$(/usr/libexec/java_home -v 17)"`. For a manual
 build, check that JDK 17 is installed.
+
+### The build aborts on EXPO_PUBLIC_BASE_URL
+
+`app.config.ts` guards that variable and throws rather than producing a config — missing, empty or
+whitespace-only always fails, and a local host (`localhost`, `127.0.0.1`, `10.0.2.2`, or any
+`http://` scheme) additionally fails under `EAS_BUILD_PROFILE` `beta` or `production`. Point
+`apps/mobile/.env` back at the deployed API host. The same entry in
+[ios-build-deploy.md](ios-build-deploy.md) has the full reasoning.
 
 ### SDK location not found
 
