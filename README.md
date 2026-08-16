@@ -109,9 +109,14 @@ The app reads environment variables from `.env` at `apps/mobile/` (not committed
 
 ```env
 EXPO_PUBLIC_BASE_URL=...
-EXPO_PUBLIC_ENV=...
 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=...
 ```
+
+`EXPO_PUBLIC_BASE_URL` is required and has no default: with it unset, the app throws while the
+bundle is still starting rather than falling back to a host nobody chose. `app.config.ts` checks it
+a second time at build and publish time, where it also rejects a localhost value under a shipping
+profile — `.easignore` deliberately ships `.env` into the EAS sandbox and `eas.json` overrides the
+variable in no profile, so whatever `.env` last said is exactly what would go out.
 
 The full set of consumed variables is authoritative in `apps/mobile/app.config.ts` (`extra` block).
 

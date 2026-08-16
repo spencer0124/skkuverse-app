@@ -1,4 +1,101 @@
 import { ExpoConfig, ConfigContext } from "expo/config";
+import { NAVER_MAP_CLIENT_ID, PROD_API_URL } from "./config/constants";
+
+// Substrings that only ever appear in a host living on a developer's machine.
+// `localhost` and `127.0.0.1` resolve to the phone itself once the bundle is on
+// a device, and `10.0.2.2` is the Android emulator's alias for the host
+// loopback, so all three are unreachable from a real install. `http://` is here
+// too: every deployed API host is https, so a plaintext scheme is a dev-server
+// tell no matter what follows it.
+const LOCAL_HOST_MARKERS = ["localhost", "127.0.0.1", "10.0.2.2", "http://"];
+
+// The EAS profiles whose artifacts leave this machine — `beta` to TestFlight
+// and Play internal testing, `production` to the App Store and Play production.
+// `development`, and the unset value a plain `expo start` / `expo run:ios`
+// carries, both stay on the developer's own device and are exempt below.
+const SHIPPING_PROFILES = ["beta", "production"];
+
+/**
+ * Resolves the value that goes into `extra.baseUrl`.
+ *
+ * This used to be a *detector*: read EXPO_PUBLIC_BASE_URL, throw if it was
+ * missing, throw again if it looked like localhost on a shipping profile. The
+ * detector was answering the right question with the wrong shape — it could
+ * only ever catch the mistake after somebody had already made it, and it caught
+ * it late (see C13 in the investigation: EAS_BUILD_PROFILE is set by the build
+ * worker *inside* the sandbox, so the localhost check fired only after prebuild
+ * and pod install). Worse, the unconditional throw for a missing value broke
+ * every eas-cli command outright, because eas-cli evaluates this file with
+ * `EXPO_NO_DOTENV=1` — `.env` is invisible at that stage by design.
+ *
+ * The shape now is default-deny, and the rule is one sentence: **on a shipping
+ * profile the environment variable is not consulted at all.** Not defaulted,
+ * not validated — ignored. A default still lets a stray EXPO_PUBLIC_BASE_URL
+ * win, whether it came from `.env`, from an `export` in somebody's shell
+ * profile (which outranks `.env` on every path — @expo/env never overwrites an
+ * already-defined variable), or from a hand-run `eas build` / `eoas publish`
+ * outside the scripts. Ignoring it makes a dev host *unrepresentable* in a
+ * release artifact, which is the actual requirement.
+ *
+ * Off a shipping profile the variable is exactly what it should have been all
+ * along: an optional local override. Unset means the committed production host,
+ * matching the skkumap precedent — forgetting the override costs you a dev
+ * session against production, never a release pointed at localhost.
+ *
+ * That inversion has its own failure mode, and it is deliberate that it is a
+ * visible one: `src/components/DevProdHostBanner.tsx` renders a persistent
+ * indicator whenever a `__DEV__` session is talking to PROD_API_URL.
+ *
+ * Two variables decide "is this shipping", not one, because the two ways an
+ * artifact leaves this machine announce themselves differently. A native build
+ * runs inside EAS, which sets EAS_BUILD_PROFILE. An OTA publish does not go
+ * through EAS at all — `scripts/ota-{beta,release}.sh` invoke eoas with
+ * `RELEASE_CHANNEL=<channel>` and EAS_BUILD_PROFILE never gets set. Keying on
+ * the build variable alone would leave the publish path unguarded, and the
+ * publish path is exactly where the 1.0.0 / 3.5.0 incident happened. Same
+ * signal as the App Check strip below; when a new way to ship appears, both
+ * need teaching about it.
+ */
+function resolveBaseUrl(): string {
+  const profile = process.env.EAS_BUILD_PROFILE ?? process.env.RELEASE_CHANNEL;
+  const isShipping = profile !== undefined && SHIPPING_PROFILES.includes(profile);
+
+  if (isShipping) {
+    // Redundant assertion, kept deliberately. PROD_API_URL is a committed
+    // constant a few lines away in `config/constants.js`, so this branch cannot
+    // fire as long as that constant is a real https host — it is unreachable by
+    // construction, not by luck. It stays because it costs nothing and because
+    // its unreachability is exactly what makes it worth having: if it ever does
+    // fire, the constant itself has been edited into something that must not
+    // ship, and the build must still die here rather than reach a user's phone.
+    // A tripwire behind the structure, not the structure.
+    const localMarker = LOCAL_HOST_MARKERS.find((marker) =>
+      PROD_API_URL.toLowerCase().includes(marker),
+    );
+    if (localMarker !== undefined) {
+      const source =
+        process.env.EAS_BUILD_PROFILE !== undefined
+          ? "EAS_BUILD_PROFILE"
+          : "RELEASE_CHANNEL";
+      throw new Error(
+        `PROD_API_URL is "${PROD_API_URL}", which points at a local ` +
+          `development host (matched on "${localMarker}"), but ` +
+          `${source} is "${profile}" — an artifact from that profile goes to ` +
+          "real users, whose phones cannot reach it. This should be " +
+          "impossible: PROD_API_URL is a committed constant in " +
+          "apps/mobile/config/constants.js and EXPO_PUBLIC_BASE_URL is not " +
+          "read on a shipping profile at all. Something upstream edited that " +
+          "constant — fix it there, not here.",
+      );
+    }
+    return PROD_API_URL;
+  }
+
+  // Not shipping: local development, where the override is the whole point.
+  // Trimmed, because `''` and `'  '` both mean the substitution never happened
+  // — the same reasoning `packages/shared/src/api/config.ts` trims on.
+  return process.env.EXPO_PUBLIC_BASE_URL?.trim() || PROD_API_URL;
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -27,8 +124,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   extra: {
-    baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
-    env: process.env.EXPO_PUBLIC_ENV,
+    // Always present, and on a shipping profile always PROD_API_URL — see
+    // resolveBaseUrl above for why the environment variable is ignored rather
+    // than merely defaulted there. `packages/shared/src/api/config.ts` still
+    // throws on a missing value at module init, covering the runtime path this
+    // file never sees; it is now a genuinely unreachable assertion rather than
+    // the thing standing between a release and a wrong host.
+    baseUrl: resolveBaseUrl(),
     // Debug-only. Surfaced so app-check.ts can pass it into
     // provider.configure({ debugToken }) — RN Firebase then setenv()'s
     // FIRAAppCheckDebugToken, which is the only App Check debug-token
@@ -36,20 +138,31 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // fallback is silently ignored for unclear reasons — likely GULUserDefaults
     // caching interaction).
     //
-    // Guard: stripped from beta / production bundles so the debug token
-    // does NOT end up shipped to TestFlight or App Store builds of a
-    // public repo. In those builds __DEV__ is false and the provider is
-    // App Attest / Play Integrity anyway, so the debug token would be
-    // dead weight even if present — but defense in depth.
-    ...(process.env.EAS_BUILD_PROFILE === "beta" ||
-    process.env.EAS_BUILD_PROFILE === "production"
-      ? {}
-      : {
+    // Guard: these must never reach an artifact that leaves this machine. A
+    // registered debug token mints valid App Check tokens, so it bypasses App
+    // Attest / Play Integrity outright — and every skkuverse repo is public.
+    //
+    // DEFAULT-DENY, and read why before loosening it. This used to exclude the
+    // tokens when EAS_BUILD_PROFILE was beta/production, i.e. it defaulted to
+    // INCLUDING them and relied on recognising a shipping build. That failed
+    // open on the OTA path: `scripts/ota-{beta,release}.sh` publish through eoas
+    // with RELEASE_CHANNEL=<channel> and never set EAS_BUILD_PROFILE, so the
+    // strip did not fire and both tokens went out in the published production
+    // manifest, fetchable from ota.skkuverse.com with no authentication.
+    //
+    // Inverted: include them only when NEITHER shipping signal is present, so
+    // an unrecognised future release path omits the secret rather than leaking
+    // it. Same two-variable signal as resolveBaseUrl above — when a new way to
+    // ship appears, both need teaching about it, and both fail safe until then.
+    ...(process.env.EAS_BUILD_PROFILE === undefined &&
+    process.env.RELEASE_CHANNEL === undefined
+      ? {
           firebaseAppCheckDebugTokenIos:
             process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_IOS,
           firebaseAppCheckDebugTokenAndroid:
             process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN_ANDROID,
-        }),
+        }
+      : {}),
     eas: {
       projectId: "43e326a2-2f25-4317-a341-a107a52c5405",
     },
@@ -155,7 +268,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "@mj-studio/react-native-naver-map",
       {
-        client_id: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID ?? "",
+        // Committed constant, not an env var. It never varied between dev and
+        // release, and reading it from `.env` meant an empty string whenever
+        // the file was not present — which on the release paths is *always*,
+        // since eas-cli and eoas both evaluate this config with
+        // EXPO_NO_DOTENV=1. See `config/constants.js` for why the value is
+        // safe in a public repo (Naver binds it to the bundle ID / package).
+        client_id: NAVER_MAP_CLIENT_ID,
       },
     ],
     [
