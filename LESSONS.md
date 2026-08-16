@@ -1,9 +1,9 @@
 # Lessons
 
 Mistakes made in this repo, written down so they are not made twice. `CLAUDE.md` describes how
-things work; this file records what went wrong and the non-obvious mechanism behind it. Skim the
+things work. This file records what went wrong and the non-obvious mechanism behind it. Skim the
 relevant entries before touching the API host or the build/publish config, before adding a bottom
-sheet that navigates, before driving the simulator for a visual check, and before trusting a version
+sheet that pushes a screen, before driving the simulator for a visual check, and before trusting a version
 string or a document about what is live in production.
 
 1. **A silent config fallback hid a wrong API host for months.**
@@ -36,7 +36,7 @@ string or a document about what is live in production.
 
    Editing `apps/mobile/.env` and restarting Metro normally changes nothing: the transformer has
    already cached the substituted literal, so the previous host stays baked into the bundle.
-   `npx expo start -c` is load-bearing, not superstition. The failure mode is the dangerous part —
+   `npx expo start -c` is required, not superstition. The failure mode is the dangerous part —
    with the app still pointed at production, the eventmap manifest returns `activeLayerSetId: null`
    by design (`packages/shared/src/eventmap/parser.ts`), so the map shows zero pins, which is
    indistinguishable from a bug in the feature under test.
@@ -45,7 +45,7 @@ string or a document about what is live in production.
    into **JS**; it does nothing for `Constants.expoConfig.extra`, which is what
    `packages/shared/src/api/config.ts` actually reads. This project has no `expo-dev-client`, so in a
    plain `expo run:ios` debug build that object comes from `EXConstants.bundle/app.config` **compiled
-   into the `.app`** — the dev server never supplies it. A `.env` edit plus a Metro restart therefore
+   into the `.app`** — the dev server never supplies it. A `.env` edit plus a Metro restart
    leaves the binary talking to whatever host it was built against, across relaunches.
 
    That cost real time twice. `DevProdHostBanner` was reported as "not rendering" when it was in fact
@@ -72,7 +72,7 @@ string or a document about what is live in production.
    the system browser) already knew this. `src/features/eventmap/EventMapPeekSheet.tsx` was the one
    navigating sheet that did not, and now calls `useBottomSheetModal().dismiss()` before
    `handleSduiAction`. The clinching evidence was differential: the campus tab's plain in-tree
-   `<BottomSheet>` selector *was* correctly covered by the pushed screen, while the portaled modal
+   `<BottomSheet>` selector was correctly covered by the pushed screen, while the portaled modal
    survived on top of it.
 
    → Takeaway: when one overlay gets covered and another does not, the difference is the tree, not

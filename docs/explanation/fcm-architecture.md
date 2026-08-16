@@ -29,8 +29,8 @@ audience: internal
   [ADR 0002](../decisions/0002-no-notification-inbox.md).
 - **On-device diagnosis** is the debug logs screen, `apps/mobile/app/settings/debug-logs.tsx`,
   reached from settings, which shows the current FCM token next to the `devLog` buffer. It is
-  the only diagnostic surface in the app: the standalone FCM debug screen that once sat beside
-  it was deleted after its entry button went away and left it unreachable. Verifying the server
+  the only diagnostic surface in the app: the standalone FCM debug screen was deleted after its
+  entry button went away and left it unreachable. Verifying the server
   half is a separate path — see [How to verify](#how-to-verify).
 - **Where data lives:** user data such as devices and preferences goes to Firebase, meaning
   Firestore and Auth. Public data such as notice bodies goes to MongoDB, behind the backend
