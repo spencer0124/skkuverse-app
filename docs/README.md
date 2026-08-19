@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-19
 audience: internal
 ---
 
@@ -58,6 +58,7 @@ crosses package boundaries.
 | [deep-link.md](reference/deep-link.md) | The `skkuverse://` and universal link whitelist contract |
 | [map-config-api-spec.md](reference/map-config-api-spec.md) | Map API contract between server and client, including `GET /map/config` |
 | [sdui-campus-spec.md](reference/sdui-campus-spec.md) | Server-driven UI contract for the campus tab |
+| [miniapp-notification-payload.md](reference/miniapp-notification-payload.md) | Mini-app push wire contract, from the Cloud Function request body through to the navigation a tap produces |
 | [ux-writing.md](reference/ux-writing.md) | UX writing rules: six required rules and eight principles |
 
 ### explanation
