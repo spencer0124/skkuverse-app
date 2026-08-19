@@ -88,6 +88,66 @@ export interface NoticeNotificationPayload {
   category?: string;
 }
 
+/**
+ * Request payload for a mini-app notification.
+ *
+ * Settled contract: docs/reference/miniapp-notification-payload.md. Read it before
+ * changing a field, because the app half and this half ship on different release
+ * paths — the server redeploys during an event, the code reading this on a phone
+ * does not.
+ *
+ * No `topics` field, deliberately, and unlike NoticeNotificationPayload. A notice
+ * caller passes topics because the crawler already knows which boards a notice was
+ * posted to. A mini-app caller must not, because it is the thing being constrained:
+ * the handler forces `miniapp:<miniAppId>` from the authenticated caller, which is
+ * what closes the "any key targets any topic" gap named in ADR 0006.
+ *
+ * notificationId is required so that "the feed and the delivery cannot diverge" is
+ * checkable after the fact rather than merely intended. The send path writes the
+ * feed entry, then calls here with its id.
+ *
+ * actionType/actionValue are the SDUI action union, not a notification-only scheme.
+ * An older app maps an unrecognised actionType to the `unknown` sentinel and does
+ * nothing with it, so a payload written for a newer build degrades to a no-op.
+ * Omit both to fall back to opening the mini app itself.
+ */
+export interface MiniAppNotificationPayload {
+  type: 'miniapp';
+  miniAppId: string;
+  notificationId: string;
+  title_ko: string;
+  body_ko: string;
+  title_en?: string | null;
+  body_en?: string | null;
+  actionType?: 'webview' | 'external' | 'route' | 'miniapp';
+  actionValue?: string;
+}
+
+/**
+ * Data-only push that invalidates the cached event-map manifest on the device.
+ *
+ * The emergency-correction lever: worst-case propagation drops from one poll
+ * interval to roughly zero. It carries NO `notification` block — adding one draws a
+ * banner for something the user was never meant to see — and on APNs it needs
+ * `apns-push-type: background` with `apns-priority: 5`. Apple rejects a background
+ * push sent at priority 10, and the rejection is per-message, so that mistake
+ * disables the whole lever rather than degrading it.
+ *
+ * Scoped to `miniapp:<miniAppId>` like every other mini-app message. A broadcast to
+ * all devices would reach people who never subscribed, and would be exactly the
+ * privilege escalation the forced-topic rule exists to prevent. Non-subscribers
+ * still converge on the next ordinary poll.
+ */
+export interface EventMapRefreshPayload {
+  type: 'eventmap-refresh';
+  miniAppId: string;
+  /** Logged, never displayed. */
+  reason?: string;
+}
+
 /** Dispatcher input; union expands as new types are added. */
-export type NotificationRequest = NoticeNotificationPayload;
+export type NotificationRequest =
+  | NoticeNotificationPayload
+  | MiniAppNotificationPayload
+  | EventMapRefreshPayload;
 // future: | BusArrivalNotificationPayload | DormNotificationPayload

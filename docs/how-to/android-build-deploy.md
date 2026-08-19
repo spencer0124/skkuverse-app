@@ -72,7 +72,10 @@ have to reach the build:
 | File | .gitignore | .easignore | Why |
 | --- | :---: | :---: | --- |
 | `google-services.json` | excluded | **included** | Android Firebase config |
-| `.env` | excluded | **included** | The `EXPO_PUBLIC_*` variables |
+| `.env` | excluded | excluded | Holds the App Check debug tokens, which are real secrets and must not ride into an archive |
+
+The full reasoning, and why the build needs nothing from `.env`, is in the `.easignore` section of
+[ios-build-deploy.md](ios-build-deploy.md).
 
 ### Versioning happens by itself
 
@@ -146,13 +149,13 @@ have to reach the build:
 The build scripts include `export JAVA_HOME="$(/usr/libexec/java_home -v 17)"`. For a manual
 build, check that JDK 17 is installed.
 
-### The build aborts on EXPO_PUBLIC_BASE_URL
+### Which API host does the artifact get?
 
-`app.config.ts` guards that variable and throws rather than producing a config — missing, empty or
-whitespace-only always fails, and a local host (`localhost`, `127.0.0.1`, `10.0.2.2`, or any
-`http://` scheme) additionally fails under `EAS_BUILD_PROFILE` `beta` or `production`. Point
-`apps/mobile/.env` back at the deployed API host. The same entry in
-[ios-build-deploy.md](ios-build-deploy.md) has the full reasoning.
+Always `PROD_API_URL` from `apps/mobile/config/constants.js`. `EXPO_PUBLIC_BASE_URL` is not read at
+all on a shipping profile, so nothing in the environment can point a release at a dev host, and
+there is no build-time abort on that variable to recognise. The
+[ios-build-deploy.md](ios-build-deploy.md) entry of the same name has the full reasoning and the
+`expo config` command for checking it without running a build.
 
 ### SDK location not found
 
