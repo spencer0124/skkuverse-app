@@ -154,6 +154,16 @@ Four cases reach that fallback, and a sender should expect all four to land on t
 | `actionType: 'miniapp'` | Deferred on the device — see the compatibility rules below |
 | `actionType: 'content'` | Prose for a sheet to render; there is no sheet in a notification tap |
 | An `actionType` newer than the installed build | `parseActionType` maps it to `unknown` |
+| An `actionValue` whose shape the type does not accept | See the shape rules below |
+
+**`actionValue` shape is checked, and a bad one falls back rather than being followed.**
+`webview` and `external` must be `https://` with no whitespace; `route` must begin with `/`. The
+first rule matters most: both send to `openWebView`, whose `normalizeWebUrl` hands anything non-web
+to `Linking.openURL`, so an unchecked value could make the device open `itms-apps:`, `tel:` or a
+custom scheme — the "uninterpreted string reaches a URL opener" failure the `unknown` sentinel
+exists to prevent, on the one surface where that string is fully sender-shaped. These are the same
+rules `isValidActionValue` in `eventmap/parser.ts` already applies, so a notification payload and a
+map button agree about what a `webview` is.
 
 Two deliberate departures from how this work was first described are recorded here because the
 server half is written against this document, not against the issue threads:

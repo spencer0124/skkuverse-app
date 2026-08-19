@@ -49,19 +49,16 @@ describe('resolveNotificationTap', () => {
   });
 
   describe('miniapp — a target this build can navigate', () => {
-    it.each(['route', 'webview', 'external'] as const)('dispatches %s as an SDUI action', (actionType) => {
+    // Values differ by type on purpose: `route` is an in-app path, the other two
+    // must be https (see isAcceptableValue).
+    it.each([
+      ['route', '/notices/cse/5847'],
+      ['webview', 'https://webview.skkuverse.com/eskara'],
+      ['external', 'https://eskara.skku.edu'],
+    ] as const)('dispatches %s as an SDUI action', (actionType, actionValue) => {
       expect(
-        resolveNotificationTap({
-          type: 'miniapp',
-          miniAppId: 'eskara',
-          actionType,
-          actionValue: 'https://webview.skkuverse.com/eskara',
-        }),
-      ).toEqual({
-        kind: 'sdui-action',
-        actionType,
-        actionValue: 'https://webview.skkuverse.com/eskara',
-      });
+        resolveNotificationTap({ type: 'miniapp', miniAppId: 'eskara', actionType, actionValue }),
+      ).toEqual({ kind: 'sdui-action', actionType, actionValue });
     });
 
     it("maps the legacy 'url' spelling onto external, as parseActionType does", () => {
@@ -113,6 +110,18 @@ describe('resolveNotificationTap', () => {
           actionType: 'webview',
           actionValue: '',
         }),
+      ).toEqual({ kind: 'miniapp', id: 'eskara' });
+    });
+
+    it.each([
+      ['a non-web scheme on external', 'external', 'itms-apps://apps.apple.com/app/id1'],
+      ['a non-web scheme on webview', 'webview', 'tel:+8215771577'],
+      ['plain http', 'webview', 'http://x.test/a'],
+      ['an embedded space', 'webview', 'https://x.test/a b'],
+      ['a route that is not a path', 'route', 'https://x.test/a'],
+    ])('falls back for %s rather than handing it to an opener', (_label, actionType, actionValue) => {
+      expect(
+        resolveNotificationTap({ type: 'miniapp', miniAppId: 'eskara', actionType, actionValue }),
       ).toEqual({ kind: 'miniapp', id: 'eskara' });
     });
 

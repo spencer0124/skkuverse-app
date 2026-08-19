@@ -175,14 +175,19 @@ notice. Phase 4, deployed 2026-04-23.
 
 ### Message types, and the rule about badges
 
-`sendNotification` dispatches on `type`. Beyond `notice` there are two mini-app types, whose wire
+`sendNotification` dispatches on `type`. **Today it accepts `notice` and rejects everything else
+with a 400** — the two mini-app types below are contracted and implemented on the device, but their
+send path is the Cloud Functions half (spencer0124/skkuverse#17) and is not deployed. Their wire
 contract is [miniapp-notification-payload.md](../reference/miniapp-notification-payload.md):
 
-| `type` | Visible | What it does |
-| --- | --- | --- |
-| `notice` | Banner and sound | A notice reaches its subscribed tabs |
-| `miniapp` | Banner and sound | A mini app announces something to its subscribers |
-| `eventmap-refresh` | **Silent** | Invalidates the cached event-map manifest on the device |
+| `type` | Visible | What it does | Send path |
+| --- | --- | --- | --- |
+| `notice` | Banner and sound | A notice reaches its subscribed tabs | shipped |
+| `miniapp` | Banner and sound | A mini app announces something to its subscribers | not yet |
+| `eventmap-refresh` | **Silent** | Invalidates the cached event-map manifest on the device | not yet |
+
+The device side of all three is shipped, which is the intended order: an app that cannot route a
+payload it will one day receive is the failure worth avoiding, and the reverse costs nothing.
 
 **Badge what the user can see.** `backgroundMessageHandler` increments the badge and the local
 unread count only when the message carries a `notification` block. The guard is keyed on that block

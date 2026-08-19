@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import notifee, { EventType } from '@notifee/react-native';
 import { notificationStore } from '@skkuverse/shared';
 import {
@@ -45,6 +46,42 @@ export function useNotificationHandler() {
           devLog('getInitialNotification.navigate', { result });
         }
       });
+
+      // iOS only, and the asymmetry is a real platform difference rather than
+      // caution. Notifee routes an event to its background channel by reading
+      // UIApplication.applicationState ONE SECOND after the fact
+      // (RNNotifee/NotifeeApiModule.m, sendNotifeeCoreEvent). A press
+      // foregrounds the app by definition, so a second later the state is
+      // Active and the event always goes to the FOREGROUND channel — which has
+      // no replay buffer and no subscriber until this hook mounts. A cold start
+      // from a tray tap therefore loses it entirely, and RNFB's
+      // getInitialNotification above cannot recover it: a notifee-drawn
+      // notification carries no gcm.message_id, so RNFB never saw it.
+      //
+      // Android needs none of this and must NOT have it: NotifeeEventSubscriber
+      // picks the channel with isAppInForeground() AT EVENT TIME, so the press
+      // correctly reaches the headless handler in background-notification-events.ts.
+      // Adding a second source here would risk stashing the same tap twice.
+      if (Platform.OS === 'ios') {
+        notifee
+          .getInitialNotification()
+          .then((initial) => {
+            devLog('notifee.getInitialNotification', {
+              hasNotification: !!initial,
+              dataKeys: initial?.notification?.data
+                ? Object.keys(initial.notification.data)
+                : null,
+            });
+            if (!initial) return;
+            const result = navigateFromNotification(
+              initial.notification?.data as NotificationData | undefined,
+            );
+            devLog('notifee.getInitialNotification.navigate', { result });
+          })
+          .catch((e) => {
+            if (__DEV__) console.warn('[notifee] getInitialNotification failed:', e);
+          });
+      }
     }
 
     // 2. Background-state: notification tap while app is in background

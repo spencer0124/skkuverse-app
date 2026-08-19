@@ -12,12 +12,14 @@ import { devLog } from '@/services/dev-log';
  * The navigation-free half of notification handling: resolve a payload and
  * stash the intent.
  *
- * Split from `notification-router.ts` specifically so it imports no
- * `expo-router`. The notifee background handler is registered at module scope
- * in `index.ts` **before** `expo-router/entry`, and that file's header exists
- * because import order there has already broken quit-state delivery once. A
- * headless path that cannot navigate should not be dragging the navigator's
- * module graph in ahead of the entry point either.
+ * Split from `notification-router.ts` so it imports no `expo-router`. To be
+ * accurate about what that buys: it is NOT about beating `expo-router/entry` to
+ * evaluation in `index.ts` — Babel hoists every require() above the module body,
+ * so entry is evaluated first regardless. The value is narrower and still real:
+ * Android's headless task runs this file with no navigator, and keeping the
+ * navigator out of its import graph is what makes "cannot navigate here" a
+ * property the compiler enforces rather than a convention a future edit can
+ * quietly break.
  *
  * Every destination goes through a pending holder rather than navigating
  * inline, because a quit-state tap can resolve before the root navigator has a

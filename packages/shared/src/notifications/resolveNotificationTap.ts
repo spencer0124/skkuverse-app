@@ -64,6 +64,26 @@ function asNavigable(raw: unknown): NavigableActionType | null {
 }
 
 /**
+ * `webview` and `external` must carry an https URL.
+ *
+ * `handleSduiAction` sends both to `openWebView`, whose `normalizeWebUrl` hands
+ * anything non-web to `Linking.openURL` — so without this check a payload could
+ * make the device open `itms-apps:`, `tel:` or any custom scheme, which is the
+ * "uninterpreted string reaches a URL opener" failure `parseActionType`'s
+ * `unknown` sentinel exists to prevent. A notification is the one surface where
+ * that string is fully attacker-shaped if the send key ever leaks.
+ *
+ * This is not a new rule: the event-map parser already gates the same two action
+ * types on the same condition (`isValidActionValue` in `eventmap/parser.ts`), so
+ * a notification payload and a map button now agree about what a `webview` is.
+ * A rejected value falls back to the mini app rather than doing nothing.
+ */
+function isAcceptableValue(actionType: NavigableActionType, value: string): boolean {
+  if (actionType === 'route') return value.startsWith('/');
+  return value.startsWith('https://') && !/\s/.test(value);
+}
+
+/**
  * `null` means "this payload asks for no navigation" — the banner still showed,
  * the tap simply does nothing, and nothing throws.
  */
@@ -83,13 +103,14 @@ export function resolveNotificationTap(data: NotificationTapData | undefined): N
       // A target the payload named AND this build knows how to reach.
       const actionType = asNavigable(data.actionType);
       const actionValue = asNonEmptyString(data.actionValue);
-      if (actionType && actionValue) {
+      if (actionType && actionValue && isAcceptableValue(actionType, actionValue)) {
         return { kind: 'sdui-action', actionType, actionValue };
       }
 
       // Everything else lands on the mini app itself, by id: no target given,
       // a target this build cannot navigate (`content`/`miniapp`), a newer
-      // build's action type (`unknown`), or an empty value.
+      // build's action type (`unknown`), an empty value, or a value whose shape
+      // the action type does not accept.
       //
       // The contract's original wording said an unrecognised type degrades to a
       // no-op. The property that protected is "never open an arbitrary string",

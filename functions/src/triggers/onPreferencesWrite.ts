@@ -2,11 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions/logger';
 import { deriveSubscribedTopics } from '../notifications/derive.ts';
-import {
-  setEquals,
-  shallowEqual,
-  pickerSelectionsEqual,
-} from '../utils/equality.ts';
+import { intentChanged, setEquals } from '../utils/equality.ts';
 import type { PreferencesDocument } from '../types.ts';
 
 const REGION = 'asia-northeast3';
@@ -57,18 +53,9 @@ export const onPreferencesWrite = onDocumentWritten(
 
     // Guard 1: intent 변경 없으면 즉시 return (self-loop 방지).
     // 우리가 subscribedTopics + derivedAt 쓴 직후의 trigger는 여기서 빠짐.
-    const intentChanged =
-      beforeData?.enabled !== afterData.enabled ||
-      !shallowEqual(beforeData?.categoryEnabled, afterData.categoryEnabled) ||
-      !shallowEqual(
-        beforeData?.noticeTabEnabled,
-        afterData.noticeTabEnabled,
-      ) ||
-      !pickerSelectionsEqual(
-        beforeData?.pickerSelections,
-        afterData.pickerSelections,
-      );
-    if (!intentChanged) {
+    // 비교 자체는 utils/equality.ts의 intentChanged — 새 intent 필드를 빠뜨리는
+    // 실수가 조용히 나중에 터지는 종류라, 단위 테스트가 가능한 자리에 둔다.
+    if (!intentChanged(beforeData, afterData)) {
       logger.debug('intent unchanged; skip', { uid });
       return;
     }

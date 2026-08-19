@@ -139,13 +139,35 @@ export async function setMiniAppSubscribed(
   miniAppId: string,
   on: boolean,
 ): Promise<void> {
-  await ensurePreferencesDoc(uid);
   await primeAppCheck();
-  await prefsRef(uid).update({
+  const mutation = {
     miniAppSelections: on
       ? firestore.FieldValue.arrayUnion(miniAppId)
       : firestore.FieldValue.arrayRemove(miniAppId),
-  });
+  };
+
+  // update() FIRST, and only fall back to seeding on NOT_FOUND.
+  //
+  // The obvious ordering — ensurePreferencesDoc() then update() — silently
+  // destroys the offline behaviour this function is written for. A Firestore
+  // write promise settles on SERVER ACK, so in a dead spot the `await` on the
+  // seed never resolves and execution never reaches the update: the toggle is
+  // lost with no error and no log, because the promise neither resolves nor
+  // rejects. Issuing the mutation first means the common case (document
+  // exists) is applied locally and flushed on reconnect, exactly like
+  // setMasterEnabled and the other writers here.
+  //
+  // The seed path is for a user who has never had a preferences document —
+  // anonymous, or a first-time installer who skipped the wizard. Offline that
+  // case is genuinely unrecoverable either way; online it costs one extra
+  // round trip on a path that runs at most once per account.
+  try {
+    await prefsRef(uid).update(mutation);
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'firestore/not-found') throw err;
+    await ensurePreferencesDoc(uid);
+    await prefsRef(uid).update(mutation);
+  }
 }
 
 /**

@@ -103,9 +103,15 @@ export async function setupNotificationChannels(): Promise<void> {
  * category-only lookup would quietly file every mini-app notification under
  * 일반·행사 — the wrong OS-level control for the user to turn off.
  *
- * Mirrored on the Cloud Function side by `functions/src/channels.ts`, which sets
- * `android.notification.channelId` for the background/quit path where the OS
- * displays the notification and this function never runs.
+ * NOT yet mirrored on the Cloud Function side. `functions/src/channels.ts` maps
+ * notice categories only and defaults to `notice_general`, and until it gains a
+ * `miniapp` branch the SAME notification lands in two different user-facing
+ * channels depending on app state: 미니앱 알림 when the app drew it in the
+ * foreground, 일반 공지 when the OS drew it in background or quit. Muting one in
+ * Android settings would then silence only half of them. That mirror is part of
+ * the Cloud Functions half (spencer0124/skkuverse#17), which also owns the
+ * `android.notification.channelId` the OS reads on the path where this function
+ * never runs.
  */
 export function resolveNotificationChannel(
   data: Record<string, unknown> | undefined,
