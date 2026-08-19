@@ -10,7 +10,8 @@ import {
   navigateFromNotification,
   type NotificationData,
 } from '@/services/notification-router';
-import { mapCategoryToChannel } from '@/services/notification-channels';
+import { resolveNotificationChannel } from '@/services/notification-channels';
+import { handleSilentPush } from '@/services/silent-push';
 import { devLog } from '@/services/dev-log';
 
 /**
@@ -69,10 +70,15 @@ export function useNotificationHandler() {
       });
 
       const { notification, data } = message;
-      if (!notification) return;
 
-      const category =
-        typeof data?.category === 'string' ? data.category : undefined;
+      // Silent types first: `onForegroundMessage` is the ONLY foreground entry
+      // point, and the `!notification` guard below would drop a data-only
+      // payload before it was ever looked at. This is also the state where the
+      // event-map query is mounted, so invalidating actually refetches now —
+      // the case the silent push exists for.
+      if (await handleSilentPush(data)) return;
+
+      if (!notification) return;
 
       try {
         await notifee.displayNotification({
@@ -82,7 +88,7 @@ export function useNotificationHandler() {
           // 다시 읽으려면 여기서 명시 전달 필요. 가설 C 진단 단계에서 추가.
           data: (data ?? {}) as Record<string, string>,
           android: {
-            channelId: mapCategoryToChannel(category),
+            channelId: resolveNotificationChannel(data),
             pressAction: { id: 'default' },
           },
         });
@@ -99,9 +105,13 @@ export function useNotificationHandler() {
       notificationStore.getState().incrementUnread();
     });
 
-    // 4. Foreground tap (notifee-displayed banner) — 가설 C 진단용 신규 등록.
-    // RELEASE-GATE(debug-menu): 진단 단계에서는 PRESS 이벤트만 로깅하고
-    // navigation은 안 시킴 (Phase 1에서 진단 결과에 따라 navigation 추가 결정).
+    // 4. Foreground tap on a banner notifee drew (case 3 above).
+    //
+    // The OS does not auto-display in the foreground, so we draw it ourselves —
+    // which makes it a notifee-local notification, not an FCM-delivered one.
+    // `onNotificationOpenedApp` therefore never fires for it, and without this
+    // handler the tap went nowhere. No double-fire risk for the same reason.
+    // The background/quit half of this is `background-notification-events.ts`.
     const unsubscribePress = notifee.onForegroundEvent(({ type, detail }) => {
       devLog('notifee.onForegroundEvent', {
         type,
@@ -111,6 +121,14 @@ export function useNotificationHandler() {
           ? Object.keys(detail.notification.data)
           : null,
       });
+
+      if (type !== EventType.PRESS) return;
+      // Foreground by definition, so the navigator is mounted and the
+      // tab-activating entry point is the right one.
+      const result = navigateFromNotification(
+        detail.notification?.data as NotificationData | undefined,
+      );
+      devLog('notifee.onForegroundEvent.navigate', { result });
     });
 
     return () => {

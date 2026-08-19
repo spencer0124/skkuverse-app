@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-16
+last-updated: 2026-08-19
 audience: internal
 ---
 
@@ -50,8 +50,28 @@ still read "준비중" until the next poll. <!-- conventions:allow-korean: the l
 unmount, re-armed on each manifest change. Guard a past/absent value (no timer) and clamp a distant
 one — `setTimeout` overflows its 32-bit delay and fires immediately.
 
-**Silent push** (`type: 'eventmap-refresh'`, data-only) invalidates the manifest query — the
-emergency-correction lever, dropping worst-case propagation from ~135 s to ~0 s.
+**Silent push** (`type: 'eventmap-refresh'`, data-only) invalidates the manifest query. Invalidating
+the manifest alone is enough: a new version means a new `snapshotUrl`, which is a new query key.
+
+The app-side entry point is `apps/mobile/src/services/silent-push.ts`, shared by
+`background-messaging.ts` (registered at module scope in `index.ts`) and the foreground message
+handler — the same payload can arrive in either state and has to do the same thing in both. It is
+deliberately absent from the notification router, because a silent push never produces a tap.
+
+**How much this lever is actually worth, stated plainly**, because "~135 s to ~0 s" is only true in
+one of the three states:
+
+| App state | Effect |
+| --- | --- |
+| Foreground | The query is mounted, so invalidation refetches immediately. This is the real case |
+| Backgrounded, process alive | Marked stale only; `focusManager` refetches on resume |
+| Quit | The handler runs in a throwaway JS context with an empty cache, so this is a no-op — and iOS delivers no background push to a force-quit app at all |
+
+iOS additionally throttles `apns-priority: 5` at its own discretion. So the correction path that
+must not fail is `refreshAfterSec` polling plus ETag/304 revalidation; the silent push accelerates
+it in the foreground and is not a substitute for it. Verify both before relying on either — the
+manifest must return a non-null `activeLayerSetId`, a second poll must return `304`, and
+`refreshAfterSec` must be present.
 
 **A snapshot 404** means the version was TTL-reaped: invalidate the manifest and retry once, never
 surface an error.

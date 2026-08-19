@@ -112,6 +112,43 @@ export async function setPickerSelectionRemote(
 }
 
 /**
+ * Mini-app push subscription — one id at a time.
+ *
+ * arrayUnion/arrayRemove rather than read-modify-write: a single-field atomic
+ * mutation that Firestore can queue offline, which keeps the no-transactions
+ * invariant that exists because transactions fail immediately in a campus wifi
+ * dead spot. Two devices toggling different mini apps therefore cannot clobber
+ * each other's list.
+ *
+ * No Firestore Rules change was needed for this field. The `preferences/main`
+ * update rule is a DENYLIST — it rejects `subscribedTopics` and `derivedAt` by
+ * name rather than allowlisting with `hasOnly` — so a new intent field is
+ * admitted as-is. (Had it been an allowlist, every new intent field would need
+ * an app release and a rules deploy landed in lockstep.)
+ *
+ * `ensurePreferencesDoc` first because `update()` is a patch mutation: it fails
+ * NOT_FOUND on a missing document, which is exactly the state an anonymous or
+ * never-onboarded user is in — and those users are allowed to subscribe.
+ *
+ * The topic this becomes, `miniapp:<id>`, is derived server-side by the Cloud
+ * Function. Until that ships (skkuverse#17) this field is recorded intent that
+ * delivers nothing, which is the correct order: intent before delivery.
+ */
+export async function setMiniAppSubscribed(
+  uid: string,
+  miniAppId: string,
+  on: boolean,
+): Promise<void> {
+  await ensurePreferencesDoc(uid);
+  await primeAppCheck();
+  await prefsRef(uid).update({
+    miniAppSelections: on
+      ? firestore.FieldValue.arrayUnion(miniAppId)
+      : firestore.FieldValue.arrayRemove(miniAppId),
+  });
+}
+
+/**
  * Onboarding seed / finalize (Phase E + 2026-05-25 redesign).
  *
  * Two-phase flow:

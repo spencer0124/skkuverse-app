@@ -36,6 +36,13 @@ export interface PreferencesDocument {
    */
   noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
+  /**
+   * Subscribed mini-app ids → one `miniapp:<id>` topic each. Client-writable
+   * intent, written a single id at a time with arrayUnion/arrayRemove.
+   * Optional: documents predating the field simply lack the key, so derive must
+   * treat `undefined` as an empty list rather than assuming its presence.
+   */
+  miniAppSelections?: string[];
 
   /**
    * Server timestamp at first onboarding completion. Client-writable on
