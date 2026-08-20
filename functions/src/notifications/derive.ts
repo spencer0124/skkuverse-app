@@ -1,27 +1,30 @@
 import { logger } from 'firebase-functions/logger';
 import { FIXED_TAB_KEYS, KNOWN_PICKER_KEYS } from './tabsContract.ts';
 import type { IntentFields } from '../utils/equality.ts';
+import { MINIAPP_TOPIC_PREFIX } from './topic-devices.ts';
 
-/**
- * Mini-app subscriptions live under their own topic prefix.
- *
- * Deliberately NOT a picker key in `tabsContract`. That file is a generated
- * mirror of the crawler's notice categories, hash-checked across repositories,
- * and its entire cost is that both sides must move in lockstep. A mini app is
- * not a notice tab, so putting one in there would widen a contract that exists
- * to stay narrow — the reasoning is in miniapp-notification-payload.md.
- */
-const MINIAPP_TOPIC_PREFIX = 'miniapp';
+// Imported rather than redeclared: this is the string the send path reads back
+// out of `devices.subscribedTopics`, and a copy that drifts delivers to nobody
+// while reporting success. See topic-devices.ts.
+//
+// Deliberately NOT a picker key in `tabsContract`. That file is a generated
+// mirror of the crawler's notice categories, hash-checked across repositories,
+// and its entire cost is that both sides must move in lockstep. A mini app is
+// not a notice tab, so putting one in there would widen a contract that exists
+// to stay narrow — the reasoning is in miniapp-notification-payload.md.
 
 /**
  * Pure function — Firestore read 없음, async 없음.
  * CF 트리거, 단위 테스트, REPL 어디서든 호출 가능.
  *
- * Takes the intent object rather than a positional list. The list had grown to
- * five and the next field would have made call sites unreadable; more to the
- * point, `IntentFields` is the same type `intentChanged` reads, so a new intent
- * field cannot be added to the trigger's guard and forgotten here (or the
- * reverse) — they fail to compile together.
+ * Takes the intent object rather than a positional list: the list had grown to
+ * five and the next field would have made call sites unreadable.
+ *
+ * Sharing `IntentFields` with `intentChanged` does NOT on its own stop a new
+ * field being handled in one and forgotten in the other — both read properties
+ * individually, and TypeScript accepts that. `INTENT_FIELDS_HANDLED` in
+ * utils/equality.ts is the thing that actually breaks the build when a field is
+ * added, and it carries the checklist.
  *
  * Defense in depth: 마스터 OFF (enabled=false)면 즉시 빈 배열 반환.
  * device 레벨 notificationsEnabled 필터에 의존하지 않고도 누수 차단.
@@ -95,8 +98,10 @@ export function deriveSubscribedTopics(
   // unrelated products. The master `enabled` flag above still governs both.
   // Absent field → nothing, which is what every document predating it has.
   for (const id of miniAppSelections ?? []) {
-    // Same falsy filter as the picker ids: 'miniapp:' is an invalid FCM topic
-    // and would fail the whole dispatch rather than just its own entry.
+    // Same falsy filter as the picker ids. Not for the picker's reason — these
+    // strings are Firestore array values, never FCM topic names — but because a
+    // bare 'miniapp:' would match every device the send path queries for, which
+    // is a fan-out to the wrong audience rather than a rejected dispatch.
     if (!id) continue;
     topics.add(`${MINIAPP_TOPIC_PREFIX}:${id}`);
   }

@@ -5,6 +5,7 @@ import {
   shallowEqual,
   pickerSelectionsEqual,
   intentChanged,
+  INTENT_FIELDS_HANDLED,
   type IntentFields,
 } from '../src/utils/equality.ts';
 
@@ -155,4 +156,23 @@ test('intentChanged: mini-app order is not a change (arrayUnion promises no orde
   const a: IntentFields = { ...BASE, miniAppSelections: ['eskara', 'hssc'] };
   const b: IntentFields = { ...BASE, miniAppSelections: ['hssc', 'eskara'] };
   assert.equal(intentChanged(a, b), false);
+});
+
+// The tripwire itself. This test cannot detect a forgotten field — that is the
+// compiler's job, and it fails at INTENT_FIELDS_HANDLED before any test runs.
+// What it pins is that the manifest stays exhaustive over the real type rather
+// than drifting into a hand-maintained list nobody checks.
+test('INTENT_FIELDS_HANDLED covers exactly the intent fields the guard compares', () => {
+  const handled = Object.keys(INTENT_FIELDS_HANDLED).sort();
+  assert.deepEqual(handled, [
+    'categoryEnabled',
+    'enabled',
+    'miniAppSelections',
+    'noticeTabEnabled',
+    'pickerSelections',
+  ]);
+  // Derived fields must never appear here: they are what Guard 1 exists to
+  // ignore, and including one would make the trigger retrigger itself.
+  assert.ok(!handled.includes('subscribedTopics'));
+  assert.ok(!handled.includes('derivedAt'));
 });

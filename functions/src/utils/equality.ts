@@ -100,3 +100,32 @@ export type IntentFields = Pick<
   PreferencesDocument,
   'enabled' | 'categoryEnabled' | 'noticeTabEnabled' | 'pickerSelections' | 'miniAppSelections'
 >;
+
+/**
+ * Compile-time tripwire. Adding an intent field breaks THIS LINE, on purpose.
+ *
+ * Sharing `IntentFields` between `intentChanged` and `deriveSubscribedTopics`
+ * does NOT by itself force either to handle a new field: both read properties
+ * individually, and TypeScript is perfectly happy to ignore one. So a new field
+ * would compile clean everywhere while producing the silent failure this whole
+ * file guards against — intent recorded, topic never derived, no error anywhere.
+ *
+ * `Record<keyof IntentFields, true>` is exhaustive, so the moment a field is
+ * added to PreferencesDocument's intent half this object stops compiling and
+ * whoever added it has to come here. The list below is the checklist they then
+ * work through.
+ *
+ * A new intent field needs, all of them:
+ *   1. an entry here;
+ *   2. a comparison in `intentChanged` — or writes to it never re-derive;
+ *   3. a branch in `deriveSubscribedTopics` — or it derives to nothing;
+ *   4. a client writer, and the Firestore rules checked (the preferences/main
+ *      update rule is a denylist, so a new intent field usually needs no change).
+ */
+export const INTENT_FIELDS_HANDLED: Record<keyof IntentFields, true> = {
+  enabled: true,
+  categoryEnabled: true,
+  noticeTabEnabled: true,
+  pickerSelections: true,
+  miniAppSelections: true,
+};

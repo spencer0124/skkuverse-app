@@ -87,7 +87,19 @@ export async function deactivateDevices(docIds: string[]): Promise<number> {
   return cleanedUp;
 }
 
+/**
+ * The mini-app topic namespace, defined ONCE.
+ *
+ * `deriveSubscribedTopics` writes these strings onto devices and
+ * `loadTopicDevices` reads them back, so the two must agree exactly. They used
+ * to spell the prefix out separately, which fails in the worst available way: a
+ * changed prefix on one side means derive writes `miniappN:<id>`, the query
+ * matches nothing, and the handler returns `{status: 200, sent: 0}`. The server
+ * records a successful send, ops sees a 200, and nobody receives anything.
+ */
+export const MINIAPP_TOPIC_PREFIX = 'miniapp';
+
 /** The topic a mini app broadcasts on. The caller never chooses this. */
 export function miniAppTopic(miniAppId: string): string {
-  return `miniapp:${miniAppId}`;
+  return `${MINIAPP_TOPIC_PREFIX}:${miniAppId}`;
 }
