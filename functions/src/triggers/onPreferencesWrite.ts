@@ -62,10 +62,7 @@ export const onPreferencesWrite = onDocumentWritten(
 
     // Guard 2: derive 결과 == 현재값 → write skip (idempotency).
     const derived = deriveSubscribedTopics(
-      afterData.enabled,
-      afterData.categoryEnabled,
-      afterData.noticeTabEnabled ?? {},
-      afterData.pickerSelections,
+      { ...afterData, noticeTabEnabled: afterData.noticeTabEnabled ?? {} },
       { uid },
     );
     if (setEquals(derived, afterData.subscribedTopics ?? [])) {

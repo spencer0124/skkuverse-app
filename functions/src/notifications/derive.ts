@@ -1,10 +1,27 @@
 import { logger } from 'firebase-functions/logger';
 import { FIXED_TAB_KEYS, KNOWN_PICKER_KEYS } from './tabsContract.ts';
-import type { CategoryEnabled } from '../types.ts';
+import type { IntentFields } from '../utils/equality.ts';
+
+/**
+ * Mini-app subscriptions live under their own topic prefix.
+ *
+ * Deliberately NOT a picker key in `tabsContract`. That file is a generated
+ * mirror of the crawler's notice categories, hash-checked across repositories,
+ * and its entire cost is that both sides must move in lockstep. A mini app is
+ * not a notice tab, so putting one in there would widen a contract that exists
+ * to stay narrow — the reasoning is in miniapp-notification-payload.md.
+ */
+const MINIAPP_TOPIC_PREFIX = 'miniapp';
 
 /**
  * Pure function — Firestore read 없음, async 없음.
  * CF 트리거, 단위 테스트, REPL 어디서든 호출 가능.
+ *
+ * Takes the intent object rather than a positional list. The list had grown to
+ * five and the next field would have made call sites unreadable; more to the
+ * point, `IntentFields` is the same type `intentChanged` reads, so a new intent
+ * field cannot be added to the trigger's guard and forgotten here (or the
+ * reverse) — they fail to compile together.
  *
  * Defense in depth: 마스터 OFF (enabled=false)면 즉시 빈 배열 반환.
  * device 레벨 notificationsEnabled 필터에 의존하지 않고도 누수 차단.
@@ -17,12 +34,17 @@ import type { CategoryEnabled } from '../types.ts';
  * 추후 'essential:emergency' / 'services:shuttle' 등 추가 시 분기 늘림.
  */
 export function deriveSubscribedTopics(
-  enabled: boolean,
-  categoryEnabled: CategoryEnabled,
-  noticeTabEnabled: Record<string, boolean>,
-  pickerSelections: Record<string, string[]>,
+  intent: IntentFields,
   context?: { uid?: string },
 ): string[] {
+  const {
+    enabled,
+    categoryEnabled,
+    noticeTabEnabled,
+    pickerSelections,
+    miniAppSelections,
+  } = intent;
+
   if (!enabled) return [];
 
   // SSOT lock: essential 카테고리는 항상 ON. 클라가 false 를 보내도 (Rules 가
@@ -66,6 +88,17 @@ export function deriveSubscribedTopics(
         topics.add(`${pickerKey}:${id}`);
       }
     }
+  }
+
+  // Mini apps sit OUTSIDE the categoryEnabled.notices gate on purpose: someone
+  // who turned notices off can still follow a mini app, because the two are
+  // unrelated products. The master `enabled` flag above still governs both.
+  // Absent field → nothing, which is what every document predating it has.
+  for (const id of miniAppSelections ?? []) {
+    // Same falsy filter as the picker ids: 'miniapp:' is an invalid FCM topic
+    // and would fail the whole dispatch rather than just its own entry.
+    if (!id) continue;
+    topics.add(`${MINIAPP_TOPIC_PREFIX}:${id}`);
   }
 
   // categoryEnabled.essential / categoryEnabled.services:
