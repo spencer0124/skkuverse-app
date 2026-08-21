@@ -11,6 +11,9 @@
  *      → Guard 2 short-circuits the write
  *   5. dept[0] === '' sentinel ("대표학과 스킵") → derive filters falsy
  *      ids; truthy interest ids still emit, no invalid 'dept:' topic.
+ *   6. miniAppSelections → miniapp:<id> 토픽. Guard 1이 이 필드를 보는지까지
+ *      함께 검증한다 — 이 필드만 바뀐 write는 다른 네 필드를 건드리지 않으므로,
+ *      Guard 1에서 빠뜨리면 derive 자체가 아예 안 돌고 조용히 미구독으로 남는다.
  *
  * Run: `npm run verify:trigger` from functions/ (boots emulator + this script).
  *
@@ -21,7 +24,7 @@
  */
 
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { setTimeout as sleep } from 'node:timers/promises';
 import assert from 'node:assert/strict';
 
@@ -191,7 +194,54 @@ async function main(): Promise<void> {
   assert.ok(s5.subscribedTopics.includes('dept:67890'), 'dept:67890 should be present');
   console.log(`  ✓ 7 topics derived, sentinel '' filtered: ${JSON.stringify(s5.subscribedTopics.sort())}`);
 
-  console.log('\n✅ All 5 scenarios passed\n');
+  // ── Scenario 6 ────────────────────────────────────────────────────
+  //
+  // 이 시나리오의 진짜 대상은 derive가 아니라 **Guard 1**이다. derive의 매핑은
+  // 단위 테스트가 이미 덮고 있고, 여기서만 잡히는 건 "miniAppSelections만 바뀐
+  // write가 트리거를 실제로 통과하는가"다. Guard 1에서 이 필드를 빠뜨리면
+  // intentChanged=false로 조기 return → 구독은 기록됐는데 토픽은 영영 안 생기는,
+  // 에러 없이 조용한 실패가 된다.
+  console.log('\nScenario 6: mini-app subscription → miniapp:<id> (Guard 1 sees the field)');
+  await ref.set({
+    enabled: true,
+    categoryEnabled: { essential: false, services: false, notices: true },
+    noticeTabEnabled: {},
+    pickerSelections: {},
+    subscribedTopics: [],
+    derivedAt: null,
+  });
+  await sleep(TRIGGER_LATENCY_MS);
+  const s6Before = await readState();
+
+  // 앱이 실제로 쓰는 그대로: 이 한 필드만 건드리는 dot-path arrayUnion.
+  await ref.update({ miniAppSelections: FieldValue.arrayUnion('eskara-2026') });
+  await sleep(TRIGGER_LATENCY_MS);
+
+  const s6 = await readState();
+  assert.ok(
+    s6.subscribedTopics.includes('miniapp:eskara-2026'),
+    `miniAppSelections-only write must re-derive (Guard 1). before=${JSON.stringify(s6Before.subscribedTopics.sort())} after=${JSON.stringify(s6.subscribedTopics.sort())}`,
+  );
+  console.log('  ✓ miniapp:eskara-2026 derived from a single-field write');
+
+  // 해제도 같은 경로 — arrayRemove 한 필드만.
+  await ref.update({ miniAppSelections: FieldValue.arrayRemove('eskara-2026') });
+  await sleep(TRIGGER_LATENCY_MS);
+
+  const s6After = await readState();
+  assert.ok(
+    !s6After.subscribedTopics.some((t) => t.startsWith('miniapp:')),
+    `unsubscribe must remove the topic, got ${JSON.stringify(s6After.subscribedTopics.sort())}`,
+  );
+  // 공지 토픽은 그대로여야 한다 — 미니앱 토글이 공지 구독을 건드리면 안 된다.
+  assert.equal(
+    s6After.subscribedTopics.length,
+    s6Before.subscribedTopics.length,
+    'notice topics must be untouched by a mini-app toggle',
+  );
+  console.log('  ✓ unsubscribed, notice topics untouched');
+
+  console.log('\n✅ All 6 scenarios passed\n');
 }
 
 main()

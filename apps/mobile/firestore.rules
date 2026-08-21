@@ -19,7 +19,14 @@ service cloud.firestore {
       // users/{uid}/preferences/main — v5 SSOT (Phase F lockdown).
       //
       // INTENT (client writable):
-      //   enabled, categoryEnabled, noticeTabEnabled, pickerSelections
+      //   enabled, categoryEnabled, noticeTabEnabled, pickerSelections,
+      //   miniAppSelections
+      //
+      // That list is descriptive, not enforced: the update rule below is a
+      // DENYLIST on the two derived fields, so any OTHER field is admitted
+      // whether or not it is named here. That is deliberate — it is what lets a
+      // new intent field ship as an app OTA with no rules deploy beside it — but
+      // it does mean this comment can go stale without anything failing.
       // DERIVED (CF only, blocked here):
       //   subscribedTopics, derivedAt
       //

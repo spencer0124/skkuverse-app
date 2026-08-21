@@ -1,6 +1,7 @@
 import notifee from '@notifee/react-native';
 import type { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { notificationStore } from '@skkuverse/shared';
+import { handleSilentPush } from '@/services/silent-push';
 
 /**
  * Background message handler — registered at module scope in index.ts,
@@ -21,6 +22,15 @@ export async function backgroundMessageHandler(
   if (__DEV__) {
     console.log('[fcm] background message:', remoteMessage.messageId);
   }
+
+  await handleSilentPush(remoteMessage.data);
+
+  // Badge what the user can actually see. A data-only message draws no banner,
+  // so counting it would inflate the badge for something that was never
+  // displayed — and the user would have no way to clear it by reading anything.
+  // Keyed on the absent `notification` block rather than on a message type, so
+  // the rule holds for every future silent payload without another branch here.
+  if (!remoteMessage.notification) return;
 
   try {
     await notifee.incrementBadgeCount(1);

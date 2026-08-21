@@ -1,76 +1,46 @@
 import { router } from 'expo-router';
-import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
-import { devLog } from '@/services/dev-log';
+import { applyTap, resolveTap, type NotificationData } from '@/services/notification-tap';
 
 /**
- * Notification deep link router — converts FCM data payload to Expo Router navigation.
+ * Notification deep link router — turns an FCM data payload into navigation.
  *
- * The server includes structured data (not URLs) in the notification payload.
- * This module maps that data to the correct in-app route.
+ * WHERE a tap lands is decided by `resolveNotificationTap` in @skkuverse/shared:
+ * pure, unit-tested, and free of expo-router so the same answer holds for every
+ * entry point (quit-state launch, warm tap, foreground notifee press,
+ * background notifee press). Stashing the result is `notification-tap.ts`, which
+ * is also navigation-free. This file adds the one thing that genuinely needs a
+ * navigator, and is therefore the only one of the three a headless context must
+ * not import.
  */
 
-export interface NotificationData {
-  type?: string;
-  sourceId?: string;
-  articleNo?: string;
-  category?: string;
-}
+export { stashNotificationTap } from '@/services/notification-tap';
+export type { NotificationData } from '@/services/notification-tap';
 
 /**
  * Navigate to the screen corresponding to the notification payload.
- * Returns true if navigation was performed, false if the payload was unrecognized.
+ * Returns true if a destination was resolved, false if the payload was unrecognized.
+ *
+ * Call only from inside the React tree: it activates a tab before stashing, so
+ * backing out of the pushed screen lands somewhere sensible rather than on
+ * whatever happened to be on top.
  */
 export function navigateFromNotification(data: NotificationData | undefined): boolean {
-  // RELEASE-GATE(debug-menu): entry/exit timestamp는 가설 B(race) 판정용 —
-  // rootNavState.change 시점과 비교해서 push 시점 navState ready 여부 결정.
-  devLog('navigateFromNotification.entry', {
-    type: data?.type ?? null,
-    keys: data ? Object.keys(data) : null,
-  });
+  const tap = resolveTap(data);
 
-  if (!data?.type) {
-    devLog('navigateFromNotification.exit', { result: false, reason: 'no-type' });
-    return false;
+  // navigate (not push): rewinds to an existing tab if it is already in history,
+  // switches otherwise — both avoid stacking a second (tabs) entry on the root
+  // Stack, which is what `push` would do when the tap arrives while the user is
+  // already on that tab.
+  if (tap?.kind === 'notice') {
+    router.navigate('/(tabs)/notices');
+  } else if (tap?.kind === 'miniapp') {
+    // Mirrors `+native-intent.tsx`, which returns /(tabs)/home for
+    // `skkuverse://m/<slug>` before its consumer pushes the shell.
+    router.navigate('/(tabs)/home');
   }
+  // An sdui-action gets no tab activation: its destination is a pushed screen
+  // (/webview) or an explicit route, and yanking the user to a tab first would
+  // change where backing out lands, for no gain.
 
-  switch (data.type) {
-    case 'notice': {
-      // Strict string narrowing — FCM payloads are typed as string, but type
-      // closure on the union prevents number/boolean from sneaking into the
-      // template literal below via consume().
-      if (typeof data.sourceId !== 'string' || typeof data.articleNo !== 'string') {
-        devLog('navigateFromNotification.exit', {
-          result: false,
-          reason: 'missing-sourceId-or-articleNo',
-          hasSourceId: typeof data.sourceId === 'string',
-          hasArticleNo: typeof data.articleNo === 'string',
-        });
-        return false;
-      }
-      // Activate the notices tab first, then stash the intent. The
-      // PendingNoticeLinkConsumer in app/_layout.tsx will pick up the pending
-      // entry and push the detail screen on the next animation frame so the
-      // back arrow lands on the notices tab.
-      // navigate (not push): rewinds to existing notices tab if already in
-      // history, switches tab otherwise — both paths avoid stacking a new
-      // (tabs) entry on root Stack (which `push` would do, causing a duplicate
-      // notices tab in back history when the tap arrives while already on
-      // the notices tab).
-      router.navigate('/(tabs)/notices');
-      pendingExternalNoticeLink.set({
-        sourceId: data.sourceId,
-        articleNo: data.articleNo,
-        source: 'push',
-      });
-      devLog('navigateFromNotification.exit', { result: true });
-      return true;
-    }
-    default:
-      devLog('navigateFromNotification.exit', {
-        result: false,
-        reason: 'unknown-type',
-        type: data.type,
-      });
-      return false;
-  }
+  return applyTap(tap);
 }

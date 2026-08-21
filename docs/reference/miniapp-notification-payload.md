@@ -123,27 +123,65 @@ loses per-channel importance until the update lands.
 
 ## Surface 3 — routing on the device
 
-`navigateFromNotification` in `apps/mobile/src/services/notification-router.ts` gains one case.
-The tap target is resolved as an **action**, through the same `parseActionType` and
-`handleSduiAction` a sheet button uses, rather than as a notification-only scheme.
+`apps/mobile/src/services/notification-router.ts` gains one case. The tap target is resolved as an
+**action**, through the same `parseActionType` and `handleSduiAction` a sheet button uses, rather
+than as a notification-only scheme. The navigable set is `route`, `webview` and `external`;
+everything else falls back (see below).
+
+The decision is a pure function, `resolveNotificationTap` in `packages/shared/src/notifications/`,
+so it holds identically for all four entry points — quit-state launch, warm tap, foreground notifee
+press, background notifee press. The router only performs the result, and always through a pending
+holder: a quit-state tap can resolve before the root navigator has a key, and a push against an
+unmounted navigator is silently lost.
 
 That reuse buys the forward compatibility this contract needs. `parseActionType` maps anything it
 does not recognise to the `unknown` sentinel and `handleSduiAction` does nothing with it, so a
 payload written for a newer app degrades to a no-op on an older one instead of opening an
 arbitrary string.
 
-### When the payload carries no target
+### Falling back to the mini app itself
 
-Open the mini app itself, by id, through the existing `pendingMiniAppLink` holder and its
-consumer in `app/_layout.tsx`. The consumer already resolves the slug against `GET /miniapps/:id`
-and drops it silently when the lookup fails.
+**The app never produces a dead tap for a `miniapp` message.** Whenever the payload does not name a
+target this build can navigate, the tap opens the mini app by id, through the `pendingMiniAppLink`
+holder and its consumer in `app/_layout.tsx`. The consumer resolves the slug against
+`GET /miniapps/:id` and drops it silently when the lookup fails.
 
-> [!NOTE]
-> This is a deliberate change from how the work was originally described, which said the default
-> should be the ESKARA feed page. A URL for one event, compiled into the app, is the pattern epic
-> §4.1 rules out: the moment a generic renderer names a specific consumer, next year's event stops
-> being a data change. Resolving through the registry reaches the same screen while leaving the
-> destination a server-side value, so a wrong guess is fixable without shipping anything.
+Four cases reach that fallback, and a sender should expect all four to land on the same screen:
+
+| Case | Why it falls back |
+| --- | --- |
+| `actionType` and `actionValue` both omitted | The documented default |
+| `actionType: 'miniapp'` | Deferred on the device — see the compatibility rules below |
+| `actionType: 'content'` | Prose for a sheet to render; there is no sheet in a notification tap |
+| An `actionType` newer than the installed build | `parseActionType` maps it to `unknown` |
+| An `actionValue` whose shape the type does not accept | See the shape rules below |
+
+**`actionValue` shape is checked, and a bad one falls back rather than being followed.**
+`webview` and `external` must be `https://` with no whitespace; `route` must begin with `/`. The
+first rule matters most: both send to `openWebView`, whose `normalizeWebUrl` hands anything non-web
+to `Linking.openURL`, so an unchecked value could make the device open `itms-apps:`, `tel:` or a
+custom scheme — the "uninterpreted string reaches a URL opener" failure the `unknown` sentinel
+exists to prevent, on the one surface where that string is fully sender-shaped. These are the same
+rules `isValidActionValue` in `eventmap/parser.ts` already applies, so a notification payload and a
+map button agree about what a `webview` is.
+
+Two deliberate departures from how this work was first described are recorded here because the
+server half is written against this document, not against the issue threads:
+
+**The default is not the ESKARA feed URL.** A URL for one event, compiled into the app, is the
+pattern epic §4.1 rules out: the moment a generic renderer names a specific consumer, next year's
+event stops being a data change. Resolving through the registry reaches the same screen while
+leaving the destination a server-side value, so a wrong guess is fixable without shipping anything.
+
+**An unrecognised `actionType` falls back rather than doing nothing.** The original wording said it
+degrades to a no-op. The property that wording protected is *never hand an uninterpreted string to
+a URL opener*, and the fallback does not touch `actionValue` at all — it uses `miniAppId`, which the
+consumer looks up in the registry. So the safety property is intact, and the failure mode improves
+from a tap that appears broken to a tap that lands one screen up. During an event, where a wrong
+`actionType` cannot be corrected on the device, that difference is the whole point.
+
+`resolveNotificationTap` in `packages/shared/src/notifications/` is the single implementation of
+this table, and its test file is the executable version of it.
 
 ### The silent type is not a routing case
 
@@ -182,9 +220,16 @@ with another repository.
   still appears, the tap does nothing, and nothing crashes.
 - **Add the tap case before any caller can send.** Otherwise the first real notification is also
   the first one whose tap goes nowhere.
-- **Changing `actionType` later is a payload change, not a release.** While the mini-app platform
-  is unreleased a target resolves as `webview`; moving it to `miniapp` needs no app change on any
-  build that already has the case.
+- **Changing `actionType` later is a payload change, not a release** — but only between the
+  navigable types (`route`, `webview`, `external`). Use `webview` for ESKARA.
+- **`actionType: 'miniapp'` is NOT wired on the device, and sending it lands on the mini app
+  itself.** It is not a broken value, just a redundant way of asking for the fallback. It stays
+  deferred because its value shape is undecided in two places at once: the event-map parser
+  validates a `miniapp` `actionValue` as an HTTPS URL (`eventmap/parser.ts`), while
+  `openMiniAppById` takes a registry slug. Settling that is
+  [eventmap-rendering.md](../explanation/eventmap-rendering.md) §7.3 work with real security content
+  (resolve the sub-path against the registry `startUrl`, fail closed on an origin mismatch), and a
+  guess frozen into a shipped binary cannot be corrected mid-event.
 
 ## Related
 

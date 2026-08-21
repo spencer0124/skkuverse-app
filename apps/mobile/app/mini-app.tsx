@@ -14,6 +14,7 @@ import {
   Pressable,
   Share,
   StyleSheet,
+  Switch,
   Text,
   useWindowDimensions,
   View,
@@ -50,8 +51,10 @@ import {
 import {
   SdsColors,
   getWebOrigin,
+  useAuthStore,
   useMiniAppDetail,
   useMiniAppIndex,
+  useNotificationStore,
 } from '@skkuverse/shared';
 import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
@@ -59,6 +62,12 @@ import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { GlassSurface } from '@/features/mini-app/components/glass';
 import { faviconUrl } from '@/features/mini-app/protocol';
+import { useEnableNotificationsFlow } from '@/features/notifications/hooks/useEnableNotificationsFlow';
+import {
+  setMasterEnabled,
+  setMiniAppSubscribed,
+} from '@/services/firestore-notifications';
+import { logHandledError } from '@/services/crashlytics';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
@@ -165,6 +174,47 @@ function MenuRow({
         {label}
       </Txt>
     </Pressable>
+  );
+}
+
+/**
+ * 더보기 시트의 스위치 행 — MenuRow와 같은 메트릭에 오른쪽 Switch만 추가.
+ * 행 전체가 아니라 Switch만 눌리게 둔다(오탭으로 구독이 뒤집히면 사용자가
+ * 무엇을 눌렀는지 알기 어렵다).
+ */
+function MenuToggleRow({
+  icon: IconCmp,
+  label,
+  hint,
+  value,
+  onValueChange,
+}: {
+  icon: PhosphorIcon;
+  label: string;
+  hint?: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+}) {
+  return (
+    <View style={styles.menuRow}>
+      <IconCmp size={22} color={SdsColors.grey800} />
+      <View style={styles.menuToggleTexts}>
+        <Txt typography="t5" color={SdsColors.grey900}>
+          {label}
+        </Txt>
+        {hint ? (
+          <Txt typography="t7" color={SdsColors.grey500}>
+            {hint}
+          </Txt>
+        ) : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ true: SdsColors.brand, false: undefined }}
+        accessibilityLabel={label}
+      />
+    </View>
   );
 }
 
@@ -410,6 +460,60 @@ export default function MiniAppScreen() {
   const handleSettings = useCallback(() => setMoreOpen(false), []);
   const handleSupport = useCallback(() => setMoreOpen(false), []);
 
+  // ── 미니앱 알림 구독 ──
+  // Firestore가 SSOT다. useAppInit의 onPreferencesChanged 리스너가 스토어를
+  // 계속 갱신하므로 로컬 낙관적 상태를 따로 두지 않는다 — 두면 다른 기기에서
+  // 바꾼 값과 싸우게 되고, 그건 v5 재설계가 없애려던 드리프트 그 자체다.
+  const uid = useAuthStore((s) => s.uid);
+  const preferences = useNotificationStore((s) => s.preferences);
+  const subscribed = !!miniAppId && (preferences.miniAppSelections ?? []).includes(miniAppId);
+
+  const writeSubscription = useCallback(
+    async (next: boolean) => {
+      if (!uid || !miniAppId) return;
+      try {
+        await setMiniAppSubscribed(uid, miniAppId, next);
+      } catch (err) {
+        logHandledError('miniapp/set-subscription', err);
+      }
+    },
+    [uid, miniAppId],
+  );
+
+  // 권한 요청 → 기기 등록 → (master OFF면) master ON → 구독 기록.
+  // 설정 화면의 enable 시트와 같은 훅·같은 순서다. master가 꺼져 있으면
+  // deriveSubscribedTopics가 빈 배열을 돌려주고 devices.notificationsEnabled도
+  // false로 남아, 구독은 기록되지만 아무것도 오지 않는다.
+  const { handleEnable } = useEnableNotificationsFlow({
+    onResolved: ({ granted }) => {
+      if (granted) void writeSubscription(true);
+    },
+    additionalOnGranted: async () => {
+      if (!uid) return;
+      if (!preferences.enabled) await setMasterEnabled(uid, true);
+    },
+  });
+
+  const handleToggleSubscription = useCallback(
+    (next: boolean) => {
+      if (!next) {
+        void writeSubscription(false);
+        return;
+      }
+      // 켜는 쪽은 권한/기기등록이 이미 끝났는지에 따라 갈린다. 끝났으면 바로
+      // 기록하고, 아니면 flow가 권한 → 등록 → master ON을 거친 뒤 onResolved에서
+      // 기록한다(거부하면 기록하지 않는다 — 오지도 않을 구독을 남기지 않기 위해).
+      const { permissionStatus, isTokenRegistered } = useNotificationStore.getState();
+      const granted = permissionStatus === 'authorized' || permissionStatus === 'provisional';
+      if (granted && isTokenRegistered && preferences.enabled) {
+        void writeSubscription(true);
+        return;
+      }
+      void handleEnable();
+    },
+    [writeSubscription, handleEnable, preferences.enabled],
+  );
+
   return (
     <View style={styles.container}>
       {/* 네이티브 헤더 — 버스/공지와 동일 메트릭. 좌: native back(=미니앱 종료, glass 캡슐),
@@ -638,6 +742,17 @@ export default function MiniAppScreen() {
       {/* 더보기(⋯) 액션 시트 — Safari 스타일 액션 목록. 콘텐츠 높이에 맞춰 hug. */}
       <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
         <View style={styles.menuList}>
+          {/* 미니앱 단위 알림 구독. 지도가 아니라 셸에 둔다 — 구독의 주체가
+              부스가 아니라 미니앱이라서, 켜고 끄는 자리도 미니앱 안이어야 한다. */}
+          {miniAppId && uid ? (
+            <MenuToggleRow
+              icon={BellIcon}
+              label="알림 받기"
+              hint={preferences.enabled ? undefined : '기기 알림도 함께 켜집니다'}
+              value={subscribed}
+              onValueChange={handleToggleSubscription}
+            />
+          ) : null}
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
           <MenuRow icon={ShareNetworkIcon} label="공유하기" onPress={handleShare} />
           {miniAppId ? (
@@ -817,6 +932,11 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingVertical: 14,
     paddingHorizontal: 4,
+  },
+  // 스위치 행의 텍스트 열 — flex:1로 Switch를 오른쪽 끝에 밀어붙인다.
+  menuToggleTexts: {
+    flex: 1,
+    gap: 2,
   },
   aiBtn: {
     height: 46,

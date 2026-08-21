@@ -3,7 +3,7 @@ title: FCM Notifications Architecture
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-16
+last-updated: 2026-08-19
 audience: internal
 ---
 
@@ -53,7 +53,18 @@ A client writes only these. The schema authority is
 | `categoryEnabled` | `{ essential, services, notices }` | Per-category toggles |
 | `noticeTabEnabled` | `Record<string, boolean>` | Per-notice-tab toggles |
 | `pickerSelections` | `Record<string, string[]>` | Selections on a picker tab, such as departments |
+| `miniAppSelections` | `string[]` (optional) | Subscribed mini-app ids, one `miniapp:<id>` topic each |
 | `onboardedAt` | `Timestamp \| null` | The onboarding-complete discriminator, described below |
+
+`miniAppSelections` is a field of its own rather than a synthetic key inside `pickerSelections`,
+because `tabsContract` mirrors the backend's **notice** categories and putting a non-notice concept
+into it would widen a cross-repo contract whose entire cost is lockstep updates. It is independent
+of `categoryEnabled.notices` — the two are unrelated products — but still gated by the master
+`enabled` flag, which short-circuits derivation to an empty array before anything else is read.
+It needed no rules change: the update rule is a **denylist**, and
+[the rules section](#what-the-firestore-rules-do) explains why that is a deliberate property rather
+than a happy accident.
+It is written one id at a time with `arrayUnion`/`arrayRemove` from the mini-app shell.
 
 ### Derivation, in the `onPreferencesWrite` CF
 
@@ -162,6 +173,33 @@ notice. Phase 4, deployed 2026-04-23.
   dispatch.
 - **The code:** `functions/src/send-notification.ts`, `functions/src/handle-notice.ts`,
   `functions/src/channels.ts`, `functions/src/types.ts`.
+
+### Message types, and the rule about badges
+
+`sendNotification` dispatches on `type`. **Today it accepts `notice` and rejects everything else
+with a 400** — the two mini-app types below are contracted and implemented on the device, but their
+send path is the Cloud Functions half (spencer0124/skkuverse#17) and is not deployed. Their wire
+contract is [miniapp-notification-payload.md](../reference/miniapp-notification-payload.md):
+
+| `type` | Visible | What it does | Send path |
+| --- | --- | --- | --- |
+| `notice` | Banner and sound | A notice reaches its subscribed tabs | live |
+| `miniapp` | Banner and sound | A mini app announces something to its subscribers | not yet |
+| `eventmap-refresh` | **Silent** | Invalidates the cached event-map manifest on the device | not yet |
+
+The device half of all three already runs in the app, which is the intended order: an app that
+cannot route a payload it will one day receive is the failure worth avoiding, and the reverse costs
+nothing.
+
+**Badge what the user can see.** `backgroundMessageHandler` increments the badge and the local
+unread count only when the message carries a `notification` block. The guard is keyed on that block
+being absent rather than on any particular `type`, so every future data-only payload inherits it
+without another branch, and so a silent message can never leave a badge the user has no way to
+clear by reading anything.
+
+A silent type is also **not a routing case**: it never produces a tap, so it is handled where
+messages are received (`services/silent-push.ts`, shared by the background and foreground handlers)
+rather than in the notification router, where its branch would be unreachable by construction.
 
 ### The token cleanup policy, which is critical
 

@@ -24,7 +24,9 @@ import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
 import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
+import { pendingSduiAction } from '@/lib/pending-sdui-action';
 import { openMiniAppById } from '@/features/mini-app/open';
+import { handleSduiAction } from '@/sdui/action-handler';
 import { devLog } from '@/services/dev-log';
 import { DevProdHostBanner } from '@/components/DevProdHostBanner';
 
@@ -215,6 +217,35 @@ function PendingMiniAppLinkConsumer() {
 }
 
 /**
+ * Drains a notification tap that named an SDUI action (`webview` is ESKARA's
+ * primary type). Same shape as the two consumers above and for the same reason:
+ * `handleSduiAction` pushes immediately, and a quit-state tap can resolve before
+ * the root navigator has a key, where a push is silently lost.
+ */
+function PendingSduiActionConsumer() {
+  const navState = useRootNavigationState();
+
+  useEffect(() => {
+    if (!navState?.key) return; // wait until navigation root is mounted
+
+    const tryConsume = () => {
+      const p = pendingSduiAction.consume();
+      if (!p) return;
+      // Defer a frame so any tab activation that came with the tap commits
+      // before the push, matching the mini-app consumer.
+      requestAnimationFrame(() => {
+        handleSduiAction({ actionType: p.actionType, actionValue: p.actionValue });
+      });
+    };
+
+    tryConsume(); // cold-start
+    return pendingSduiAction.subscribe(tryConsume); // warm-start follow-ups
+  }, [navState?.key]);
+
+  return null;
+}
+
+/**
  * Root layout — provider hierarchy:
  *
  * ErrorBoundary (outermost — catches errors from any child)
@@ -386,6 +417,7 @@ export default function RootLayout() {
               </Stack>
               <PendingNoticeLinkConsumer />
               <PendingMiniAppLinkConsumer />
+              <PendingSduiActionConsumer />
               {/* Dev-only "you are pointed at the production API" strip. Placed
                   here — a sibling *after* <Stack>, inside SafeAreaProvider so
                   it can read the top inset — for three reasons: later siblings
