@@ -61,8 +61,9 @@ because `tabsContract` mirrors the backend's **notice** categories and putting a
 into it would widen a cross-repo contract whose entire cost is lockstep updates. It is independent
 of `categoryEnabled.notices` — the two are unrelated products — but still gated by the master
 `enabled` flag, which short-circuits derivation to an empty array before anything else is read.
-It needed no rules change: the update rule is a **denylist**, so see
-[the rules section](#what-the-firestore-rules-do) for why that is load-bearing rather than lucky.
+It needed no rules change: the update rule is a **denylist**, and
+[the rules section](#what-the-firestore-rules-do) explains why that is a deliberate property rather
+than a happy accident.
 It is written one id at a time with `arrayUnion`/`arrayRemove` from the mini-app shell.
 
 ### Derivation, in the `onPreferencesWrite` CF
@@ -182,18 +183,19 @@ contract is [miniapp-notification-payload.md](../reference/miniapp-notification-
 
 | `type` | Visible | What it does | Send path |
 | --- | --- | --- | --- |
-| `notice` | Banner and sound | A notice reaches its subscribed tabs | shipped |
+| `notice` | Banner and sound | A notice reaches its subscribed tabs | live |
 | `miniapp` | Banner and sound | A mini app announces something to its subscribers | not yet |
 | `eventmap-refresh` | **Silent** | Invalidates the cached event-map manifest on the device | not yet |
 
-The device side of all three is shipped, which is the intended order: an app that cannot route a
-payload it will one day receive is the failure worth avoiding, and the reverse costs nothing.
+The device half of all three already runs in the app, which is the intended order: an app that
+cannot route a payload it will one day receive is the failure worth avoiding, and the reverse costs
+nothing.
 
 **Badge what the user can see.** `backgroundMessageHandler` increments the badge and the local
 unread count only when the message carries a `notification` block. The guard is keyed on that block
 being absent rather than on any particular `type`, so every future data-only payload inherits it
-without another branch — and, more importantly, so a silent message can never leave a badge the user
-has no way to clear by reading anything.
+without another branch, and so a silent message can never leave a badge the user has no way to
+clear by reading anything.
 
 A silent type is also **not a routing case**: it never produces a tap, so it is handled where
 messages are received (`services/silent-push.ts`, shared by the background and foreground handlers)

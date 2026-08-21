@@ -50,8 +50,9 @@ still read "준비중" until the next poll. <!-- conventions:allow-korean: the l
 unmount, re-armed on each manifest change. Guard a past/absent value (no timer) and clamp a distant
 one — `setTimeout` overflows its 32-bit delay and fires immediately.
 
-**Silent push** (`type: 'eventmap-refresh'`, data-only) invalidates the manifest query. Invalidating
-the manifest alone is enough: a new version means a new `snapshotUrl`, which is a new query key.
+**Silent push** (`type: 'eventmap-refresh'`, data-only) invalidates the manifest query, and only
+that one: a new version carries a new `snapshotUrl`, and a new URL is a new query key, so the
+snapshot refetches on its own.
 
 The app-side entry point is `apps/mobile/src/services/silent-push.ts`, shared by
 `background-messaging.ts` (registered at module scope in `index.ts`) and the foreground message
@@ -67,9 +68,9 @@ one of the three states:
 | Backgrounded, process alive | Marked stale only; `focusManager` refetches on resume |
 | Quit | The handler runs in a throwaway JS context with an empty cache, so this is a no-op — and iOS delivers no background push to a force-quit app at all |
 
-iOS additionally throttles `apns-priority: 5` at its own discretion. So the correction path that
+iOS throttles `apns-priority: 5` at its own discretion on top of that. So the correction path that
 must not fail is `refreshAfterSec` polling plus ETag/304 revalidation; the silent push accelerates
-it in the foreground and is not a substitute for it. Verify both before relying on either — the
+it in the foreground and does not replace it. Verify both before relying on either — the
 manifest must return a non-null `activeLayerSetId`, a second poll must return `304`, and
 `refreshAfterSec` must be present.
 
