@@ -142,13 +142,20 @@ test('intentChanged: unsubscribing from a mini app → true', () => {
   assert.equal(intentChanged(subscribed, { ...subscribed, miniAppSelections: [] }), true);
 });
 
+/** A document written before miniAppSelections existed: the key is absent, not empty. */
+function withoutMiniApps(): IntentFields {
+  const doc: IntentFields = { ...BASE };
+  delete doc.miniAppSelections;
+  return doc;
+}
+
 test('intentChanged: miniAppSelections absent on both sides → false', () => {
-  const { miniAppSelections: _omit, ...noField } = BASE;
+  const noField = withoutMiniApps();
   assert.equal(intentChanged(noField, { ...noField }), false);
 });
 
 test('intentChanged: absent → [] is not a change (documents predating the field)', () => {
-  const { miniAppSelections: _omit, ...noField } = BASE;
+  const noField = withoutMiniApps();
   assert.equal(intentChanged(noField, { ...noField, miniAppSelections: [] }), false);
 });
 
