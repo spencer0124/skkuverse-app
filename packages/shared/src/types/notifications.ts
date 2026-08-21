@@ -34,6 +34,15 @@ export interface UserDocument {
  *   - pickerSelections   : per picker tab key, the user-chosen ids that drive
  *                          the corresponding `prefix:id` topic subscriptions.
  *                          Currently active keys: dept, library, dorm, general.
+ *   - miniAppSelections  : subscribed mini-app ids, one `miniapp:<id>` topic
+ *                          each. A field of its own rather than a synthetic key
+ *                          inside pickerSelections: `tabsContract` is a hardcoded
+ *                          mirror of the backend's NOTICE categories, and putting
+ *                          a non-notice concept into it widens a cross-repo
+ *                          contract whose whole cost is lockstep updates.
+ *                          Independent of categoryEnabled.notices (unrelated
+ *                          products), still gated by the master `enabled` flag.
+ *                          Optional — documents predating it simply lack the key.
  *
  * DERIVED (Cloud Function only — Firestore Rules block client writes):
  *   - subscribedTopics   : flat list of FCM topic strings actually used by
@@ -54,6 +63,7 @@ export interface PreferencesDocument {
   categoryEnabled: CategoryEnabled;
   noticeTabEnabled: Record<string, boolean>;
   pickerSelections: Record<string, string[]>;
+  miniAppSelections?: string[];
 
   /**
    * Server timestamp at first onboarding completion. Null until the user

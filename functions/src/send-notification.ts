@@ -3,6 +3,8 @@ import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions/logger';
 import { onRequest } from 'firebase-functions/v2/https';
 import { handleNoticeNotification } from './handle-notice';
+import { handleMiniAppNotification } from './handle-miniapp';
+import { handleEventMapRefresh } from './handle-eventmap-refresh';
 import type { NotificationRequest } from './types';
 
 const REGION = 'asia-northeast3';
@@ -64,9 +66,26 @@ export const sendNotification = onRequest(
           res.status(result.status).json(result.body);
           return;
         }
-        default:
-          res.status(400).json({ error: `Unknown type: ${String(body.type)}` });
+        case 'miniapp': {
+          const result = await handleMiniAppNotification(body);
+          res.status(result.status).json(result.body);
           return;
+        }
+        case 'eventmap-refresh': {
+          const result = await handleEventMapRefresh(body);
+          res.status(result.status).json(result.body);
+          return;
+        }
+        default: {
+          // `body` narrows to never here now that the switch covers the whole
+          // union — which is the compile-time exhaustiveness we want. The arm
+          // still has to exist at runtime: `body` is untrusted JSON that was
+          // merely ASSERTED to be a NotificationRequest, so an unknown type is
+          // reachable in production even though it is unreachable in the types.
+          const unknownType = (body as { type?: unknown }).type;
+          res.status(400).json({ error: `Unknown type: ${String(unknownType)}` });
+          return;
+        }
       }
     } catch (e) {
       logger.error('sendNotification failed', { err: String(e) });

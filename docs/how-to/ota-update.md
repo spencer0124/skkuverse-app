@@ -3,7 +3,7 @@ title: OTA Update
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -113,6 +113,15 @@ OCI A1 (ARM64, 4 OCPU, 24GB)
 - **`EXPO_TOKEN`** lives in `.env.ota.local`, which is gitignored, and the scripts read it
   automatically. Without one, create it at [expo.dev](https://expo.dev) under Settings,
   Access tokens, and add `EXPO_TOKEN=<token>` to `.env.ota.local`.
+- **No `.env` step before publishing.** A published bundle always carries `PROD_API_URL` from
+  `apps/mobile/config/constants.js`: `scripts/ota-{beta,release}.sh` invoke eoas with
+  `RELEASE_CHANNEL=<channel>`, and `resolveBaseUrl()` in `app.config.ts` does not read
+  `EXPO_PUBLIC_BASE_URL` at all once that variable names a shipping channel. A laptop host is
+  unrepresentable in a published bundle rather than merely rejected, so there is nothing to point
+  back and no abort to recognise. `RELEASE_CHANNEL` is checked alongside `EAS_BUILD_PROFILE`
+  precisely because a publish never goes through EAS, so keying on the build variable alone would
+  leave this path unguarded — the same pair also default-denies the App Check debug tokens out of
+  the manifest, which is why the scripts no longer `source .env` at all.
 - Check that the `updates` config in `app.config.ts` has this shape. The real
   `runtimeVersion` value is in `apps/mobile/app.config.ts`.
 

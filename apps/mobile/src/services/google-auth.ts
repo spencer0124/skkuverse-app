@@ -19,12 +19,20 @@ import { authStore } from '@skkuverse/shared';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import { unregisterDevice } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { GOOGLE_WEB_CLIENT_ID } from '../../config/constants';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
 
 export function configureGoogleSignIn() {
   GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
+    // Committed constant, not `process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!`.
+    // Metro inlines an EXPO_PUBLIC_* variable at bundle time, so an OTA publish
+    // that did not carry the variable inlined `undefined` here and the non-null
+    // assertion waved it through — Google Sign-In then returned idToken=null on
+    // Android, the 12500 symptom recorded in `scripts/ota-release.sh`. A
+    // constant cannot be absent. See `config/constants.js` for why an OAuth
+    // client ID is safe in a public repo.
+    webClientId: GOOGLE_WEB_CLIENT_ID,
     hostedDomain: 'g.skku.edu',
   });
 }

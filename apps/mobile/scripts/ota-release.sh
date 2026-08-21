@@ -20,13 +20,14 @@ COMMIT_SHA="$(git rev-parse HEAD)"
 COMMIT_SHORT="$(git rev-parse --short HEAD)"
 
 # ── stage 2: load env + publish ──
-# .env first (EXPO_PUBLIC_* build constants — metro inlines these at bundle
-# time), then .env.ota.local (EXPO_TOKEN for eoas auth). Sourcing only
-# .env.ota.local was the bug that caused EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to
-# inline as undefined in OTA bundles → Google Sign-In returned idToken=null on
-# Android → 12500 symptom.
+# Only .env.ota.local, for EXPO_TOKEN. `.env` is deliberately not sourced — see
+# the note in ios-build.sh. It once carried the EXPO_PUBLIC_* values metro
+# inlined at bundle time, and sourcing only .env.ota.local back then was the bug
+# that inlined EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID as undefined (idToken=null →
+# 12500 on Android). That value is a committed constant now, nothing reads
+# process.env.EXPO_PUBLIC_* any more, and what is left in .env must not reach a
+# published bundle. Mirror of ota-beta.sh.
 set -a
-source .env
 source .env.ota.local
 set +a
 # eoas 버전 고정 — 미고정 npx는 릴리스 당일의 최신 메이저를 받는다.

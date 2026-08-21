@@ -71,6 +71,14 @@ export type {
   NotificationStore,
   PushPermissionStatus,
 } from './store/notifications';
+export {
+  resolveNotificationTap,
+} from './notifications';
+export type {
+  NavigableActionType,
+  NotificationTap,
+  NotificationTapData,
+} from './notifications';
 export { useBookmarkStore, bookmarkStore } from './store/bookmarks';
 export type { BookmarkStore } from './store/bookmarks';
 

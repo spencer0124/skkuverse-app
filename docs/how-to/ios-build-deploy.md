@@ -3,7 +3,7 @@ title: iOS Build & Deploy
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-16
 audience: internal
 ---
 
@@ -62,13 +62,23 @@ apps/mobile/
 ### .easignore
 
 When EAS archives the project it applies `.easignore` in place of `.gitignore`. Keep the two
-the same, except that these files have to reach the build:
+the same, except for these:
 
 | File | .gitignore | .easignore | Why |
 | --- | :---: | :---: | --- |
 | `GoogleService-Info.plist` | excluded | **included** | iOS Firebase config |
 | `google-services.json` | excluded | **included** | Android Firebase config |
-| `.env` | excluded | **included** | The `EXPO_PUBLIC_*` variables |
+| `certs/certificate.pem` | excluded | **included** | The OTA code-signing certificate |
+| `.env` | excluded | excluded | See below — do not re-add it |
+
+> [!WARNING]
+> `.env` must stay **excluded**. The build needs nothing from it: the API host, the Naver Maps
+> client ID and the Google OAuth web client ID are committed constants in
+> `apps/mobile/config/constants.js`, and nothing reads `process.env.EXPO_PUBLIC_*` any more. What
+> is left in the file is the App Check debug tokens, which are real secrets — a registered token
+> mints valid App Check tokens and bypasses App Attest and Play Integrity outright. This line is
+> the second line of defence; the first is the default-deny strip in `app.config.ts`'s `extra`
+> block. The build scripts do not `source .env` either, for the same reason.
 
 ### Two settings the monorepo needs for a local EAS build
 
@@ -160,10 +170,24 @@ is why the build (a shell script) and the upload (Fastlane) are separate.
 This happens when `.easignore` is missing or excludes that file. Check that the Firebase files
 are commented out, and therefore included, in `.easignore`.
 
-### The Naver Map key is empty
+### Which API host does the artifact get?
 
-If `.easignore` excludes `.env`, then `EXPO_PUBLIC_NAVER_MAP_CLIENT_ID` becomes an empty
-string. Check that `.env` is included.
+Always `PROD_API_URL` from `apps/mobile/config/constants.js`, and nothing in the environment can
+change that. `resolveBaseUrl()` in `app.config.ts` does not read `EXPO_PUBLIC_BASE_URL` when
+`EAS_BUILD_PROFILE` or `RELEASE_CHANNEL` names `beta` or `production` — it is ignored, not
+defaulted over — so a dev host cannot reach a release artifact whatever `.env`, an exported shell
+variable or a hand-run `eas`/`eoas` invocation says. There is no longer any step for pointing
+`.env` back at the deployed host before a build, and no build-time abort on that variable to
+recognise. To confirm what a config would carry without running a build:
+
+```bash
+cd apps/mobile
+EXPO_NO_DOTENV=1 EAS_BUILD_PROFILE=production npx expo config --json | jq '.extra'
+```
+
+`extra.baseUrl` should be the production host, and no `firebaseAppCheckDebugToken*` key should be
+present. Changing the host is a code change to `config/constants.js`, reviewed and with git
+history — which is the whole point of it having moved out of `.env`.
 
 ### ARCHIVE FAILED with "Unable to resolve module .../apps/mobile/index.ts"
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import notifee, { EventType } from '@notifee/react-native';
 import { notificationStore } from '@skkuverse/shared';
 import {
@@ -10,7 +11,8 @@ import {
   navigateFromNotification,
   type NotificationData,
 } from '@/services/notification-router';
-import { mapCategoryToChannel } from '@/services/notification-channels';
+import { resolveNotificationChannel } from '@/services/notification-channels';
+import { handleSilentPush } from '@/services/silent-push';
 import { devLog } from '@/services/dev-log';
 
 /**
@@ -44,6 +46,42 @@ export function useNotificationHandler() {
           devLog('getInitialNotification.navigate', { result });
         }
       });
+
+      // iOS only, and the asymmetry is a real platform difference rather than
+      // caution. Notifee routes an event to its background channel by reading
+      // UIApplication.applicationState ONE SECOND after the fact
+      // (RNNotifee/NotifeeApiModule.m, sendNotifeeCoreEvent). A press
+      // foregrounds the app by definition, so a second later the state is
+      // Active and the event always goes to the FOREGROUND channel — which has
+      // no replay buffer and no subscriber until this hook mounts. A cold start
+      // from a tray tap therefore loses it entirely, and RNFB's
+      // getInitialNotification above cannot recover it: a notifee-drawn
+      // notification carries no gcm.message_id, so RNFB never saw it.
+      //
+      // Android needs none of this and must NOT have it: NotifeeEventSubscriber
+      // picks the channel with isAppInForeground() AT EVENT TIME, so the press
+      // correctly reaches the headless handler in background-notification-events.ts.
+      // Adding a second source here would risk stashing the same tap twice.
+      if (Platform.OS === 'ios') {
+        notifee
+          .getInitialNotification()
+          .then((initial) => {
+            devLog('notifee.getInitialNotification', {
+              hasNotification: !!initial,
+              dataKeys: initial?.notification?.data
+                ? Object.keys(initial.notification.data)
+                : null,
+            });
+            if (!initial) return;
+            const result = navigateFromNotification(
+              initial.notification?.data as NotificationData | undefined,
+            );
+            devLog('notifee.getInitialNotification.navigate', { result });
+          })
+          .catch((e) => {
+            if (__DEV__) console.warn('[notifee] getInitialNotification failed:', e);
+          });
+      }
     }
 
     // 2. Background-state: notification tap while app is in background
@@ -69,10 +107,15 @@ export function useNotificationHandler() {
       });
 
       const { notification, data } = message;
-      if (!notification) return;
 
-      const category =
-        typeof data?.category === 'string' ? data.category : undefined;
+      // Silent types first: `onForegroundMessage` is the ONLY foreground entry
+      // point, and the `!notification` guard below would drop a data-only
+      // payload before it was ever looked at. This is also the state where the
+      // event-map query is mounted, so invalidating actually refetches now —
+      // the case the silent push exists for.
+      if (await handleSilentPush(data)) return;
+
+      if (!notification) return;
 
       try {
         await notifee.displayNotification({
@@ -82,7 +125,7 @@ export function useNotificationHandler() {
           // 다시 읽으려면 여기서 명시 전달 필요. 가설 C 진단 단계에서 추가.
           data: (data ?? {}) as Record<string, string>,
           android: {
-            channelId: mapCategoryToChannel(category),
+            channelId: resolveNotificationChannel(data),
             pressAction: { id: 'default' },
           },
         });
@@ -99,9 +142,13 @@ export function useNotificationHandler() {
       notificationStore.getState().incrementUnread();
     });
 
-    // 4. Foreground tap (notifee-displayed banner) — 가설 C 진단용 신규 등록.
-    // RELEASE-GATE(debug-menu): 진단 단계에서는 PRESS 이벤트만 로깅하고
-    // navigation은 안 시킴 (Phase 1에서 진단 결과에 따라 navigation 추가 결정).
+    // 4. Foreground tap on a banner notifee drew (case 3 above).
+    //
+    // The OS does not auto-display in the foreground, so we draw it ourselves —
+    // which makes it a notifee-local notification, not an FCM-delivered one.
+    // `onNotificationOpenedApp` therefore never fires for it, and without this
+    // handler the tap went nowhere. No double-fire risk for the same reason.
+    // The background/quit half of this is `background-notification-events.ts`.
     const unsubscribePress = notifee.onForegroundEvent(({ type, detail }) => {
       devLog('notifee.onForegroundEvent', {
         type,
@@ -111,6 +158,14 @@ export function useNotificationHandler() {
           ? Object.keys(detail.notification.data)
           : null,
       });
+
+      if (type !== EventType.PRESS) return;
+      // Foreground by definition, so the navigator is mounted and the
+      // tab-activating entry point is the right one.
+      const result = navigateFromNotification(
+        detail.notification?.data as NotificationData | undefined,
+      );
+      devLog('notifee.onForegroundEvent.navigate', { result });
     });
 
     return () => {

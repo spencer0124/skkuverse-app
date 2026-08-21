@@ -10,6 +10,9 @@
     "lng": 126.971234,
     "zoom": 17.5
   },
+  "basemapOverride": {
+    "building_numbers": false
+  },
   "icons": {
     "generic": {
       "kind": "symbol",
@@ -414,7 +417,7 @@
           "id": "entry",
           "label": "입장 안내",
           "actionType": "webview",
-          "actionValue": "https://webview.skkuverse.com/#/eskara/entry",
+          "actionValue": "https://webview.skkuverse.com/eskara/entry",
           "style": "primary"
         },
         {

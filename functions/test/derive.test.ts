@@ -6,9 +6,32 @@ import { FIXED_TAB_KEYS } from '../src/notifications/tabsContract.ts';
 const allCategoriesOn = { essential: true, services: true, notices: true };
 const allCategoriesOff = { essential: false, services: false, notices: false };
 const noTabOverrides: Record<string, boolean> = {};
+const noticesOnly = { essential: false, services: false, notices: true };
+
+/**
+ * Positional-to-object shim kept deliberately thin: the cases below are about
+ * derive's rules, not about its call shape, so they read the same as before the
+ * signature moved to an object.
+ */
+function derive(
+  enabled: boolean,
+  categoryEnabled: { essential: boolean; services: boolean; notices: boolean },
+  noticeTabEnabled: Record<string, boolean>,
+  pickerSelections: Record<string, string[]>,
+  miniAppSelections?: string[],
+): string[] {
+  return deriveSubscribedTopics({
+    enabled,
+    categoryEnabled,
+    noticeTabEnabled,
+    pickerSelections,
+    miniAppSelections,
+  });
+}
 
 test('master OFF → 빈 배열 (categoryEnabled 다 ON이어도)', () => {
-  const result = deriveSubscribedTopics(false, allCategoriesOn, noTabOverrides, {
+  const result = derive(
+    false, allCategoriesOn, noTabOverrides, {
     dept: ['12345'],
     library: ['lib-hssc'],
   });
@@ -16,7 +39,7 @@ test('master OFF → 빈 배열 (categoryEnabled 다 ON이어도)', () => {
 });
 
 test('master ON, notices만 ON, picker 빈 객체 → 5 fixed 토픽만 (default-on per tab)', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     noTabOverrides,
@@ -29,7 +52,7 @@ test('master ON, notices만 ON, picker 빈 객체 → 5 fixed 토픽만 (default
 });
 
 test('master ON, notices ON + dept [A,B] → 5 fixed + 2 dept 토픽', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     noTabOverrides,
@@ -41,7 +64,7 @@ test('master ON, notices ON + dept [A,B] → 5 fixed + 2 dept 토픽', () => {
 });
 
 test('master ON, notices ON + dorm [X] + general [Y] → 5 fixed + dorm:X + general:Y (regression: v4 dorm/general 미커버 버그 방지)', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     noTabOverrides,
@@ -53,7 +76,7 @@ test('master ON, notices ON + dorm [X] + general [Y] → 5 fixed + dorm:X + gene
 });
 
 test('master ON, notices OFF, essential ON → 빈 배열 (essential 토픽 미정의)', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: true, services: false, notices: false },
     noTabOverrides,
@@ -63,14 +86,15 @@ test('master ON, notices OFF, essential ON → 빈 배열 (essential 토픽 미�
 });
 
 test('master ON, 모든 카테고리 OFF → 빈 배열', () => {
-  const result = deriveSubscribedTopics(true, allCategoriesOff, noTabOverrides, {
+  const result = derive(
+    true, allCategoriesOff, noTabOverrides, {
     dept: ['A'],
   });
   assert.deepEqual(result, []);
 });
 
 test('unknown picker key → 무시되고 known만 emit (drift 방어)', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     noTabOverrides,
@@ -81,7 +105,7 @@ test('unknown picker key → 무시되고 known만 emit (drift 방어)', () => {
 });
 
 test('동일 id 여러 source → Set으로 dedup', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     noTabOverrides,
@@ -94,7 +118,7 @@ test('동일 id 여러 source → Set으로 dedup', () => {
 // ── noticeTabEnabled per-tab 게이트 시나리오 ──────────────────────
 
 test('noticeTabEnabled.academic=false → academic만 빠지고 나머지 4 fixed + dept 유지', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     { academic: false },
@@ -110,7 +134,7 @@ test('noticeTabEnabled.academic=false → academic만 빠지고 나머지 4 fixe
 });
 
 test('noticeTabEnabled.dept=false → dept picker 무시, 5 fixed만', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     { dept: false },
@@ -121,7 +145,7 @@ test('noticeTabEnabled.dept=false → dept picker 무시, 5 fixed만', () => {
 });
 
 test('noticeTabEnabled.library=false 인데 dept는 default-on → dept만 emit', () => {
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     { library: false },
@@ -132,13 +156,13 @@ test('noticeTabEnabled.library=false 인데 dept는 default-on → dept만 emit'
 });
 
 test('noticeTabEnabled.academic=true 명시 → 동작은 default와 동일 (idempotent)', () => {
-  const explicit = deriveSubscribedTopics(
+  const explicit = derive(
     true,
     { essential: false, services: false, notices: true },
     { academic: true },
     {},
   );
-  const implicit = deriveSubscribedTopics(
+  const implicit = derive(
     true,
     { essential: false, services: false, notices: true },
     {},
@@ -150,11 +174,62 @@ test('noticeTabEnabled.academic=true 명시 → 동작은 default와 동일 (ide
 test('모든 fixed 탭 OFF + dept [A] → dept:A만 emit (notices 카테고리는 ON)', () => {
   const allFixedOff: Record<string, boolean> = {};
   for (const key of FIXED_TAB_KEYS) allFixedOff[key] = false;
-  const result = deriveSubscribedTopics(
+  const result = derive(
     true,
     { essential: false, services: false, notices: true },
     allFixedOff,
     { dept: ['A'] },
   );
   assert.deepEqual(result, ['dept:A']);
+});
+
+// ── mini-app subscriptions ────────────────────────────────────────
+//
+// The two properties that make these separate from notice tabs, both from
+// docs/reference/miniapp-notification-payload.md.
+
+test('miniAppSelections → miniapp:<id> 토픽', () => {
+  const result = derive(true, noticesOnly, noTabOverrides, {}, ['eskara-2026']);
+  assert.ok(result.includes('miniapp:eskara-2026'));
+});
+
+test('마스터 OFF → 미니앱 구독도 무시 (다른 모든 것과 동일한 게이트)', () => {
+  const result = derive(false, allCategoriesOn, noTabOverrides, {}, ['eskara-2026']);
+  assert.deepEqual(result, []);
+});
+
+test('notices 카테고리 OFF여도 미니앱은 emit — 서로 무관한 제품이라 의도된 동작', () => {
+  const result = derive(
+    true,
+    { essential: false, services: false, notices: false },
+    noTabOverrides,
+    { dept: ['A'] },
+    ['eskara-2026'],
+  );
+  assert.deepEqual(result, ['miniapp:eskara-2026'], 'notice 토픽은 전부 빠지고 미니앱만 남는다');
+});
+
+test('miniAppSelections 부재 → 빈 것과 동일 (필드 이전 문서)', () => {
+  const absent = derive(true, noticesOnly, noTabOverrides, {});
+  const empty = derive(true, noticesOnly, noTabOverrides, {}, []);
+  assert.deepEqual(absent.sort(), empty.sort());
+  assert.ok(!absent.some((t) => t.startsWith('miniapp:')));
+});
+
+test('미니앱 id 중복 → dedup', () => {
+  const result = derive(true, noticesOnly, noTabOverrides, {}, ['a', 'a', 'b']);
+  assert.equal(result.filter((t) => t.startsWith('miniapp:')).length, 2);
+});
+
+test("falsy id는 필터 — 'miniapp:' 은 invalid topic이라 dispatch 전체를 죽인다", () => {
+  const result = derive(true, noticesOnly, noTabOverrides, {}, ['', 'eskara-2026']);
+  assert.ok(!result.includes('miniapp:'));
+  assert.ok(result.includes('miniapp:eskara-2026'));
+});
+
+test('미니앱 + 공지 동시 구독 → 둘 다 emit', () => {
+  const result = derive(true, noticesOnly, noTabOverrides, { dept: ['A'] }, ['eskara-2026']);
+  assert.ok(result.includes('dept:A'));
+  assert.ok(result.includes('miniapp:eskara-2026'));
+  assert.equal(result.length, FIXED_TAB_KEYS.length + 2);
 });

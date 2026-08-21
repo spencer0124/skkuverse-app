@@ -3,7 +3,7 @@ title: SDUI Campus Tab Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-15
+last-updated: 2026-08-16
 audience: public
 ---
 
@@ -98,8 +98,8 @@ Each item:
 | `emoji` | string | A Unicode emoji, rendered in the Tossface font |
 | `actionType` | string | `route`, `webview`, or `external` |
 | `actionValue` | string | The navigation target |
-| `webviewTitle` | string? | Title bar text for the web view |
-| `webviewColor` | string? | Theme colour for the web view, hex without a `#` |
+| `webviewTitle` | string? | Title bar text for the web view. Empty falls back to the page's own `<title>` |
+| `webviewColor` | string? | Theme colour, hex without a `#`. **Accepted and ignored** by the app — kept on the wire so the server contract does not have to change |
 
 ### `section_title`
 
@@ -144,10 +144,18 @@ Every section uses the same action vocabulary.
 | actionType | Behaviour | Example |
 | --- | --- | --- |
 | `route` | Navigate inside the app through Expo Router | `/map/hssc`, `/search` |
-| `webview` | Open the in-app WebView | `https://webview.skkuverse.com/...` |
-| `external` (or `url`) | Open the external browser or app | `http://pf.kakao.com/...` |
+| `webview` | Open the in-app WebView at `/webview` | `https://webview.skkuverse.com/...` |
+| `external` (or `url`) | The **same** in-app `/webview` screen; only a non-web scheme leaves the app | `http://pf.kakao.com/...` |
 
 `external` and `url` are handled identically, so the server may send either.
+
+> [!NOTE]
+> `external` no longer opens the system browser. `handleSduiAction` routes `webview` and `external`
+> through the same `openWebView()` helper, and only a value whose scheme a WebView cannot render —
+> `mailto:`, `tel:`, `itms-apps:` — is handed to `Linking.openURL`. The two remain separate action
+> types because the server still emits both and older clients treat them differently. What a loaded
+> page is permitted to do is decided per message from the document's own origin, not from the action
+> type that opened it.
 
 ## Client architecture
 
@@ -155,16 +163,19 @@ Every section uses the same action vocabulary.
 
 ```text
 apps/mobile/src/sdui/
-├── types.ts                  # Section types (discriminated union)
+├── renderer.tsx              # type-to-component dispatcher, with a `never` exhaustiveness guard
 ├── action-handler.ts         # Shared action handler (route/webview/external)
 └── widgets/
-    ├── index.ts              # type-to-component dispatcher
-    ├── ButtonGrid.tsx        # GridView rendering
+    ├── ButtonGrid.tsx        # Grid rendering
     ├── SectionTitle.tsx      # Heading text
     ├── Notice.tsx            # Notice bar
     ├── Banner.tsx            # Image banner
-    └── Spacer.tsx            # Vertical space
+    └── CampusSkeleton.tsx    # Loading placeholder
 ```
+
+The section types themselves live in `packages/shared/src/types/sdui.ts`, not beside the widgets —
+the wire contract is shared code, the rendering is not. `spacer` needs no widget file; the renderer
+emits a sized `<View>` inline.
 
 ### The discriminated union
 
