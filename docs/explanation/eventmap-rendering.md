@@ -119,8 +119,8 @@ puts predicate evaluation on the client. So the composition rule is the app's, a
 
 | Scope | Rule | Why |
 | --- | --- | --- |
-| Within a group | **OR** | A group is one axis. Selecting both 주간 and 야간 widens it |
-| Across groups | **AND** | Groups are independent axes. Adding 먹거리 to 야간 narrows |
+| Within a group | **OR** | A group is one axis. Selecting both 주간 and 야간 widens it <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
+| Across groups | **AND** | Groups are independent axes. Adding 먹거리 to 야간 narrows <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
 | A group with nothing selected | **no constraint** | The answer to "you chose nothing" must never be an empty map |
 
 The empty case is worth stating because ESKARA does not rely on it: its `day` group spells "all" as
@@ -145,7 +145,7 @@ chips happen to hide, and toggling a chip must not slam shut a sheet someone is 
 
 `sorts[]` is server-declared: an arbitrary `id` plus a `by` from the closed set
 `order | title | startAt`. Key selection off `id` and the comparator off `by` — ESKARA proves they
-differ, since its 추천순 sort has `id: 'manual'` and `by: 'order'`.
+differ, <!-- conventions:allow-korean: ESKARA's shipped sort label --> since its 추천순 sort has `id: 'manual'` and `by: 'order'`.
 
 Sorting has no effect on pins, which are positional, nor inside one pin's peek sheet, whose order is
 `compareForStack`'s. It is therefore visible **only** in `EventMapListSheet`, which is why the sort
