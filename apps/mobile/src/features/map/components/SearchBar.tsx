@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
+import { glassFloatShadow } from '@/components/glass';
 import { logCampusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
@@ -27,7 +28,7 @@ export function SearchBar() {
 
   if (GLASS_AVAILABLE) {
     return (
-      <View style={[styles.outer, glassStyles.shadow]} pointerEvents="box-none">
+      <View style={[styles.outer, glassFloatShadow]} pointerEvents="box-none">
         <GlassView style={styles.glassSurface} glassEffectStyle="regular" isInteractive>
           <Pressable
             style={({ pressed }) => [
@@ -87,19 +88,5 @@ const styles = StyleSheet.create({
     ...SdsTypo.t6,
     color: SdsColors.grey400,
     flex: 1,
-  },
-});
-
-// Same intermediate shadow as RefreshFab Glass branch — Apple HIG floating
-// element guidance, dialed below SdsShadows.elevated to avoid clashing with
-// Glass specular. Promote to a `glassFloat` token if a third callsite shows up.
-const glassStyles = StyleSheet.create({
-  shadow: {
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
   },
 });

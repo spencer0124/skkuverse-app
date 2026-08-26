@@ -60,7 +60,7 @@ import { BottomSheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
-import { GlassSurface } from '@/features/mini-app/components/glass';
+import { GlassSurface } from '@/components/glass';
 import { faviconUrl } from '@/features/mini-app/protocol';
 import { useEnableNotificationsFlow } from '@/features/notifications/hooks/useEnableNotificationsFlow';
 import {

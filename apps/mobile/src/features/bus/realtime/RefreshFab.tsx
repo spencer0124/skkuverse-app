@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsShadows } from '@skkuverse/shared';
+import { glassFloatShadow } from '@/components/glass';
 import { logBusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
@@ -46,7 +47,7 @@ export function RefreshFab({ color, onPress }: RefreshFabProps) {
     return (
       <View
         pointerEvents="box-none"
-        style={[styles.fabContainer, glassStyles.shadow, { bottom: bottomOffset }]}
+        style={[styles.fabContainer, glassFloatShadow, { bottom: bottomOffset }]}
       >
         <GlassView
           style={styles.fabSurface}
@@ -127,16 +128,3 @@ const styles = StyleSheet.create({
   },
 });
 
-// Glass FAB float shadow — between SdsShadows.card (too subtle) and elevated
-// (too strong against Liquid Glass specular). To be tuned in iOS 26 simulator
-// against shadow-removed and elevated variants; promote to a token if it sticks.
-const glassStyles = StyleSheet.create({
-  shadow: {
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-});
