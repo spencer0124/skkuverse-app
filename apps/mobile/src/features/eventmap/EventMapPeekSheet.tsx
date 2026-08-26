@@ -5,34 +5,35 @@
  * night 주점 share coordinates — so this lists every item on the tapped
  * `stackKey`, lead first, rather than showing only what the marker drew.
  *
- * ## Phase 3 scope
+ * ## What this file owns, and what it does not
  *
- * `cardTemplates` and a template-driven `CardRenderer` are Phase 6 (#18). Until
- * then `ItemBody` reads the item's fields directly. That is a seam, not a
- * placeholder: when Phase 6 lands, `<ItemBody item={…}/>` becomes
- * `<CardRenderer template={…} item={…}/>` and the status pill, the actions row
- * and the sheet chrome are untouched.
+ * The card body is the server's: `CardRenderer` draws whatever slots the item's
+ * `cardTemplateId` resolves to. What stays here is everything the template does
+ * not describe — the sheet chrome and the actions row, including the
+ * dismiss-before-navigate discipline in `ActionButton`, which is a portal
+ * ordering constraint rather than a styling choice.
  *
- * Deliberately NOT rendered yet: `tags`, `fields`, `cardTemplateId`, `media.images`.
+ * Still not rendered: `media.images`. It is carried on the item but has no slot
+ * kind, so a gallery would be a wire contract addition.
  */
 
 import React, { forwardRef, useCallback, useMemo } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetScrollView,
   useBottomSheetModal,
 } from '@gorhom/bottom-sheet';
 import {
+  resolveSlots,
   SdsColors,
-  useT,
   type EventMapAction,
+  type EventMapCardTemplate,
   type EventMapStack,
-  type ItemStatus,
-  type TranslationKey,
 } from '@skkuverse/shared';
-import { Badge, Txt } from '@skkuverse/sds';
+import { Txt } from '@skkuverse/sds';
 import { handleSduiAction } from '@/sdui/action-handler';
+import { CardRenderer } from './CardRenderer';
 
 /**
  * Strictly above the persistent CampusScreen BottomSheet's 30% detent, so this
@@ -42,27 +43,15 @@ import { handleSduiAction } from '@/sdui/action-handler';
  */
 const PEEK_MIN_SNAP = '45%';
 
-const STATUS_LABEL: Record<ItemStatus, TranslationKey> = {
-  open: 'eventmap.status.open',
-  upcoming: 'eventmap.status.upcoming',
-  closed: 'eventmap.status.closed',
-  unknown: 'eventmap.status.unknown',
-};
-
-const STATUS_STYLE: Record<ItemStatus, { color: string; backgroundColor: string }> = {
-  open: { color: SdsColors.brand, backgroundColor: SdsColors.grey100 },
-  upcoming: { color: SdsColors.grey700, backgroundColor: SdsColors.grey100 },
-  closed: { color: SdsColors.grey500, backgroundColor: SdsColors.grey100 },
-  unknown: { color: SdsColors.grey500, backgroundColor: SdsColors.grey100 },
-};
-
 interface EventMapPeekSheetProps {
   stack: EventMapStack | null;
+  /** Snapshot templates, keyed by id. `undefined` for an item falls back inside `resolveSlots`. */
+  cardTemplates: Map<string, EventMapCardTemplate>;
   onDismiss: () => void;
 }
 
 export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetProps>(
-  function EventMapPeekSheet({ stack, onDismiss }, ref) {
+  function EventMapPeekSheet({ stack, cardTemplates, onDismiss }, ref) {
     const snapPoints = useMemo(() => [PEEK_MIN_SNAP, '85%'], []);
 
     return (
@@ -79,7 +68,7 @@ export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetP
         <BottomSheetScrollView style={styles.container} contentContainerStyle={styles.content}>
           {stack?.items.map((item, index) => (
             <View key={item.id} style={index > 0 ? styles.subsequent : undefined}>
-              <ItemBody item={item} />
+              <ItemBody item={item} template={cardTemplates.get(item.cardTemplateId)} />
             </View>
           ))}
         </BottomSheetScrollView>
@@ -88,9 +77,13 @@ export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetP
   },
 );
 
-function ItemBody({ item }: { item: EventMapStack['lead'] }) {
-  const { t } = useT();
-
+function ItemBody({
+  item,
+  template,
+}: {
+  item: EventMapStack['lead'];
+  template: EventMapCardTemplate | undefined;
+}) {
   // `content` is prose to show in place. The global dispatcher is
   // fire-and-forget and has no surface to render into, so the split happens
   // here — and `miniapp`/`unknown` render nothing at all, because a button that
@@ -102,31 +95,7 @@ function ItemBody({ item }: { item: EventMapStack['lead'] }) {
 
   return (
     <View>
-      <View style={styles.headerRow}>
-        {item.media.thumbnailUrl ? (
-          <Image source={{ uri: item.media.thumbnailUrl }} style={styles.thumbnail} />
-        ) : null}
-        <View style={styles.headerText}>
-          <View style={styles.titleRow}>
-            <Txt typography="t5" fontWeight="bold" style={styles.title}>
-              {item.title}
-            </Txt>
-            <Badge size="small" {...STATUS_STYLE[item.status]}>
-              {t(STATUS_LABEL[item.status])}
-            </Badge>
-          </View>
-          {item.subtitle ? (
-            <Txt typography="t7" color={SdsColors.grey700}>
-              {item.subtitle}
-            </Txt>
-          ) : null}
-          {item.hoursLabel ? (
-            <Txt typography="t7" color={SdsColors.grey500}>
-              {item.hoursLabel}
-            </Txt>
-          ) : null}
-        </View>
-      </View>
+      <CardRenderer slots={resolveSlots(template, item)} status={item.status} />
 
       {inline.map((action) => (
         <View key={action.id} style={styles.inlineBlock}>
@@ -217,11 +186,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: SdsColors.grey200,
   },
-  headerRow: { flexDirection: 'row', gap: 12 },
-  thumbnail: { width: 56, height: 56, borderRadius: 8, backgroundColor: SdsColors.grey100 },
-  headerText: { flex: 1, gap: 2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { flexShrink: 1 },
   inlineBlock: { marginTop: 12, gap: 2 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   actionButton: {

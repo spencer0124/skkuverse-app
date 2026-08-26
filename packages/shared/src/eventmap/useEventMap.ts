@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EventMapManifest, EventMapSnapshot } from '../types/eventmap';
+import type { EventMapManifest, EventMapSnapshot, SortKey } from '../types/eventmap';
 import { useEventMapStore } from '../store/eventmap';
 import {
   computeOffset,
@@ -16,8 +16,14 @@ import {
   readUsableOffset,
   serverNow,
 } from './clock';
-import { buildStacks, deriveItems, selectVisibleStacks } from './derive';
-import type { EventMapStack } from './derive';
+import {
+  buildStacks,
+  deriveItems,
+  selectMatchingItems,
+  selectVisibleStacks,
+  sortItems,
+} from './derive';
+import type { DerivedItem, EventMapStack } from './derive';
 import type { DroppedCounts } from './parser';
 import {
   fetchEventMapManifest,
@@ -113,8 +119,16 @@ export function useEventMapSnapshot(snapshotUrl: string | null) {
 
 export interface UseEventMapResult {
   snapshot: EventMapSnapshot | null;
-  /** Stacks the currently visible layers admit, one marker each. */
+  /** Stacks the visible layers admit AND the chips match, one marker each. */
   stacks: EventMapStack[];
+  /**
+   * Every stack, before chips. Deep links and an already-open peek sheet resolve
+   * against this: a shared link must reach a booth the user's chips happen to
+   * hide, and toggling a chip must not slam shut a sheet they are reading.
+   */
+  allStacks: EventMapStack[];
+  /** Items the chips match, sorted by the active sort. Backs the list view. */
+  visibleItems: DerivedItem[];
   /** placeId → stack, for `skkuverse://map?place=<id>`. Covers all stacks, not just visible ones. */
   stacksByPlaceId: Map<string, EventMapStack>;
   dropped: DroppedCounts | null;
@@ -130,6 +144,8 @@ export function useEventMap(): UseEventMapResult {
   const snapshotQuery = useEventMapSnapshot(manifest.data?.snapshotUrl ?? null);
 
   const layerVisibility = useEventMapStore((s) => s.layerVisibility);
+  const selectedChips = useEventMapStore((s) => s.selectedChips);
+  const sortId = useEventMapStore((s) => s.sortId);
   const storedOffset = useEventMapStore((s) => s.clockOffset);
   const initFromSnapshot = useEventMapStore((s) => s.initFromSnapshot);
 
@@ -163,14 +179,42 @@ export function useEventMap(): UseEventMapResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bundle?.snapshot, offsetMs, statusEpoch]);
 
+  /**
+   * Chips filter ITEMS, and stacks are rebuilt from the survivors — not the other
+   * way round. `selectVisibleStacks` matches on `stack.lead` alone, so filtering
+   * at stack level would drop a booth the user asked for merely because the booth
+   * sharing its `stackKey` sorts first, and the marker caption's `+N` would count
+   * items that are no longer shown.
+   *
+   * No dependency on `statusEpoch` is needed here even though a `['status',…]`
+   * chip depends on the clock: `deriveItems` returns a fresh array on every
+   * re-derive, so `derived.items` changes identity and carries the signal.
+   */
+  const matching = useMemo(() => {
+    if (!bundle?.snapshot) return [];
+    return selectMatchingItems({
+      items: derived.items,
+      chipGroups: bundle.snapshot.chipGroups,
+      selectedChips,
+    });
+  }, [bundle?.snapshot, derived.items, selectedChips]);
+
+  const visibleItems = useMemo(() => {
+    const sorts = bundle?.snapshot?.sorts ?? [];
+    // `sortId` is the user's choice; `by` is the comparator. They are not the
+    // same field and ESKARA proves it — sort id `manual` has `by: 'order'`.
+    const by: SortKey = (sorts.find((s) => s.id === sortId) ?? sorts[0])?.by ?? 'order';
+    return sortItems(matching, by);
+  }, [bundle?.snapshot?.sorts, matching, sortId]);
+
   const visibleStacks = useMemo(() => {
     if (!bundle?.snapshot) return [];
     return selectVisibleStacks({
-      stacks: derived.stacks,
+      stacks: buildStacks(matching).stacks,
       layers: bundle.snapshot.layers,
       layerVisibility,
     });
-  }, [bundle?.snapshot, derived.stacks, layerVisibility]);
+  }, [bundle?.snapshot, matching, layerVisibility]);
 
   // Arm a one-shot timer at the next status change.
   const manifestNextChangeAt = manifest.data?.nextChangeAt ?? null;
@@ -201,6 +245,8 @@ export function useEventMap(): UseEventMapResult {
   return {
     snapshot: bundle?.snapshot ?? null,
     stacks: visibleStacks,
+    allStacks: derived.stacks,
+    visibleItems,
     stacksByPlaceId: derived.byPlaceId,
     dropped: bundle?.dropped ?? null,
     isSettled,

@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-08-26
 audience: internal
 ---
 
@@ -110,7 +110,54 @@ all | has | hasAny | hasAll | not | and | or | status
 No arithmetic, no field access. A Mapbox-style expression language is a DSL that then needs
 versioning of its own, and nothing in the product needs it.
 
-### 4.1 Parity with the server
+### 4.1 How chips compose
+
+The wire carries predicates and never says how to combine them, and
+[ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md)
+puts predicate evaluation on the client. So the composition rule is the app's, and it lives in
+`selectMatchingItems` (`packages/shared/src/eventmap/derive.ts`):
+
+| Scope | Rule | Why |
+| --- | --- | --- |
+| Within a group | **OR** | A group is one axis. Selecting both 주간 and 야간 widens it <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
+| Across groups | **AND** | Groups are independent axes. Adding 먹거리 to 야간 narrows <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
+| A group with nothing selected | **no constraint** | The answer to "you chose nothing" must never be an empty map |
+
+The empty case is worth stating because ESKARA does not rely on it: its `day` group spells "all" as
+an explicit `day_all` chip whose predicate is `['all']`. But a group can still arrive empty — every
+chip deselected, or every selected id dropped by the parser — and the failure would be silent and
+total.
+
+The same reasoning covers a selected id with no surviving chip: the parser drops a chip whose
+predicate fails validation, so a persisted selection can outlive the chip that named it. It is
+ignored rather than counted as a miss, because otherwise one config typo empties the map.
+
+**Chips filter items, and stacks are rebuilt from the survivors.** Never the other way round:
+`selectVisibleStacks` matches on `stack.lead` alone, so filtering at stack level would drop a booth
+the user explicitly asked for merely because the booth sharing its `stackKey` sorts first — and the
+marker caption's `+N` would count items that are no longer shown.
+
+The unfiltered stacks stay available as `allStacks`, and that is what an open peek sheet and a
+`skkuverse://map?place=` link resolve against. A shared link has to reach a booth the recipient's
+chips happen to hide, and toggling a chip must not slam shut a sheet someone is reading.
+
+### 4.2 Sort is only observable in the list
+
+`sorts[]` is server-declared: an arbitrary `id` plus a `by` from the closed set
+`order | title | startAt`. Key selection off `id` and the comparator off `by` — ESKARA proves they
+differ, <!-- conventions:allow-korean: ESKARA's shipped sort label --> since its 추천순 sort has `id: 'manual'` and `by: 'order'`.
+
+Sorting has no effect on pins, which are positional, nor inside one pin's peek sheet, whose order is
+`compareForStack`'s. It is therefore visible **only** in `EventMapListSheet`, which is why the sort
+control lives there and deliberately not in `FilterSheet` — a sort selector beside the filters would
+be a control that appears to do nothing, the same dead-control shape the distance sort is hidden to
+avoid.
+
+Every comparator falls through to `id`, for the reason `compareForStack` already documents: the list
+re-derives on every `statusEpoch` tick, so a tie is a list that reshuffles itself while it is being
+read.
+
+### 4.3 Parity with the server
 
 The evaluator only needs a twin if the **server** also evaluates predicates, which it does solely to
 compute filter option counts — and counts are on the cut list. While they stay cut, this file lives
@@ -393,6 +440,17 @@ tapped yesterday, is never right.
 survive a refetch — except when `activeLayerSetId` changes, which means a different event entirely and
 starts clean. That reset is what bounds the persisted blob to one event's worth of keys.
 
+The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId`. `toggleChip` takes the
+group's `selection` as an argument rather than reading it from a stored snapshot, because the store
+deliberately keeps no copy of one — the caller already holds the group in order to render it.
+
+Its two halves differ on purpose. A `multi` group toggles in place and **may be emptied**, which §4.1
+reads as "no constraint". A `single` group **replaces and refuses to empty**: deselecting the active
+chip has no meaning the config can express, since ESKARA spells that case as an explicit `day_all`
+chip, so re-tapping is inert rather than a silent widening to everything. `clearChips` restores each
+group's `defaultSelected` set for the same reason — resetting to nothing would be a different state
+from the one the server shipped.
+
 **`useMapLayerStore` is left untouched** — two stores, two lifetimes. Coupling per-event state into
 the permanent campus-layer store would leave dead `eskara-2026` keys in persisted state forever.
 
@@ -443,9 +501,27 @@ colours, and the custom-scheme authority defect that had silently broken every
 `CampusNaverMap` needed **no change** — it already forwards `children` verbatim into `NaverMapView`,
 and Phase 3 needs no new map-level prop.
 
-Still Phase 6 ([#18](https://github.com/spencer0124/skkuverse/issues/18)): `EventMapChipRow`,
-`EventMapList`, `CardRenderer` (swapping out this sheet's `ItemBody`), sorts, and giving the dead
-`FilterSheet` / `FilterButton` an entry point.
+Added in Phase 6 ([skkuverse#18](https://github.com/spencer0124/skkuverse/issues/18)):
+
+| File | What |
+| --- | --- |
+| `packages/shared/src/eventmap/derive.ts` | `selectMatchingItems` (§4.1) and `sortItems` (§4.2), beside the Phase 3 transforms |
+| `packages/shared/src/eventmap/card.ts` | `resolveSlots` — template slots the item can actually fill |
+| `packages/shared/src/store/eventmap.ts` | `toggleChip`, `clearChips`, `setSortId` (§8) |
+| `apps/mobile/src/features/eventmap/CardRenderer.tsx` | draws resolved slots in declared order; `compact` for list rows |
+| `apps/mobile/src/features/eventmap/EventMapChipRow.tsx` | unlabelled groups as one-tap toggles over the map |
+| `apps/mobile/src/features/eventmap/EventMapListSheet.tsx` | the list, and the only home for the sort control |
+| `apps/mobile/src/features/map/components/FilterSheet.tsx` | every chip group, under the existing campus and base-layer pills |
+| `apps/mobile/src/features/map/components/FilterButton.tsx` | given an entry point at last, plus an active-filter count badge |
+| `apps/mobile/src/components/glass.tsx` | moved out of the mini-app feature; `GlassChip` gained `selected` |
+| `packages/shared/src/tokens/shadows.ts` | `glassFloat`, promoted from two hand-rolled copies |
+
+`EventMapPinLayer` needed **no change**: it is a pure `React.memo` over the stacks it is handed, so a
+chip filters it by changing a prop.
+
+The card body is now entirely the server's. What `EventMapPeekSheet` keeps is what no template
+describes — the sheet chrome and the actions row, including `ActionButton`'s dismiss-before-navigate,
+which is a portal ordering constraint (§7.1) rather than a styling choice.
 
 ## 10. Gotchas
 
@@ -461,6 +537,14 @@ Still Phase 6 ([#18](https://github.com/spencer0124/skkuverse/issues/18)): `Even
   but it reads as a regression in QA unless you know.
 - **`expo-location` is not a dependency.** Distance sort requires adding it — a native module, so a
   fresh dev-client build. If permission is denied, **hide** the sort rather than showing a dead control.
+- **A horizontal `ScrollView` over the map eats a full-width touch band.** It stretches to its
+  parent's width whether or not it draws anything there, so a one-chip strip would cost a whole band
+  of map panning. `EventMapChipRow` is a wrapping row sized with `alignSelf: 'flex-start'` under
+  `pointerEvents="box-none"` instead.
+- **The card body follows the template's declared order.** ESKARA's `booth` template starts
+  `[thumbnail, title, …]`, so the thumbnail is a block **above** the title rather than beside it. A
+  "if slot 0 is a thumbnail and slot 1 a title, lay them out as a row" rule would hold for exactly
+  the three templates shipping today and silently mis-render the fourth.
 - **Do not bump `@mj-studio/react-native-naver-map`.** 2.9.0 changes nothing about clustering and
   bumps the native Naver SDK, so it needs `expo prebuild --clean` plus a manual `runtimeVersion` bump.
   Separately, `patches/@mj-studio+react-native-naver-map+2.7.0.patch` is now redundant — PR #184

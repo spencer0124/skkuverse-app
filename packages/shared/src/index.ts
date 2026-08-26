@@ -240,8 +240,11 @@ export {
   parseInstant,
   readCachedEventMapBundle,
   readUsableOffset,
+  resolveSlots,
+  selectMatchingItems,
   selectVisibleStacks,
   serverNow,
+  sortItems,
   useEventMap,
   useEventMapManifest,
   useEventMapSnapshot,
@@ -254,8 +257,10 @@ export type {
   DroppedCounts,
   EventMapBundle,
   EventMapStack,
+  MatchingItemsInput,
   ParsedSnapshot,
   PredicateSubject,
+  ResolvedSlot,
   UseEventMapResult,
 } from './eventmap';
 export { useEventMapStore } from './store/eventmap';

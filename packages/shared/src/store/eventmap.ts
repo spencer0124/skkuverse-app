@@ -18,19 +18,19 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { EventMapSnapshot } from '../types/eventmap';
+import type { EventMapChipGroup, EventMapSnapshot } from '../types/eventmap';
 import type { ClockOffset } from '../eventmap/clock';
 import { mmkvStateStorage } from './mmkv-storage';
+
+/** Off the wire type rather than a second literal union that could drift. */
+type ChipSelection = EventMapChipGroup['selection'];
 
 interface EventMapState {
   /** Which layer set the persisted toggles belong to. */
   activeLayerSetId: string | null;
   /** Layer id → user's explicit choice. Absent means "use the layer's default". */
   layerVisibility: Record<string, boolean>;
-  /**
-   * Chip selections and sort are declared now and unused until Phase 6, so the
-   * persisted shape does not change again when that lands.
-   */
+  /** Group id → selected chip ids. Composition rules live in `selectMatchingItems`. */
   selectedChips: Record<string, string[]>;
   sortId: string | null;
   /** Which stack's peek sheet is open. Never persisted. */
@@ -45,6 +45,15 @@ interface EventMapState {
 interface EventMapActions {
   initFromSnapshot: (snapshot: EventMapSnapshot) => void;
   toggleLayer: (layerId: string) => void;
+  /**
+   * `selection` is passed in rather than read from a stored snapshot: the store
+   * deliberately holds no copy of the snapshot, so the caller — which already has
+   * the group in hand to render it — supplies the one field the semantics need.
+   */
+  toggleChip: (groupId: string, chipId: string, selection: ChipSelection) => void;
+  /** Restore every group to its `defaultSelected` set. Backs the reset button. */
+  clearChips: (snapshot: EventMapSnapshot) => void;
+  setSortId: (sortId: string) => void;
   setSelectedStackKey: (stackKey: string | null) => void;
   setClockOffset: (offset: ClockOffset) => void;
 }
@@ -68,12 +77,19 @@ function seedDefaults(snapshot: EventMapSnapshot): {
   const layerVisibility: Record<string, boolean> = {};
   for (const layer of snapshot.layers) layerVisibility[layer.id] = layer.defaultVisible;
 
+  return {
+    layerVisibility,
+    selectedChips: seedChips(snapshot),
+    sortId: snapshot.sorts[0]?.id ?? null,
+  };
+}
+
+function seedChips(snapshot: EventMapSnapshot): Record<string, string[]> {
   const selectedChips: Record<string, string[]> = {};
   for (const group of snapshot.chipGroups) {
     selectedChips[group.id] = group.chips.filter((c) => c.defaultSelected).map((c) => c.id);
   }
-
-  return { layerVisibility, selectedChips, sortId: snapshot.sorts[0]?.id ?? null };
+  return selectedChips;
 }
 
 export const useEventMapStore = create<EventMapStore>()(
@@ -118,6 +134,29 @@ export const useEventMapStore = create<EventMapStore>()(
             [layerId]: !(state.layerVisibility[layerId] ?? true),
           },
         })),
+
+      toggleChip: (groupId, chipId, selection) =>
+        set((state) => {
+          const current = state.selectedChips[groupId] ?? [];
+          if (selection === 'single') {
+            // Replace, and refuse to empty. A single-select group is an exclusive
+            // axis, and ESKARA spells its "no constraint" case as an explicit
+            // `day_all` chip — so deselecting the active one has no meaning the
+            // config can express, and tapping it again is a no-op rather than a
+            // silent widening.
+            return current[0] === chipId
+              ? state
+              : { selectedChips: { ...state.selectedChips, [groupId]: [chipId] } };
+          }
+          const next = current.includes(chipId)
+            ? current.filter((id) => id !== chipId)
+            : [...current, chipId];
+          return { selectedChips: { ...state.selectedChips, [groupId]: next } };
+        }),
+
+      clearChips: (snapshot) => set({ selectedChips: seedChips(snapshot) }),
+
+      setSortId: (sortId) => set({ sortId }),
 
       setSelectedStackKey: (stackKey) => set({ selectedStackKey: stackKey }),
 
