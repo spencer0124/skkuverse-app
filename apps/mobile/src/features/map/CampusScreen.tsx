@@ -25,16 +25,21 @@ import BottomSheet, {
   BottomSheetModal,
 } from '@gorhom/bottom-sheet';
 import type { NaverMapViewRef } from '@mj-studio/react-native-naver-map';
+import { ListBulletsIcon } from 'phosphor-react-native';
 import {
   useMapConfig,
   useCampusSections,
   useMapLayerStore,
   useEventMap,
   useEventMapStore,
+  useT,
   SdsColors,
 } from '@skkuverse/shared';
 import { EventMapPinLayer } from '@/features/eventmap/EventMapPinLayer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
+import { EventMapChipRow } from '@/features/eventmap/EventMapChipRow';
+import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
+import { GlassIconButton } from '@/components/glass';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -43,6 +48,7 @@ import { MapPolylineLayer } from './components/MapPolylineLayer';
 import { SearchBar } from './components/SearchBar';
 import { CampusToggle } from './components/CampusToggle';
 import { FilterSheet } from './components/FilterSheet';
+import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useMapNavStore } from '@/features/search/store';
@@ -50,6 +56,7 @@ import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
 import {
   logMarkerTap,
   logConnectionTap,
+  logCampusContentSelect,
   type BuildingDetailSource,
 } from '@/services/analytics';
 
@@ -74,6 +81,7 @@ export function CampusScreen() {
   const detailSheetRef = useRef<BottomSheetModal>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
   const peekSheetRef = useRef<BottomSheetModal>(null);
+  const listSheetRef = useRef<BottomSheetModal>(null);
 
   // ── Data ──
   const { data: mapConfig } = useMapConfig();
@@ -96,6 +104,7 @@ export function CampusScreen() {
 
   // ── Sheet snap points ──
   const snapPoints = useMemo(() => ['30%', '50%', '85%'], []);
+  const { t } = useT();
 
   // ── Init layers from config ──
   useEffect(() => {
@@ -108,21 +117,45 @@ export function CampusScreen() {
   const eventMap = useEventMap();
   const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
   const selectedStackKey = useEventMapStore((s) => s.selectedStackKey);
+  const selectedChips = useEventMapStore((s) => s.selectedChips);
+  // Resolved against ALL stacks, not the chip-filtered ones. An open peek sheet
+  // must survive a chip toggle that happens to exclude the booth being read, and
+  // a `skkuverse://map?place=` link must reach a booth the current chips hide.
   const selectedStack =
-    eventMap.stacks.find((s) => s.stackKey === selectedStackKey) ?? null;
+    eventMap.allStacks.find((s) => s.stackKey === selectedStackKey) ?? null;
 
   // A stackKey can disappear mid-session — the server can flip stackKeyBy from
   // placeId to zone to thin out a crowded plaza, which re-keys every stack. An
-  // empty sheet is worse than no sheet.
+  // empty sheet is worse than no sheet. Keyed on allStacks, so this fires on a
+  // genuine server re-key and not on a filter the user just applied.
   useEffect(() => {
     if (selectedStackKey && !selectedStack) peekSheetRef.current?.dismiss();
   }, [selectedStackKey, selectedStack]);
 
+  const cardTemplates = useMemo(
+    () => new Map((eventMap.snapshot?.cardTemplates ?? []).map((tmpl) => [tmpl.id, tmpl])),
+    [eventMap.snapshot?.cardTemplates],
+  );
+
+  const eventActive = eventMap.snapshot != null && eventMap.snapshot.campus === selectedCampus;
+
+  /** How many chip groups are narrowing the map. Drives the filter button badge. */
+  const activeFilterCount = useMemo(() => {
+    if (!eventMap.snapshot) return 0;
+    return eventMap.snapshot.chipGroups.filter((group) => {
+      const selected = selectedChips[group.id] ?? [];
+      if (selected.length === 0) return false;
+      // A group pinned to a predicate of `all` is not narrowing anything, so
+      // counting it would show a badge on a map showing everything. ESKARA's
+      // `day_all` default is exactly this case.
+      return group.chips.some((c) => selected.includes(c.id) && c.predicate[0] !== 'all');
+    }).length;
+  }, [eventMap.snapshot, selectedChips]);
+
   // The snapshot pins one campus (nsc for ESKARA), so switching campus must hide
   // the pins — and must do so with zero network, which is the whole reason the
   // snapshot ships structure and items together.
-  const eventStacks =
-    eventMap.snapshot && eventMap.snapshot.campus === selectedCampus ? eventMap.stacks : [];
+  const eventStacks = eventActive ? eventMap.stacks : [];
 
   /**
    * Base-map visibility with the event's override applied ON TOP, derived per
@@ -135,7 +168,10 @@ export function CampusScreen() {
    * permanently, with nothing on screen to explain why. Derived, the override
    * simply stops existing when the event does.
    */
-  const basemapOverride = eventStacks.length > 0 ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
+  // Gated on the event being live rather than on there being pins to draw:
+  // chips can legitimately filter every pin away, and keying off the count would
+  // flash 건물번호 back on mid-event the moment a filter matched nothing.
+  const basemapOverride = eventActive ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
 
   // ── Camera move on campus switch ──
   useEffect(() => {
@@ -273,6 +309,16 @@ export function CampusScreen() {
     [setSelectedStackKey],
   );
 
+  // The list is a way into a pin, not a parallel surface: dismiss it so backing
+  // out of the peek sheet lands on the map rather than on a stack of two sheets.
+  const handleSelectFromList = useCallback(
+    (stackKey: string) => {
+      listSheetRef.current?.dismiss();
+      handleSelectStack(stackKey);
+    },
+    [handleSelectStack],
+  );
+
   const handlePeekDismiss = useCallback(() => {
     setSelectedStackKey(null);
   }, [setSelectedStackKey]);
@@ -331,15 +377,41 @@ export function CampusScreen() {
           </CampusNaverMap>
         )}
 
-        {/* Floating controls — single row */}
-        {mapConfig && (
-          <View
-            style={[styles.controlRow, { top: insets.top + 8 }]}
-            pointerEvents="box-none"
-          >
-            <SearchBar />
+        {/* Floating controls — search row, then the event chip row beneath it.
+            Gated on mapConfig only for SearchBar, which needs a campus config;
+            the event controls are gated on the SNAPSHOT instead, because the
+            event map is deliberately independent of /map/config and a config
+            hiccup must not take the chips down with it. */}
+        <View
+          style={[styles.controlColumn, { top: insets.top + 8 }]}
+          pointerEvents="box-none"
+        >
+          <View style={styles.controlRow} pointerEvents="box-none">
+            {mapConfig && <SearchBar />}
+            {mapConfig && (
+              <FilterButton
+                activeCount={activeFilterCount}
+                onPress={() => filterSheetRef.current?.present()}
+              />
+            )}
+            {eventActive && (
+              <GlassIconButton
+                label={t('eventmap.list.title')}
+                icon={<ListBulletsIcon size={20} color={SdsColors.grey700} />}
+                onPress={() => {
+                  logCampusContentSelect({
+                    content_type: 'eventmap_list_button',
+                    item_id: 'open',
+                  });
+                  listSheetRef.current?.present();
+                }}
+              />
+            )}
           </View>
-        )}
+          {eventActive && eventMap.snapshot && (
+            <EventMapChipRow chipGroups={eventMap.snapshot.chipGroups} />
+          )}
+        </View>
 
         {/* Snapping bottom sheet with SDUI */}
         <BottomSheet
@@ -376,7 +448,7 @@ export function CampusScreen() {
               source={buildingSource}
               onConnectionTap={handleConnectionTap}
             />
-            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
+            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} eventSnapshot={eventMap.snapshot} />
           </>
         )}
 
@@ -385,7 +457,15 @@ export function CampusScreen() {
         <EventMapPeekSheet
           ref={peekSheetRef}
           stack={selectedStack}
+          cardTemplates={cardTemplates}
           onDismiss={handlePeekDismiss}
+        />
+        <EventMapListSheet
+          ref={listSheetRef}
+          items={eventActive ? eventMap.visibleItems : []}
+          sorts={eventMap.snapshot?.sorts ?? []}
+          cardTemplates={cardTemplates}
+          onSelectItem={handleSelectFromList}
         />
       </View>
   );
@@ -396,10 +476,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: SdsColors.background,
   },
-  controlRow: {
+  // The absolute positioning moved up to the column so the chip row can sit
+  // under the search row instead of beside it.
+  controlColumn: {
     position: 'absolute',
     left: 16,
     right: 16,
+    gap: 8,
+  },
+  controlRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 8,

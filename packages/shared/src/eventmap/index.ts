@@ -16,8 +16,23 @@ export type { PredicateSubject } from './predicate';
 export { parseEventMapManifest, parseEventMapSnapshot } from './parser';
 export type { DroppedCounts, ParsedSnapshot } from './parser';
 
-export { buildStacks, deriveItems, selectVisibleStacks } from './derive';
-export type { BuiltStacks, DerivedItem, EventMapStack, VisibleStacksInput } from './derive';
+export {
+  buildStacks,
+  deriveItems,
+  selectMatchingItems,
+  selectVisibleStacks,
+  sortItems,
+} from './derive';
+export type {
+  BuiltStacks,
+  DerivedItem,
+  EventMapStack,
+  MatchingItemsInput,
+  VisibleStacksInput,
+} from './derive';
+
+export { resolveSlots } from './card';
+export type { ResolvedSlot } from './card';
 
 export {
   fetchEventMapManifest,
