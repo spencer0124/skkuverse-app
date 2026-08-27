@@ -50,6 +50,11 @@ still read "준비중" until the next poll. <!-- conventions:allow-korean: the l
 unmount, re-armed on each manifest change. Guard a past/absent value (no timer) and clamp a distant
 one — `setTimeout` overflows its 32-bit delay and fires immediately.
 
+> [!NOTE]
+> **The silent lever is currently unreachable.** Mini-app push is deferred and the subscription
+> toggle has been removed, so no device holds the `miniapp:<id>` topic a refresh would be sent to.
+> `refreshAfterSec` polling is what keeps the map fresh until that changes. Tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
+
 **Silent push** (`type: 'eventmap-refresh'`, data-only) invalidates the manifest query, and only
 that one: a new version carries a new `snapshotUrl`, and a new URL is a new query key, so the
 snapshot refetches on its own.

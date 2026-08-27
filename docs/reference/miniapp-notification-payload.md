@@ -3,13 +3,19 @@ title: Mini App Notification Payload
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-08-26
 audience: internal
 ---
 
 # Mini App Notification Payload
 
 > The wire contract for mini-app push, from the body a caller posts to the `sendNotification` Cloud Function through to the navigation a tap produces. Read this before writing either half, because the two halves reach users by different routes.
+
+> [!NOTE]
+> **Mini-app push is deferred.** The contract below is settled and the code implementing it is
+> deployed, but nothing further is built on it for now, and the app-side subscription toggle has been
+> removed — so nothing new can subscribe. Read this as the shape to return to, not as work in
+> progress. Tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
 
 ## Why this document exists
 
