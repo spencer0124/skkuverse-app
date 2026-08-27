@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-26
+last-updated: 2026-08-27
 audience: internal
 ---
 
@@ -188,24 +188,10 @@ The snapshot is served `immutable, max-age=1y`, so it cannot also carry live sta
 `status` as of `materializedAt` plus the two instants, and the device re-derives. Implemented in
 `packages/shared/src/eventmap/clock.ts`.
 
-### 5.1 Skew comes from the manifest, never the snapshot
-
-RFC 9111 §5.1: `Age` conveys time since the response was generated or validated **at the origin**,
-and its presence means the response was not generated for this request — a cached response replays
-the origin's original `Date`, unrefreshed. The snapshot is `immutable, max-age=31536000`, so iOS
-`NSURLSession`'s default `URLCache` hands back yesterday's copy, `Date` and all. Measuring skew there
-puts the offset ~24 h out, which either freezes every pin at its shipped status or draws yesterday's
-map.
-
-So only the **manifest** (`max-age=15`) feeds the clock, and `computeOffset` additionally refuses any
-response carrying `Age > 0`, so a proxy cache in front of the manifest cannot poison it either.
-
-### 5.2 Apply the offset; do not discard on it
+### 5.1 Derivation runs against the device clock
 
 ```ts
-// offset, measured ONCE per manifest response
-const offset = computeOffset(serverDate, age, deviceNowAtFetch);   // 0 when unusable
-const now = Date.now() + offset;
+const now = Date.now();
 
 // per item, per render
 if (item.startAt == null && item.endAt == null) return item.status;  // server says do not recompute
@@ -214,16 +200,18 @@ if (item.endAt   != null && now >= endAt)       return 'closed';     // half-ope
 return 'open';
 ```
 
-An earlier draft of this section discarded above an hour of skew and fell back to `item.status`. That
-abandons exactly the device that needed help — the low-end Android three hours out is the one whose
-derivation is wrong without correction, and freezing it is the same symptom the recompute exists to
-prevent. There is no skew branch in derivation at all now; a threshold survives only inside
-`computeOffset`, as a guard against a value too large to describe a device.
+Bounds are absolute instants, never wall-clock strings, so the device's **timezone** cannot change
+the answer — a phone set to Bangkok derives exactly what a phone set to Seoul does. `clock.test.ts`
+pins that with a bar running past midnight.
 
-The offset is persisted and discarded after a week: the clock may have been corrected by NTP since,
-which would make a stale offset *introduce* the error it exists to remove.
+A device whose **clock** is genuinely wrong (manually set, dead RTC, never reached NTP) does derive
+wrongly, and that is accepted rather than corrected. An earlier design measured the skew from the
+manifest's `Date` header, persisted it, and derived against `Date.now() + offset`; it was removed as
+more machinery than the rare case justified. The planned mitigation is a warning shown when the
+device timezone is not `Asia/Seoul` — which is a different guarantee, and deliberately a weaker one:
+it catches a misconfigured zone, not a misconfigured clock.
 
-### 5.3 The next boundary is computed locally
+### 5.2 The next boundary is computed locally
 
 `nextBoundaryAfter(items, now)` scans the snapshot for the earliest instant still ahead. The manifest
 also carries `nextChangeAt` and is taken as a corroborating hint, but it cannot be the only source:
@@ -435,7 +423,7 @@ A new `useEventMapStore` (Zustand):
 
 ```ts
 { activeLayerSetId, layerVisibility, selectedChips: Record<groupId, string[]>,
-  sortId, selectedStackKey, clockOffset }
+  sortId, selectedStackKey }
 ```
 
 Persisted: everything except `selectedStackKey` — a peek sheet reopening on cold start, for a booth
@@ -485,13 +473,12 @@ Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issu
 | File | What |
 | --- | --- |
 | `packages/shared/src/types/eventmap.ts` | wire types, mirrored from the server with a name-mapping table in the header |
-| `packages/shared/src/eventmap/clock.ts` | offset, status derivation, `nextBoundaryAfter` (§5) |
+| `packages/shared/src/eventmap/clock.ts` | status derivation, `nextBoundaryAfter` (§5) |
 | `packages/shared/src/eventmap/predicate.ts` | `evaluatePredicate` + `isValidPredicate` (§4) |
 | `packages/shared/src/eventmap/parser.ts` | tolerant parse → `{ snapshot, dropped }` (§3) |
 | `packages/shared/src/eventmap/derive.ts` | status re-derivation, stack building, visible-stack selection (§6.2) |
 | `packages/shared/src/eventmap/{repository,useEventMap}.ts` | fetch, MMKV last-known-good, hooks (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
-| `packages/shared/src/api/safe-request.ts` | `safeGetTimed` — the only reader of `Date`/`Age` |
 | `apps/mobile/src/features/eventmap/icon.ts` | `IconSpec` → SDK image prop (§6.3) |
 | `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | stacked-place sheet + action buttons |

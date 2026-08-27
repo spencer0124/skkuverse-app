@@ -1,26 +1,12 @@
 /**
- * The clock is the correctness core of the event map, and the two obvious
- * designs are both wrong. These tests pin the reasons.
- *
- * 1. Skew must come from the MANIFEST response, never the snapshot. The snapshot
- *    is `immutable, max-age=1y`, so a cached copy replays the origin's original
- *    `Date` (RFC 9111 §5.1) and the offset lands a day out.
- * 2. Skew must be APPLIED, not used as a discard threshold. Discarding above an
- *    hour abandons exactly the device that needed correcting and leaves it
- *    frozen at the shipped status — the same symptom the recompute exists to
- *    prevent.
+ * Status derivation is the correctness core of the event map. These tests pin
+ * the two rules that make it safe to run against the device's own clock: null
+ * bounds mean "do not recompute", and bounds are absolute instants rather than
+ * wall-clock strings, so the device's timezone cannot change the answer.
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  computeOffset,
-  deriveItemStatus,
-  nextBoundaryAfter,
-  readUsableOffset,
-  serverNow,
-  MAX_PLAUSIBLE_OFFSET_MS,
-  OFFSET_MAX_AGE_MS,
-} from '../clock';
+import { deriveItemStatus, nextBoundaryAfter } from '../clock';
 import type { EventMapItem } from '../../types/eventmap';
 
 const HOUR = 60 * 60 * 1000;
@@ -51,74 +37,6 @@ const item = (over: Partial<EventMapItem> = {}): EventMapItem =>
     ...over,
   }) as EventMapItem;
 
-describe('computeOffset — where the skew may be measured', () => {
-  it('measures the offset from a fresh response', () => {
-    expect(computeOffset(T0 + 5_000, null, T0)).toBe(5_000);
-  });
-
-  it('refuses a response served from a cache, whose Date is a fossil', () => {
-    // The single most likely silent failure: a day-old snapshot replays a day-old
-    // Date, which would read as a 24h clock error rather than a cache hit.
-    expect(computeOffset(T0 - 24 * HOUR, 86_400, T0)).toBe(0);
-    expect(computeOffset(T0 + 5_000, 1, T0)).toBe(0);
-  });
-
-  it('accepts Age: 0, which is a fresh origin response', () => {
-    expect(computeOffset(T0 + 5_000, 0, T0)).toBe(5_000);
-  });
-
-  it('falls back to trusting the device when there is no Date header', () => {
-    // A CORS-restricted or proxy-stripped Date leaves no signal, and the device
-    // clock is the best estimate available.
-    expect(computeOffset(null, null, T0)).toBe(0);
-  });
-
-  it('rejects an implausible offset as nonsense rather than as clock error', () => {
-    expect(computeOffset(T0 + MAX_PLAUSIBLE_OFFSET_MS + 1, null, T0)).toBe(0);
-    expect(computeOffset(T0 - MAX_PLAUSIBLE_OFFSET_MS - 1, null, T0)).toBe(0);
-  });
-
-  it('keeps a large but plausible offset — this is the whole point', () => {
-    // A device three hours out is exactly the one that needs correcting. The old
-    // design discarded here and froze it at the shipped status.
-    expect(computeOffset(T0 + 3 * HOUR, null, T0)).toBe(3 * HOUR);
-  });
-
-  it('rejects an unparseable Date', () => {
-    expect(computeOffset(NaN, null, T0)).toBe(0);
-  });
-});
-
-describe('readUsableOffset — a stored offset can go stale', () => {
-  it('uses a recently measured offset', () => {
-    expect(readUsableOffset({ offsetMs: 3 * HOUR, measuredAt: T0 }, T0 + HOUR)).toBe(3 * HOUR);
-  });
-
-  it('discards one older than the max age, since NTP may have corrected the clock', () => {
-    expect(
-      readUsableOffset({ offsetMs: 3 * HOUR, measuredAt: T0 }, T0 + OFFSET_MAX_AGE_MS + 1),
-    ).toBe(0);
-  });
-
-  it('discards an implausible stored value', () => {
-    expect(
-      readUsableOffset({ offsetMs: MAX_PLAUSIBLE_OFFSET_MS + 1, measuredAt: T0 }, T0),
-    ).toBe(0);
-  });
-
-  it('returns 0 when nothing is stored', () => {
-    expect(readUsableOffset(null, T0)).toBe(0);
-  });
-});
-
-describe('serverNow', () => {
-  it('shifts the device clock by the offset', () => {
-    const before = Date.now();
-    const got = serverNow(3 * HOUR);
-    expect(got).toBeGreaterThanOrEqual(before + 3 * HOUR);
-  });
-});
-
 describe('deriveItemStatus', () => {
   it('trusts the shipped status when both bounds are null', () => {
     // The server's only lever for "do not recompute" — it pulls it for cancelled
@@ -142,26 +60,48 @@ describe('deriveItemStatus', () => {
     expect(deriveItemStatus(i, T0 + 4 * HOUR)).toBe('closed');
   });
 
-  it('handles a bar running past midnight, because bounds are instants not clock strings', () => {
+  it('handles a bar running past midnight KST, because bounds are instants', () => {
+    // 22:00 KST day 1 → 02:00 KST day 2, the shape the server materializes for a
+    // 주점: the stored civil day stays day 1 while endAt lands on day 2.
     const i = item({
-      startAt: new Date(T0).toISOString(),
-      endAt: new Date(T0 + 8 * HOUR).toISOString(),
+      startAt: '2026-09-16T13:00:00.000Z', // 22:00 KST
+      endAt: '2026-09-16T17:00:00.000Z', // 02:00 KST, the next civil day
     });
-    expect(deriveItemStatus(i, T0 + 7 * HOUR)).toBe('open');
+    expect(deriveItemStatus(i, Date.parse('2026-09-16T12:59:00.000Z'))).toBe('upcoming');
+    expect(deriveItemStatus(i, Date.parse('2026-09-16T15:30:00.000Z'))).toBe('open'); // 00:30 KST
+    expect(deriveItemStatus(i, Date.parse('2026-09-16T17:00:00.000Z'))).toBe('closed');
   });
 
-  it('still derives for a long-running session once the offset is applied', () => {
-    // The regression the old doc formula caused: it compared a moving deviceNow
-    // against a fixed server instant, so any session open over an hour crossed
-    // the tolerance and froze. Nothing here can freeze — there is no tolerance
-    // branch left in derivation at all.
+  it('reads a bound identically however its offset is written', () => {
+    // What the timezone-independence claim actually rests on: the bound is an
+    // instant, so `+09:00` and the equivalent `Z` are the same moment and the
+    // device's own zone never enters the comparison.
+    const kstNotation = item({
+      startAt: '2026-09-16T22:00:00+09:00',
+      endAt: '2026-09-17T02:00:00+09:00',
+    });
+    const utcNotation = item({
+      startAt: '2026-09-16T13:00:00.000Z',
+      endAt: '2026-09-16T17:00:00.000Z',
+    });
+    const justBefore = Date.parse('2026-09-16T12:59:00.000Z');
+    const justAfter = Date.parse('2026-09-16T13:01:00.000Z');
+    expect(deriveItemStatus(kstNotation, justBefore)).toBe('upcoming');
+    expect(deriveItemStatus(utcNotation, justBefore)).toBe('upcoming');
+    expect(deriveItemStatus(kstNotation, justAfter)).toBe('open');
+    expect(deriveItemStatus(utcNotation, justAfter)).toBe('open');
+  });
+
+  it('overrides a stale shipped status for a session already underway', () => {
+    // The snapshot is immutable, so `status` is only ever as of materializedAt.
+    // A session that has since opened must read open however long it has run.
     const i = item({
       status: 'upcoming',
       startAt: new Date(T0).toISOString(),
       endAt: new Date(T0 + 4 * HOUR).toISOString(),
     });
-    const deviceThreeHoursFast = T0 + HOUR; // corrected server time
-    expect(deriveItemStatus(i, deviceThreeHoursFast)).toBe('open');
+    expect(deriveItemStatus(i, T0 + HOUR)).toBe('open');
+    expect(deriveItemStatus(i, T0 + 3 * HOUR)).toBe('open');
   });
 
   it('treats an unparseable instant as absent', () => {

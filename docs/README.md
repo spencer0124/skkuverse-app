@@ -72,7 +72,7 @@ crosses package boundaries.
 | [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | Why every modal route needs its own SafeAreaProvider |
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | The custom view marker bitmap snapshot race, and the fix |
-| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering the server clock offset, predicate evaluation and stackKey pin rendering |
+| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, predicate evaluation and stackKey pin rendering |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 
 ### decisions (ADR)

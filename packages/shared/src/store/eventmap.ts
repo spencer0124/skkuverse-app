@@ -19,7 +19,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { EventMapChipGroup, EventMapSnapshot } from '../types/eventmap';
-import type { ClockOffset } from '../eventmap/clock';
 import { mmkvStateStorage } from './mmkv-storage';
 
 /** Off the wire type rather than a second literal union that could drift. */
@@ -35,11 +34,6 @@ interface EventMapState {
   sortId: string | null;
   /** Which stack's peek sheet is open. Never persisted. */
   selectedStackKey: string | null;
-  /**
-   * Last measured server-clock offset. Re-measured on every successful manifest
-   * fetch, so this only matters on a fully-offline cold start.
-   */
-  clockOffset: ClockOffset | null;
 }
 
 interface EventMapActions {
@@ -55,7 +49,6 @@ interface EventMapActions {
   clearChips: (snapshot: EventMapSnapshot) => void;
   setSortId: (sortId: string) => void;
   setSelectedStackKey: (stackKey: string | null) => void;
-  setClockOffset: (offset: ClockOffset) => void;
 }
 
 export type EventMapStore = EventMapState & EventMapActions;
@@ -66,7 +59,6 @@ const initialState: EventMapState = {
   selectedChips: {},
   sortId: null,
   selectedStackKey: null,
-  clockOffset: null,
 };
 
 function seedDefaults(snapshot: EventMapSnapshot): {
@@ -159,12 +151,19 @@ export const useEventMapStore = create<EventMapStore>()(
       setSortId: (sortId) => set({ sortId }),
 
       setSelectedStackKey: (stackKey) => set({ selectedStackKey: stackKey }),
-
-      setClockOffset: (offset) => set({ clockOffset: offset }),
     }),
     {
       name: 'eventmap',
-      version: 1,
+      // v2 dropped `clockOffset`. persist shallow-merges the stored blob over
+      // the initial state, so without a migration an existing install would
+      // reintroduce the key as a stray property the types no longer describe.
+      version: 2,
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === 'object') {
+          delete (persisted as Record<string, unknown>).clockOffset;
+        }
+        return persisted as EventMapStore;
+      },
       storage: createJSONStorage(() => mmkvStateStorage),
       // selectedStackKey is excluded deliberately: a peek sheet reopening on
       // cold start, for a booth the user tapped yesterday, is never right.
@@ -173,7 +172,6 @@ export const useEventMapStore = create<EventMapStore>()(
         layerVisibility: state.layerVisibility,
         selectedChips: state.selectedChips,
         sortId: state.sortId,
-        clockOffset: state.clockOffset,
       }),
     },
   ),

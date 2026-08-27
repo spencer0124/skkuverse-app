@@ -1,101 +1,22 @@
 /**
- * Server clock reconciliation and status derivation.
+ * Status derivation against the device clock.
  *
  * The snapshot is served `immutable, max-age=1y`, so it cannot also carry live
  * status. It ships `status` as of `materializedAt` plus the `startAt`/`endAt`
  * instants, and the device re-derives. Getting that right is the whole feature:
  * a booth that never flips to open at 18:00 is the failure everyone sees.
  *
- * Two traps, both of which the obvious design walks into.
- *
- * ## 1. Which response's `Date` you read
- *
- * Only the MANIFEST's (`max-age=15`). Never the snapshot's.
- *
- * RFC 9111 §5.1: `Age` conveys time since the response was generated or
- * validated *at the origin*, and its presence means the response was not
- * generated for this request. A cached response replays the origin's original
- * `Date` — it is not refreshed on the way out of the cache. The snapshot is
- * served `immutable, max-age=31536000`, so iOS `NSURLSession`'s default
- * `URLCache` will hand back yesterday's copy, `Date` and all. Measuring skew
- * there puts the offset ~24h out, which either freezes every pin at its shipped
- * status or draws yesterday's map. `computeOffset` additionally refuses any
- * response carrying `Age > 0`, so a proxy cache in front of the manifest cannot
- * poison it either.
- *
- * ## 2. What you do with the skew once you have it
- *
- * Apply it. Do not discard on it.
- *
- * A threshold that falls back to the shipped status above some skew abandons
- * precisely the device that needed help — the low-end Android whose clock is
- * three hours out is the one whose derivation is wrong without correction, and
- * "frozen at shipped status" is the same symptom the recompute exists to
- * prevent. The threshold survives only as a guard against a nonsense value.
+ * Bounds are absolute instants, never wall-clock strings, so the device's
+ * TIMEZONE cannot affect the outcome — a phone set to Bangkok derives exactly
+ * what a phone set to Seoul does. What the device's CLOCK says is another
+ * matter: a phone whose clock is genuinely wrong derives wrongly, and that is
+ * accepted rather than corrected — an earlier design reconciled against the
+ * manifest's `Date` header and was removed as more machinery than the rare case
+ * justified. The planned mitigation is a warning when the device is not on KST,
+ * which catches a misconfigured zone rather than a misconfigured clock.
  */
 
 import type { EventMapItem, ItemStatus } from '../types/eventmap';
-
-/**
- * Beyond this, treat the measurement as nonsense rather than as a real clock
- * error. A day is generous on purpose: a genuinely misconfigured device clock is
- * usually off by hours or by a timezone, and this only needs to exclude values
- * that could not describe a device at all.
- */
-export const MAX_PLAUSIBLE_OFFSET_MS = 24 * 60 * 60 * 1000;
-
-/**
- * A stored offset older than this is discarded. The device clock may have been
- * corrected by NTP since it was measured, in which case replaying the old offset
- * would *introduce* the error it exists to remove.
- */
-export const OFFSET_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** `serverNow − deviceNow`, plus when it was taken so staleness can be judged. */
-export interface ClockOffset {
-  offsetMs: number;
-  measuredAt: number;
-}
-
-/**
- * Derive the offset from one manifest response.
- *
- * @param serverDate  the `Date` response header as epoch ms, or null
- * @param age         the `Age` response header in seconds, or null
- * @param deviceNowAtFetch  `Date.now()` captured in the same tick as the response
- *
- * Returns 0 — "trust the device" — whenever there is no usable signal. With no
- * information about server time, the device clock is the best estimate
- * available, and it is right for almost every user.
- */
-export function computeOffset(
-  serverDate: number | null,
-  age: number | null,
-  deviceNowAtFetch: number,
-): number {
-  if (serverDate === null || !Number.isFinite(serverDate)) return 0;
-  // Served from a cache: `Date` is the origin's original timestamp, not now.
-  if (age !== null && age > 0) return 0;
-  const offset = serverDate - deviceNowAtFetch;
-  return Math.abs(offset) > MAX_PLAUSIBLE_OFFSET_MS ? 0 : offset;
-}
-
-/** Best estimate of the server's current time, in ms. */
-export function serverNow(offsetMs: number): number {
-  return Date.now() + offsetMs;
-}
-
-/** Drop an offset too old to still describe this device's clock. */
-export function readUsableOffset(
-  stored: ClockOffset | null,
-  now: number = Date.now(),
-): number {
-  if (!stored) return 0;
-  if (!Number.isFinite(stored.offsetMs) || !Number.isFinite(stored.measuredAt)) return 0;
-  if (Math.abs(stored.offsetMs) > MAX_PLAUSIBLE_OFFSET_MS) return 0;
-  if (now - stored.measuredAt > OFFSET_MAX_AGE_MS) return 0;
-  return stored.offsetMs;
-}
 
 /** ISO instant → epoch ms, or null when absent or unparseable. */
 export function parseInstant(iso: string | null | undefined): number | null {
@@ -107,7 +28,7 @@ export function parseInstant(iso: string | null | undefined): number | null {
 type StatusInput = Pick<EventMapItem, 'status' | 'startAt' | 'endAt'>;
 
 /**
- * Re-derive an item's status against `now` (server time, i.e. `serverNow()`).
+ * Re-derive an item's status against `now` (`Date.now()`).
  *
  * Both bounds null means the server is telling us not to recompute — it nulls
  * them for cancelled sessions and for one-sided windows alike. Recomputing
