@@ -103,6 +103,15 @@ const PLACE_LINK_ABANDON_MS = 20_000;
 const LOCATE_SHEET_GAP = 12;
 
 /**
+ * How long a locate press stays answerable, in ms.
+ *
+ * Covers the camera animation and the first GPS fix with room to spare, and is
+ * short enough that a press whose camera never produced a decision cannot
+ * silently claim a pan made a minute later.
+ */
+const LOCATE_RESULT_WINDOW_MS = 6000;
+
+/**
  * Sheet snap heights, as percentages of the sheet's container.
  *
  * Numbers rather than the `'30%'` strings the sheet wants, because the locate
@@ -200,6 +209,8 @@ export function CampusScreen() {
   const {
     mode: trackingMode,
     bearing: cameraBearing,
+    permissionGranted,
+    requestPermission,
     cameraCommand,
     handleOptionChanged,
     handleCameraChanged,
@@ -219,6 +230,41 @@ export function CampusScreen() {
    * comes back. Session-only on purpose — it is a nudge, not a setting.
    */
   const dismissedSuggestion = useRef<string | null>(null);
+
+  /**
+   * Has the user picked a campus from the toggle this session?
+   *
+   * Once they have, the map stops volunteering campus suggestions on its own.
+   * An explicit choice outranks an inference drawn from where the camera
+   * drifted, and second-guessing it is how a helpful nudge turns into an
+   * argument. A ref, and session-scoped on purpose: it is about this sitting,
+   * not a preference to remember.
+   *
+   * It does NOT gate the locate button. Pressing that is its own explicit
+   * request — a newer one — so its outcome still applies.
+   */
+  const userPickedCampus = useRef(false);
+
+  /**
+   * When a locate press started, or null when none is outstanding.
+   *
+   * The settle it causes is not an ordinary pan: it is the answer to "where am
+   * I", and standing on a campus should simply switch to it rather than ask.
+   *
+   * A timestamp, and NOT cleared by the first settle. Switching tracking on
+   * makes the SDK emit an idle while the camera is still at the OLD position,
+   * before it has moved anywhere — and at that moment the map and the toggle
+   * usually still agree, so there is no decision to make. Consuming the flag
+   * there dropped it before the real answer arrived, and the settle at the
+   * user's actual position was then read as drift and silently ignored. So it
+   * is consumed only once a settle produces a decision.
+   *
+   * The window is what stops a flag from outliving the press that set it: a
+   * locate whose camera never leaves the campus it started on produces no
+   * decision at all, and without an expiry that flag would sit there and turn
+   * some later, unrelated pan into a silent campus switch.
+   */
+  const awaitingLocateResult = useRef<number | null>(null);
 
   const locateStyle = useAnimatedStyle(() => {
     // Follows the sheet down, parks on the way up. `max` because Y grows
@@ -358,7 +404,14 @@ export function CampusScreen() {
         campuses: mapConfig.campuses,
         selectedCampus,
       });
+      const startedAt = awaitingLocateResult.current;
+      const fromLocate =
+        startedAt !== null && Date.now() - startedAt < LOCATE_RESULT_WINDOW_MS;
+
       if (next === null) {
+        // No decision to make, so the locate press is still unanswered — the
+        // camera may not have arrived yet. Keep waiting while the window holds.
+        if (!fromLocate) awaitingLocateResult.current = null;
         // Agreement clears the dismissal too: the next disagreement is a new
         // situation, and holding the old silence through it would be a bug the
         // user cannot see the cause of.
@@ -366,10 +419,37 @@ export function CampusScreen() {
         setSuggestion(null);
         return;
       }
+
+      // A decision is being made, so whatever the press was going to answer, it
+      // is answered now.
+      awaitingLocateResult.current = null;
+
+      if (fromLocate) {
+        // Standing on a campus is not a question worth asking — the user just
+        // said "show me where I am", and where they are is that campus. Switch
+        // and say nothing.
+        if (next.variant === 'switch') {
+          // The camera is already on the user; re-framing the campus centre
+          // would undo the very move they asked for.
+          suppressNextCampusFocus.current = true;
+          setSelectedCampus(next.campus);
+          logCampusSwitch(next.campus);
+          setSuggestion(null);
+          return;
+        }
+        // Outside both campuses: nothing to switch to silently, so offer the
+        // nearest. Offered even after an explicit toggle pick, because this is
+        // the answer to a question the user asked a second ago.
+        setSuggestion(next);
+        return;
+      }
+
+      // Drift, not a request. An explicit toggle pick this session silences it.
+      if (userPickedCampus.current) return;
       if (dismissedSuggestion.current === `${next.campus}:${next.variant}`) return;
       setSuggestion(next);
     },
-    [mapConfig, selectedCampus],
+    [mapConfig, selectedCampus, setSelectedCampus],
   );
 
   /**
@@ -402,6 +482,19 @@ export function CampusScreen() {
     focusCampus(campus);
   }, [suggestion, selectedCampus, setSelectedCampus, focusCampus]);
 
+  /**
+   * Locate press, wrapped so the settle it causes can be told apart from a pan.
+   *
+   * The flag is raised BEFORE the await and lowered if tracking did not come on
+   * — a refused permission produces no camera move, and a flag left standing
+   * would make the next unrelated pan look like a locate result.
+   */
+  const handleLocatePress = useCallback(async () => {
+    awaitingLocateResult.current = Date.now();
+    const activated = await cycleMode();
+    if (!activated) awaitingLocateResult.current = null;
+  }, [cycleMode]);
+
   const handleSuggestionDismiss = useCallback(() => {
     if (!suggestion) return;
     dismissedSuggestion.current = `${suggestion.campus}:${suggestion.variant}`;
@@ -417,6 +510,13 @@ export function CampusScreen() {
    */
   const handleCampusPick = useCallback(
     (campusId: Campus) => {
+      userPickedCampus.current = true;
+      // A choice answers whatever the card was asking; leaving it up would have
+      // it argue with the toggle the user has just set. It also outranks a
+      // locate still waiting on its camera: the user has since said which
+      // campus they want.
+      awaitingLocateResult.current = null;
+      setSuggestion(null);
       if (campusId === selectedCampus) {
         focusCampus(campusId);
         return;
@@ -677,7 +777,19 @@ export function CampusScreen() {
             they should not, since this sits a fixed gap above the sheet's edge,
             but the ordering makes a mis-measure degrade quietly. */}
         <Animated.View style={[styles.lowerControlRow, locateStyle]} pointerEvents="box-none">
-          {suggestion && (
+          {/* Permission outranks any suggestion, and there is only one row. With
+              location refused the map cannot show a position at all, so the
+              locate button is inert and a campus suggestion would be advice the
+              user has no way to act on. `null` means the first check has not
+              landed yet — not a refusal — so nothing is shown for it. */}
+          {permissionGranted === false ? (
+            <CampusSuggestionCard
+              message={t('map.campus.permission.message')}
+              actionLabel={t('map.campus.permission.action')}
+              onAccept={requestPermission}
+            />
+          ) : (
+            suggestion && (
             <CampusSuggestionCard
               message={tpl(
                 suggestion.variant === 'switch'
@@ -685,10 +797,16 @@ export function CampusScreen() {
                   : 'map.campus.suggest.show',
                 suggestion.label,
               )}
+              actionLabel={t(
+                suggestion.variant === 'switch'
+                  ? 'map.campus.suggest.actionSwitch'
+                  : 'map.campus.suggest.actionShow',
+              )}
               dismissLabel={t('map.campus.suggest.dismiss')}
               onAccept={handleSuggestionAccept}
               onDismiss={handleSuggestionDismiss}
             />
+            )
           )}
           <View>
           {/* Absolutely positioned relative to the button rather than stacked
@@ -721,7 +839,7 @@ export function CampusScreen() {
                 />
               )
             }
-              onPress={cycleMode}
+              onPress={handleLocatePress}
             />
           </View>
         </Animated.View>

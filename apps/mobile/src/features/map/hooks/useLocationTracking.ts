@@ -23,8 +23,8 @@
  * follow-up call to leave `Face` — the camera move does it.
  */
 
-import { useCallback, useRef, useState } from 'react';
-import { Alert, Linking } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppState, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { useSharedValue } from 'react-native-reanimated';
 import type {
@@ -73,6 +73,40 @@ export function useLocationTracking(
   const requesting = useRef(false);
 
   /**
+   * Whether foreground location is granted. `null` until the first check lands.
+   *
+   * Kept as state, not read on demand, because the map shows a standing offer to
+   * turn it on and that offer has to appear without the user pressing anything
+   * first. `null` rather than `false` initially so the offer does not flash on
+   * every cold start in the moment before the real answer arrives.
+   *
+   * Re-checked whenever the app returns to the foreground: Settings is the only
+   * way back from a permanent denial, and coming back from it is exactly a
+   * foreground transition. Without this the offer would linger after the user
+   * had already granted the permission.
+   */
+  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      Location.getForegroundPermissionsAsync()
+        .then((r) => {
+          if (!cancelled) setPermissionGranted(r.granted);
+        })
+        .catch((e) => logHandledError('useLocationTracking/checkPermission', e));
+    };
+    check();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') check();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  /**
    * The `camera` prop, used as a one-shot command channel rather than as
    * controlled state.
    *
@@ -119,10 +153,12 @@ export function useLocationTracking(
     requesting.current = true;
     try {
       const current = await Location.getForegroundPermissionsAsync();
+      setPermissionGranted(current.granted);
       if (current.granted) return true;
 
       if (current.canAskAgain) {
         const asked = await Location.requestForegroundPermissionsAsync();
+        setPermissionGranted(asked.granted);
         // Denied at the prompt just now: no Settings detour, since the user
         // answered the question a second ago and knows what they chose.
         return asked.granted;
@@ -161,7 +197,7 @@ export function useLocationTracking(
    * switching tracking off. Turning it off entirely is what panning the map
    * does, via the SDK's own downgrade.
    */
-  const cycleMode = useCallback(async () => {
+  const cycleMode = useCallback(async (): Promise<boolean> => {
     const next: LocationTrackingMode = mode === 'Follow' ? 'Face' : 'Follow';
 
     // Re-checked on every activation rather than cached: permission can be
@@ -170,7 +206,7 @@ export function useLocationTracking(
     // broken button rather than a denied permission.
     if (mode !== 'Follow' && mode !== 'Face') {
       const ok = await ensurePermission();
-      if (!ok) return;
+      if (!ok) return false;
     }
 
     mapRef.current?.setLocationTrackingMode(next);
@@ -178,6 +214,10 @@ export function useLocationTracking(
     // it the button would not respond until the native round trip finished,
     // which reads as a dropped tap.
     setMode(next);
+    // Reported so the caller can treat the camera settle that follows as the
+    // answer to "where am I" rather than as an ordinary pan. A refused
+    // permission must not be mistaken for one.
+    return true;
   }, [mode, ensurePermission, mapRef]);
 
   /**
@@ -199,6 +239,8 @@ export function useLocationTracking(
   return {
     mode,
     bearing,
+    permissionGranted,
+    requestPermission: ensurePermission,
     cameraCommand,
     handleOptionChanged,
     handleCameraChanged,
