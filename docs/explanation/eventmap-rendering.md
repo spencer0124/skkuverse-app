@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-26
+last-updated: 2026-08-27
 audience: internal
 ---
 
@@ -188,24 +188,10 @@ The snapshot is served `immutable, max-age=1y`, so it cannot also carry live sta
 `status` as of `materializedAt` plus the two instants, and the device re-derives. Implemented in
 `packages/shared/src/eventmap/clock.ts`.
 
-### 5.1 Skew comes from the manifest, never the snapshot
-
-RFC 9111 §5.1: `Age` conveys time since the response was generated or validated **at the origin**,
-and its presence means the response was not generated for this request — a cached response replays
-the origin's original `Date`, unrefreshed. The snapshot is `immutable, max-age=31536000`, so iOS
-`NSURLSession`'s default `URLCache` hands back yesterday's copy, `Date` and all. Measuring skew there
-puts the offset ~24 h out, which either freezes every pin at its shipped status or draws yesterday's
-map.
-
-So only the **manifest** (`max-age=15`) feeds the clock, and `computeOffset` additionally refuses any
-response carrying `Age > 0`, so a proxy cache in front of the manifest cannot poison it either.
-
-### 5.2 Apply the offset; do not discard on it
+### 5.1 Derivation runs against the device clock
 
 ```ts
-// offset, measured ONCE per manifest response
-const offset = computeOffset(serverDate, age, deviceNowAtFetch);   // 0 when unusable
-const now = Date.now() + offset;
+const now = Date.now();
 
 // per item, per render
 if (item.startAt == null && item.endAt == null) return item.status;  // server says do not recompute
@@ -214,16 +200,25 @@ if (item.endAt   != null && now >= endAt)       return 'closed';     // half-ope
 return 'open';
 ```
 
-An earlier draft of this section discarded above an hour of skew and fell back to `item.status`. That
-abandons exactly the device that needed help — the low-end Android three hours out is the one whose
-derivation is wrong without correction, and freezing it is the same symptom the recompute exists to
-prevent. There is no skew branch in derivation at all now; a threshold survives only inside
-`computeOffset`, as a guard against a value too large to describe a device.
+Bounds are absolute instants, never wall-clock strings, so the device's **timezone** cannot change
+the answer — a phone set to Bangkok derives exactly what a phone set to Seoul does. `clock.test.ts`
+pins that with a bar running past midnight.
 
-The offset is persisted and discarded after a week: the clock may have been corrected by NTP since,
-which would make a stale offset *introduce* the error it exists to remove.
+A device whose **clock** is genuinely wrong (manually set, dead RTC, never reached NTP) does derive
+wrongly, and that is accepted rather than corrected. An earlier design measured the skew from the
+manifest's `Date` header, persisted it, and derived against `Date.now() + offset`; it was removed as
+more machinery than the rare case justified — the trade is recorded in
+[ADR 0007](../decisions/0007-device-clock-event-map-status.md). The planned mitigation is a warning
+shown when the device timezone is not `Asia/Seoul` — which is a different guarantee, and deliberately
+a weaker one: it catches a misconfigured zone, not a misconfigured clock. Nothing warns today.
 
-### 5.3 The next boundary is computed locally
+The snapshot's `timezone` is what that warning would compare against, and it is why the parser still
+carries a field nothing reads. Dropping it as dead weight would leave the warning hardcoding
+`Asia/Seoul` in the app — a per-event value frozen into a client release, which is the split
+[ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md)
+exists to prevent.
+
+### 5.2 The next boundary is computed locally
 
 `nextBoundaryAfter(items, now)` scans the snapshot for the earliest instant still ahead. The manifest
 also carries `nextChangeAt` and is taken as a corroborating hint, but it cannot be the only source:
@@ -435,19 +430,35 @@ A new `useEventMapStore` (Zustand):
 
 ```ts
 { activeLayerSetId, layerVisibility, selectedChips: Record<groupId, string[]>,
-  sortId, selectedStackKey, clockOffset }
+  sortId, selectedStackKey }
 ```
 
 Persisted: everything except `selectedStackKey` — a peek sheet reopening on cold start, for a booth
 tapped yesterday, is never right.
 
+**The persisted blob is schema-versioned**, with `version` and `migrate` in
+`packages/shared/src/store/eventmap.ts`. The current migration deletes a stored `clockOffset`, left
+behind by the design §5.1 describes: dropping a key from `partialize` only stops new writes, and
+persist shallow-merges the stored blob over the initial state, so an existing install would rehydrate
+it as a property the types no longer describe. Every bump is **one-directional** — an OTA rollback to
+a bundle published before it finds the newer `version` in MMKV, has no way down, and discards the
+blob, so layer visibility, chips and sort all revert to defaults. Nothing irreplaceable is lost, but
+it is silent, and it reaches you as "my filters reset" rather than as a rollback symptom.
+
 `initFromSnapshot` seeds defaults for **unknown ids only**, mirroring `initFromConfig` so user toggles
 survive a refetch — except when `activeLayerSetId` changes, which means a different event entirely and
 starts clean. That reset is what bounds the persisted blob to one event's worth of keys.
 
-The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId`. `toggleChip` takes the
-group's `selection` as an argument rather than reading it from a stored snapshot, because the store
-deliberately keeps no copy of one — the caller already holds the group in order to render it.
+The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId` — every one of them a user
+gesture, and that is a constraint rather than a coincidence. A write here re-renders every
+`useEventMap()` consumer, since zustand compares with `Object.is` and the hooks subscribe to whole
+slices, and it costs an MMKV write on top. Nothing on a polling cadence belongs in this store: the
+clock offset was written on every manifest poll, which re-rendered `CampusScreen` and the pin layer
+for the whole of an event without changing a single derived value.
+
+`toggleChip` takes the group's `selection` as an argument rather than reading it from a stored
+snapshot, because the store deliberately keeps no copy of one — the caller already holds the group in
+order to render it.
 
 Its two halves differ on purpose. A `multi` group toggles in place and **may be emptied**, which §4.1
 reads as "no constraint". A `single` group **replaces and refuses to empty**: deselecting the active
@@ -485,13 +496,12 @@ Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issu
 | File | What |
 | --- | --- |
 | `packages/shared/src/types/eventmap.ts` | wire types, mirrored from the server with a name-mapping table in the header |
-| `packages/shared/src/eventmap/clock.ts` | offset, status derivation, `nextBoundaryAfter` (§5) |
+| `packages/shared/src/eventmap/clock.ts` | status derivation, `nextBoundaryAfter` (§5) |
 | `packages/shared/src/eventmap/predicate.ts` | `evaluatePredicate` + `isValidPredicate` (§4) |
 | `packages/shared/src/eventmap/parser.ts` | tolerant parse → `{ snapshot, dropped }` (§3) |
 | `packages/shared/src/eventmap/derive.ts` | status re-derivation, stack building, visible-stack selection (§6.2) |
 | `packages/shared/src/eventmap/{repository,useEventMap}.ts` | fetch, MMKV last-known-good, hooks (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
-| `packages/shared/src/api/safe-request.ts` | `safeGetTimed` — the only reader of `Date`/`Age` |
 | `apps/mobile/src/features/eventmap/icon.ts` | `IconSpec` → SDK image prop (§6.3) |
 | `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | stacked-place sheet + action buttons |
@@ -564,4 +574,5 @@ which is a portal ordering constraint (§7.1) rather than a styling choice.
 - [Implementation plan — skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11)
 - [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race the pin layer avoids
 - [App ADR 0006 — mini-app webview & push architecture](../decisions/0006-miniapp-webview-push-architecture.md)
+- [App ADR 0007 — status derives against the device clock](../decisions/0007-device-clock-event-map-status.md) — the reasoning behind §5.1
 - [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts, cited in §4.1.)*

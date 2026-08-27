@@ -11,7 +11,7 @@
  */
 
 import { ApiEndpoints } from '../api/endpoints';
-import { safeGetTimed } from '../api/safe-request';
+import { safeGet } from '../api/safe-request';
 import { readCache, writeCache } from '../store/mmkv-cache';
 import type { EventMapManifest, EventMapSnapshot } from '../types/eventmap';
 import { parseEventMapManifest, parseEventMapSnapshot } from './parser';
@@ -41,50 +41,26 @@ export interface EventMapBundle {
  * Never throws. An unreadable manifest is indistinguishable, for the app's
  * purposes, from one saying there is no active event — and in both cases the
  * right behaviour is to leave the base map alone.
- *
- * Returns the timing headers alongside, because this is the ONLY response the
- * clock offset may be measured from (see clock.ts).
  */
-export async function fetchEventMapManifest(): Promise<{
-  manifest: EventMapManifest;
-  serverDate: number | null;
-  age: number | null;
-  fetchedAt: number;
-}> {
-  const result = await safeGetTimed(ApiEndpoints.eventMapManifest(), (envelope) =>
+export async function fetchEventMapManifest(): Promise<EventMapManifest> {
+  const result = await safeGet(ApiEndpoints.eventMapManifest(), (envelope) =>
     parseEventMapManifest(envelope.data),
   );
-  if (result.ok) {
-    return {
-      manifest: result.data.data,
-      serverDate: result.data.serverDate,
-      age: result.data.age,
-      fetchedAt: result.data.fetchedAt,
-    };
-  }
+  if (result.ok) return result.data;
   if (__DEV__) {
     console.debug('[eventmap] manifest failed, treating as inactive:', result.failure);
   }
-  return {
-    manifest: parseEventMapManifest(null),
-    serverDate: null,
-    age: null,
-    fetchedAt: Date.now(),
-  };
+  return parseEventMapManifest(null);
 }
 
 /**
  * Fetch one immutable snapshot.
  *
- * Deliberately does NOT read the `Date` header: this response is served
- * `immutable, max-age=1y`, so a cached copy replays the origin's original
- * timestamp and would poison the clock offset by however long it sat on disk.
- *
  * Throws `SnapshotGoneError` on 404 so the caller can go back to the manifest;
  * every other failure throws too, and the caller falls back to the cache.
  */
 export async function fetchEventMapSnapshot(url: string): Promise<EventMapBundle> {
-  const result = await safeGetTimed(url, (envelope) => parseEventMapSnapshot(envelope.data));
+  const result = await safeGet(url, (envelope) => parseEventMapSnapshot(envelope.data));
   if (!result.ok) {
     const failure = result.failure;
     if (failure.type === 'server' && failure.statusCode === 404) {
@@ -95,7 +71,7 @@ export async function fetchEventMapSnapshot(url: string): Promise<EventMapBundle
     throw new Error(`Event map snapshot failed: ${detail}`);
   }
 
-  const { snapshot, dropped } = result.data.data;
+  const { snapshot, dropped } = result.data;
   if (!snapshot) {
     // Unusable or newer-than-this-build. Not an error the user should see, but
     // there is nothing to render and nothing worth caching.

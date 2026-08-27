@@ -121,6 +121,14 @@ function SegmentedControlRoot({
     setContainerWidth(e.nativeEvent.layout.width);
   }, []);
 
+  // The indicator has to be the track's shape, inset by the track's padding —
+  // a consumer that makes the track a capsule (the campus toggle sets
+  // `borderRadius` to half its height) was getting a rounded rectangle sitting
+  // inside it, which reads as the wrong size rather than as the wrong radius.
+  const trackRadius = StyleSheet.flatten(style)?.borderRadius;
+  const indicatorRadius =
+    typeof trackRadius === 'number' ? Math.max(0, trackRadius - padding) : 8;
+
   const registerItem = useCallback((_value: string, _index: number) => {}, []);
 
   return (
@@ -134,7 +142,17 @@ function SegmentedControlRoot({
           <Animated.View
             style={[
               styles.indicator,
-              { backgroundColor: SdsColors.background, height: '100%' },
+              {
+                backgroundColor: SdsColors.background,
+                // `bottom`, NOT `height: '100%'`. A percentage height resolves
+                // against the container's padding box, so with `top: padding`
+                // the indicator ran past the bottom edge and only `overflow:
+                // 'hidden'` hid it — leaving it inset at the top and flush at
+                // the bottom. Pinning both edges makes it symmetric.
+                top: padding,
+                bottom: padding,
+                borderRadius: indicatorRadius,
+              },
               indicatorStyle,
             ]}
           />
@@ -162,9 +180,9 @@ const styles = StyleSheet.create({
   },
   indicator: {
     position: 'absolute',
-    top: 2,
+    // `top`, `bottom` and `borderRadius` are set inline: they follow the
+    // container's padding and the radius the consumer gave the track.
     left: 2,
-    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
