@@ -12,7 +12,7 @@ audience: internal
 > How a SKKU club or department gets a **webview mini app that can send push notifications** on skkuverse's infrastructure. Covers what other platforms do, which model we adopt, and how clubs and developers are onboarded. For the app-side decisions, read [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md).
 
 > [!NOTE]
-> **Push is deferred.** The notification half of this plan is parked — what shipped stays deployed
+> **Push is deferred.** The notification half of this plan is parked — the deployed half stays live
 > and inert, and nothing further is built on it for now. Tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
 
 > [!NOTE]
