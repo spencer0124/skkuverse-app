@@ -23,6 +23,15 @@ export interface CampusDef {
   defaultZoom: number;
   defaultTilt: number;
   defaultBearing: number;
+  /**
+   * How far from the centre still counts as being on this campus, in metres.
+   *
+   * Optional because it is newer than the clients reading it: a build predating
+   * the server field gets `undefined` and falls back to
+   * `DEFAULT_CAMPUS_RADIUS_M`, and a server predating it sends nothing. Neither
+   * side may assume the other has shipped.
+   */
+  radiusM?: number;
 }
 
 // ── Map layer definitions (server-driven) ──

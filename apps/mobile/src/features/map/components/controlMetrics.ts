@@ -9,3 +9,7 @@
  * luck rather than by construction. One constant, so they cannot drift apart.
  */
 export const MAP_CONTROL_HEIGHT = 40;
+
+
+/** Breathing room between stacked floating controls over the map. */
+export const MAP_CONTROL_GAP = 12;

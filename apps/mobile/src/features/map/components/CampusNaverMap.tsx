@@ -32,6 +32,14 @@ interface CampusNaverMapProps {
   onOptionChanged?: (params: { locationTrackingMode: LocationTrackingMode }) => void;
   onCameraChanged?: (params: Camera) => void;
   /**
+   * Fires when the camera settles, NOT while it moves — the SDK withholds it
+   * until a gesture has fully ended and until an animation has completed. That
+   * is what makes it the right hook for a decision about where the camera came
+   * to rest: `onCameraChanged` fires every frame of a pan and would need
+   * debouncing to answer the same question.
+   */
+  onCameraIdle?: (params: Camera) => void;
+  /**
    * One-shot camera order, NOT controlled state. The map stays uncontrolled
    * between orders — this is the only route to the camera's bearing, which no
    * ref method exposes. See the note in `useLocationTracking`.
@@ -64,6 +72,7 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
       onTapMap,
       onOptionChanged,
       onCameraChanged,
+      onCameraIdle,
       camera,
     },
     ref,
@@ -108,6 +117,7 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         onTapMap={onTapMap}
         onOptionChanged={onOptionChanged}
         onCameraChanged={onCameraChanged}
+        onCameraIdle={onCameraIdle}
         {...(camera && { camera })}
       >
         {children}
