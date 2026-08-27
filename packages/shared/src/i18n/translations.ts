@@ -122,6 +122,7 @@ const ko = {
   // ── Common ──
   'common.ok': '확인',
   'common.close': '닫기',
+  'common.cancel': '취소',
   'common.retry': '다시 시도',
   'common.total': '전체',
 
@@ -197,6 +198,14 @@ const ko = {
   // ── Filter ──
   'filter.campus': '캠퍼스',
   'filter.layer': '레이어',
+
+  // ── Map controls ──
+  'map.locate': '내 위치',
+  'map.locate.face': '내 위치 및 방향',
+  'map.compass': '정북으로 회전',
+  'map.permission.deniedTitle': '위치 권한이 필요해요',
+  'map.permission.deniedBody': '설정에서 위치 권한을 켜면 지도에 현위치를 표시할 수 있어요.',
+  'map.permission.openSettings': '설정 열기',
 
   // ── ETA formatting ──
   'eta.imminent': '곧 출발',
@@ -575,6 +584,7 @@ const en: TranslationMap = {
   // ── Common ���─
   'common.ok': 'ok',
   'common.close': 'Close',
+  'common.cancel': 'Cancel',
   'common.retry': 'Retry',
   'common.total': 'Total',
 
@@ -650,6 +660,14 @@ const en: TranslationMap = {
   // ── Filter ──
   'filter.campus': 'Campus',
   'filter.layer': 'Layers',
+
+  // ── Map controls ──
+  'map.locate': 'My location',
+  'map.locate.face': 'My location and heading',
+  'map.compass': 'Rotate to north',
+  'map.permission.deniedTitle': 'Location permission needed',
+  'map.permission.deniedBody': 'Turn on location access in Settings to show your position on the map.',
+  'map.permission.openSettings': 'Open Settings',
 
   // ── ETA formatting ──
   'eta.imminent': 'Departing soon',
@@ -1028,6 +1046,7 @@ const zh: TranslationMap = {
   // ── Common ──
   'common.ok': '查看',
   'common.close': '关闭',
+  'common.cancel': '取消',
   'common.retry': '重试',
   'common.total': '全部的',
 
@@ -1103,6 +1122,14 @@ const zh: TranslationMap = {
   // ── Filter ──
   'filter.campus': '校区',
   'filter.layer': '图层',
+
+  // ── Map controls ──
+  'map.locate': '我的位置',
+  'map.locate.face': '我的位置和方向',
+  'map.compass': '转向正北',
+  'map.permission.deniedTitle': '需要位置权限',
+  'map.permission.deniedBody': '在设置中开启位置权限后，即可在地图上显示当前位置。',
+  'map.permission.openSettings': '打开设置',
 
   // ── ETA formatting ──
   'eta.imminent': '即将出发',

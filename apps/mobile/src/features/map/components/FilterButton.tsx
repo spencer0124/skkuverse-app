@@ -15,6 +15,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SlidersHorizontalIcon } from 'phosphor-react-native';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
 import { GlassSurface, GLASS_AVAILABLE, glassFloatShadow } from '@/components/glass';
+import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 import { logCampusContentSelect } from '@/services/analytics';
 
 interface FilterButtonProps {
@@ -54,7 +55,9 @@ export function FilterButton({ onPress, activeCount = 0 }: FilterButtonProps) {
   return <View style={[styles.outer, styles.fallback]}>{body}</View>;
 }
 
-const SIZE = 40;
+// A circle, so its diameter is also the row's height — shared with the campus
+// toggle beside it rather than restated here.
+const SIZE = MAP_CONTROL_HEIGHT;
 
 const styles = StyleSheet.create({
   outer: { width: SIZE, height: SIZE, borderRadius: SIZE / 2 },
