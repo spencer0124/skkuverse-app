@@ -10,12 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EventMapManifest, EventMapSnapshot, SortKey } from '../types/eventmap';
 import { useEventMapStore } from '../store/eventmap';
-import {
-  computeOffset,
-  nextBoundaryAfter,
-  readUsableOffset,
-  serverNow,
-} from './clock';
+import { nextBoundaryAfter } from './clock';
 import {
   buildStacks,
   deriveItems,
@@ -63,20 +58,9 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function useEventMapManifest() {
-  const setClockOffset = useEventMapStore((s) => s.setClockOffset);
-
   return useQuery<EventMapManifest>({
     queryKey: EVENTMAP_MANIFEST_KEY,
-    queryFn: async () => {
-      const { manifest, serverDate, age, fetchedAt } = await fetchEventMapManifest();
-      // The ONLY place the offset is measured. See clock.ts for why the snapshot
-      // response must never be used for this.
-      setClockOffset({
-        offsetMs: computeOffset(serverDate, age, fetchedAt),
-        measuredAt: fetchedAt,
-      });
-      return manifest;
-    },
+    queryFn: fetchEventMapManifest,
     // React Query already pauses this on blur and unmount, which a hand-rolled
     // interval would have to reimplement.
     refetchInterval: (query) => {
@@ -146,10 +130,7 @@ export function useEventMap(): UseEventMapResult {
   const layerVisibility = useEventMapStore((s) => s.layerVisibility);
   const selectedChips = useEventMapStore((s) => s.selectedChips);
   const sortId = useEventMapStore((s) => s.sortId);
-  const storedOffset = useEventMapStore((s) => s.clockOffset);
   const initFromSnapshot = useEventMapStore((s) => s.initFromSnapshot);
-
-  const offsetMs = useMemo(() => readUsableOffset(storedOffset), [storedOffset]);
 
   /**
    * Bumped when a status boundary passes. Invalidating the manifest is NOT
@@ -171,13 +152,13 @@ export function useEventMap(): UseEventMapResult {
     if (!bundle?.snapshot) {
       return { items: [], stacks: [] as EventMapStack[], byPlaceId: new Map<string, EventMapStack>() };
     }
-    const items = deriveItems(bundle.snapshot.items, serverNow(offsetMs));
+    const items = deriveItems(bundle.snapshot.items, Date.now());
     const { stacks, byPlaceId } = buildStacks(items);
     return { items, stacks, byPlaceId };
     // statusEpoch is a deliberate dependency: it is the signal that the clock
     // crossed a boundary even though no input object changed identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bundle?.snapshot, offsetMs, statusEpoch]);
+  }, [bundle?.snapshot, statusEpoch]);
 
   /**
    * Chips filter ITEMS, and stacks are rebuilt from the survivors — not the other
@@ -219,7 +200,7 @@ export function useEventMap(): UseEventMapResult {
   // Arm a one-shot timer at the next status change.
   const manifestNextChangeAt = manifest.data?.nextChangeAt ?? null;
   useEffect(() => {
-    const now = serverNow(offsetMs);
+    const now = Date.now();
     // The manifest's value is unavailable in exactly the case the cache exists
     // for — an offline festival — so the local boundary is the load-bearing one
     // and the manifest's is a corroborating hint. Take whichever comes first.
@@ -237,7 +218,7 @@ export function useEventMap(): UseEventMapResult {
       // re-arms: one wasted tick per 24.8 days, versus never re-deriving.
     }, Math.min(delay, MAX_TIMEOUT_MS));
     return () => clearTimeout(id);
-  }, [derived.items, manifestNextChangeAt, offsetMs, statusEpoch]);
+  }, [derived.items, manifestNextChangeAt, statusEpoch]);
 
   const isSettled =
     manifest.isFetched && (manifest.data?.snapshotUrl == null || snapshotQuery.isFetched);

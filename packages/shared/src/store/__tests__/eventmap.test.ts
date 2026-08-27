@@ -31,7 +31,6 @@ const reset = () =>
     selectedChips: {},
     sortId: null,
     selectedStackKey: null,
-    clockOffset: null,
   });
 
 describe('useEventMapStore chips and sort', () => {

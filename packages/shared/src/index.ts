@@ -29,13 +29,11 @@ export { ApiConfig } from './api/config';
 // ── Safe request wrappers ──
 export {
   safeGet,
-  safeGetTimed,
   safePost,
   safeGetRaw,
   safeGetConditional,
   firePost,
 } from './api/safe-request';
-export type { TimedPayload } from './api/safe-request';
 
 // ── Auth ──
 export { setAuthTokenProvider } from './api/interceptors/auth';
@@ -228,7 +226,6 @@ export {
 } from './types/eventmap';
 export {
   buildStacks,
-  computeOffset,
   deriveItemStatus,
   deriveItems,
   evaluatePredicate,
@@ -239,11 +236,9 @@ export {
   parseEventMapSnapshot,
   parseInstant,
   readCachedEventMapBundle,
-  readUsableOffset,
   resolveSlots,
   selectMatchingItems,
   selectVisibleStacks,
-  serverNow,
   sortItems,
   useEventMap,
   useEventMapManifest,
@@ -252,7 +247,6 @@ export {
 } from './eventmap';
 export type {
   BuiltStacks,
-  ClockOffset,
   DerivedItem,
   DroppedCounts,
   EventMapBundle,
