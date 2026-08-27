@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-27
 audience: public
 ---
 
@@ -56,14 +56,16 @@ Returns the campus definitions and the list of available map layers.
         "label": "인사캠", // conventions:allow-korean: live server payload
         "centerLat": 37.587241,
         "centerLng": 126.992858,
-        "defaultZoom": 15.8
+        "defaultZoom": 15.8,
+        "radiusM": 1000
       },
       {
         "id": "nsc",
         "label": "자과캠", // conventions:allow-korean: live server payload
         "centerLat": 37.293580,
         "centerLng": 126.974942,
-        "defaultZoom": 15.8
+        "defaultZoom": 15.8,
+        "radiusM": 1000
       }
     ],
     "layers": [
@@ -114,6 +116,7 @@ An empty body. The client keeps its cached config.
 | `centerLat` | number | Yes | Latitude of the campus centre (WGS84) |
 | `centerLng` | number | Yes | Longitude of the campus centre (WGS84) |
 | `defaultZoom` | number | No | Initial map zoom, defaulting to `15.8` |
+| `radiusM` | number | No | How far from the centre still counts as being on this campus, in metres. The client uses it to tell whether the camera and the campus toggle are looking at the same place. Optional in both directions: a server predating it sends nothing, and a client predating it ignores it, so the client keeps its own fallback — see [ADR 0008](../decisions/0008-campus-camera-reconciliation.md) |
 
 ### Layer fields
 

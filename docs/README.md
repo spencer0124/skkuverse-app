@@ -74,6 +74,7 @@ crosses package boundaries.
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | The custom view marker bitmap snapshot race, and the fix |
 | [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, predicate evaluation and stackKey pin rendering |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
+| [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
 
 ### decisions (ADR)
 
@@ -89,6 +90,7 @@ copied to a second place is a value that will disagree with the first.
 | [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | User data in Firebase, public data in MongoDB behind the backend |
 | [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | Mini app shell, web view bridge, and how push reaches it |
 | [0007-device-clock-event-map-status.md](decisions/0007-device-clock-event-map-status.md) | Event map booth status derives against the device clock, uncorrected |
+| [0008-campus-camera-reconciliation.md](decisions/0008-campus-camera-reconciliation.md) | The campus toggle never moves itself; disagreement with the camera is offered in a card |
 
 ### internal (postmortems and debugging)
 

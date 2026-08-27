@@ -16,7 +16,7 @@ Accepted — 2026-08-27.
 ## Context
 
 The event map snapshot is served `immutable, max-age=31536000`, so it cannot also carry
-live status. It ships `status` as of `materializedAt` plus the `startAt`/`endAt` instants,
+live status. It returns `status` as of `materializedAt` plus the `startAt`/`endAt` instants,
 and the device re-derives. A booth that never flips to 운영중 at 18:00 is the failure <!-- conventions:allow-korean: the literal string the app shows -->
 everyone at the festival sees, so getting that right is the feature rather than a detail.
 
@@ -68,11 +68,11 @@ is not `Asia/Seoul`.
   every manifest poll, and `useEventMap` subscribed to it — so under Zustand's default
   `Object.is` every consumer re-rendered roughly every 15 s during an event, with one MMKV
   write per poll. Derivation itself never re-ran, so this was pure churn.
-- (−) A device whose clock is genuinely wrong now shows wrong booth status, uncorrected.
+- (−) A device whose clock is wrong now shows wrong booth status, uncorrected.
   A phone three hours fast reads a 22:00 주점 as already open. <!-- conventions:allow-korean: the venue type, as the app labels it -->
 - (−) **The planned warning is not equivalent cover, and must not be described as if it
   were.** It catches a misconfigured zone; this ADR gives up correction for a misconfigured
-  clock. The two failures are disjoint, so the warning closes none of the gap opened here.
+  clock. Those failures are disjoint, so the warning closes none of the gap opened here.
 - (−) The store's persist version goes 1 → 2 with a migration that drops the stored
   `clockOffset`. That is one-directional: an OTA rollback to a pre-change bundle finds v2 in
   MMKV, cannot migrate down, and resets layer visibility, chips and sort to defaults.
