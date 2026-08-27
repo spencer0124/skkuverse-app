@@ -24,7 +24,7 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetModal,
 } from '@gorhom/bottom-sheet';
-import type { NaverMapViewRef } from '@mj-studio/react-native-naver-map';
+import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import {
   CrosshairSimpleIcon,
   ListBulletsIcon,
@@ -37,6 +37,7 @@ import {
   useEventMapStore,
   useT,
   SdsColors,
+  type Campus,
 } from '@skkuverse/shared';
 import { EventMapPinLayer } from '@/features/eventmap/EventMapPinLayer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
@@ -53,8 +54,16 @@ import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
 import { HeadingLocateIcon } from './components/HeadingLocateIcon';
-import { MAP_CONTROL_HEIGHT } from './components/controlMetrics';
+import { CampusSuggestionCard } from './components/CampusSuggestionCard';
+import {
+  MAP_CONTROL_HEIGHT,
+  MAP_CONTROL_GAP,
+} from './components/controlMetrics';
 import { MapCompass } from './components/MapCompass';
+import {
+  resolveCampusSuggestion,
+  type CampusSuggestion,
+} from './utils/campusProximity';
 import {
   useLocationTracking,
   isFacing,
@@ -67,6 +76,7 @@ import {
   logMarkerTap,
   logConnectionTap,
   logCampusContentSelect,
+  logCampusSwitch,
   type BuildingDetailSource,
 } from '@/services/analytics';
 
@@ -154,7 +164,7 @@ export function CampusScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const sheetTop = useSharedValue(windowHeight);
 
-  const { t } = useT();
+  const { t, tpl } = useT();
 
   // Memoised: `useLocationTracking` depends on this object, and a fresh literal
   // each render would re-create its permission callback every time.
@@ -196,6 +206,19 @@ export function CampusScreen() {
     cycleMode,
     resetNorth,
   } = useLocationTracking(mapRef, locationStrings);
+
+  // ── Campus suggestion: the camera and the toggle disagree ──
+
+  const [suggestion, setSuggestion] = useState<CampusSuggestion | null>(null);
+  /**
+   * The suggestion the user waved away, as `campus:variant`.
+   *
+   * Identity rather than a boolean, so dismissing silences THIS suggestion and
+   * not the feature: moving to a different campus, or crossing from "you are on
+   * the other one" to "you are on neither", produces a new identity and the card
+   * comes back. Session-only on purpose — it is a nudge, not a setting.
+   */
+  const dismissedSuggestion = useRef<string | null>(null);
 
   const locateStyle = useAnimatedStyle(() => {
     // Follows the sheet down, parks on the way up. `max` because Y grows
@@ -279,17 +302,130 @@ export function CampusScreen() {
   const basemapOverride = eventActive ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
 
   // ── Camera move on campus switch ──
+
+  /**
+   * Frame a campus. Extracted because two callers need it and only one of them
+   * is a state change: switching campus goes through the effect below, while
+   * re-tapping the campus already selected changes nothing for the effect to
+   * observe and so has to ask for the move directly.
+   */
+  const focusCampus = useCallback(
+    (campusId: Campus) => {
+      const campus = mapConfig?.campuses.find((c) => c.id === campusId);
+      if (!campus) return;
+      mapRef.current?.animateCameraTo({
+        latitude: campus.centerLat,
+        longitude: campus.centerLng,
+        zoom: campus.defaultZoom,
+        duration: 500,
+      });
+    },
+    [mapConfig],
+  );
+
+  /**
+   * Set to skip exactly one run of the effect below.
+   *
+   * Only the `switch` suggestion sets it. Every other campus change — the
+   * toggle, a place deep link, an event-map snapshot — wants the camera to
+   * follow, and that one does not: the camera is already on the campus being
+   * switched to. A ref rather than state because it must not itself cause a
+   * render; it is read by the effect the same tick the campus changes.
+   */
+  const suppressNextCampusFocus = useRef(false);
+
+  // Covers every campus change, not just the toggle's: a place deep link and an
+  // event-map snapshot both set the campus too, and each wants the camera to
+  // follow.
   useEffect(() => {
-    if (!mapConfig) return;
-    const campus = mapConfig.campuses.find((c) => c.id === selectedCampus);
-    if (!campus) return;
-    mapRef.current?.animateCameraTo({
-      latitude: campus.centerLat,
-      longitude: campus.centerLng,
-      zoom: campus.defaultZoom,
-      duration: 500,
-    });
-  }, [selectedCampus, mapConfig]);
+    if (suppressNextCampusFocus.current) {
+      suppressNextCampusFocus.current = false;
+      return;
+    }
+    focusCampus(selectedCampus);
+  }, [selectedCampus, focusCampus]);
+
+  /**
+   * Runs once per camera settle, never during a pan — see `onCameraIdle` on
+   * `CampusNaverMap` for why that distinction carries the cost of this feature.
+   */
+  const handleCameraIdle = useCallback(
+    (camera: Camera) => {
+      if (!mapConfig) return;
+      const next = resolveCampusSuggestion({
+        cameraLat: camera.latitude,
+        cameraLng: camera.longitude,
+        campuses: mapConfig.campuses,
+        selectedCampus,
+      });
+      if (next === null) {
+        // Agreement clears the dismissal too: the next disagreement is a new
+        // situation, and holding the old silence through it would be a bug the
+        // user cannot see the cause of.
+        dismissedSuggestion.current = null;
+        setSuggestion(null);
+        return;
+      }
+      if (dismissedSuggestion.current === `${next.campus}:${next.variant}`) return;
+      setSuggestion(next);
+    },
+    [mapConfig, selectedCampus],
+  );
+
+  /**
+   * Take the suggestion.
+   *
+   * `switch` moves the toggle alone. The camera is already on that campus, and
+   * the effect above would re-frame it — pulling the map out from under someone
+   * who has just positioned it, to show them what they were already looking at.
+   * Suppressing that is the whole difference between the two variants.
+   *
+   * `show` is the opposite case: nothing on screen is a campus, so being taken
+   * there IS the request. When the nearest campus is the one already selected,
+   * no toggle change happens and the camera move is all of it.
+   */
+  const handleSuggestionAccept = useCallback(() => {
+    if (!suggestion) return;
+    const { campus, variant } = suggestion;
+    setSuggestion(null);
+    dismissedSuggestion.current = null;
+
+    if (campus !== selectedCampus) {
+      suppressNextCampusFocus.current = variant === 'switch';
+      setSelectedCampus(campus);
+      logCampusSwitch(campus);
+      if (variant === 'switch') return;
+      // `show` with a campus change: the effect fires and frames it. Nothing
+      // more to do here.
+      return;
+    }
+    focusCampus(campus);
+  }, [suggestion, selectedCampus, setSelectedCampus, focusCampus]);
+
+  const handleSuggestionDismiss = useCallback(() => {
+    if (!suggestion) return;
+    dismissedSuggestion.current = `${suggestion.campus}:${suggestion.variant}`;
+    setSuggestion(null);
+  }, [suggestion]);
+
+  /**
+   * A campus pick from the toggle. The camera can leave the selected campus
+   * without the toggle moving — locate is the ordinary way — which leaves
+   * re-tapping the active segment as the natural "take me back", and that pick
+   * carries no state change. Only a real switch is logged: a recentre is not a
+   * campus switch, and counting it as one would inflate the metric.
+   */
+  const handleCampusPick = useCallback(
+    (campusId: Campus) => {
+      if (campusId === selectedCampus) {
+        focusCampus(campusId);
+        return;
+      }
+      setSelectedCampus(campusId);
+      logCampusSwitch(campusId);
+    },
+    [selectedCampus, setSelectedCampus, focusCampus],
+  );
 
   // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
   const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
@@ -448,6 +584,7 @@ export function CampusScreen() {
             style={StyleSheet.absoluteFill}
             onOptionChanged={handleOptionChanged}
             onCameraChanged={handleCameraChanged}
+            onCameraIdle={handleCameraIdle}
             camera={cameraCommand}
           >
             {mapConfig.layers.map((layer) => {
@@ -468,7 +605,6 @@ export function CampusScreen() {
                 <MapMarkerLayer
                   key={layer.id}
                   layer={layer}
-                  selectedCampus={selectedCampus}
                   onMarkerTap={handleMarkerTap}
                 />
               );
@@ -495,7 +631,9 @@ export function CampusScreen() {
           pointerEvents="box-none"
         >
           <View style={styles.controlRow} pointerEvents="box-none">
-            {mapConfig && <CampusToggle campuses={mapConfig.campuses} />}
+            {mapConfig && (
+              <CampusToggle campuses={mapConfig.campuses} onPick={handleCampusPick} />
+            )}
             {mapConfig && (
               <FilterButton
                 activeCount={activeFilterCount}
@@ -525,7 +663,12 @@ export function CampusScreen() {
           )}
         </View>
 
-        {/* Locate button — pinned to the map's lower right, riding the sheet.
+        {/* The map's lower control row, riding the sheet. Mirrors the row at the
+            top of the map: one stretch-width control beside one fixed circular
+            button, both at `MAP_CONTROL_HEIGHT`. The suggestion card takes the
+            width the locate button leaves, so the two sit on one line instead of
+            the card pushing the button up a row.
+
             Anchored at `top: 0` and moved entirely by `translateY`, because a
             transform runs on the UI thread; animating `top` would round-trip
             through layout on every frame of a drag.
@@ -533,7 +676,21 @@ export function CampusScreen() {
             Rendered before the sheet so the sheet wins if they ever overlap —
             they should not, since this sits a fixed gap above the sheet's edge,
             but the ordering makes a mis-measure degrade quietly. */}
-        <Animated.View style={[styles.locateButton, locateStyle]} pointerEvents="box-none">
+        <Animated.View style={[styles.lowerControlRow, locateStyle]} pointerEvents="box-none">
+          {suggestion && (
+            <CampusSuggestionCard
+              message={tpl(
+                suggestion.variant === 'switch'
+                  ? 'map.campus.suggest.switch'
+                  : 'map.campus.suggest.show',
+                suggestion.label,
+              )}
+              dismissLabel={t('map.campus.suggest.dismiss')}
+              onAccept={handleSuggestionAccept}
+              onDismiss={handleSuggestionDismiss}
+            />
+          )}
+          <View>
           {/* Absolutely positioned relative to the button rather than stacked
               above it in flow. The wrapper's box IS the button, so appearing and
               disappearing with `Face` cannot nudge the button, and the compass
@@ -564,8 +721,9 @@ export function CampusScreen() {
                 />
               )
             }
-            onPress={cycleMode}
-          />
+              onPress={cycleMode}
+            />
+          </View>
         </Animated.View>
 
         {/* Snapping bottom sheet with SDUI */}
@@ -643,13 +801,20 @@ const styles = StyleSheet.create({
     // The wrapper is exactly one button tall, so this clears its top edge by 8.
     bottom: MAP_CONTROL_HEIGHT + 8,
   },
-  locateButton: {
+  lowerControlRow: {
     position: 'absolute',
+    left: 16,
     right: 16,
     // `top: 0` plus a transform, not a computed `top`: see the note at the call
-    // site. The button's own height is what `translateY` subtracts, so it lands
+    // site. The row's own height is what `translateY` subtracts, so it lands
     // above the sheet rather than straddling it.
     top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    // Pushed right so the lone locate button keeps its corner when no card is
+    // showing; the card's `flex: 1` is what claims the rest when one is.
+    justifyContent: 'flex-end',
+    gap: MAP_CONTROL_GAP,
   },
   controlRow: {
     flexDirection: 'row',
