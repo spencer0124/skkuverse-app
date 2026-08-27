@@ -28,7 +28,6 @@ import { pendingSduiAction } from '@/lib/pending-sdui-action';
 import { openMiniAppById } from '@/features/mini-app/open';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { devLog } from '@/services/dev-log';
-import { DevProdHostBanner } from '@/components/DevProdHostBanner';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -418,17 +417,24 @@ export default function RootLayout() {
               <PendingNoticeLinkConsumer />
               <PendingMiniAppLinkConsumer />
               <PendingSduiActionConsumer />
-              {/* Dev-only "you are pointed at the production API" strip. Placed
-                  here — a sibling *after* <Stack>, inside SafeAreaProvider so
-                  it can read the top inset — for three reasons: later siblings
-                  paint on top, so it is never hidden by a screen; it is outside
-                  every tab's RNSScreen subtree, so it cannot become the
-                  `subviews[0]` that iOS 26 NativeTabs' scroll-view finder walks
-                  (which would kill tab-bar minimize and automatic contentInset
-                  app-wide); and it adds no wrapper, so the provider ordering
-                  above is untouched. `__DEV__` is a literal `false` in a
-                  release bundle, so the whole branch is dropped at minify. */}
-              {__DEV__ && <DevProdHostBanner />}
+              {/* The dev-only "you are pointed at the production API" strip is
+                  UNMOUNTED, not deleted. It covered the status-bar inset on
+                  every screen, which is in the way while working on the top of
+                  a screen — and pointing a dev build at production is now the
+                  documented default rather than the exception the strip was
+                  written to catch, so it was warning about the normal case.
+
+                  `<DevProdHostBanner />` in this slot brings it back, and the
+                  slot matters: a sibling AFTER <Stack> and inside
+                  SafeAreaProvider, so it can read the top inset, is painted
+                  over every screen, and stays outside every tab's RNSScreen
+                  subtree where it would otherwise become the `subviews[0]` that
+                  iOS 26 NativeTabs' scroll-view finder walks — killing tab-bar
+                  minimize and automatic contentInset app-wide.
+
+                  What is lost while it is off: a dev session writing to
+                  PRODUCTION Firestore from a laptop has no standing signal that
+                  it is doing so. `apps/mobile/.env` is the switch. */}
               <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>
