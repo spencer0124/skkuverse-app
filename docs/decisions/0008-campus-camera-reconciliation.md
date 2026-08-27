@@ -15,17 +15,17 @@ audience: internal
 
 ## Context
 
-The campus map has a two-segment toggle, 인사캠 / 자과캠, and `selectedCampus` was doing two
-unrelated jobs with it:
+The campus map has a two-segment toggle, one segment per campus, and `selectedCampus` was
+doing two unrelated jobs with it:
 
 1. **A filter.** `MapMarkerLayer` kept only the markers whose `campus` matched.
 2. **A camera destination.** Changing it animated the camera to that campus's centre.
 
 Nothing kept the two in step, because the camera can move without the toggle. The locate
 button is the ordinary way: it points the camera at the user, wherever they are. A user
-standing on 인사캠 with 자과캠 selected saw the 인사캠 map with **no buildings on it at all**,
-not off-screen but never rendered, while the toggle went on claiming 자과캠. The map
-contradicted itself and said nothing about it.
+standing on one campus with the other selected saw that campus's map with **no buildings on it
+at all**, not off-screen but never rendered, while the toggle went on naming the campus they had
+left. The map contradicted itself and said nothing about it.
 
 This is not a corner case. `GET /map/config` puts the campus centres 32,692m apart, so
 leaving one is leaving it entirely.
@@ -49,8 +49,8 @@ control row. It states a fact and puts the verb in a filled button:
 | Camera | Card | Accepting it |
 | --- | --- | --- |
 | Inside the selected campus | none | — |
-| Inside the **other** campus | "지금 {other}을 보고 있어요" | Moves the toggle only |
-| Inside neither | "가까운 캠퍼스는 {nearest}이에요" | Moves the toggle, taking the camera with it |
+| Inside the **other** campus | "지금 {other}을 보고 있어요" <!-- conventions:allow-korean: the shipped card copy --> | Moves the toggle only |
+| Inside neither | "가까운 캠퍼스는 {nearest}이에요" <!-- conventions:allow-korean: the shipped card copy --> | Moves the toggle, taking the camera with it |
 
 The camera behaviour differs on purpose. Re-framing a campus the user is already looking at
 takes away the view they just set. Being taken somewhere is the whole request when nothing on
