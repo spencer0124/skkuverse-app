@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-08-27
 audience: internal
 ---
 
@@ -88,6 +88,7 @@ copied to a second place is a value that will disagree with the first.
 | [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | Self-hosted OTA with a fixed runtimeVersion instead of fingerprinting |
 | [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | User data in Firebase, public data in MongoDB behind the backend |
 | [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | Mini app shell, web view bridge, and how push reaches it |
+| [0007-device-clock-event-map-status.md](decisions/0007-device-clock-event-map-status.md) | Event map booth status derives against the device clock, uncorrected |
 
 ### internal (postmortems and debugging)
 

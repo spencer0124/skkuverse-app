@@ -207,9 +207,16 @@ pins that with a bar running past midnight.
 A device whose **clock** is genuinely wrong (manually set, dead RTC, never reached NTP) does derive
 wrongly, and that is accepted rather than corrected. An earlier design measured the skew from the
 manifest's `Date` header, persisted it, and derived against `Date.now() + offset`; it was removed as
-more machinery than the rare case justified. The planned mitigation is a warning shown when the
-device timezone is not `Asia/Seoul` — which is a different guarantee, and deliberately a weaker one:
-it catches a misconfigured zone, not a misconfigured clock.
+more machinery than the rare case justified — the trade is recorded in
+[ADR 0007](../decisions/0007-device-clock-event-map-status.md). The planned mitigation is a warning
+shown when the device timezone is not `Asia/Seoul` — which is a different guarantee, and deliberately
+a weaker one: it catches a misconfigured zone, not a misconfigured clock. Nothing warns today.
+
+The snapshot's `timezone` is what that warning would compare against, and it is why the parser still
+carries a field nothing reads. Dropping it as dead weight would leave the warning hardcoding
+`Asia/Seoul` in the app — a per-event value frozen into a client release, which is the split
+[ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md)
+exists to prevent.
 
 ### 5.2 The next boundary is computed locally
 
@@ -429,13 +436,29 @@ A new `useEventMapStore` (Zustand):
 Persisted: everything except `selectedStackKey` — a peek sheet reopening on cold start, for a booth
 tapped yesterday, is never right.
 
+**The persisted blob is schema-versioned**, with `version` and `migrate` in
+`packages/shared/src/store/eventmap.ts`. The current migration deletes a stored `clockOffset`, left
+behind by the design §5.1 describes: dropping a key from `partialize` only stops new writes, and
+persist shallow-merges the stored blob over the initial state, so an existing install would rehydrate
+it as a property the types no longer describe. Every bump is **one-directional** — an OTA rollback to
+a bundle published before it finds the newer `version` in MMKV, has no way down, and discards the
+blob, so layer visibility, chips and sort all revert to defaults. Nothing irreplaceable is lost, but
+it is silent, and it reaches you as "my filters reset" rather than as a rollback symptom.
+
 `initFromSnapshot` seeds defaults for **unknown ids only**, mirroring `initFromConfig` so user toggles
 survive a refetch — except when `activeLayerSetId` changes, which means a different event entirely and
 starts clean. That reset is what bounds the persisted blob to one event's worth of keys.
 
-The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId`. `toggleChip` takes the
-group's `selection` as an argument rather than reading it from a stored snapshot, because the store
-deliberately keeps no copy of one — the caller already holds the group in order to render it.
+The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId` — every one of them a user
+gesture, and that is a constraint rather than a coincidence. A write here re-renders every
+`useEventMap()` consumer, since zustand compares with `Object.is` and the hooks subscribe to whole
+slices, and it costs an MMKV write on top. Nothing on a polling cadence belongs in this store: the
+clock offset was written on every manifest poll, which re-rendered `CampusScreen` and the pin layer
+for the whole of an event without changing a single derived value.
+
+`toggleChip` takes the group's `selection` as an argument rather than reading it from a stored
+snapshot, because the store deliberately keeps no copy of one — the caller already holds the group in
+order to render it.
 
 Its two halves differ on purpose. A `multi` group toggles in place and **may be emptied**, which §4.1
 reads as "no constraint". A `single` group **replaces and refuses to empty**: deselecting the active
@@ -551,4 +574,5 @@ which is a portal ordering constraint (§7.1) rather than a styling choice.
 - [Implementation plan — skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11)
 - [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race the pin layer avoids
 - [App ADR 0006 — mini-app webview & push architecture](../decisions/0006-miniapp-webview-push-architecture.md)
+- [App ADR 0007 — status derives against the device clock](../decisions/0007-device-clock-event-map-status.md) — the reasoning behind §5.1
 - [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts, cited in §4.1.)*
