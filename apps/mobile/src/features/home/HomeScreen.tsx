@@ -88,14 +88,22 @@ export function HomeScreen() {
           });
         },
       },
-      // 오리지널 시리즈가 빠지며 생긴 4번째 칸 — 이동 탭 바로가기.
+      // 오리지널 시리즈가 빠지며 생긴 4번째 칸. 이동 탭 바로가기였다가 분실물로
+      // 교체 — 이동은 탭바에 이미 있어서 타일이 한 번 더 말하는 것뿐이었고,
+      // 분실물은 캠퍼스 탭 하단 시트에만 있어 탭을 옮겨야 닿는 항목이었다.
+      // 액션은 서버 `/ui/home/campus`의 lost_found 항목과 같은 값을 쓴다.
       {
-        id: 'transit',
-        title: t('nav.transit'),
-        emoji: '\u{1F68C}',
+        id: 'lost_found',
+        title: t('lostAndFound.title'),
+        emoji: '\u{1F9F3}',
         onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'transit' });
-          router.navigate('/(tabs)/transit' as never);
+          logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
+          handleSduiAction({
+            actionType: 'webview',
+            actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
+            webviewTitle: t('lostAndFound.title'),
+            webviewColor: '003626',
+          });
         },
       },
     ],
