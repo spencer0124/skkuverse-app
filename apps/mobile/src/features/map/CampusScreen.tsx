@@ -5,12 +5,11 @@
  *   CampusNaverMap (absoluteFill, behind sheet)
  *     ├─ MapMarkerLayer (per visible layer)
  *     └─ MapPolylineLayer (per visible polyline layer)
- *   SearchBar (absolute, top)
- *   CampusToggle (absolute, below search bar)
- *   FilterButton (absolute, below toggle)
- *   BottomSheet (snap: 15%/50%/83%)
+ *   CampusToggle (absolute, top — the row the search bar used to hold)
+ *   FilterButton (absolute, right of the toggle)
+ *   BottomSheet (snap: SHEET_SNAP_PERCENTS)
  *     ├─ handleComponent={SheetHandle}
- *     └─ BottomSheetScrollView → SduiSectionList
+ *     └─ BottomSheetScrollView → SearchBar
  *   BuildingDetailSheet (modal, on marker tap)
  *   FilterSheet (modal, on filter button tap)
  *
@@ -18,17 +17,21 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetModal,
 } from '@gorhom/bottom-sheet';
 import type { NaverMapViewRef } from '@mj-studio/react-native-naver-map';
-import { ListBulletsIcon } from 'phosphor-react-native';
+import {
+  CrosshairSimpleIcon,
+  ListBulletsIcon,
+} from 'phosphor-react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import {
   useMapConfig,
-  useCampusSections,
   useMapLayerStore,
   useEventMap,
   useEventMapStore,
@@ -40,16 +43,23 @@ import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventMapChipRow } from '@/features/eventmap/EventMapChipRow';
 import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
 import { GlassIconButton } from '@/components/glass';
-import { SduiSectionList } from '@/sdui/renderer';
-import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
 import { SearchBar } from './components/SearchBar';
 import { CampusToggle } from './components/CampusToggle';
+import { CampusChipRow } from './components/CampusChipRow';
 import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
+import { HeadingLocateIcon } from './components/HeadingLocateIcon';
+import { MAP_CONTROL_HEIGHT } from './components/controlMetrics';
+import { MapCompass } from './components/MapCompass';
+import {
+  useLocationTracking,
+  isFacing,
+  isTracking,
+} from './hooks/useLocationTracking';
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useMapNavStore } from '@/features/search/store';
 import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
@@ -60,13 +70,17 @@ import {
   type BuildingDetailSource,
 } from '@/services/analytics';
 
-// 이 자리에 하드코딩 그리드(CAMPUS_GRID_ITEMS)가 있었다. `useCampusSections()`가
-// 서버 button_grid를 이미 받아오는데도 `s.type !== 'button_grid'`로 걸러 버리고
-// 하드코딩 사본을 대신 그렸다 — 그래서 서버가 건물지도를 네이티브 지도(route
-// `/map/hssc`)로 바꾼 뒤에도 클라는 죽은 webview 지도를 계속 열었다.
-// 이제 서버 섹션을 그대로 렌더한다: 항목·URL·순서의 SSOT는 서버 하나뿐이다.
-// (`useCampusSections`는 절대 throw하지 않고 실패 시 DEFAULT_CAMPUS_SECTIONS를
-// 주므로, 그리드가 비는 경우는 없다.)
+// 하단 시트의 버튼 그리드(건물지도/건물코드/분실물/문의하기)를 뺐다. 홈 그리드가
+// 이미 같은 항목을 들고 있어서 탭마다 같은 버튼을 반복하고 있었고, 마지막까지
+// 캠퍼스 탭에만 있던 분실물은 홈 4번째 칸으로 옮겼다(`HomeScreen.mainGridItems`).
+// 그래서 `useCampusSections()` 호출도 같이 뺐다 — 아무도 그리지 않는 섹션을 계속
+// 받아올 이유가 없다.
+//
+// 서버 `/ui/home/campus`의 `campus_buttons` 섹션은 아직 살아 있다. 즉 지금은
+// 서버가 보내는 걸 앱이 안 그리는 상태이고, 서버에서 섹션을 지우는 게 진짜
+// 마무리다. 여기서 주의할 것: 예전에 이 자리에 하드코딩 사본(CAMPUS_GRID_ITEMS)이
+// 있어서 서버가 건물지도를 네이티브 지도로 바꾼 뒤에도 죽은 webview를 계속 열었다.
+// 사본을 다시 만들지 말 것 — 항목을 되살릴 거면 서버 섹션을 그대로 렌더해야 한다.
 
 /**
  * How long a place deep link waits for the event map snapshot before giving up.
@@ -74,6 +88,32 @@ import {
  * festival wifi on an uncached first run regularly exceeds 10s.
  */
 const PLACE_LINK_ABANDON_MS = 20_000;
+
+/** Breathing room between the locate button and the sheet's top edge. */
+const LOCATE_SHEET_GAP = 12;
+
+/**
+ * Sheet snap heights, as percentages of the sheet's container.
+ *
+ * Numbers rather than the `'30%'` strings the sheet wants, because the locate
+ * button needs the same values as arithmetic. Deriving the strings from the
+ * numbers keeps one source; the reverse — parsing the strings back — would make
+ * the sheet's config the source and the button's maths a mirror of it.
+ *
+ * (Percent, not a 0–1 fraction: `0.3 * 100` is 30.000000000000004 in binary
+ * floating point, which would reach the sheet as a snap point string of that
+ * literal width.)
+ */
+const SHEET_SNAP_PERCENTS = [30, 50, 85] as const;
+
+/**
+ * Which snap the locate button stops following the sheet at — the middle one.
+ *
+ * An index into `SHEET_SNAP_PERCENTS` rather than a duplicated `50`, so changing
+ * the middle snap moves the button's parking spot with it and there is no second
+ * number to keep in sync.
+ */
+const LOCATE_ANCHOR_SNAP_INDEX = 1;
 
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
@@ -85,10 +125,6 @@ export function CampusScreen() {
 
   // ── Data ──
   const { data: mapConfig } = useMapConfig();
-  const {
-    data: campusData,
-    isLoading: campusLoading,
-  } = useCampusSections();
 
   // ── Store ──
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
@@ -103,8 +139,77 @@ export function CampusScreen() {
   const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null);
 
   // ── Sheet snap points ──
-  const snapPoints = useMemo(() => ['30%', '50%', '85%'], []);
+  const snapPoints = useMemo(() => SHEET_SNAP_PERCENTS.map((p) => `${p}%`), []);
+
+  /**
+   * The sheet's live top edge, in px from the top of this screen. `BottomSheet`
+   * writes it every frame of a drag, which is what lets the locate button ride
+   * the sheet instead of jumping between snap points — an `onChange`/index
+   * listener would only fire at the ends and the button would lag the finger.
+   *
+   * Seeded with the window height rather than 0 so it starts just off the bottom
+   * and settles upward. At 0 the first frame would park it against the top of
+   * the screen, which reads as a flash in the wrong corner.
+   */
+  const { height: windowHeight } = useWindowDimensions();
+  const sheetTop = useSharedValue(windowHeight);
+
   const { t } = useT();
+
+  // Memoised: `useLocationTracking` depends on this object, and a fresh literal
+  // each render would re-create its permission callback every time.
+  const locationStrings = useMemo(
+    () => ({
+      deniedTitle: t('map.permission.deniedTitle'),
+      deniedBody: t('map.permission.deniedBody'),
+      openSettings: t('map.permission.openSettings'),
+      cancel: t('common.cancel'),
+    }),
+    [t],
+  );
+
+  /**
+   * Measured rather than taken from `useWindowDimensions`: the sheet's percentage
+   * snaps resolve against ITS container, which is this screen's root view, and
+   * that is not the window once safe areas and the tab bar are accounted for.
+   * Using the window height would put the parking spot a tab bar's worth off.
+   */
+  const [sheetContainerHeight, setSheetContainerHeight] = useState(0);
+  const handleRootLayout = useCallback((e: LayoutChangeEvent) => {
+    setSheetContainerHeight(e.nativeEvent.layout.height);
+  }, []);
+
+  /**
+   * Where the button stops. A snap percentage is the sheet's HEIGHT, so its top
+   * edge sits at `container * (1 - percent/100)` — the inversion is the reason
+   * this is computed rather than read off the snap array directly.
+   */
+  const locateAnchorTop =
+    sheetContainerHeight * (1 - SHEET_SNAP_PERCENTS[LOCATE_ANCHOR_SNAP_INDEX] / 100);
+
+  const {
+    mode: trackingMode,
+    bearing: cameraBearing,
+    cameraCommand,
+    handleOptionChanged,
+    handleCameraChanged,
+    cycleMode,
+    resetNorth,
+  } = useLocationTracking(mapRef, locationStrings);
+
+  const locateStyle = useAnimatedStyle(() => {
+    // Follows the sheet down, parks on the way up. `max` because Y grows
+    // downward: a sheet dragged BELOW the anchor has the larger `sheetTop` and
+    // wins, while one dragged above it is clamped to the anchor and the button
+    // holds its place instead of being pushed off the top of the map.
+    //
+    // Before the first layout `locateAnchorTop` is 0, which clamps nothing — the
+    // button simply tracks the sheet until the real height arrives.
+    const top = Math.max(sheetTop.value, locateAnchorTop);
+    return {
+      transform: [{ translateY: top - MAP_CONTROL_HEIGHT - LOCATE_SHEET_GAP }],
+    };
+  }, [locateAnchorTop]);
 
   // ── Init layers from config ──
   useEffect(() => {
@@ -333,7 +438,7 @@ export function CampusScreen() {
   }, [selectedSkkuId]);
 
   return (
-      <View style={styles.root}>
+      <View style={styles.root} onLayout={handleRootLayout}>
         {/* Map (behind everything) */}
         {mapConfig && (
           <CampusNaverMap
@@ -341,6 +446,9 @@ export function CampusScreen() {
             mapConfig={mapConfig}
             selectedCampus={selectedCampus}
             style={StyleSheet.absoluteFill}
+            onOptionChanged={handleOptionChanged}
+            onCameraChanged={handleCameraChanged}
+            camera={cameraCommand}
           >
             {mapConfig.layers.map((layer) => {
               // The event's override wins over the user's toggle while it is
@@ -377,17 +485,17 @@ export function CampusScreen() {
           </CampusNaverMap>
         )}
 
-        {/* Floating controls — search row, then the event chip row beneath it.
-            Gated on mapConfig only for SearchBar, which needs a campus config;
-            the event controls are gated on the SNAPSHOT instead, because the
-            event map is deliberately independent of /map/config and a config
+        {/* Floating controls — campus row, then the event chip row beneath it.
+            Gated on mapConfig only for the campus toggle, which needs the campus
+            list; the event controls are gated on the SNAPSHOT instead, because
+            the event map is deliberately independent of /map/config and a config
             hiccup must not take the chips down with it. */}
         <View
           style={[styles.controlColumn, { top: insets.top + 8 }]}
           pointerEvents="box-none"
         >
           <View style={styles.controlRow} pointerEvents="box-none">
-            {mapConfig && <SearchBar />}
+            {mapConfig && <CampusToggle campuses={mapConfig.campuses} />}
             {mapConfig && (
               <FilterButton
                 activeCount={activeFilterCount}
@@ -408,10 +516,57 @@ export function CampusScreen() {
               />
             )}
           </View>
+          {/* MOCK category strip. Sits above the event chips deliberately: this
+              one is always present, so a row that appears and disappears with an
+              event must not push it up and down. */}
+          <CampusChipRow />
           {eventActive && eventMap.snapshot && (
             <EventMapChipRow chipGroups={eventMap.snapshot.chipGroups} />
           )}
         </View>
+
+        {/* Locate button — pinned to the map's lower right, riding the sheet.
+            Anchored at `top: 0` and moved entirely by `translateY`, because a
+            transform runs on the UI thread; animating `top` would round-trip
+            through layout on every frame of a drag.
+
+            Rendered before the sheet so the sheet wins if they ever overlap —
+            they should not, since this sits a fixed gap above the sheet's edge,
+            but the ordering makes a mis-measure degrade quietly. */}
+        <Animated.View style={[styles.locateButton, locateStyle]} pointerEvents="box-none">
+          {/* Absolutely positioned relative to the button rather than stacked
+              above it in flow. The wrapper's box IS the button, so appearing and
+              disappearing with `Face` cannot nudge the button, and the compass
+              inherits the sheet-tracking transform for free. */}
+          {isFacing(trackingMode) && (
+            <View style={styles.compassSlot}>
+              <MapCompass
+                bearing={cameraBearing}
+                onPress={resetNorth}
+                label={t('map.compass')}
+              />
+            </View>
+          )}
+          <GlassIconButton
+            label={isFacing(trackingMode) ? t('map.locate.face') : t('map.locate')}
+            icon={
+              isFacing(trackingMode) ? (
+                <HeadingLocateIcon />
+              ) : (
+                <CrosshairSimpleIcon
+                  size={20}
+                  // Brand only while the camera is actually following. After a
+                  // pan the SDK drops to NoFollow and this greys out on its own,
+                  // via onOptionChanged — the dot stays, but the button stops
+                  // claiming the map is tracking.
+                  color={trackingMode === 'Follow' ? SdsColors.brand : SdsColors.grey700}
+                  weight={isTracking(trackingMode) ? 'bold' : 'regular'}
+                />
+              )
+            }
+            onPress={cycleMode}
+          />
+        </Animated.View>
 
         {/* Snapping bottom sheet with SDUI */}
         <BottomSheet
@@ -419,22 +574,16 @@ export function CampusScreen() {
           enableDynamicSizing={false}
           handleComponent={SheetHandle}
           index={0}
+          animatedPosition={sheetTop}
         >
           <BottomSheetScrollView style={styles.sheetContent}>
-            {!mapConfig || campusLoading ? (
-              <CampusSkeleton />
-            ) : (
-              <>
-                <View style={styles.sheetTopToggleWrap}>
-                  <CampusToggle campuses={mapConfig.campuses} />
-                </View>
-                {campusData && (
-                  <View style={styles.gridWrap}>
-                    <SduiSectionList sections={campusData.sections} />
-                  </View>
-                )}
-              </>
-            )}
+            {/* No mapConfig gate and no skeleton any more: the sheet holds the
+                search bar alone now, and it needs nothing from the server to
+                render — a skeleton would be a loading state for content that is
+                never loading. */}
+            <View style={styles.sheetTopWrap}>
+              <SearchBar />
+            </View>
           </BottomSheetScrollView>
         </BottomSheet>
 
@@ -482,7 +631,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    gap: 8,
+    // Wider than the 8pt gutter inside the rows themselves. The row gap sits
+    // between controls that belong together (the toggle and the buttons beside
+    // it); this one separates two independent bands, and matching them made the
+    // chips read as a third row of the same control cluster.
+    gap: 12,
+  },
+  compassSlot: {
+    position: 'absolute',
+    right: 0,
+    // The wrapper is exactly one button tall, so this clears its top edge by 8.
+    bottom: MAP_CONTROL_HEIGHT + 8,
+  },
+  locateButton: {
+    position: 'absolute',
+    right: 16,
+    // `top: 0` plus a transform, not a computed `top`: see the note at the call
+    // site. The button's own height is what `translateY` subtracts, so it lands
+    // above the sheet rather than straddling it.
+    top: 0,
   },
   controlRow: {
     flexDirection: 'row',
@@ -493,13 +660,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  sheetTopToggleWrap: {
+  sheetTopWrap: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-  },
-  gridWrap: {
-    paddingTop: 8,
-    paddingBottom: 16,
   },
 });

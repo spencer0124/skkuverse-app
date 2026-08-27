@@ -10,6 +10,8 @@
 import { forwardRef, useMemo } from 'react';
 import {
   NaverMapView,
+  type Camera,
+  type LocationTrackingMode,
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import type { ViewStyle, StyleProp } from 'react-native';
@@ -22,6 +24,19 @@ interface CampusNaverMapProps {
   style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
   onTapMap?: () => void;
+  /**
+   * Fires whenever the SDK's own tracking mode changes — including the silent
+   * downgrade to `NoFollow` it performs on any camera move. The locate button
+   * mirrors this rather than its own taps; see `useLocationTracking`.
+   */
+  onOptionChanged?: (params: { locationTrackingMode: LocationTrackingMode }) => void;
+  onCameraChanged?: (params: Camera) => void;
+  /**
+   * One-shot camera order, NOT controlled state. The map stays uncontrolled
+   * between orders — this is the only route to the camera's bearing, which no
+   * ref method exposes. See the note in `useLocationTracking`.
+   */
+  camera?: Camera;
 }
 
 const HSSC_FALLBACK = {
@@ -40,7 +55,19 @@ const LAYER_GROUPS = {
 } as const;
 
 export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
-  function CampusNaverMap({ mapConfig, selectedCampus, style, children, onTapMap }, ref) {
+  function CampusNaverMap(
+    {
+      mapConfig,
+      selectedCampus,
+      style,
+      children,
+      onTapMap,
+      onOptionChanged,
+      onCameraChanged,
+      camera,
+    },
+    ref,
+  ) {
     const lang = useSettingsStore((s) => s.appLanguage);
     const campus = useMemo(() => {
       return (
@@ -67,6 +94,9 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         initialCamera={initialCamera}
         isShowZoomControls={false}
         isShowScaleBar={false}
+        // Stays off: the SDK's compass cannot be positioned (bare boolean, no
+        // align prop), and this map's compass has to sit above the locate button
+        // and ride the sheet. `MapCompass` draws it instead.
         isShowCompass={false}
         isExtentBoundedInKorea
         mapType="Basic"
@@ -76,6 +106,9 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
           customStyleId: mapConfig.naver.styleId,
         })}
         onTapMap={onTapMap}
+        onOptionChanged={onOptionChanged}
+        onCameraChanged={onCameraChanged}
+        {...(camera && { camera })}
       >
         {children}
       </NaverMapView>

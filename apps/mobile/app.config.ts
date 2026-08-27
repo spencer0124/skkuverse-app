@@ -108,7 +108,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.4",
+  runtimeVersion: "3.6.0",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -263,6 +263,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-localization",
       {
         supportedLocales: ["en", "ko", "zh"],
+      },
+    ],
+    [
+      // Location permission is declared HERE, not through the Naver Map plugin
+      // below. That plugin accepts an `ios.NSLocationWhenInUseUsageDescription`
+      // option and then writes the value to `NSLocationAlwaysUsageDescription`
+      // instead (expo-config-plugin/build/index.js:15-17) — a different key,
+      // deprecated since iOS 10. On iOS 11+ that leaves
+      // `requestWhenInUseAuthorization` with no usage string, so the permission
+      // prompt never appears and nothing errors. This plugin writes the correct
+      // key and adds ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION on Android.
+      "expo-location",
+      {
+        // Product copy, Korean: shown verbatim in the iOS permission dialog.
+        // Single-language for now — this repo has no InfoPlist.strings
+        // localisation (`withLocalizedAppName` covers the app name alone).
+        // conventions:allow-korean
+        locationWhenInUsePermission:
+          "현위치를 지도에 표시하고 캠퍼스 내 위치를 안내하는 데 사용합니다.",
       },
     ],
     [

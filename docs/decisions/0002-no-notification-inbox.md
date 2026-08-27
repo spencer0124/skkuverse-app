@@ -3,7 +3,7 @@ title: No Notification Inbox (Option D)
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-08-26
 audience: internal
 ---
 
@@ -43,6 +43,11 @@ data in the notices tab. The content stays reachable whether or not an inbox exi
   recovery path once missed. Revisit this decision if that kind starts appearing.
 
 ## Revisited — 2026-08-19
+
+> [!NOTE]
+> The feed described below was built and deployed on 2026-08-21, and **mini-app push is now
+> deferred** — it stays deployed and inert while nothing further is built on it. The amendment
+> itself stands. It is the work that is parked, not the decision. Tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
 
 The condition in the last consequence fired. The ESKARA 2026 mini app sends notifications that
 are not notices — a rain delay, or a shuttle change partway through the day. Neither has an
