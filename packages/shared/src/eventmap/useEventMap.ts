@@ -111,8 +111,17 @@ export interface UseEventMapResult {
    * hide, and toggling a chip must not slam shut a sheet they are reading.
    */
   allStacks: EventMapStack[];
-  /** Items the chips match, sorted by the active sort. Backs the list view. */
+  /** Items the chips match, sorted by the active sort. */
   visibleItems: DerivedItem[];
+  /**
+   * Every item, sorted, chips NOT applied. Backs the list view.
+   *
+   * The map's pins come from the `/map/markers/eskara26` layers now, which chips
+   * cannot reach, so the chip row is gone — and `selectedChips` is persisted, so
+   * a stale selection would otherwise narrow the list with nothing left to clear
+   * it with.
+   */
+  allItems: DerivedItem[];
   /** placeId → stack, for `skkuverse://map?place=<id>`. Covers all stacks, not just visible ones. */
   stacksByPlaceId: Map<string, EventMapStack>;
   dropped: DroppedCounts | null;
@@ -180,6 +189,21 @@ export function useEventMap(): UseEventMapResult {
     });
   }, [bundle?.snapshot, derived.items, selectedChips]);
 
+  /**
+   * Every item, sorted, with the chips NOT applied.
+   *
+   * The map's pins now come from `/map/markers/eskara26` layers, which chips
+   * cannot reach, so the chip row was removed as a control that visibly did
+   * nothing. `selectedChips` is persisted, though — a chip selected in an
+   * earlier session would otherwise keep narrowing the list with no surviving
+   * UI to clear it.
+   */
+  const allItems = useMemo(() => {
+    const sorts = bundle?.snapshot?.sorts ?? [];
+    const by: SortKey = (sorts.find((s) => s.id === sortId) ?? sorts[0])?.by ?? 'order';
+    return sortItems(derived.items, by);
+  }, [bundle?.snapshot?.sorts, derived.items, sortId]);
+
   const visibleItems = useMemo(() => {
     const sorts = bundle?.snapshot?.sorts ?? [];
     // `sortId` is the user's choice; `by` is the comparator. They are not the
@@ -228,6 +252,7 @@ export function useEventMap(): UseEventMapResult {
     stacks: visibleStacks,
     allStacks: derived.stacks,
     visibleItems,
+    allItems,
     stacksByPlaceId: derived.byPlaceId,
     dropped: bundle?.dropped ?? null,
     isSettled,

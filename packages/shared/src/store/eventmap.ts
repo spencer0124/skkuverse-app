@@ -6,14 +6,6 @@
  * meant to be forgotten when the next one arrives. Folding event layer ids into
  * the permanent store would leave dead `eskara-2026` keys in persisted state
  * forever.
- *
- * Note what is NOT here: `basemapOverride`. The snapshot's instruction to hide
- * building numbers during the festival is applied as a DERIVED overlay at render
- * time, never written into this store. A force-then-restore design loses the
- * user's real toggle whenever the app is killed or the activation flips between
- * the write and the restore — leaving 건물번호 off with nothing to point at, and
- * nobody able to find why. Derived, the override simply stops existing when the
- * event does.
  */
 
 import { create } from 'zustand';

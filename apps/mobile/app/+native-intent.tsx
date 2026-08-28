@@ -61,7 +61,20 @@ const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 // of the path — so it keeps falling through to the whitelist and on to the SVG
 // floor map.
 const MAP_PATH_RE = /^\/map$/;
-const PLACE_ID_RE = /^[a-z0-9-]+$/;
+
+// `?place=` takes either `<placeId>` or `<kind>:<placeId>`. The prefixed form is
+// literally the two fields of a marker's `tap`, so a shared link can never
+// disagree with the marker it came from; the bare form is what is already in
+// circulation and stays valid.
+//
+// BOTH anchors are load-bearing and neither is decoration: they are what stops
+// `../../etc` from being accepted as a place id.
+const PLACE_ID_RE = /^(?:([a-z0-9_]+):)?([a-z0-9-]+)$/;
+
+// The kinds this build can route. A link naming anything else is dropped rather
+// than stripped down to its id: guessing which kind an unknown prefix meant is
+// how a booth link opens the wrong building.
+const PLACE_KINDS = ['skku_building', 'eskara26'] as const;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full
@@ -117,9 +130,14 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     // mini-app slug above: this runs outside the React tree, so a lookup would
     // be a duplicate request that blocks the app's first navigation.
     if (MAP_PATH_RE.test(pathname)) {
-      const placeId = params.get('place');
-      if (placeId && PLACE_ID_RE.test(placeId)) {
-        pendingMapPlaceLink.set({ placeId });
+      const match = PLACE_ID_RE.exec(params.get('place') ?? '');
+      const rawKind = match?.[1];
+      const placeId = match?.[2];
+      const kind = PLACE_KINDS.find((k) => k === rawKind) ?? null;
+      // A prefix we do not recognise is a link from a newer build (next year's
+      // festival), so drop it rather than resolving the id under the wrong kind.
+      if (placeId && (rawKind === undefined || kind !== null)) {
+        pendingMapPlaceLink.set({ kind, placeId });
       }
       return '/(tabs)/campus';
     }

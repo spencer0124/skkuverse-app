@@ -1,91 +1,121 @@
 /**
- * Renders every marker in a single map layer, across both campuses.
+ * Renders one map layer's markers.
+ *
+ * **Layers share endpoints.** Both building layers come from
+ * `/map/markers/campus`, all six event layers from `/map/markers/eskara26`, and
+ * the marker cache is keyed on the endpoint string — so layers sharing a URL
+ * share one fetch and one cache entry, and each renders only the subset carrying
+ * its own `layerId`. Without that filter every layer draws the whole response:
+ * two building layers drew all 137 buildings each, so every building appeared
+ * twice with its number and its name colliding.
  *
  * Deliberately NOT filtered by the selected campus. The camera can leave the
  * selected campus without the toggle moving — the locate button is the ordinary
  * way that happens — and a campus filter meant the buildings under the camera
  * were not merely off-screen but absent from the tree entirely, so the map went
- * blank where it should have been most useful.
+ * blank where it should have been most useful (ADR 0008 §4).
  *
- * Rendering both is cheap here and only here: the two campuses are ~33km apart,
- * so one is always outside the viewport and the SDK culls it natively, and the
- * endpoint already returns both sets in one response, so nothing extra is
- * fetched. Both layers, both campuses is well under 200 overlays. Revisit this
- * if a layer ever covers a single dense area, where every marker really would
- * be on screen at once.
- *
- * Four marker styles from MapLayerDef.markerStyle:
- * - numberDot: filled circle with number, building name caption (default)
- * - numberCircle: circle icon + pin point + building number caption
- * - textLabel: localized text, tiny dot, caption with collision hiding
- * - default: small dot marker, no caption
+ * Marker styles from MapLayerDef.markerStyle:
+ * - textLabel:   localized text as a caption on a 1x1 transparent icon, with
+ *                collision hiding. Building names.
+ * - placeDot:    the SDK's tintable base icon in the layer's colour, captioned.
+ *                Booths. No React children — see the key note below.
+ * - numberCircle / numberDot / absent: filled circle with the text inside plus a
+ *                caption. Building numbers. These two share one branch; the
+ *                server ships numberCircle and there has never been a second
+ *                rendering for it.
  *
  * Flutter source: MapLayerController._buildMarkersFromJson
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
-import { useLayerMarkers, type MapLayerDef, useSettingsStore, SdsColors } from '@skkuverse/shared';
+import {
+  useLayerMarkers,
+  useVisibleByWindow,
+  type MapLayerDef,
+  type MarkerTap,
+  type RawMarkerData,
+  useSettingsStore,
+  SdsColors,
+} from '@skkuverse/shared';
+
+import { toCssColor } from '../utils/toCssColor';
 
 const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
 const DOT_SIZE = 16;
 
-/** Bare hex, no `#` — 3, 6 or 8 digits. */
-const BARE_HEX_RE = /^[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?$/;
+/** The tintable base icon's natural proportions, so the tint is not distorted. */
+const PIN_WIDTH = 22;
+const PIN_HEIGHT = 30;
 
 /**
- * `MapLayerStyle.color` arrives as hex *without* a leading `#` (the server's
- * commented-out bus layers read `color: "4CAF50"`, and MapPolylineLayer's
- * hexToRgba strips one defensively). React Native needs the `#`, and would
- * otherwise silently fall back to black — which is exactly the hardcoded value
- * this is meant to make configurable. Anything that is not bare hex (a named
- * colour, an already-prefixed value) passes through untouched.
+ * Pick the string to draw for the current app language.
+ *
+ * `zh` used to fall through to Korean here, which was survivable while only
+ * buildings had text — they carry `{ko, en}` and nothing else. Booth titles may
+ * carry `zh`, and the server goes out of its way to preserve it, so a map whose
+ * layer labels are Chinese and whose booths are Korean would be the one thing
+ * worse than either.
  */
-function toCssColor(raw: string | undefined, fallback: string): string {
-  if (!raw) return fallback;
-  return BARE_HEX_RE.test(raw) ? `#${raw}` : raw;
+function pickText(text: RawMarkerData['text'], lang: string): string {
+  if (lang === 'en') return text.en || text.ko;
+  if (lang === 'zh') return text.zh || text.ko;
+  return text.ko;
 }
 
 const NumberDotMarker = React.memo(function NumberDotMarker({
-  displayNo,
+  label,
 }: {
-  displayNo: string;
+  label: string;
 }) {
   return (
     <View
-      key={displayNo}
+      key={label}
       collapsable={false}
       renderToHardwareTextureAndroid
       style={styles.dotMarker}
     >
-      <Text style={styles.dotText}>{displayNo}</Text>
+      <Text style={styles.dotText}>{label}</Text>
     </View>
   );
 });
 
 interface MapMarkerLayerProps {
   layer: MapLayerDef;
-  onMarkerTap: (skkuId: number) => void;
+  onMarkerTap: (tap: MarkerTap) => void;
 }
 
 export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
   const { data: markers } = useLayerMarkers(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  if (!markers?.length) return null;
+  // Layers share endpoints, so this is what separates one layer from another.
+  const own = useMemo(
+    () => (markers ?? []).filter((m) => m.layerId === layer.id),
+    [markers, layer.id],
+  );
+
+  // A booth appears and disappears on the device's clock rather than on a
+  // refetch: the payload is identical either side of a boundary, so this hook
+  // owns the timer that makes the boundary observable at all.
+  const visible = useVisibleByWindow(own);
+
+  if (!visible.length) return null;
 
   return (
     <>
-      {markers.map((marker, i) => {
-        const key = `${layer.id}-${marker.skkuId ?? `${marker.lat}_${marker.lng}_${i}`}`;
+      {visible.map((marker) => {
+        // `id` is unique within a layer but NOT across layers — one building is
+        // drawn once per building layer and both markers carry the same id — so
+        // the layer id is part of the key rather than decoration.
+        const key = `${layer.id}-${marker.id}`;
+        const label = pickText(marker.text, lang);
+        const onTap = marker.tap ? () => onMarkerTap(marker.tap!) : undefined;
 
         if (layer.markerStyle === 'textLabel') {
-          const text =
-            lang === 'en'
-              ? marker.text?.en || marker.text?.ko || ''
-              : marker.text?.ko || '';
           return (
             <NaverMapMarkerOverlay
               key={key}
@@ -95,46 +125,85 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
               height={1}
               image={MARKER_ICON}
               caption={{
-                text,
+                text: label,
                 textSize: layer.style?.captionTextSize ?? 7,
                 color: toCssColor(layer.style?.color, 'black'),
                 requestedWidth: 200,
               }}
               isHideCollidedCaptions
               globalZIndex={100000}
-              onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
+              onTap={onTap}
             />
           );
         }
 
-        // Default: numberDot (filled green circle with white number + building name caption)
-        {
-          const text =
-            lang === 'en'
-              ? marker.text?.en || marker.text?.ko || ''
-              : marker.text?.ko || '';
-
+        if (layer.markerStyle === 'placeDot') {
           return (
             <NaverMapMarkerOverlay
-              key={`${key}-${marker.displayNo}`}
+              // No `label` in this key, unlike the branch below, and that is not
+              // an oversight: this marker has no React children, so there is no
+              // custom-view bitmap to force a re-capture of. The caption is a
+              // native prop the SDK re-applies on its own — it hashes the
+              // caption into `caption.key` and updates when the hash changes.
+              key={key}
               latitude={marker.lat}
               longitude={marker.lng}
-              width={DOT_SIZE}
-              height={DOT_SIZE}
-              anchor={{ x: 0.5, y: 1.0 }}
+              width={PIN_WIDTH}
+              height={PIN_HEIGHT}
+              // The SDK's BLACK symbol is Naver's tintable base, so the layer's
+              // own colour renders exactly rather than being snapped to one of
+              // the seven built-in symbol colours. Drawing this as a child View
+              // instead would re-enter the Android bitmap-snapshot race for
+              // ~100 markers at once, and buy nothing.
+              image={{ symbol: 'black' }}
+              tintColor={toCssColor(layer.style?.color, SdsColors.brand)}
               caption={{
-                text,
+                text: label,
                 textSize: layer.style?.captionTextSize ?? 9,
-                color: toCssColor(layer.style?.color, '#333333'),
                 requestedWidth: 200,
-                offset: 40,
               }}
-              onTap={marker.skkuId != null ? () => onMarkerTap(marker.skkuId!) : undefined}
-            >
-              <NumberDotMarker displayNo={marker.displayNo ?? ''} />
-            </NaverMapMarkerOverlay>
+              // The density lever for a layer that really does put every marker
+              // on screen at once, which the building layers never do.
+              isHideCollidedCaptions
+              onTap={onTap}
+            />
           );
         }
+
+        // numberCircle / numberDot / absent — the building-number rendering.
+        return (
+          <NaverMapMarkerOverlay
+            // `label` is in the key as an Android bitmap-recapture workaround,
+            // NOT for uniqueness — `${layer.id}-${marker.id}` is already unique.
+            // Android captures the child View with `draw(canvas)` and gets a 1x1
+            // transparent bitmap if layout has not finished; putting the visible
+            // content in the key remounts the View and forces a re-capture. This
+            // layer subscribes to appLanguage, so dropping `label` here would
+            // leave every dot blank after a language switch, on Android only.
+            // See docs/explanation/android-naver-map-markers.md.
+            key={`${key}-${label}`}
+            latitude={marker.lat}
+            longitude={marker.lng}
+            width={DOT_SIZE}
+            height={DOT_SIZE}
+            anchor={{ x: 0.5, y: 1.0 }}
+            // No caption, and that is the change the unified schema forced.
+            // This used to draw the number inside the dot from `displayNo` and
+            // the building NAME underneath from `text`, which worked because
+            // `?overlay=number` and `?overlay=label` were separate requests
+            // populating different fields — the number layer's markers had no
+            // `text`, so this caption resolved to an empty string.
+            //
+            // One endpoint now, and one field: `text` is whatever this marker
+            // displays, which on this layer is the number itself. Captioning it
+            // prints the number a second time beside its own dot. The name is
+            // the `building_labels` layer's job, which is the whole reason the
+            // two are separate layers.
+            onTap={onTap}
+          >
+            <NumberDotMarker label={label} />
+          </NaverMapMarkerOverlay>
+        );
       })}
     </>
   );

@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-27
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -470,24 +470,25 @@ from the one the server shipped.
 **`useMapLayerStore` is left untouched** — two stores, two lifetimes. Coupling per-event state into
 the permanent campus-layer store would leave dead `eskara-2026` keys in persisted state forever.
 
-### 8.1 `basemapOverride` is derived, never persisted
+### 8.1 `basemapOverride` is gone
 
-The snapshot names base-map layers the event forces to a visibility — normally hiding building
-numbers while leaving building names up, so pins stay legible without stripping the map of
-orientation. Those are two
-separate layers in `/map/config` (`building_numbers`, `building_labels`), so this needs no new concept.
+The snapshot used to name base-map layers the event forced to a visibility — in practice one
+boolean, hiding the building numbers while the festival ran. **It has been removed from the app.** Layer
+visibility is now `userToggle[id] ?? layer.defaultVisible` and nothing else, everywhere it is read.
 
-It is applied as an overlay at render time:
+An event layer is an ordinary layer. It has no way to reach across and change a base-map layer's
+visibility, and a user who wants the building numbers off during a festival turns them off with the
+toggle that was always there.
 
-```ts
-const visible = basemapOverride[id] ?? userToggle[id] ?? layer.defaultVisible;
-```
+The removal is worth recording rather than just doing, because the cost was not the field. It was
+that a cross-cutting override is a **resolution rule** every reader has to implement identically:
+`FilterSheet` implemented two tiers of the three and so reported the building-number layer ON
+while the map drew nothing, and the repair was to thread the override into a second component. Two tiers cannot drift
+that way, because `defaultVisible` travels on the layer the caller is already holding.
 
-and deliberately kept out of the store. A force-then-restore design loses the user's real
-toggle whenever the restore does not run — app killed, activation flipped between the write and the
-restore — leaving a layer off permanently with nothing on screen to explain why. Derived, the override
-simply stops existing when the event does, and no restore code is needed. Same reasoning that put
-event state in its own store, one level down.
+The server still ships the field. Nothing reads it, and the parser drops unknown members silently
+(§3), so it is inert. The fixture in `eventmap/__tests__/fixtures/` deliberately keeps it, which is
+what makes the no-drop parse test also the proof that an unread member on the wire is harmless.
 
 ## 9. Where the code lives
 
@@ -503,10 +504,20 @@ Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issu
 | `packages/shared/src/eventmap/{repository,useEventMap}.ts` | fetch, MMKV last-known-good, hooks (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/eventmap/icon.ts` | `IconSpec` → SDK image prop (§6.3) |
-| `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack |
+| `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack — **no longer mounted**, see the note below |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | stacked-place sheet + action buttons |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
-| `apps/mobile/src/features/map/CampusScreen.tsx` | mounts the pin layer as a sibling; applies `basemapOverride`; resolves place links |
+| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`; resolves place links |
+
+> [!IMPORTANT]
+> **Booth pins no longer come from the snapshot.** The server serves them as ordinary marker layers
+> (`GET /map/markers/eskara26`, six `placeDot` layers in `/map/config`), so `MapMarkerLayer` draws
+> them and `EventMapPinLayer` is unmounted — leaving both would have drawn every booth twice. The
+> chip row went with it, because chips filter snapshot *items* and cannot reach a marker that came
+> from a layer endpoint. The snapshot is still fetched for the peek sheet's card templates and for
+> the `placeId → stack` lookup behind a booth tap. Sections 6 and 8 above still describe the pin
+> layer as it was built; they are history until the retirement in §9 finishes.
+> The marker contract is `skkuverse-server/docs/reference/map-markers-api.md`.
 
 Fixed on the way through: the map parser's unchecked union casts and silent `(0,0)` coordinates,
 `parseActionType`'s unknown → `'external'`, the stale offline `DEFAULT_MAP_CONFIG`, hardcoded caption

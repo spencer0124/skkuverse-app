@@ -38,10 +38,9 @@ import {
   useT,
   SdsColors,
   type Campus,
+  type MarkerTap,
 } from '@skkuverse/shared';
-import { EventMapPinLayer } from '@/features/eventmap/EventMapPinLayer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
-import { EventMapChipRow } from '@/features/eventmap/EventMapChipRow';
 import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
 import { GlassIconButton } from '@/components/glass';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -156,6 +155,8 @@ export function CampusScreen() {
   const [highlightSpaceCd, setHighlightSpaceCd] = useState<string | undefined>();
   const [buildingSource, setBuildingSource] = useState<BuildingDetailSource>('marker');
   const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null);
+  /** A `?place=skku_building:<id>` link, held until the sheet exists to open. */
+  const [pendingBuildingId, setPendingBuildingId] = useState<number | null>(null);
 
   // ── Sheet snap points ──
   const snapPoints = useMemo(() => SHEET_SNAP_PERCENTS.map((p) => `${p}%`), []);
@@ -291,7 +292,6 @@ export function CampusScreen() {
   const eventMap = useEventMap();
   const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
   const selectedStackKey = useEventMapStore((s) => s.selectedStackKey);
-  const selectedChips = useEventMapStore((s) => s.selectedChips);
   // Resolved against ALL stacks, not the chip-filtered ones. An open peek sheet
   // must survive a chip toggle that happens to exclude the booth being read, and
   // a `skkuverse://map?place=` link must reach a booth the current chips hide.
@@ -313,39 +313,22 @@ export function CampusScreen() {
 
   const eventActive = eventMap.snapshot != null && eventMap.snapshot.campus === selectedCampus;
 
-  /** How many chip groups are narrowing the map. Drives the filter button badge. */
-  const activeFilterCount = useMemo(() => {
-    if (!eventMap.snapshot) return 0;
-    return eventMap.snapshot.chipGroups.filter((group) => {
-      const selected = selectedChips[group.id] ?? [];
-      if (selected.length === 0) return false;
-      // A group pinned to a predicate of `all` is not narrowing anything, so
-      // counting it would show a badge on a map showing everything. ESKARA's
-      // `day_all` default is exactly this case.
-      return group.chips.some((c) => selected.includes(c.id) && c.predicate[0] !== 'all');
-    }).length;
-  }, [eventMap.snapshot, selectedChips]);
-
-  // The snapshot pins one campus (nsc for ESKARA), so switching campus must hide
-  // the pins — and must do so with zero network, which is the whole reason the
-  // snapshot ships structure and items together.
-  const eventStacks = eventActive ? eventMap.stacks : [];
-
   /**
-   * Base-map visibility with the event's override applied ON TOP, derived per
-   * render and never written to a store.
+   * How many layers are hidden. Drives the filter button badge.
    *
-   * The override normally hides 건물번호 while leaving 건물이름 up, so event pins
-   * are legible without stripping the map of orientation. Deriving it rather
-   * than forcing-then-restoring matters: a restore that never runs — app killed,
-   * activation flipped — would leave the user's building-number layer off
-   * permanently, with nothing on screen to explain why. Derived, the override
-   * simply stops existing when the event does.
+   * Counted off layer visibility rather than chip groups, because layers are
+   * what narrows the map now. A layer that is hidden by default is not counted:
+   * the badge means "you have narrowed this", and 편의시설 starting hidden is
+   * the server's choice, not the user's.
    */
-  // Gated on the event being live rather than on there being pins to draw:
-  // chips can legitimately filter every pin away, and keying off the count would
-  // flash 건물번호 back on mid-event the moment a filter matched nothing.
-  const basemapOverride = eventActive ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
+  const activeFilterCount = useMemo(() => {
+    if (!mapConfig) return 0;
+    return mapConfig.layers.filter((layer) => {
+      if (layer.userConfigurable === false) return false;
+      const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
+      return layer.defaultVisible && !visible;
+    }).length;
+  }, [mapConfig, layers]);
 
   // ── Camera move on campus switch ──
 
@@ -539,7 +522,16 @@ export function CampusScreen() {
   useEffect(() => {
     const tryConsume = () => {
       const p = pendingMapPlaceLink.consume();
-      if (p) setPendingNavPayload({ kind: 'place', placeId: p.placeId });
+      if (!p) return;
+      // A building is resolvable on its own — `/building/:id` needs nothing but
+      // the id — so it does not wait on the event snapshot the way a booth does.
+      // A bare id (no prefix) keeps its historical meaning: an event place.
+      if (p.kind === 'skku_building') {
+        const skkuId = Number(p.placeId);
+        if (Number.isFinite(skkuId)) setPendingBuildingId(skkuId);
+        return;
+      }
+      setPendingNavPayload({ kind: 'place', placeId: p.placeId });
     };
     tryConsume(); // cold start: set before this tree existed
     return pendingMapPlaceLink.subscribe(tryConsume); // warm start
@@ -584,6 +576,28 @@ export function CampusScreen() {
       detailSheetRef.current?.present();
     }, 400);
   }, [pendingPayload, clearPendingNavPayload, selectedCampus, setSelectedCampus]);
+
+  // ── Resolve a building deep link, once there is a sheet to open ──
+  // Gated on mapConfig because BuildingDetailSheet is rendered inside that gate,
+  // and a cold-start link routinely beats the config request.
+  useEffect(() => {
+    if (pendingBuildingId == null || !mapConfig) return;
+    setBuildingSource('direct');
+    setSelectedSkkuId(pendingBuildingId);
+    setHighlightSpaceCd(undefined);
+    // Same 400ms as the search handoff: presenting a modal in the same frame the
+    // screen mounts drops the animation.
+    const timer = setTimeout(() => {
+      detailSheetRef.current?.present();
+      // Cleared HERE and not before the timer, which is what makes this work at
+      // all: `pendingBuildingId` is a dependency of this effect, so clearing it
+      // up front re-runs the effect, and the previous run's cleanup then clears
+      // the very timeout that was going to open the sheet. The link resolved,
+      // the state advanced, and nothing appeared.
+      setPendingBuildingId(null);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [pendingBuildingId, mapConfig]);
 
   // ── Resolve a place deep link, once the snapshot has actually settled ──
   useEffect(() => {
@@ -632,15 +646,6 @@ export function CampusScreen() {
     setSelectedStackKey,
   ]);
 
-  // ── Marker tap ──
-  const handleMarkerTap = useCallback((skkuId: number) => {
-    logMarkerTap(skkuId);
-    setBuildingSource('marker');
-    setSelectedSkkuId(skkuId);
-    setHighlightSpaceCd(undefined);
-    detailSheetRef.current?.present();
-  }, []);
-
   // ── Event pin tap ──
   const handleSelectStack = useCallback(
     (stackKey: string) => {
@@ -648,6 +653,45 @@ export function CampusScreen() {
       peekSheetRef.current?.present();
     },
     [setSelectedStackKey],
+  );
+
+  /**
+   * A marker tap, routed on its own discriminator.
+   *
+   * `tap.placeId` is a string for every kind because one addressing scheme is
+   * the point — a building and a booth are the same kind of thing (umbrella ADR
+   * 0004 invariant 1). The narrowing back to a number happens here, inside the
+   * building branch, because that is the only place that needs one:
+   * `GET /building/:id` takes a numeric id.
+   *
+   * A booth resolves through the snapshot's `stacksByPlaceId`, which is built
+   * from ALL items rather than the filtered ones, so a tap always reaches the
+   * plot it was drawn for. A miss opens nothing — the same no-error behaviour
+   * the `?place=` deep link already has.
+   */
+  const stacksByPlaceId = eventMap.stacksByPlaceId;
+  const handleMarkerTap = useCallback(
+    (tap: MarkerTap) => {
+      switch (tap.kind) {
+        case 'skku_building': {
+          const skkuId = Number(tap.placeId);
+          if (!Number.isFinite(skkuId)) return;
+          logMarkerTap(skkuId);
+          setBuildingSource('marker');
+          setSelectedSkkuId(skkuId);
+          setHighlightSpaceCd(undefined);
+          detailSheetRef.current?.present();
+          return;
+        }
+        case 'eskara26': {
+          const stack = stacksByPlaceId.get(tap.placeId);
+          if (!stack) return;
+          handleSelectStack(stack.stackKey);
+          return;
+        }
+      }
+    },
+    [stacksByPlaceId, handleSelectStack],
   );
 
   // The list is a way into a pin, not a parallel surface: dismiss it so backing
@@ -688,14 +732,12 @@ export function CampusScreen() {
             camera={cameraCommand}
           >
             {mapConfig.layers.map((layer) => {
-              // The event's override wins over the user's toggle while it is
-              // active, and disappears with it. initFromConfig deliberately
-              // preserves user toggles, so nothing here can un-hide a layer the
-              // event asked to hide.
-              const visible =
-                basemapOverride[layer.id] ??
-                layers[layer.id]?.visible ??
-                layer.defaultVisible;
+              // The user's toggle, or the layer's own default. Nothing else gets
+              // a say: an event used to be able to force a base-map layer to a
+              // visibility from its snapshot, which made this a three-tier chain
+              // every reader had to reproduce exactly. Event layers are ordinary
+              // layers now.
+              const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
               if (!visible) return null;
 
               if (layer.type === 'polyline') {
@@ -709,15 +751,13 @@ export function CampusScreen() {
                 />
               );
             })}
-            {/* Sibling of the config-driven layers: the event map is a separate
-                request precisely so a map-config failure cannot take it down,
-                and vice versa. CampusNaverMap forwards children verbatim, so no
-                change is needed there. */}
-            <EventMapPinLayer
-              stacks={eventStacks}
-              icons={eventMap.snapshot?.icons ?? {}}
-              onSelectStack={handleSelectStack}
-            />
+            {/* Booth pins used to be drawn here, from the event snapshot, by a
+                second marker component beside the config-driven layers. The
+                server now serves them as ordinary marker layers, so the loop
+                above draws them and this sibling would be a duplicate — six
+                layers' worth of pins on top of the snapshot's own. The snapshot
+                is still fetched: it is what the peek sheet renders, and what
+                resolves a tapped booth's placeId to a stack. */}
           </CampusNaverMap>
         )}
 
@@ -757,10 +797,12 @@ export function CampusScreen() {
           {/* MOCK category strip. Sits above the event chips deliberately: this
               one is always present, so a row that appears and disappears with an
               event must not push it up and down. */}
+          {/* The event chip row stood here. Chips filter snapshot ITEMS, and the
+              pins now come from /map/markers/eskara26 layers that chips cannot
+              reach — so it would be a control that visibly does nothing. The six
+              server layer toggles in FilterSheet are the replacement, and they
+              arrive for free because they are already in mapConfig.layers. */}
           <CampusChipRow />
-          {eventActive && eventMap.snapshot && (
-            <EventMapChipRow chipGroups={eventMap.snapshot.chipGroups} />
-          )}
         </View>
 
         {/* The map's lower control row, riding the sheet. Mirrors the row at the
@@ -873,7 +915,7 @@ export function CampusScreen() {
               source={buildingSource}
               onConnectionTap={handleConnectionTap}
             />
-            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} eventSnapshot={eventMap.snapshot} />
+            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
           </>
         )}
 
@@ -887,7 +929,7 @@ export function CampusScreen() {
         />
         <EventMapListSheet
           ref={listSheetRef}
-          items={eventActive ? eventMap.visibleItems : []}
+          items={eventActive ? eventMap.allItems : []}
           sorts={eventMap.snapshot?.sorts ?? []}
           cardTemplates={cardTemplates}
           onSelectItem={handleSelectFromList}

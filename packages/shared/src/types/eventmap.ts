@@ -204,19 +204,6 @@ export interface EventMapSnapshot {
   sorts: EventMapSort[];
   cardTemplates: EventMapCardTemplate[];
   items: EventMapItem[];
-  /**
-   * Base-map layer ids (`building_numbers`, `building_labels`) this event forces
-   * to a visibility while it is active — normally hiding building numbers so
-   * event pins are legible, while leaving building names up.
-   *
-   * Applied as a DERIVED overlay at render time, never written into persisted
-   * state: a force-then-restore design loses the user's real toggle whenever the
-   * app is killed between the write and the restore, leaving a layer off forever
-   * with nothing to point at. Defaults to `{}` — snapshots published before the
-   * field existed are immutable and cached, so requiring it would drop them
-   * whole and blank the festival map.
-   */
-  basemapOverride: Record<string, boolean>;
 }
 
 export interface EventMapManifest {

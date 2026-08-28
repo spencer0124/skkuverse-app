@@ -135,8 +135,15 @@ export type {
   MapLayerDef,
   MapConfig,
   RawMarkerData,
+  MarkerTap,
   PolylineCoord,
 } from './types/map';
+export type { TimeWindow } from './map/window';
+export {
+  isWithinWindow,
+  nextWindowBoundaryAfter,
+  MAX_TIMEOUT_MS,
+} from './map/window';
 
 // ── Building types ──
 export type {
@@ -333,6 +340,9 @@ export {
   BUILDING_DETAIL_KEY,
   useLayerMarkers,
   useLayerPolyline,
+  MAP_LAYER_MARKERS_KEY,
+  MAP_LAYER_POLYLINE_KEY,
+  useVisibleByWindow,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,

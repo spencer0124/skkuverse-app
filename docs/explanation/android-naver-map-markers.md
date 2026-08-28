@@ -3,7 +3,7 @@ title: Android Naver Map Custom View Marker Race
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -46,7 +46,7 @@ Applied in `apps/mobile/src/features/map/components/MapMarkerLayer.tsx`.
   renderToHardwareTextureAndroid  // <-- added
   style={styles.dotMarker}
 >
-  <Text>{displayNo}</Text>
+  <Text>{label}</Text>
 </View>
 ```
 
@@ -57,15 +57,39 @@ to capture when `draw(canvas)` runs.
 
 ```tsx
 <NaverMapMarkerOverlay
-  key={`${key}-${marker.displayNo}`}  // <-- includes displayNo
+  key={`${layer.id}-${marker.id}-${label}`}  // <-- includes the visible text
   ...
 >
-  <NumberDotMarker displayNo={marker.displayNo ?? ''} />
+  <NumberDotMarker label={label} />
 </NaverMapMarkerOverlay>
 ```
 
 This is what the library's own documentation recommends. Putting a visual dependency in the
 top child's key makes React mount a fresh View, which triggers a re-capture of the bitmap.
+
+> [!WARNING]
+> **`label` is in that key as a workaround, not for uniqueness.** `${layer.id}-${marker.id}` is
+> already unique on its own, so the obvious tidy-up is to drop the text — it compiles, reads as
+> idiomatic React, and is correct on iOS forever. `MapMarkerLayer` subscribes to the app
+> language, so switching language changes every caption while every id stays identical: the
+> bitmap is never re-captured and the dots go blank. Intermittently, Android only, slower
+> devices first.
+>
+> The key used to embed `marker.displayNo`, which left the wire when the marker schema was
+> unified. Whatever the visible string is called, it belongs in the key.
+
+### 3. A marker with no children does not need any of this
+
+The `placeDot` branch draws booths with the SDK's tintable `{symbol: 'black'}` image plus
+`tintColor`, and **no React children at all** — so there is no custom View to snapshot and the
+race cannot apply. Its key is `${layer.id}-${marker.id}` with no text, deliberately: the
+library hashes the caption into `caption.key` (`NaverMapMarkerOverlay.tsx`) and the native side
+re-applies it on change, so a caption updates without a remount. Only the bitmap needs one.
+
+That is the cheaper answer whenever a marker's whole appearance can be expressed as an image
+plus a tint, and it is why ~100 festival pins do not multiply this risk. Reach for a child View
+only when the content genuinely has to be laid out — a number centred inside a circle, as
+here.
 
 ### Preconditions that were already in place
 
