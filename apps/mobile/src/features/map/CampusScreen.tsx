@@ -598,7 +598,6 @@ export function CampusScreen() {
   // and a cold-start link routinely beats the config request.
   useEffect(() => {
     if (pendingBuildingId == null || !mapConfig) return;
-    setPendingBuildingId(null); // one shot
     setBuildingSource('direct');
     setSelectedSkkuId(pendingBuildingId);
     setHighlightSpaceCd(undefined);
@@ -606,6 +605,12 @@ export function CampusScreen() {
     // screen mounts drops the animation.
     const timer = setTimeout(() => {
       detailSheetRef.current?.present();
+      // Cleared HERE and not before the timer, which is what makes this work at
+      // all: `pendingBuildingId` is a dependency of this effect, so clearing it
+      // up front re-runs the effect, and the previous run's cleanup then clears
+      // the very timeout that was going to open the sheet. The link resolved,
+      // the state advanced, and nothing appeared.
+      setPendingBuildingId(null);
     }, 400);
     return () => clearTimeout(timer);
   }, [pendingBuildingId, mapConfig]);

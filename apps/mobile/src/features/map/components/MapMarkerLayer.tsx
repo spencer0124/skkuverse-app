@@ -187,13 +187,18 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
             width={DOT_SIZE}
             height={DOT_SIZE}
             anchor={{ x: 0.5, y: 1.0 }}
-            caption={{
-              text: label,
-              textSize: layer.style?.captionTextSize ?? 9,
-              color: toCssColor(layer.style?.color, '#333333'),
-              requestedWidth: 200,
-              offset: 40,
-            }}
+            // No caption, and that is the change the unified schema forced.
+            // This used to draw the number inside the dot from `displayNo` and
+            // the building NAME underneath from `text`, which worked because
+            // `?overlay=number` and `?overlay=label` were separate requests
+            // populating different fields — the number layer's markers had no
+            // `text`, so this caption resolved to an empty string.
+            //
+            // One endpoint now, and one field: `text` is whatever this marker
+            // displays, which on this layer is the number itself. Captioning it
+            // prints the number a second time beside its own dot. The name is
+            // the `building_labels` layer's job, which is the whole reason the
+            // two are separate layers.
             onTap={onTap}
           >
             <NumberDotMarker label={label} />
