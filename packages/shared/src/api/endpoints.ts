@@ -29,7 +29,6 @@ export const ApiEndpoints = {
 
   // ── Map ──
   mapConfig: () => '/map/config',
-  aroundPlace: () => '/map/v1/getaroundplacedata',
 
   // ── Event map ──
   // Only the manifest is listed. The snapshot URL is formed server-side and

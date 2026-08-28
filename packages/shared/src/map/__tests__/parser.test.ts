@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import { parseMapConfig, parseMarkerData } from '../parser';
+import { DEFAULT_CAMERA_DEFAULTS } from '../defaults';
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({
   meta: { code: 200 },
@@ -233,5 +234,225 @@ describe('parseMarkerData — tap and window', () => {
     // would both fail and the marker would silently never draw.
     const out = parseMarkerData(envelope({ markers: [marker({ startAt: 'soon' })] }));
     expect(out[0]?.startAt).toBeNull();
+  });
+});
+
+describe('parseMapConfig — chipGroupId, the group a chip may swap a layer within', () => {
+  it('keeps a declared group verbatim', () => {
+    expect(parseLayers({ chipGroupId: 'eskara26' }).chipGroupId).toBe('eskara26');
+  });
+
+  it('parses an absent group to null, so no chip may change the layer', () => {
+    // The safe direction for a server predating the field: `null` is the
+    // server's own meaningful value, not an omission.
+    expect(parseLayers({}).chipGroupId).toBeNull();
+    expect(parseLayers({ chipGroupId: null }).chipGroupId).toBeNull();
+    expect(parseLayers({ chipGroupId: '' }).chipGroupId).toBeNull();
+    expect(parseLayers({ chipGroupId: 7 }).chipGroupId).toBeNull();
+  });
+});
+
+describe('parseMapConfig — the marker geometry that used to be hardcoded', () => {
+  it('reads every style member the server sends', () => {
+    const style = parseLayers({
+      style: { color: 'F04452', width: 22, height: 30, size: 16, captionTextSize: 9, zIndex: 100000 },
+    }).style;
+    expect(style).toEqual({
+      color: 'F04452',
+      outlineColor: undefined,
+      width: 22,
+      height: 30,
+      size: 16,
+      captionTextSize: 9,
+      zIndex: 100000,
+    });
+  });
+});
+
+describe('parseMapConfig — a malformed style value falls back rather than becoming NaN', () => {
+  it('drops a non-numeric geometry value to undefined', () => {
+    // `Number('16px')` is NaN, and `NaN ?? PIN_WIDTH` is NaN — so the component
+    // fallback never fires and the marker draws at width NaN with a React key
+    // of `...-NaN`. These values drive real geometry now, so the parser has to
+    // be as strict here as it already is for coordinates.
+    const style = parseLayers({
+      style: { width: '16px', height: true, size: {}, captionTextSize: [], zIndex: null },
+    }).style;
+    expect(style).toEqual({
+      color: undefined,
+      outlineColor: undefined,
+      width: undefined,
+      height: undefined,
+      size: undefined,
+      captionTextSize: undefined,
+      zIndex: undefined,
+    });
+  });
+
+  it('still accepts a number that arrived as a numeric string', () => {
+    expect(parseLayers({ style: { size: '16' } }).style?.size).toBe(16);
+  });
+});
+
+describe('parseMapConfig — cameraDefaults', () => {
+  const parseDefaults = (raw: unknown) =>
+    parseMapConfig(envelope({ cameraDefaults: raw })).cameraDefaults;
+
+  it('reads what the server sends', () => {
+    expect(
+      parseDefaults({
+        markerFocus: { zoom: 18, tilt: 30, bearing: 90, durationMs: 700 },
+        campusFocus: { durationMs: 250 },
+      }),
+    ).toEqual({
+      markerFocus: { zoom: 18, tilt: 30, bearing: 90, durationMs: 700 },
+      campusFocus: { durationMs: 250 },
+    });
+  });
+
+  it('falls back member by member, so a partial object cannot produce NaN', () => {
+    const out = parseDefaults({ markerFocus: { zoom: 18 } });
+    expect(out.markerFocus.zoom).toBe(18);
+    expect(out.markerFocus.durationMs).toBe(DEFAULT_CAMERA_DEFAULTS.markerFocus.durationMs);
+    expect(out.campusFocus).toEqual(DEFAULT_CAMERA_DEFAULTS.campusFocus);
+  });
+
+  it('falls back entirely when a server does not send the field', () => {
+    expect(parseMapConfig(envelope({})).cameraDefaults).toEqual(DEFAULT_CAMERA_DEFAULTS);
+  });
+});
+
+describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
+  const chip = (over: Record<string, unknown> = {}) => ({
+    id: 'eskara26_view_stage',
+    label: '공연',
+    icon: { kind: 'emoji', emoji: '\u{1F3A4}' },
+    action: {
+      kind: 'focus',
+      camera: { lat: 37.295129, lng: 126.971234, zoom: 17.5, tilt: 0, bearing: 0, durationMs: 500 },
+      layerIds: ['eskara26_stage'],
+    },
+    ...over,
+  });
+  const parseChips = (raw: unknown[]) => parseMapConfig(envelope({ chips: raw })).chips;
+
+  it('parses a focus chip whole', () => {
+    expect(parseChips([chip()])[0]).toEqual({
+      id: 'eskara26_view_stage',
+      label: '공연',
+      icon: { kind: 'emoji', emoji: '\u{1F3A4}' },
+      action: {
+        kind: 'focus',
+        camera: { lat: 37.295129, lng: 126.971234, zoom: 17.5, tilt: 0, bearing: 0, durationMs: 500 },
+        layerIds: ['eskara26_stage'],
+      },
+    });
+  });
+
+  it('parses a webview chip', () => {
+    const out = parseChips([
+      chip({ action: { kind: 'webview', url: 'https://webview.skkuverse.com/skku/lostandfound' } }),
+    ]);
+    expect(out[0]?.action).toEqual({
+      kind: 'webview',
+      url: 'https://webview.skkuverse.com/skku/lostandfound',
+    });
+  });
+
+  it('drops a chip whose action kind this build cannot route', () => {
+    // The opposite call from parseMarkerTap, deliberately. A marker is a place
+    // that also happens to be tappable, so an unroutable one stays drawn; a chip
+    // IS its action, so an unroutable one is a button that visibly does nothing.
+    expect(parseChips([chip({ action: { kind: 'nearby', origin: 'device', radiusM: 200 } })])).toEqual([]);
+  });
+
+  it('drops a focus chip whose camera has no usable coordinate', () => {
+    const noCoord = { kind: 'focus', camera: { zoom: 17.5 }, layerIds: [] };
+    expect(parseChips([chip({ action: noCoord })])).toEqual([]);
+  });
+
+  it('drops a focus chip whose coordinates are swapped', () => {
+    // Seoul's longitude is 126.97, so a swapped pair fails |lat| <= 90.
+    const swapped = {
+      kind: 'focus',
+      camera: { lat: 126.971234, lng: 37.295129, zoom: 17.5, tilt: 0, bearing: 0, durationMs: 500 },
+      layerIds: [],
+    };
+    expect(parseChips([chip({ action: swapped })])).toEqual([]);
+  });
+
+  it('drops a webview chip with no url', () => {
+    expect(parseChips([chip({ action: { kind: 'webview', url: '' } })])).toEqual([]);
+  });
+
+  it('drops a chip with no id or no label, which could only render blank', () => {
+    expect(parseChips([chip({ id: '' })])).toEqual([]);
+    expect(parseChips([chip({ label: '' })])).toEqual([]);
+  });
+
+  it('keeps the camera-only chip, whose empty layerIds are meaningful', () => {
+    const out = parseChips([chip({ action: { ...chip().action, layerIds: [] } })]);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.action).toMatchObject({ kind: 'focus', layerIds: [] });
+  });
+
+  it('narrows icon to null rather than dropping the chip', () => {
+    // `null` was declared before it was reachable, so a text-only chip can
+    // arrive without a coordinated release. One branch, not a dropped button.
+    expect(parseChips([chip({ icon: null })])[0]?.icon).toBeNull();
+    expect(parseChips([chip({ icon: { kind: 'lottie', url: 'x' } })])[0]?.icon).toBeNull();
+    expect(parseChips([chip({ icon: { kind: 'emoji', emoji: '' } })])[0]?.icon).toBeNull();
+  });
+
+  it('drops only the bad chip, keeping its neighbours', () => {
+    const out = parseChips([chip({ id: 'a' }), chip({ id: '' }), chip({ id: 'b' })]);
+    expect(out.map((c) => c.id)).toEqual(['a', 'b']);
+  });
+
+  it('answers an empty list for a server that sends no chips at all', () => {
+    expect(parseMapConfig(envelope({})).chips).toEqual([]);
+  });
+
+  it('fills a missing camera motion member from the defaults', () => {
+    const bare = { kind: 'focus', camera: { lat: 37.29, lng: 126.97 }, layerIds: [] };
+    const out = parseChips([chip({ action: bare })]);
+    expect(out[0]?.action).toMatchObject({
+      kind: 'focus',
+      camera: { ...DEFAULT_CAMERA_DEFAULTS.markerFocus, lat: 37.29, lng: 126.97 },
+    });
+  });
+
+  it("fills it from the RESPONSE's camera defaults, not the bundled ones", () => {
+    // Otherwise a server that raises markerFocus.zoom ships a chip omitting
+    // `zoom` that focuses at the old value — which is exactly the "a chip's
+    // camera and a marker-tap camera disagree about how close close is" failure
+    // cameraDefaults was added to remove.
+    const out = parseMapConfig(
+      envelope({
+        cameraDefaults: { markerFocus: { zoom: 18, tilt: 0, bearing: 0, durationMs: 900 } },
+        chips: [
+          chip({
+            action: { kind: 'focus', camera: { lat: 37.29, lng: 126.97 }, layerIds: [] },
+          }),
+        ],
+      }),
+    ).chips;
+    expect(out[0]?.action).toMatchObject({
+      kind: 'focus',
+      camera: { zoom: 18, durationMs: 900 },
+    });
+  });
+
+  it('drops a focus chip whose layerIds are not an array', () => {
+    // `[]` is the spelling for the camera-only chip, so a null or a string is a
+    // contract violation rather than a second way to say it. Coercing it to `[]`
+    // would turn a server bug into a chip that moves the camera and silently
+    // changes nothing, with no signal anywhere.
+    for (const layerIds of [null, 'eskara26_stage', 3, {}]) {
+      expect(parseChips([chip({ action: { ...chip().action, layerIds } })])).toEqual([]);
+    }
+    expect(parseChips([chip({ action: { kind: 'focus', camera: chip().action.camera } })])).toEqual(
+      [],
+    );
   });
 });

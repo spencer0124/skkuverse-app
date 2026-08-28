@@ -22,7 +22,20 @@
  * Flutter source: lib/features/campus_map/data/mock/map_config_mock.dart
  */
 
-import type { MapConfig } from '../types/map';
+import type { MapCameraDefaults, MapConfig } from '../types/map';
+
+/**
+ * The camera settings a server predating `cameraDefaults` does not send.
+ *
+ * These are the literals `CampusScreen` used to repeat at three call sites,
+ * kept in one place so the fallback and the wire cannot disagree about how
+ * close "close" is. `parseMapConfig` fills member by member from here, so a
+ * partial object on the wire cannot produce a NaN zoom.
+ */
+export const DEFAULT_CAMERA_DEFAULTS: MapCameraDefaults = {
+  markerFocus: { zoom: 17.5, tilt: 0, bearing: 0, durationMs: 500 },
+  campusFocus: { durationMs: 500 },
+};
 
 export const DEFAULT_MAP_CONFIG: MapConfig = {
   naver: {},
@@ -55,6 +68,7 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       endpoint: '/map/markers/campus',
       markerStyle: 'numberCircle',
       userConfigurable: true,
+      chipGroupId: null,
     },
     {
       id: 'building_labels',
@@ -64,6 +78,14 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       endpoint: '/map/markers/campus',
       markerStyle: 'textLabel',
       userConfigurable: true,
+      chipGroupId: null,
     },
   ],
+  // Empty rather than a mirror of the chips the server happens to serve today.
+  // Every chip that exists is festival-gated or points at a web page, and both
+  // are things this fallback cannot know are still true — an offline start gets
+  // no chip row, which is honest, instead of a row of buttons that may lead
+  // nowhere.
+  chips: [],
+  cameraDefaults: DEFAULT_CAMERA_DEFAULTS,
 };

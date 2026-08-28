@@ -384,6 +384,10 @@ export type CampusContentType =
   | 'quick_action_lost_found'
   | 'filter_sheet_campus_pill'
   | 'building_desc_expand'
+  // One event per tap, carrying the chip id. Deliberately NOT accompanied by a
+  // `logLayerToggle` per layer the chip switched: one tap would emit five layer
+  // events and drown the signal the user actually gave.
+  | 'map_chip'
   | 'eventmap_chip'
   | 'eventmap_filter_chip'
   | 'eventmap_sort'

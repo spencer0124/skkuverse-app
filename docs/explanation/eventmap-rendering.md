@@ -514,8 +514,11 @@ Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issu
 > (`GET /map/markers/eskara26`, six `placeDot` layers in `/map/config`), so `MapMarkerLayer` draws
 > them and `EventMapPinLayer` is unmounted — leaving both would have drawn every booth twice. The
 > chip row went with it, because chips filter snapshot *items* and cannot reach a marker that came
-> from a layer endpoint. The snapshot is still fetched for the peek sheet's card templates and for
-> the `placeId → stack` lookup behind a booth tap. Sections 6 and 8 above still describe the pin
+> from a layer endpoint. What sits in that spot now is a **different contract**: `/map/config`
+> serves its own chips, which carry an action and a layer set rather than a predicate, and act on
+> the layers themselves — see
+> [map-config-api-spec.md](../reference/map-config-api-spec.md). The snapshot is still fetched for
+> the peek sheet's card templates and for the `placeId → stack` lookup behind a booth tap. Sections 6 and 8 above still describe the pin
 > layer as it was built; they are history until the retirement in §9 finishes.
 > The marker contract is `skkuverse-server/docs/reference/map-markers-api.md`.
 

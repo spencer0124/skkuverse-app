@@ -11,6 +11,12 @@ import type {
   MapConfig,
   NaverConfig,
   CampusDef,
+  MapCameraDefaults,
+  MapCameraMotion,
+  MapChip,
+  MapChipAction,
+  MapChipCamera,
+  MapChipIcon,
   MapLayerDef,
   MapLayerStyle,
   RawMarkerData,
@@ -19,6 +25,7 @@ import type {
 } from '../types/map';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { CAMPUSES } from '../constants/campus';
+import { DEFAULT_CAMERA_DEFAULTS } from './defaults';
 
 const LAYER_TYPES = ['marker', 'polyline'] as const;
 const MARKER_STYLES = [
@@ -32,6 +39,11 @@ const MARKER_STYLES = [
  * marker drawn but inert — see parseMarkerTap.
  */
 const TAP_KINDS = ['skku_building', 'eskara26'] as const;
+/**
+ * The chip actions this build can dispatch. A kind outside the set drops the
+ * whole chip — see parseChip.
+ */
+const CHIP_ACTION_KINDS = ['webview', 'focus'] as const;
 
 // ── Internal helpers ──
 
@@ -64,14 +76,23 @@ function parseCampusDef(raw: Record<string, unknown>): CampusDef | null {
   };
 }
 
+/**
+ * `toFiniteNumber` rather than `Number()`, for the same reason a coordinate
+ * uses it: `Number('16px')`, `Number(true)` and `Number({})` are all `NaN`, and
+ * `NaN ?? PIN_WIDTH` is `NaN` — so the component's fallback never fires and the
+ * marker draws at width NaN with a React key of `...-NaN`. These members drive
+ * real geometry now, so "a server sending none of them renders exactly as one
+ * that never had them" has to hold for a server sending a bad one too.
+ */
 function parseLayerStyle(raw: Record<string, unknown>): MapLayerStyle {
   return {
     color: (raw.color as string) ?? undefined,
     outlineColor: (raw.outlineColor as string) ?? undefined,
-    width: raw.width != null ? Number(raw.width) : undefined,
-    size: raw.size != null ? Number(raw.size) : undefined,
-    captionTextSize:
-      raw.captionTextSize != null ? Number(raw.captionTextSize) : undefined,
+    width: toFiniteNumber(raw.width) ?? undefined,
+    height: toFiniteNumber(raw.height) ?? undefined,
+    size: toFiniteNumber(raw.size) ?? undefined,
+    captionTextSize: toFiniteNumber(raw.captionTextSize) ?? undefined,
+    zIndex: toFiniteNumber(raw.zIndex) ?? undefined,
   };
 }
 
@@ -91,16 +112,162 @@ function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
     // not silently strip every toggle off the filter sheet. Only an explicit
     // `false` locks the control.
     userConfigurable: raw.userConfigurable === false ? false : true,
+    // Absent means `null`, which is the server's own meaningful value: a layer
+    // no chip may ever change. Fails in the safe direction, so a server
+    // predating the field cannot have its base layers swapped by a chip.
+    chipGroupId:
+      typeof raw.chipGroupId === 'string' && raw.chipGroupId !== ''
+        ? raw.chipGroupId
+        : null,
     style: raw.style
       ? parseLayerStyle(raw.style as Record<string, unknown>)
       : undefined,
   };
 }
 
+/**
+ * A finite number, or the fallback. `toFiniteNumber` rather than `Number()`
+ * because `Number(null)` is 0 — a zoom of 0 is the whole planet and a duration
+ * of 0 is a teleport, and neither is what "the server did not say" means.
+ */
+function motionMember(raw: unknown, fallback: number): number {
+  return toFiniteNumber(raw) ?? fallback;
+}
+
+function parseCameraMotion(
+  raw: unknown,
+  fallback: MapCameraMotion,
+): MapCameraMotion {
+  const m = (raw ?? {}) as Record<string, unknown>;
+  return {
+    zoom: motionMember(m.zoom, fallback.zoom),
+    tilt: motionMember(m.tilt, fallback.tilt),
+    bearing: motionMember(m.bearing, fallback.bearing),
+    durationMs: motionMember(m.durationMs, fallback.durationMs),
+  };
+}
+
+function parseCameraDefaults(raw: unknown): MapCameraDefaults {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  const campusFocus = (d.campusFocus ?? {}) as Record<string, unknown>;
+  return {
+    markerFocus: parseCameraMotion(
+      d.markerFocus,
+      DEFAULT_CAMERA_DEFAULTS.markerFocus,
+    ),
+    campusFocus: {
+      durationMs: motionMember(
+        campusFocus.durationMs,
+        DEFAULT_CAMERA_DEFAULTS.campusFocus.durationMs,
+      ),
+    },
+  };
+}
+
+/**
+ * Narrow a chip icon, or `null`.
+ *
+ * `null` is a declared state rather than a failure — a text-only chip is an
+ * ordinary thing to want — so an unrecognised icon degrades to it instead of
+ * dropping the chip. The label is what the chip is; the mark beside it is not.
+ */
+function parseChipIcon(raw: unknown): MapChipIcon | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const icon = raw as Record<string, unknown>;
+  if (icon.kind !== 'emoji') return null;
+  return typeof icon.emoji === 'string' && icon.emoji !== ''
+    ? { kind: 'emoji', emoji: icon.emoji }
+    : null;
+}
+
+/**
+ * A chip camera, or `null` when it names no usable position.
+ *
+ * The motion members fall back to the RESPONSE's own `markerFocus`, not to the
+ * bundled default — a server that raises the marker zoom and ships a chip
+ * omitting `zoom` must not have that chip focus at the old value, which is the
+ * very disagreement `cameraDefaults` exists to remove. The coordinate does not
+ * fall back at all: there is
+ * no sensible default position for a thing whose whole purpose is to name one,
+ * and the |lat| <= 90 guard is the same swap check parseMarkerData applies —
+ * Seoul's longitude is 126.97, so a swapped pair fails it.
+ */
+function parseChipCamera(
+  raw: unknown,
+  fallback: MapCameraMotion,
+): MapChipCamera | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const cam = raw as Record<string, unknown>;
+  const lat = toFiniteNumber(cam.lat);
+  const lng = toFiniteNumber(cam.lng);
+  if (lat === null || lng === null) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng, ...parseCameraMotion(cam, fallback) };
+}
+
+function parseChipAction(
+  raw: unknown,
+  cameraFallback: MapCameraMotion,
+): MapChipAction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const action = raw as Record<string, unknown>;
+  const kind = asMember(action.kind, CHIP_ACTION_KINDS);
+  if (!kind) return null;
+
+  if (kind === 'webview') {
+    const url = action.url;
+    if (typeof url !== 'string' || url === '') return null;
+    return { kind, url };
+  }
+
+  const camera = parseChipCamera(action.camera, cameraFallback);
+  if (!camera) return null;
+
+  // A non-array drops the chip rather than coercing to `[]`. `[]` is already the
+  // spelling for the camera-only chip, so a `null` or a string is a contract
+  // violation and not a second way to say the same thing — and coercing it would
+  // turn a server bug into a chip that moves the camera and silently changes
+  // nothing, with no signal anywhere.
+  if (!Array.isArray(action.layerIds)) return null;
+  // Entries are filtered rather than trusted: a non-string id would reach the
+  // group resolution and match no layer, which is survivable and not worth
+  // dropping a whole chip over.
+  const layerIds = action.layerIds.filter(
+    (id): id is string => typeof id === 'string' && id !== '',
+  );
+  return { kind, camera, layerIds };
+}
+
+/**
+ * A chip, or `null`.
+ *
+ * Dropped rather than kept inert, which is deliberately the opposite call from
+ * `parseMarkerTap`: a marker is a *place* that also happens to be tappable, so
+ * an unroutable one is still worth drawing, while a chip *is* its action — an
+ * unroutable chip is a button that visibly does nothing, and a missing button
+ * is better than a dead one.
+ */
+function parseChip(
+  raw: Record<string, unknown>,
+  cameraFallback: MapCameraMotion,
+): MapChip | null {
+  const id = raw.id;
+  const label = raw.label;
+  if (typeof id !== 'string' || id === '') return null;
+  // A chip renders as its label. Without one there is nothing to press.
+  if (typeof label !== 'string' || label === '') return null;
+  const action = parseChipAction(raw.action, cameraFallback);
+  if (!action) return null;
+  return { id, label, icon: parseChipIcon(raw.icon), action };
+}
+
 // ── Public parsers ──
 
 export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
   const data = envelope.data as Record<string, unknown>;
+  // Parsed before the chips, because a chip's own camera fills its missing
+  // members from `markerFocus` — the two must not be able to disagree.
+  const cameraDefaults = parseCameraDefaults(data.cameraDefaults);
   return {
     naver: parseNaverConfig(
       (data.naver as Record<string, unknown>) ?? {},
@@ -111,6 +278,12 @@ export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
     layers: ((data.layers as unknown[]) ?? []).map((l) =>
       parseLayerDef(l as Record<string, unknown>),
     ),
+    chips: ((data.chips as unknown[]) ?? [])
+      .map((c) =>
+        parseChip((c ?? {}) as Record<string, unknown>, cameraDefaults.markerFocus),
+      )
+      .filter((c): c is MapChip => c !== null),
+    cameraDefaults,
   };
 }
 

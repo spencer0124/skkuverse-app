@@ -32,6 +32,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import { XIcon } from 'phosphor-react-native';
 import {
+  isLayerVisible,
   useMapLayerStore,
   useT,
   type Campus,
@@ -227,10 +228,12 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
               // so an older server loses nothing.
               .filter((layer) => layer.userConfigurable !== false)
               .map((layer) => {
-                // The same expression CampusScreen renders with, which is what
+                // The same function CampusScreen renders with, which is what
                 // keeps this control honest — it once read `layers[id]?.visible`
-                // alone and showed 건물번호 ON while the map was hiding it.
-                const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
+                // alone and showed 건물번호 ON while the map was hiding it. It is
+                // one function rather than a repeated expression for exactly
+                // that reason.
+                const visible = isLayerVisible(layer, layers);
                 return (
                   <View key={layer.id} style={styles.col}>
                     <MapTile

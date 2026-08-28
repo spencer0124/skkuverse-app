@@ -1,53 +1,48 @@
 /**
- * Campus quick-category chips, floating under the search bar.
+ * The map's chip row — server-driven quick actions, floating under the campus
+ * controls.
  *
- * MOCK: the chip list is hardcoded here on purpose. There is no server contract
- * for campus POI categories yet — `/map/config` ships only `building_numbers`
- * and `building_labels` — so this is a UI shell to iterate on, not a feature.
- * When the endpoint lands, `CAMPUS_CHIPS` is what gets deleted; nothing else in
- * this file assumes the data is local. Labels are hardcoded Korean rather than
- * `useT()` keys for the same reason: an i18n key per mock chip is churn that
- * gets thrown away with the mock.
+ * A layer answers *what is drawn*. A chip answers *where should I be looking,
+ * and what should be on while I look there*. Both come from `/map/config`, and
+ * this component renders a pill and reports the tap; it does not interpret the
+ * action. What a chip does lives at the call site, and what a `focus` chip does
+ * to layer visibility lives in `@skkuverse/shared`'s `map/chips.ts`.
+ *
+ * This replaced a hardcoded 학식/카페/편의점 mock whose own header said the list
+ * "is what gets deleted" when an endpoint landed. It has.
+ *
+ * **No `selected` prop is passed, on purpose.** A chip's tap sets a whole
+ * group's visibility, so a lit pill would be claiming to describe state that
+ * the filter sheet can change out from under it. Instead this row is REPLACED
+ * by `ActiveChipStrip` once the map is narrowed to a chip's view, and that
+ * strip can simply stop naming one. The two share `GlassChip`'s metrics so the
+ * swap does not change the band's height.
  *
  * A horizontal ScrollView, unlike `EventMapChipRow`'s wrapping row, which
  * documents its refusal of one. Both are right for their case. That row carries
  * a couple of one-tap event toggles and can afford to stay content-sized, so it
  * claims no touch area it does not draw into. This row is the Naver-Maps
  * category strip — the overflow off the right edge IS the affordance telling
- * you there are more categories — and that needs a real scroller. The cost is a
- * band the map cannot be panned through; it is bounded to the chip height, sits
- * directly under the search bar (already a dead band), and is the same trade
- * Naver Maps itself makes.
+ * you there are more — and that needs a real scroller. The cost is a band the
+ * map cannot be panned through; it is bounded to the chip height, sits directly
+ * under the control row, and is the same trade Naver Maps itself makes.
  */
 
-import { useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
+import type { MapChip } from '@skkuverse/shared';
 import { GlassChip } from '@/components/glass';
 
-interface CampusChip {
-  id: string;
-  /** Tossface emoji — coloured mark, matching the reference's icon chips. */
-  emoji: string;
-  label: string;
+interface CampusChipRowProps {
+  chips: MapChip[];
+  onPress: (chip: MapChip) => void;
 }
 
-const CAMPUS_CHIPS: readonly CampusChip[] = [
-  { id: 'cafeteria', emoji: '\u{1F35A}', label: '학식' },
-  { id: 'cafe', emoji: '\u{2615}', label: '카페' },
-  { id: 'convenience', emoji: '\u{1F3EA}', label: '편의점' },
-  { id: 'reading_room', emoji: '\u{1F4D6}', label: '열람실' },
-  { id: 'printer', emoji: '\u{1F5A8}', label: '프린터' },
-  { id: 'restroom', emoji: '\u{1F6BB}', label: '화장실' },
-  { id: 'atm', emoji: '\u{1F3E7}', label: 'ATM' },
-  { id: 'shuttle', emoji: '\u{1F68C}', label: '셔틀' },
-];
-
-export function CampusChipRow() {
-  // Single-select, and local. Single because these read as "what am I looking
-  // for right now" rather than as accumulating filters — the reference outlines
-  // exactly one. Local because a mock must not write to `useMapLayerStore`,
-  // which is persisted: a category id from a throwaway UI would outlive it.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export function CampusChipRow({ chips, onPress }: CampusChipRowProps) {
+  // Nothing rather than an empty scroller. The control column spaces its
+  // children with a gap, so a zero-height row would still leave a hole — and an
+  // empty list is the ordinary state off a festival, and the whole state when
+  // the config request failed and `DEFAULT_MAP_CONFIG` took over.
+  if (!chips.length) return null;
 
   return (
     <ScrollView
@@ -59,15 +54,17 @@ export function CampusChipRow() {
       // its own bounds on Android without this.
       keyboardShouldPersistTaps="handled"
     >
-      {CAMPUS_CHIPS.map((chip) => (
+      {chips.map((chip) => (
         <GlassChip
           key={chip.id}
           label={chip.label}
-          selected={chip.id === selectedId}
-          icon={<Text style={styles.emoji}>{chip.emoji}</Text>}
-          // Tapping the selected chip clears it, so there is always a way back
-          // to the unfiltered map without hunting for a reset control.
-          onPress={() => setSelectedId((prev) => (prev === chip.id ? null : chip.id))}
+          // `icon` is nullable on the wire before anything sends null: the
+          // server declared a text-only chip reachable so one can arrive
+          // without a coordinated release, and this is the branch that costs.
+          icon={
+            chip.icon ? <Text style={styles.emoji}>{chip.icon.emoji}</Text> : undefined
+          }
+          onPress={() => onPress(chip)}
         />
       ))}
     </ScrollView>

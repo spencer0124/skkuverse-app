@@ -131,6 +131,12 @@ export { hexToColor, isBusGroupVisible } from './types/bus';
 export type {
   NaverConfig,
   CampusDef,
+  MapCameraDefaults,
+  MapCameraMotion,
+  MapChip,
+  MapChipAction,
+  MapChipCamera,
+  MapChipIcon,
   MapLayerStyle,
   MapLayerDef,
   MapConfig,
@@ -204,7 +210,14 @@ export {
   parseMarkerData,
   parsePolylineData,
   DEFAULT_MAP_CONFIG,
+  DEFAULT_CAMERA_DEFAULTS,
+  findNarrowedChip,
+  isChipGroupAtDefaults,
+  isLayerVisible,
+  resolveChipGroupDefaults,
+  resolveChipLayerVisibility,
 } from './map';
+export type { LayerVisibilityStates } from './map';
 
 // ── Event map ──
 export type {

@@ -203,6 +203,10 @@ const ko = {
   'map.locate': '내 위치',
   'map.locate.face': '내 위치 및 방향',
   'map.compass': '정북으로 회전',
+  // The accessibility label on the active-chip strip's clear control. Says what
+  // it does to the map, not what it does to the strip: the strip disappearing
+  // is the effect, restoring the layer group is the action.
+  'map.chip.clear': '전체 보기로 돌아가기',
   // 캠퍼스 제안 카드. {0}은 서버가 주는 캠퍼스 이름(CampusDef.label)이라 여기 적지 않는다.
   // 조사는 두 캠퍼스가 모두 '캠'으로 끝나 '을'/'이에요'로 고정된다. 이름이
   // 받침 없는 값으로 바뀌면 조사도 같이 봐야 한다.
@@ -693,6 +697,7 @@ const en: TranslationMap = {
   'map.locate': 'My location',
   'map.locate.face': 'My location and heading',
   'map.compass': 'Rotate to north',
+  'map.chip.clear': 'Back to the full view',
   'map.campus.suggest.switch': "You're looking at {0}",
   'map.campus.suggest.show': 'Nearest campus is {0}',
   'map.campus.suggest.actionSwitch': 'Switch',
@@ -1175,6 +1180,7 @@ const zh: TranslationMap = {
   'map.locate': '我的位置',
   'map.locate.face': '我的位置和方向',
   'map.compass': '转向正北',
+  'map.chip.clear': '返回完整视图',
   'map.campus.suggest.switch': '正在查看{0}',
   'map.campus.suggest.show': '最近的校区是{0}',
   'map.campus.suggest.actionSwitch': '切换',

@@ -39,9 +39,15 @@ export interface CampusDef {
 export interface MapLayerStyle {
   color?: string; // hex without #
   outlineColor?: string;
+  /** Pin width in points. Was MapMarkerLayer's PIN_WIDTH. */
   width?: number;
+  /** Pin height in points. Was PIN_HEIGHT. */
+  height?: number;
+  /** Circle diameter in points. Was DOT_SIZE. */
   size?: number;
   captionTextSize?: number;
+  /** Draw order against other overlays. Was the label layer's globalZIndex. */
+  zIndex?: number;
 }
 
 export interface MapLayerDef {
@@ -68,6 +74,117 @@ export interface MapLayerDef {
    * underneath it.
    */
   userConfigurable?: boolean;
+  /**
+   * Which exclusivity group a chip may swap this layer within, or `null` for a
+   * layer no chip may ever change.
+   *
+   * **Not optional, and `null` is the meaningful value rather than an absence.**
+   * A server predating the field parses to `null`, which fails in the safe
+   * direction: an unknown layer is one no chip touches, so nothing is swapped
+   * out from under the user.
+   *
+   * Declared by the server, never inferred from `endpoint`. The two agree today
+   * — layers sharing a data source share a URL — but `endpoint` is a *cache*
+   * key, so merging or splitting a route for network reasons would silently
+   * redraw the chip boundaries, and the symptom would have no line of code to
+   * blame.
+   */
+  chipGroupId: string | null;
+}
+
+// ── Chips (server-driven map actions) ──
+
+/**
+ * How a camera moves, with no target.
+ *
+ * Split from `MapChipCamera` because a chip and a marker-focus default want the
+ * same four values and differ only in whether they carry their own coordinate:
+ * a chip names where to go, `cameraDefaults.markerFocus` is applied to whatever
+ * the user just tapped.
+ *
+ * The client cannot honour all four at once, and that is a limit of the map SDK
+ * rather than of the schema — see `features/map/utils/moveCamera.ts`, which is
+ * the one place that picks a mechanism.
+ */
+export interface MapCameraMotion {
+  zoom: number;
+  /** Degrees from vertical. 0 is straight down, which is the ordinary case. */
+  tilt: number;
+  /** Heading in degrees, 0 = north, clockwise. */
+  bearing: number;
+  durationMs: number;
+}
+
+/** A camera motion that names its own target. */
+export interface MapChipCamera extends MapCameraMotion {
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Tagged, so a second icon kind (a remote image, an SF Symbol) can arrive
+ * without the emoji case having to grow a discriminating field of its own.
+ */
+export type MapChipIcon = { kind: 'emoji'; emoji: string };
+
+/**
+ * What a chip tap resolves to.
+ *
+ * A chip answers "where should I be looking, and what should be on while I look
+ * there", which is why it carries an action and a layer *set* rather than the
+ * flat `actionType` + `actionValue: string` pair the home screen's SDUI uses:
+ * that pair cannot carry a camera.
+ */
+export type MapChipAction =
+  | { kind: 'webview'; url: string }
+  | {
+      kind: 'focus';
+      camera: MapChipCamera;
+      /**
+       * The layers this chip switches ON, and — through their shared
+       * `chipGroupId` — the set it switches OFF. **"Within this group, set
+       * exactly these", not "turn these on".**
+       *
+       * An EMPTY array is the camera-only chip: no group resolves, so no
+       * visibility changes. That is why this is not nullable — `[]` already
+       * says it, and a second spelling for the same state is a second thing to
+       * get wrong.
+       *
+       * The resolution lives in `map/chips.ts`, not at a call site.
+       */
+      layerIds: string[];
+    };
+
+export interface MapChip {
+  id: string;
+  /** Already localised, the way a layer label is. */
+  label: string;
+  /**
+   * `null` is declared before it is reachable. Every chip served today carries
+   * an emoji, but widening a non-nullable field later breaks every client
+   * already narrowed to the non-null type, and a text-only chip is an ordinary
+   * thing to want.
+   */
+  icon: MapChipIcon | null;
+  action: MapChipAction;
+}
+
+/**
+ * Camera settings for the moves the app makes on its own, as opposed to the
+ * ones a chip asks for.
+ *
+ * These were constants repeated at three call sites in `CampusScreen`, which
+ * meant a chip's camera and a marker-tap camera were configured in two
+ * different places and could disagree about how close "close" is.
+ */
+export interface MapCameraDefaults {
+  /** Focusing a tapped marker, a search result, or a deep link. */
+  markerFocus: MapCameraMotion;
+  /**
+   * Switching campus. Only the duration lives here: the zoom, tilt and bearing
+   * are per-campus and already sit on `CampusDef`.
+   */
+  campusFocus: { durationMs: number };
 }
 
 // ── Aggregate config from GET /map/config ──
@@ -76,6 +193,13 @@ export interface MapConfig {
   naver: NaverConfig;
   campuses: CampusDef[];
   layers: MapLayerDef[];
+  /**
+   * Chips ride inside this document rather than an endpoint of their own so a
+   * chip's `layerIds` cannot disagree with the layer list on the wire — there
+   * is no window in which the app holds fresh chips and stale layers.
+   */
+  chips: MapChip[];
+  cameraDefaults: MapCameraDefaults;
 }
 
 // ── Marker data from layer endpoints ──

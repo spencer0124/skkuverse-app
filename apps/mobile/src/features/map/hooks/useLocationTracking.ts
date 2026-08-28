@@ -66,7 +66,17 @@ export function useLocationTracking(
    */
   const bearing = useSharedValue(0);
 
-  /** Last camera the map reported. Feeds `resetNorth`, which needs a position. */
+  /**
+   * Last camera the map reported.
+   *
+   * Two readers: `resetNorth`, which needs a position to rotate around, and
+   * `moveCamera` on the screen, which needs the current ATTITUDE to decide
+   * whether a move can go through the imperative method at all.
+   *
+   * A ref rather than state, because `onCameraChanged` fires continuously
+   * through a drag and re-rendering this screen on every frame of every pan is
+   * exactly what the shared value beside it exists to avoid.
+   */
   const lastCamera = useRef<Camera | null>(null);
 
   /** Guards against a second permission prompt while the first is still open. */
@@ -116,12 +126,19 @@ export function useLocationTracking(
    * it (`RNCNaverMapViewImpl.mm:177-190` reads `bearing` and animates), so the
    * bearing is only reachable that way.
    *
-   * Each reset stores a fresh object, so React sends the prop and the map
-   * animates. Between resets the value is untouched, so it is never re-sent and
-   * the four imperative `animateCameraTo` call sites on this screen keep working
+   * Each write stores a fresh object, so React sends the prop and the map
+   * animates. Between writes the value is untouched, so it is never re-sent and
+   * the imperative `animateCameraTo` call sites on this screen keep working
    * exactly as before — the map is not actually controlled, it just occasionally
    * receives an order. It starts undefined so `initialCamera` still applies on
    * the first render.
+   *
+   * There are now TWO producers: `resetNorth` here, and `moveCamera` on the
+   * screen, which routes a tilted or rotated camera this way because
+   * `animateCameraTo` carries neither. The setter is returned as
+   * `commandCamera` for that second one. They cannot race — each is a discrete
+   * user action, and a later write simply supersedes an earlier one, which is
+   * the same thing the SDK would do with two overlapping animations.
    */
   const [cameraCommand, setCameraCommand] = useState<Camera | undefined>(undefined);
 
@@ -227,6 +244,8 @@ export function useLocationTracking(
    * SDK out of `Face`, and `onOptionChanged` reports it. Issuing both would race
    * the SDK's own transition.
    */
+  const getCurrentCamera = useCallback(() => lastCamera.current, []);
+
   const resetNorth = useCallback(() => {
     const cam = lastCamera.current;
     // Nothing reported yet means the map has not settled once; there is no
@@ -242,6 +261,20 @@ export function useLocationTracking(
     permissionGranted,
     requestPermission: ensurePermission,
     cameraCommand,
+    /**
+     * Write the one-shot camera prop directly. The escape hatch for a camera
+     * whose tilt or bearing has to change, which no imperative method on
+     * `NaverMapViewRef` can do.
+     */
+    commandCamera: setCameraCommand,
+    /**
+     * The map's last reported camera, read at call time.
+     *
+     * A getter rather than the ref or a value, so a caller cannot capture a
+     * stale attitude in a memoised callback — the whole point is to ask what the
+     * map is doing *now*.
+     */
+    getCurrentCamera,
     handleOptionChanged,
     handleCameraChanged,
     cycleMode,

@@ -36,8 +36,15 @@ import {
   useEventMap,
   useEventMapStore,
   useT,
+  findNarrowedChip,
+  isLayerVisible,
+  resolveChipGroupDefaults,
+  resolveChipLayerVisibility,
+  DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
+  type MapChip,
+  type MapChipCamera,
   type MarkerTap,
 } from '@skkuverse/shared';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
@@ -49,6 +56,7 @@ import { MapPolylineLayer } from './components/MapPolylineLayer';
 import { SearchBar } from './components/SearchBar';
 import { CampusToggle } from './components/CampusToggle';
 import { CampusChipRow } from './components/CampusChipRow';
+import { ActiveChipStrip } from './components/ActiveChipStrip';
 import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
@@ -63,6 +71,7 @@ import {
   resolveCampusSuggestion,
   type CampusSuggestion,
 } from './utils/campusProximity';
+import { moveCamera } from './utils/moveCamera';
 import {
   useLocationTracking,
   isFacing,
@@ -71,6 +80,7 @@ import {
 import { BuildingDetailSheet } from '@/features/building/components/BuildingDetailSheet';
 import { useMapNavStore } from '@/features/search/store';
 import { pendingMapPlaceLink } from '@/lib/pending-map-place-link';
+import { openWebView } from '@/features/webview/open';
 import {
   logMarkerTap,
   logConnectionTap,
@@ -102,13 +112,18 @@ const PLACE_LINK_ABANDON_MS = 20_000;
 const LOCATE_SHEET_GAP = 12;
 
 /**
- * How long a locate press stays answerable, in ms.
+ * How long an explicit camera request stays answerable, in ms.
  *
- * Covers the camera animation and the first GPS fix with room to spare, and is
- * short enough that a press whose camera never produced a decision cannot
- * silently claim a pan made a minute later.
+ * Two things raise it: a locate press and a chip tap. Both are the user saying
+ * "take me somewhere", so the settle each causes is an answer rather than
+ * drift.
+ *
+ * Sized for the slower of the two — a locate press has to cover the camera
+ * animation AND the first GPS fix — and short enough that a request whose
+ * camera never produced a decision cannot silently claim a pan made a minute
+ * later.
  */
-const LOCATE_RESULT_WINDOW_MS = 6000;
+const EXPLICIT_CAMERA_RESULT_WINDOW_MS = 6000;
 
 /**
  * Sheet snap heights, as percentages of the sheet's container.
@@ -149,6 +164,7 @@ export function CampusScreen() {
   const layers = useMapLayerStore((s) => s.layers);
   const initFromConfig = useMapLayerStore((s) => s.initFromConfig);
   const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
+  const setLayersVisible = useMapLayerStore((s) => s.setLayersVisible);
 
   // ── Building detail state ──
   const [selectedSkkuId, setSelectedSkkuId] = useState<number | null>(null);
@@ -213,11 +229,46 @@ export function CampusScreen() {
     permissionGranted,
     requestPermission,
     cameraCommand,
+    commandCamera,
+    getCurrentCamera,
     handleOptionChanged,
     handleCameraChanged,
     cycleMode,
     resetNorth,
   } = useLocationTracking(mapRef, locationStrings);
+
+  /**
+   * Camera settings for the moves this screen makes on its own.
+   *
+   * Server-driven, so a chip's camera and a marker-tap camera cannot disagree
+   * about how close "close" is. These were three copies of `zoom: 17.5` and
+   * `duration: 500` in this file. Identity is stable — React Query's structural
+   * sharing keeps the object across refetches — so it is safe as a callback
+   * dependency.
+   */
+  const cameraDefaults = mapConfig?.cameraDefaults ?? DEFAULT_CAMERA_DEFAULTS;
+
+  /**
+   * The screen's one camera mover.
+   *
+   * Every move goes through `moveCamera`, which picks between the imperative
+   * method and the declarative prop because neither carries a whole camera —
+   * `animateCameraTo` has no tilt or bearing, the `camera` prop has no
+   * duration. The choice depends on the map's CURRENT attitude, which is why
+   * this reads it at call time rather than closing over a value: a target that
+   * is flat still needs the prop when the map is rotated, or the move arrives
+   * still rotated and nothing reports it.
+   */
+  const moveTo = useCallback(
+    (target: MapChipCamera) => {
+      moveCamera(target, {
+        current: getCurrentCamera(),
+        animate: (arg) => mapRef.current?.animateCameraTo(arg),
+        command: commandCamera,
+      });
+    },
+    [commandCamera, getCurrentCamera],
+  );
 
   // ── Campus suggestion: the camera and the toggle disagree ──
 
@@ -247,10 +298,15 @@ export function CampusScreen() {
   const userPickedCampus = useRef(false);
 
   /**
-   * When a locate press started, or null when none is outstanding.
+   * When an explicit camera request started, or null when none is outstanding.
    *
-   * The settle it causes is not an ordinary pan: it is the answer to "where am
-   * I", and standing on a campus should simply switch to it rather than ask.
+   * Raised by a locate press and by a chip tap. The settle either causes is not
+   * an ordinary pan: it is the answer to "where am I" or to "show me the
+   * stage", and arriving on a campus should simply switch to it rather than
+   * ask. A chip's camera is server-authored and lands on a campus by
+   * construction, so in practice this is what keeps a festival chip from being
+   * followed by a card asking whether to switch to the campus it just took you
+   * to.
    *
    * A timestamp, and NOT cleared by the first settle. Switching tracking on
    * makes the SDK emit an idle while the camera is still at the OLD position,
@@ -265,7 +321,7 @@ export function CampusScreen() {
    * decision at all, and without an expiry that flag would sit there and turn
    * some later, unrelated pan into a silent campus switch.
    */
-  const awaitingLocateResult = useRef<number | null>(null);
+  const awaitingExplicitCameraResult = useRef<number | null>(null);
 
   const locateStyle = useAnimatedStyle(() => {
     // Follows the sheet down, parks on the way up. `max` because Y grows
@@ -325,8 +381,7 @@ export function CampusScreen() {
     if (!mapConfig) return 0;
     return mapConfig.layers.filter((layer) => {
       if (layer.userConfigurable === false) return false;
-      const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
-      return layer.defaultVisible && !visible;
+      return layer.defaultVisible && !isLayerVisible(layer, layers);
     }).length;
   }, [mapConfig, layers]);
 
@@ -342,14 +397,21 @@ export function CampusScreen() {
     (campusId: Campus) => {
       const campus = mapConfig?.campuses.find((c) => c.id === campusId);
       if (!campus) return;
-      mapRef.current?.animateCameraTo({
-        latitude: campus.centerLat,
-        longitude: campus.centerLng,
+      // `defaultTilt` and `defaultBearing` were parsed and then dropped here for
+      // as long as they have existed, so framing a campus could never straighten
+      // a map the user had rotated. Both are 0 today, so passing them makes
+      // "frame this campus" mean north-up again — and makes the attitude the
+      // server's to set, the same way a chip's is.
+      moveTo({
+        lat: campus.centerLat,
+        lng: campus.centerLng,
         zoom: campus.defaultZoom,
-        duration: 500,
+        tilt: campus.defaultTilt,
+        bearing: campus.defaultBearing,
+        durationMs: cameraDefaults.campusFocus.durationMs,
       });
     },
-    [mapConfig],
+    [mapConfig, moveTo, cameraDefaults],
   );
 
   /**
@@ -387,14 +449,14 @@ export function CampusScreen() {
         campuses: mapConfig.campuses,
         selectedCampus,
       });
-      const startedAt = awaitingLocateResult.current;
-      const fromLocate =
-        startedAt !== null && Date.now() - startedAt < LOCATE_RESULT_WINDOW_MS;
+      const startedAt = awaitingExplicitCameraResult.current;
+      const fromExplicitAction =
+        startedAt !== null && Date.now() - startedAt < EXPLICIT_CAMERA_RESULT_WINDOW_MS;
 
       if (next === null) {
         // No decision to make, so the locate press is still unanswered — the
         // camera may not have arrived yet. Keep waiting while the window holds.
-        if (!fromLocate) awaitingLocateResult.current = null;
+        if (!fromExplicitAction) awaitingExplicitCameraResult.current = null;
         // Agreement clears the dismissal too: the next disagreement is a new
         // situation, and holding the old silence through it would be a bug the
         // user cannot see the cause of.
@@ -405,15 +467,15 @@ export function CampusScreen() {
 
       // A decision is being made, so whatever the press was going to answer, it
       // is answered now.
-      awaitingLocateResult.current = null;
+      awaitingExplicitCameraResult.current = null;
 
-      if (fromLocate) {
-        // Standing on a campus is not a question worth asking — the user just
-        // said "show me where I am", and where they are is that campus. Switch
-        // and say nothing.
+      if (fromExplicitAction) {
+        // Arriving on a campus is not a question worth asking — the user just
+        // said "show me where I am" or "show me the stage", and the answer is
+        // that campus. Switch and say nothing.
         if (next.variant === 'switch') {
-          // The camera is already on the user; re-framing the campus centre
-          // would undo the very move they asked for.
+          // The camera is already where they asked to be; re-framing the
+          // campus centre would undo the very move they asked for.
           suppressNextCampusFocus.current = true;
           setSelectedCampus(next.campus);
           logCampusSwitch(next.campus);
@@ -422,7 +484,7 @@ export function CampusScreen() {
         }
         // Outside both campuses: nothing to switch to silently, so offer the
         // nearest. Offered even after an explicit toggle pick, because this is
-        // the answer to a question the user asked a second ago.
+        // the answer to a request the user made a second ago.
         setSuggestion(next);
         return;
       }
@@ -473,9 +535,9 @@ export function CampusScreen() {
    * would make the next unrelated pan look like a locate result.
    */
   const handleLocatePress = useCallback(async () => {
-    awaitingLocateResult.current = Date.now();
+    awaitingExplicitCameraResult.current = Date.now();
     const activated = await cycleMode();
-    if (!activated) awaitingLocateResult.current = null;
+    if (!activated) awaitingExplicitCameraResult.current = null;
   }, [cycleMode]);
 
   const handleSuggestionDismiss = useCallback(() => {
@@ -498,7 +560,7 @@ export function CampusScreen() {
       // it argue with the toggle the user has just set. It also outranks a
       // locate still waiting on its camera: the user has since said which
       // campus they want.
-      awaitingLocateResult.current = null;
+      awaitingExplicitCameraResult.current = null;
       setSuggestion(null);
       if (campusId === selectedCampus) {
         focusCampus(campusId);
@@ -509,6 +571,75 @@ export function CampusScreen() {
     },
     [selectedCampus, setSelectedCampus, focusCampus],
   );
+
+  // ── Chips ──
+
+  /**
+   * The chip view the map is narrowed to, or null.
+   *
+   * Derived, never stored, so there is no second source of truth to drift: a
+   * layer toggled in the filter sheet stops any chip describing the map, and the
+   * answer survives a remount because it was never state. The "narrowed away
+   * from the server's defaults" rule lives inside `findNarrowedChip` rather than
+   * as a filter here — applied afterwards it would only be correct while there
+   * is a single chip group.
+   */
+  const narrowedChip = useMemo(
+    () => (mapConfig ? findNarrowedChip(mapConfig.chips, mapConfig.layers, layers) : null),
+    [mapConfig, layers],
+  );
+
+  /**
+   * A chip tap: go there, and set what should be on while looking.
+   *
+   * The visibility write is `resolveChipLayerVisibility`'s, not this file's,
+   * because the rule is subtle enough to get wrong here: `layerIds` means
+   * "within this group, set exactly these", so an unnamed sibling goes OFF while
+   * every layer outside the group is left alone. Reading it as "turn these on"
+   * would leave 주점 lit beside 공연; reading it as exclusive over everything
+   * would turn 건물번호 off underneath.
+   */
+  const handleChipPress = useCallback(
+    (chip: MapChip) => {
+      logCampusContentSelect({ content_type: 'map_chip', item_id: chip.id });
+
+      if (chip.action.kind === 'webview') {
+        // The server ships no title beside the URL, deliberately: a page a chip
+        // opened is titled by that chip, and a second string would be one more
+        // thing to keep in step for no reachable difference.
+        openWebView({ url: chip.action.url, title: chip.label });
+        return;
+      }
+
+      if (mapConfig) {
+        const next = resolveChipLayerVisibility(chip, mapConfig.layers);
+        if (next) setLayersVisible(next);
+      }
+
+      // Marked before the move, so the settle it causes is read as the answer to
+      // an explicit request rather than as drift — which is what switches the
+      // campus toggle silently instead of asking.
+      awaitingExplicitCameraResult.current = Date.now();
+      moveTo(chip.action.camera);
+    },
+    [mapConfig, setLayersVisible, moveTo],
+  );
+
+  /**
+   * Leave the narrowed view.
+   *
+   * Restores the group to each layer's own `defaultVisible` rather than to any
+   * chip's `layerIds`, so 편의시설 — which ships hidden — goes back to hidden,
+   * and a group whose reset chip was never served still has a way out.
+   *
+   * No camera move. The user is already looking where they want to be, and
+   * widening a layer set is not a request to be taken somewhere else.
+   */
+  const handleChipClear = useCallback(() => {
+    if (!narrowedChip || !mapConfig) return;
+    const next = resolveChipGroupDefaults(narrowedChip, mapConfig.layers);
+    if (next) setLayersVisible(next);
+  }, [narrowedChip, mapConfig, setLayersVisible]);
 
   // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
   const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
@@ -559,12 +690,7 @@ export function CampusScreen() {
     // 2. Animate camera
     if (payload.lat !== 0 && payload.lng !== 0) {
       setTimeout(() => {
-        mapRef.current?.animateCameraTo({
-          latitude: payload.lat,
-          longitude: payload.lng,
-          zoom: 17.5,
-          duration: 500,
-        });
+        moveTo({ lat: payload.lat, lng: payload.lng, ...cameraDefaults.markerFocus });
       }, 100);
     }
 
@@ -575,7 +701,14 @@ export function CampusScreen() {
     setTimeout(() => {
       detailSheetRef.current?.present();
     }, 400);
-  }, [pendingPayload, clearPendingNavPayload, selectedCampus, setSelectedCampus]);
+  }, [
+    pendingPayload,
+    clearPendingNavPayload,
+    selectedCampus,
+    setSelectedCampus,
+    moveTo,
+    cameraDefaults,
+  ]);
 
   // ── Resolve a building deep link, once there is a sheet to open ──
   // Gated on mapConfig because BuildingDetailSheet is rendered inside that gate,
@@ -625,12 +758,7 @@ export function CampusScreen() {
     // Same 100ms → camera(500ms) → 400ms → present choreography as the search
     // handoff, so this screen has one such sequence rather than two.
     setTimeout(() => {
-      mapRef.current?.animateCameraTo({
-        latitude: stack.lead.lat,
-        longitude: stack.lead.lng,
-        zoom: 17.5,
-        duration: 500,
-      });
+      moveTo({ lat: stack.lead.lat, lng: stack.lead.lng, ...cameraDefaults.markerFocus });
     }, 100);
     setSelectedStackKey(stack.stackKey);
     setTimeout(() => {
@@ -644,6 +772,8 @@ export function CampusScreen() {
     selectedCampus,
     setSelectedCampus,
     setSelectedStackKey,
+    moveTo,
+    cameraDefaults,
   ]);
 
   // ── Event pin tap ──
@@ -737,8 +867,7 @@ export function CampusScreen() {
               // visibility from its snapshot, which made this a three-tier chain
               // every reader had to reproduce exactly. Event layers are ordinary
               // layers now.
-              const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
-              if (!visible) return null;
+              if (!isLayerVisible(layer, layers)) return null;
 
               if (layer.type === 'polyline') {
                 return <MapPolylineLayer key={layer.id} layer={layer} />;
@@ -794,15 +923,27 @@ export function CampusScreen() {
               />
             )}
           </View>
-          {/* MOCK category strip. Sits above the event chips deliberately: this
-              one is always present, so a row that appears and disappears with an
-              event must not push it up and down. */}
-          {/* The event chip row stood here. Chips filter snapshot ITEMS, and the
-              pins now come from /map/markers/eskara26 layers that chips cannot
-              reach — so it would be a control that visibly does nothing. The six
-              server layer toggles in FilterSheet are the replacement, and they
-              arrive for free because they are already in mapConfig.layers. */}
-          <CampusChipRow />
+          {/* The event map's chip row stood here and was removed: its chips
+              filtered snapshot ITEMS, and the pins now come from
+              /map/markers/eskara26 layers that such a chip cannot reach. This is
+              its replacement, and it is a different contract — a map chip
+              carries an ACTION and has no predicate at all.
+
+              One slot, two states. Narrowing to a chip REPLACES the row with the
+              strip naming it rather than stacking one above the other, so the
+              band keeps a single row's height and the map's lower controls do
+              not shift on every tap. The two share the metrics that make that
+              true. */}
+          {mapConfig &&
+            (narrowedChip ? (
+              <ActiveChipStrip
+                chip={narrowedChip}
+                onClear={handleChipClear}
+                clearLabel={t('map.chip.clear')}
+              />
+            ) : (
+              <CampusChipRow chips={mapConfig.chips} onPress={handleChipPress} />
+            ))}
         </View>
 
         {/* The map's lower control row, riding the sheet. Mirrors the row at the

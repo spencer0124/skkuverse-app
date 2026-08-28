@@ -25,6 +25,11 @@
  *                server ships numberCircle and there has never been a second
  *                rendering for it.
  *
+ * Geometry — the circle's diameter, the pin's width and height, and the label
+ * layer's draw order — comes from the layer's `style`, with this file's former
+ * constants as fallbacks. Only the colour stays local, because it resolves from
+ * a design token per theme.
+ *
  * Flutter source: MapLayerController._buildMarkersFromJson
  */
 
@@ -45,11 +50,35 @@ import { toCssColor } from '../utils/toCssColor';
 
 const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
+/**
+ * Geometry fallbacks, for a server that does not send `style` geometry.
+ *
+ * Every one is the constant this file hardcoded before the wire carried it, so
+ * an older server renders byte-identically. The colour is deliberately NOT here
+ * and deliberately NOT on the wire for the building layers: the number circle
+ * and the placeDot tint fall back to `SdsColors.brand`, a design token that
+ * resolves per theme, and a hex from the server cannot. Geometry is
+ * theme-independent and belongs on the wire; a colour that comes from a token
+ * does not.
+ */
 const DOT_SIZE = 16;
 
 /** The tintable base icon's natural proportions, so the tint is not distorted. */
 const PIN_WIDTH = 22;
 const PIN_HEIGHT = 30;
+
+/**
+ * The number's glyph size as a fraction of the circle it sits in.
+ *
+ * A ratio rather than a second constant, because `size` is now the server's to
+ * set: a hardcoded 7pt inside a circle the server grew to 24pt is exactly the
+ * half-honouring that made the geometry decorative in the first place. 7/16
+ * reproduces today's 7pt at today's 16pt circle exactly.
+ */
+const DOT_TEXT_RATIO = 7 / 16;
+
+/** The label layer draws above every other overlay. Was `globalZIndex={100000}`. */
+const LABEL_Z_INDEX = 100000;
 
 /**
  * Pick the string to draw for the current app language.
@@ -68,17 +97,24 @@ function pickText(text: RawMarkerData['text'], lang: string): string {
 
 const NumberDotMarker = React.memo(function NumberDotMarker({
   label,
+  size,
 }: {
   label: string;
+  size: number;
 }) {
   return (
     <View
       key={label}
       collapsable={false}
       renderToHardwareTextureAndroid
-      style={styles.dotMarker}
+      style={[
+        styles.dotMarker,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
     >
-      <Text style={styles.dotText}>{label}</Text>
+      <Text style={[styles.dotText, { fontSize: Math.round(size * DOT_TEXT_RATIO) }]}>
+        {label}
+      </Text>
     </View>
   );
 });
@@ -131,7 +167,7 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
                 requestedWidth: 200,
               }}
               isHideCollidedCaptions
-              globalZIndex={100000}
+              globalZIndex={layer.style?.zIndex ?? LABEL_Z_INDEX}
               onTap={onTap}
             />
           );
@@ -148,8 +184,8 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
               key={key}
               latitude={marker.lat}
               longitude={marker.lng}
-              width={PIN_WIDTH}
-              height={PIN_HEIGHT}
+              width={layer.style?.width ?? PIN_WIDTH}
+              height={layer.style?.height ?? PIN_HEIGHT}
               // The SDK's BLACK symbol is Naver's tintable base, so the layer's
               // own colour renders exactly rather than being snapped to one of
               // the seven built-in symbol colours. Drawing this as a child View
@@ -171,6 +207,7 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
         }
 
         // numberCircle / numberDot / absent — the building-number rendering.
+        const dotSize = layer.style?.size ?? DOT_SIZE;
         return (
           <NaverMapMarkerOverlay
             // `label` is in the key as an Android bitmap-recapture workaround,
@@ -181,11 +218,14 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
             // layer subscribes to appLanguage, so dropping `label` here would
             // leave every dot blank after a language switch, on Android only.
             // See docs/explanation/android-naver-map-markers.md.
-            key={`${key}-${label}`}
+            // `dotSize` is in the key for the same reason `label` is: it is
+            // visible content, so a server changing it has to force the same
+            // re-capture a language switch does.
+            key={`${key}-${label}-${dotSize}`}
             latitude={marker.lat}
             longitude={marker.lng}
-            width={DOT_SIZE}
-            height={DOT_SIZE}
+            width={dotSize}
+            height={dotSize}
             anchor={{ x: 0.5, y: 1.0 }}
             // No caption, and that is the change the unified schema forced.
             // This used to draw the number inside the dot from `displayNo` and
@@ -201,7 +241,7 @@ export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
             // two are separate layers.
             onTap={onTap}
           >
-            <NumberDotMarker label={label} />
+            <NumberDotMarker label={label} size={dotSize} />
           </NaverMapMarkerOverlay>
         );
       })}
@@ -213,15 +253,13 @@ const DOT_COLOR = SdsColors.brand;
 
 const styles = StyleSheet.create({
   dotMarker: {
-    width: DOT_SIZE,
-    height: DOT_SIZE,
-    borderRadius: DOT_SIZE / 2,
+    // Width, height and radius are set inline from the layer's `style.size`.
     backgroundColor: DOT_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dotText: {
-    fontSize: 7,
+    // fontSize is set inline, derived from the circle's size.
     fontFamily: 'WantedSans',
     color: 'white',
     fontWeight: '700',
