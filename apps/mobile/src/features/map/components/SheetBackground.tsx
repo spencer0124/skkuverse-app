@@ -33,12 +33,12 @@
  * Only the height and the radius are animated in this component. The card's
  * horizontal inset lives on the sheet body's own `style` prop, over in
  * CampusScreen, because it has to move three things at once: this background,
- * the handle, and the content. Insetting the background alone would leave the
- * search bar a few points from the card's edge, and — the part that actually
+ * the handle, and the content. Insetting the background alone would leave any
+ * content a few points from the card's edge, and — the part that actually
  * bites — would leave the strips either side of the card looking like map while
  * still belonging to the sheet's scroll view, so a drag there would move the
- * sheet rather than pan the map. Carrying it on the body also means the
- * content's padding is measured from the card's edge and rides in with it.
+ * sheet rather than pan the map. Carrying it on the body also means content
+ * padding is measured from the card's edge and rides in with it.
  */
 
 import { StyleSheet, View } from 'react-native';

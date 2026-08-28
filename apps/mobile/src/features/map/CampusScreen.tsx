@@ -10,7 +10,7 @@
  *   BottomSheet (snap: SHEET_SNAP_PERCENTS)
  *     ├─ backgroundComponent={SheetBackground}  (glass card ⇄ opaque sheet)
  *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
- *     └─ BottomSheetScrollView → SearchBar
+ *     └─ BottomSheetScrollView → SduiSectionList (the server's campus feed)
  *   BuildingDetailSheet (modal, on marker tap)
  *   FilterSheet (modal, on filter button tap)
  *
@@ -33,6 +33,7 @@ import {
 } from 'phosphor-react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import {
+  useCampusSections,
   useMapConfig,
   useMapLayerStore,
   useEventMap,
@@ -49,13 +50,13 @@ import {
   type MapChipCamera,
   type MarkerTap,
 } from '@skkuverse/shared';
+import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
 import { GlassIconButton, GLASS_AVAILABLE } from '@/components/glass';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
-import { SearchBar } from './components/SearchBar';
 import { CampusToggle } from './components/CampusToggle';
 import { CampusChipRow } from './components/CampusChipRow';
 import { ActiveChipStrip } from './components/ActiveChipStrip';
@@ -63,7 +64,7 @@ import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
 import { SheetBackground } from './components/SheetBackground';
-import { sheetChromeAt } from './utils/sheetChrome';
+import { sheetChromeAt, SHEET_FLOAT_INSET } from './utils/sheetChrome';
 import { HeadingLocateIcon } from './components/HeadingLocateIcon';
 import { CampusSuggestionCard } from './components/CampusSuggestionCard';
 import {
@@ -93,17 +94,18 @@ import {
   type BuildingDetailSource,
 } from '@/services/analytics';
 
-// 하단 시트의 버튼 그리드(건물지도/건물코드/분실물/문의하기)를 뺐다. 홈 그리드가
-// 이미 같은 항목을 들고 있어서 탭마다 같은 버튼을 반복하고 있었고, 마지막까지
-// 캠퍼스 탭에만 있던 분실물은 홈 4번째 칸으로 옮겼다(`HomeScreen.mainGridItems`).
-// 그래서 `useCampusSections()` 호출도 같이 뺐다 — 아무도 그리지 않는 섹션을 계속
-// 받아올 이유가 없다.
+// 시트 본문은 서버가 보내는 `sections` 배열을 그 순서대로 그린다. 앱에는
+// 하드코딩된 사본이 없다 — 예전에 이 자리에 CAMPUS_GRID_ITEMS가 있어서 서버가
+// 건물지도를 네이티브 지도로 바꾼 뒤에도 죽은 webview를 계속 열었다. 항목을
+// 바꾸려면 서버에서 바꾼다.
 //
-// 서버 `/ui/home/campus`의 `campus_buttons` 섹션은 아직 살아 있다. 즉 지금은
-// 서버가 보내는 걸 앱이 안 그리는 상태이고, 서버에서 섹션을 지우는 게 진짜
-// 마무리다. 여기서 주의할 것: 예전에 이 자리에 하드코딩 사본(CAMPUS_GRID_ITEMS)이
-// 있어서 서버가 건물지도를 네이티브 지도로 바꾼 뒤에도 죽은 webview를 계속 열었다.
-// 사본을 다시 만들지 말 것 — 항목을 되살릴 거면 서버 섹션을 그대로 렌더해야 한다.
+// 서버 `/ui/home/campus`는 아직 `campus_buttons`(건물지도/건물코드/분실물/문의하기)를
+// 보낸다. 홈 그리드가 이미 같은 항목을 들고 있으므로 이건 중복이고, 서버에서
+// 프로모션 피드 섹션으로 교체하는 게 남은 작업이다. 앱은 무엇이 오든 그린다.
+//
+// 위젯을 늘리기 전에: 새로운 *배치*는 템플릿이지 위젯이 아니다. 정말 새로운
+// *인터랙션*이 생겼을 때만 섹션 타입을 추가한다 — eventmap의 슬롯 방식
+// (`packages/shared/src/types/eventmap.ts`)이 이 저장소의 선례다.
 
 /**
  * How long a place deep link waits for the event map snapshot before giving up.
@@ -130,21 +132,44 @@ const LOCATE_SHEET_GAP = 12;
 const EXPLICIT_CAMERA_RESULT_WINDOW_MS = 6000;
 
 /**
- * Sheet snap heights, as percentages of the sheet's container.
+ * The two lower sheet detents, as percentages of the sheet's container.
  *
- * Numbers rather than the `'30%'` strings the sheet wants, because the locate
+ * Numbers rather than the `'24%'` strings the sheet wants, because the locate
  * button needs the same values as arithmetic. Deriving the strings from the
  * numbers keeps one source; the reverse — parsing the strings back — would make
  * the sheet's config the source and the button's maths a mirror of it.
  *
- * (Percent, not a 0–1 fraction: `0.3 * 100` is 30.000000000000004 in binary
+ * (Percent, not a 0–1 fraction: `0.24 * 100` is 24.000000000000004 in binary
  * floating point, which would reach the sheet as a snap point string of that
  * literal width.)
+ *
+ * The TOP detent is not here, because it is not a percentage — see
+ * `snapPoints` below.
  */
-const SHEET_SNAP_PERCENTS = [30, 50, 85] as const;
+const SHEET_SNAP_PERCENTS = [24, 42] as const;
+
+/**
+ * The top detent before the container has been measured.
+ *
+ * A percentage, unlike the real one, because there is nothing yet to subtract
+ * a safe area from. Close enough that the one frame it survives is not a jump.
+ */
+const SHEET_TOP_PERCENT_FALLBACK = 92;
 
 /** Index of the top detent — the one at which the card is fully attached. */
-const SHEET_LAST_INDEX = SHEET_SNAP_PERCENTS.length - 1;
+const SHEET_LAST_INDEX = SHEET_SNAP_PERCENTS.length;
+
+/** Gap between the top safe area and the campus toggle. */
+const MAP_TOP_INSET_GAP = 6;
+
+/**
+ * Gap between the toggle row and the chip row below it.
+ *
+ * Deliberately wider than the gap above the toggle. The two are independent
+ * bands rather than one cluster, and at an equal gap the chips read as a third
+ * row of the toggle's own control set.
+ */
+const MAP_TOP_ROW_GAP = 10;
 
 /**
  * Which snap the locate button stops following the sheet at — the middle one.
@@ -166,6 +191,19 @@ export function CampusScreen() {
   // ── Data ──
   const { data: mapConfig } = useMapConfig();
 
+  /**
+   * The sheet's feed. Rendered in the server's order, and empty is a normal
+   * answer — the defaults are empty on purpose, so a dead API and a server with
+   * nothing to promote both land here as an empty card over the map.
+   *
+   * No skeleton. `CampusSkeleton` exists but mimics a button grid, which is the
+   * shape this surface is moving away from, and grey shimmer blocks on a
+   * translucent card over a moving map read as breakage rather than loading.
+   * The card is small and the query is cached for a minute, so the honest
+   * loading state here is an empty card for one paint.
+   */
+  const { data: campusFeed } = useCampusSections();
+
   // ── Store ──
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
   const layers = useMapLayerStore((s) => s.layers);
@@ -180,9 +218,6 @@ export function CampusScreen() {
   const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null);
   /** A `?place=skku_building:<id>` link, held until the sheet exists to open. */
   const [pendingBuildingId, setPendingBuildingId] = useState<number | null>(null);
-
-  // ── Sheet snap points ──
-  const snapPoints = useMemo(() => SHEET_SNAP_PERCENTS.map((p) => `${p}%`), []);
 
   /**
    * The sheet's live top edge, in px from the top of this screen. `BottomSheet`
@@ -234,6 +269,43 @@ export function CampusScreen() {
   const handleRootLayout = useCallback((e: LayoutChangeEvent) => {
     setSheetContainerHeight(e.nativeEvent.layout.height);
   }, []);
+
+  /**
+   * Where the filter sheet's card should stop, measured from the WINDOW's
+   * bottom edge.
+   *
+   * That sheet is a modal, so it is portalled out to the root and its container
+   * is the whole window, while this screen's sheet floats inside the root view
+   * measured just above. Restating the campus card's own bottom edge in the
+   * modal's coordinates is what puts the two cards on one line, and it stays
+   * true whether or not the tab bar takes a bite out of this screen — a
+   * constant picked to look right would drift the moment either changed.
+   */
+  const filterCardBottomGap = useMemo(
+    () =>
+      sheetContainerHeight > 0
+        ? windowHeight - sheetContainerHeight + SHEET_FLOAT_INSET
+        : SHEET_FLOAT_INSET,
+    [windowHeight, sheetContainerHeight],
+  );
+
+  // ── Sheet snap points ──
+  /**
+   * The two lower detents stay percentages; the top one is a measured height.
+   *
+   * "Just below the safe area" is not a fixed fraction of the screen — the top
+   * inset is 62 on this device and nearer 20 on a device with no Dynamic
+   * Island — so expressing it as a percentage would put the sheet in a
+   * different place on every phone. gorhom takes a raw number as points, which
+   * says exactly what is meant. Until `onLayout` lands there is nothing to
+   * subtract from, hence the percentage fallback.
+   */
+  const snapPoints = useMemo(() => {
+    const lower = SHEET_SNAP_PERCENTS.map((p) => `${p}%`);
+    return sheetContainerHeight > 0
+      ? [...lower, sheetContainerHeight - insets.top]
+      : [...lower, `${SHEET_TOP_PERCENT_FALLBACK}%`];
+  }, [sheetContainerHeight, insets.top]);
 
   /**
    * Where the button stops. A snap percentage is the sheet's HEIGHT, so its top
@@ -953,7 +1025,7 @@ export function CampusScreen() {
             the event map is deliberately independent of /map/config and a config
             hiccup must not take the chips down with it. */}
         <View
-          style={[styles.controlColumn, { top: insets.top + 8 }]}
+          style={[styles.controlColumn, { top: insets.top + MAP_TOP_INSET_GAP }]}
           pointerEvents="box-none"
         >
           <View style={styles.controlRow} pointerEvents="box-none">
@@ -1096,14 +1168,14 @@ export function CampusScreen() {
           // Off iOS 26 the sheet stays attached, so it must not inset at all.
           style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
-          <BottomSheetScrollView style={styles.sheetContent}>
-            {/* No mapConfig gate and no skeleton any more: the sheet holds the
-                search bar alone now, and it needs nothing from the server to
-                render — a skeleton would be a loading state for content that is
-                never loading. */}
-            <View style={styles.sheetTopWrap}>
-              <SearchBar />
-            </View>
+          {/* The scroll view is what gives the sheet's body a content pane and
+              keeps the content pan gesture, so a drag anywhere on the card still
+              moves it. It stays mounted even when the feed is empty. */}
+          <BottomSheetScrollView
+            style={styles.sheetContent}
+            contentContainerStyle={styles.sheetFeed}
+          >
+            <SduiSectionList sections={campusFeed?.sections ?? []} />
           </BottomSheetScrollView>
         </BottomSheet>
 
@@ -1117,7 +1189,11 @@ export function CampusScreen() {
               source={buildingSource}
               onConnectionTap={handleConnectionTap}
             />
-            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
+            <FilterSheet
+              ref={filterSheetRef}
+              mapConfig={mapConfig}
+              bottomGap={filterCardBottomGap}
+            />
           </>
         )}
 
@@ -1151,11 +1227,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    // Wider than the 8pt gutter inside the rows themselves. The row gap sits
-    // between controls that belong together (the toggle and the buttons beside
-    // it); this one separates two independent bands, and matching them made the
-    // chips read as a third row of the same control cluster.
-    gap: 12,
+    gap: MAP_TOP_ROW_GAP,
   },
   compassSlot: {
     position: 'absolute',
@@ -1187,11 +1259,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  sheetTopWrap: {
+  sheetFeed: {
     // 16 measured from the CARD's edge, not the screen's: the body carries the
-    // inset, so this padding rides in with it and stays correct at every detent.
+    // animated inset, so this padding rides in with it and stays correct at
+    // every detent. It is also the only horizontal gutter in the column — the
+    // widgets deliberately carry none (see sdui/renderer.tsx).
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 12,
+    // Clears the floating tab bar at the top detent, where the feed is the only
+    // thing that scrolls. Matches HomeScreen's 32; confirm against a long feed
+    // on device, since nothing here measures the bar.
+    paddingBottom: 32,
   },
 });

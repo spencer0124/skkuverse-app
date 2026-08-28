@@ -10,8 +10,9 @@ audience: internal
 # The campus sheet's Liquid Glass card
 
 > Why the campus tab's bottom sheet is a floating glass card at its low detents
-> and an ordinary opaque sheet at its top one, and the four non-obvious things
-> that shape how it is built.
+> and an ordinary opaque sheet at its top one, the non-obvious things that shape
+> how it is built, and how the filter sheet on the same screen reaches the same
+> card by a different route.
 
 On iOS 26 the campus sheet follows Apple Maps and Find My: low down it is a
 card floating clear of the screen edges with all four corners rounded and the
@@ -116,10 +117,10 @@ rules win any collision. A margin on a box pinned to both edges simply narrows
 it.
 
 The inset has to move the background, the handle and the content as one unit.
-Insetting the background alone leaves the search bar a few points from the
-card's edge. The part that actually bites is subtler: it leaves the strips
-either side of the card looking like map while still belonging to the sheet's
-scroll view, so a drag there moves the sheet rather than panning the map. Carrying the inset
+Insetting the background alone leaves content a few points from the card's
+edge. The part that actually bites is subtler: it leaves the strips either side
+of the card looking like map while still belonging to the sheet's scroll view,
+so a drag there moves the sheet rather than panning the map. Carrying the inset
 on the body also means the content's horizontal padding is measured from the
 card's edge and rides in with it, so one constant stays correct at every detent.
 
@@ -170,3 +171,55 @@ tab bar is a capsule, so its radius is forced by its own height rather than
 chosen to fit the corner, and the value it implies is far too small. The
 symptom of too small is specific — the straight edges keep their full gap while
 the gap pinches shut diagonally at the corner.
+
+## The filter sheet gets the same card from gorhom rather than computing it
+
+The layers button on this screen opens a second sheet, and on iOS 26 that one is
+a floating card too. It arrives there by a different route, which is worth
+knowing before either is changed.
+
+The filter sheet has one snap point and both pan gestures off, so it cannot
+move. Nothing has to be interpolated across a drag, which removes the
+`animatedIndex` tracking, the crossfade and Reanimated along with them. What is
+left is the card's box, and gorhom will hand that over: `detached` with a
+`bottomInset` puts the inset on the hosting container itself, switches both that
+container and the content wrapper from clipping to `overflow: 'visible'`, and
+drops the content's over-drag padding. With no handle the sheet body's box is
+then exactly the visible card, and a background component is handed
+`StyleSheet.absoluteFillObject` — so `GlassCardBackground` is a fill and nothing
+else, with no measurement in it.
+
+None of that is available to the campus sheet. `detached` is a static mode,
+while that sheet has to float low down and attach at the top, which is exactly
+why its card's bottom edge has to be computed instead.
+
+What does carry across unchanged: the side inset rides on the sheet body's own
+`style` as a margin, for the reason given above; the accessibility props
+gorhom's default background declares have to be re-declared; and the glass is
+shaped by its native per-corner radii rather than by a clipping parent.
+
+### Matching the campus card's bottom edge
+
+The filter sheet is a modal, so it is portalled out to the root and its
+container is the whole window, while the campus sheet floats inside this
+screen's root view. A gap chosen locally (the safe area, say) looks right on its
+own and then sits visibly above the card behind it. That was the first attempt,
+and it was obvious on the device.
+
+So `CampusScreen` restates the campus card's own bottom edge in the modal's
+coordinates and passes it down as a prop. Both cards then share one line and one
+bottom corner radius, whatever the tab bar does or does not take out of the root
+view's height. A constant picked to look right would have drifted
+the moment either container changed.
+
+### The backdrop had to be dimmed less
+
+Glass samples whatever is behind it, so gorhom's default scrim turns the card
+into a grey panel rather than a translucent one. Lowering it costs nothing:
+`BottomSheetBackdrop` drives its touchability off `animatedIndex` rather than
+off its own opacity, so tapping outside still closes the sheet.
+
+> [!NOTE]
+> `bottomInset` also shrinks the container that a percentage snap point resolves
+> against, so the same percentage yields a slightly shorter sheet than it did
+> while attached. Worth knowing before tuning that number.

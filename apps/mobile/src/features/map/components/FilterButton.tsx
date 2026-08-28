@@ -1,5 +1,10 @@
 /**
- * Floating filter button — opens the FilterSheet.
+ * Floating layers button — opens the FilterSheet.
+ *
+ * A layer stack rather than the sliders glyph it used to carry: what the sheet
+ * behind it holds is a campus picker and a set of map layers, and a stack is
+ * what every map app draws for that. Sliders promise numeric ranges to tune,
+ * which is not what is in there.
  *
  * `activeCount` is the whole reason the event chip row can stay small: rather
  * than repeating every group over the map, the map shows the one-tap toggles and
@@ -12,7 +17,7 @@
  */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SlidersHorizontalIcon } from 'phosphor-react-native';
+import { StackSimpleIcon } from 'phosphor-react-native';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
 import { GlassSurface, GLASS_AVAILABLE, glassFloatShadow } from '@/components/glass';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
@@ -34,7 +39,7 @@ export function FilterButton({ onPress, activeCount = 0 }: FilterButtonProps) {
         onPress();
       }}
     >
-      <SlidersHorizontalIcon size={20} color={SdsColors.grey700} />
+      <StackSimpleIcon size={20} color={SdsColors.grey700} />
       {activeCount > 0 ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{String(activeCount)}</Text>
