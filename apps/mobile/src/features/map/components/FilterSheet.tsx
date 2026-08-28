@@ -32,20 +32,19 @@ import {
 } from '@gorhom/bottom-sheet';
 import { XIcon } from 'phosphor-react-native';
 import {
-  useEventMapStore,
   useMapLayerStore,
   useT,
   type Campus,
-  type EventMapSnapshot,
   type MapConfig,
+  type MapLayerDef,
   SdsColors,
   SdsTypo,
   SdsSpacing,
 } from '@skkuverse/shared';
-import { FilterPill } from './FilterPill';
 import { MapTile } from './MapTile';
 import type { MapThumbPalette } from './MapThumb';
-import { logCampusContentSelect, logLayerToggle } from '@/services/analytics';
+import { toCssColor } from '../utils/toCssColor';
+import { logLayerToggle } from '@/services/analytics';
 
 /**
  * Per-campus tile art. Exhaustive over `Campus`, which is a closed union derived
@@ -69,6 +68,32 @@ const LAYER_EMOJI: Readonly<Record<string, string>> = {
 const LAYER_EMOJI_FALLBACK = '\u{1F4CD}';
 
 /**
+ * What a layer's tile shows in the middle.
+ *
+ * The two building layers get a hand-picked emoji, because there are exactly two
+ * of them and they are permanent. Everything else is server-driven and arrives
+ * with no emoji to pick — the six festival layers would all land on the same
+ * fallback pin, which tells the user nothing about which is which. Those get a
+ * dot in the layer's own colour instead, which is the one thing the server does
+ * say and is exactly what their markers draw on the map.
+ */
+function LayerBadge({ layer }: { layer: MapLayerDef }) {
+  const emoji = LAYER_EMOJI[layer.id];
+  if (emoji) return <Text style={styles.badgeEmoji}>{emoji}</Text>;
+  if (layer.style?.color) {
+    return (
+      <View
+        style={[
+          styles.badgeDot,
+          { backgroundColor: toCssColor(layer.style.color, SdsColors.brand) },
+        ]}
+      />
+    );
+  }
+  return <Text style={styles.badgeEmoji}>{LAYER_EMOJI_FALLBACK}</Text>;
+}
+
+/**
  * The close button lives in its own component because `useBottomSheetModal()`
  * reads context the modal provides — calling it in `FilterSheet` itself, which
  * renders that modal, would read from outside its own provider.
@@ -90,20 +115,23 @@ function SheetCloseButton({ label }: { label: string }) {
 
 interface FilterSheetProps {
   mapConfig: MapConfig;
-  /** `null` when no event is running — the event sections then do not render. */
-  eventSnapshot: EventMapSnapshot | null;
+  /**
+   * The event's forced layer visibility, exactly as CampusScreen resolves it.
+   *
+   * Passed in rather than re-derived: this sheet read `layers[id]?.visible`
+   * alone, so during a festival it showed 건물번호 switched ON while the map was
+   * hiding it. A control that disagrees with the thing it controls is worse than
+   * no control.
+   */
+  basemapOverride: Record<string, boolean>;
 }
 
 export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
-  function FilterSheet({ mapConfig, eventSnapshot }, ref) {
+  function FilterSheet({ mapConfig, basemapOverride }, ref) {
     const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
     const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
     const layers = useMapLayerStore((s) => s.layers);
     const toggleLayer = useMapLayerStore((s) => s.toggleLayer);
-
-    const selectedChips = useEventMapStore((s) => s.selectedChips);
-    const toggleChip = useEventMapStore((s) => s.toggleChip);
-    const clearChips = useEventMapStore((s) => s.clearChips);
 
     /**
      * Tap-outside-to-close.
@@ -201,73 +229,59 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
 
           <Text style={styles.sectionTitle}>{t('filter.layer')}</Text>
           <View style={styles.grid}>
-            {mapConfig.layers.map((layer) => (
-              <View key={layer.id} style={styles.col}>
-                <MapTile
-                  label={layer.label}
-                  selected={layers[layer.id]?.visible ?? false}
-                  onPress={() => {
-                    const newVisible = !(layers[layer.id]?.visible ?? false);
-                    toggleLayer(layer.id);
-                    logLayerToggle(layer.id, newVisible);
-                  }}
-                  // Every layer draws on the same base map, so they share a
-                  // palette and are told apart by the badge alone.
-                  palette="basic"
-                  badge={
-                    <Text style={styles.badgeEmoji}>
-                      {LAYER_EMOJI[layer.id] ?? LAYER_EMOJI_FALLBACK}
-                    </Text>
-                  }
-                />
-              </View>
-            ))}
+            {mapConfig.layers
+              // `userConfigurable` governs the affordance, not the capability: a
+              // locked layer still renders, still fetches and is still
+              // deep-linkable — only its control disappears. Absent means true,
+              // so an older server loses nothing.
+              .filter((layer) => layer.userConfigurable !== false)
+              .map((layer) => {
+                // The same three-tier chain CampusScreen renders with. Read, not
+                // written: forcing the value into the store would destroy a
+                // preference the user cannot re-express while the event overrides it.
+                const visible =
+                  basemapOverride[layer.id] ??
+                  layers[layer.id]?.visible ??
+                  layer.defaultVisible;
+                return (
+                  <View key={layer.id} style={styles.col}>
+                    <MapTile
+                      label={layer.label}
+                      selected={visible}
+                      onPress={() => {
+                        toggleLayer(layer.id);
+                        logLayerToggle(layer.id, !visible);
+                      }}
+                      // Every layer draws on the same base map, so they share a
+                      // palette and are told apart by the badge alone.
+                      palette="basic"
+                      badge={<LayerBadge layer={layer} />}
+                    />
+                  </View>
+                );
+              })}
           </View>
 
-          {eventSnapshot && eventSnapshot.chipGroups.length > 0 ? (
-            <>
-              <View style={styles.divider} />
-              <View style={styles.eventHeader}>
-                <Text style={styles.sectionTitle}>{t('eventmap.filter.section')}</Text>
-                <Pressable
-                  onPress={() => clearChips(eventSnapshot)}
-                  accessibilityRole="button"
-                  hitSlop={8}
-                >
-                  <Text style={styles.reset}>{t('eventmap.filter.reset')}</Text>
-                </Pressable>
-              </View>
-
-              {eventSnapshot.chipGroups.map((group) => (
-                <View key={group.id} style={styles.group}>
-                  {group.label ? <Text style={styles.groupLabel}>{group.label}</Text> : null}
-                  <View style={styles.pillRow}>
-                    {group.chips.map((chip) => (
-                      <FilterPill
-                        key={chip.id}
-                        label={chip.label}
-                        selected={(selectedChips[group.id] ?? []).includes(chip.id)}
-                        onPress={() => {
-                          logCampusContentSelect({
-                            content_type: 'eventmap_filter_chip',
-                            item_id: chip.id,
-                          });
-                          toggleChip(group.id, chip.id, group.selection);
-                        }}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))}
-            </>
-          ) : null}
+          {/* The event chip groups stood here. Chips filter snapshot ITEMS,
+              and the map's pins now come from /map/markers/eskara26 layers that
+              chips cannot reach — so they would narrow the list sheet alone
+              while appearing to narrow the map. The six festival layers show up
+              in the grid above on their own, because the server puts them in
+              mapConfig.layers. */}
         </BottomSheetScrollView>
       </BottomSheetModal>
     );
   },
 );
 
+const BADGE_DOT_SIZE = 14;
+
 const styles = StyleSheet.create({
+  badgeDot: {
+    width: BADGE_DOT_SIZE,
+    height: BADGE_DOT_SIZE,
+    borderRadius: BADGE_DOT_SIZE / 2,
+  },
   content: {
     padding: SdsSpacing.base,
     // Zero: the pinned header above already spaces the content off the sheet's

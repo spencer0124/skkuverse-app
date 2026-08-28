@@ -14,13 +14,24 @@ import type {
   MapLayerDef,
   MapLayerStyle,
   RawMarkerData,
+  MarkerTap,
   PolylineCoord,
 } from '../types/map';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { CAMPUSES } from '../constants/campus';
 
 const LAYER_TYPES = ['marker', 'polyline'] as const;
-const MARKER_STYLES = ['numberCircle', 'numberDot', 'textLabel'] as const;
+const MARKER_STYLES = [
+  'numberCircle',
+  'numberDot',
+  'textLabel',
+  'placeDot',
+] as const;
+/**
+ * The tap kinds this build knows how to route. A kind outside the set leaves the
+ * marker drawn but inert — see parseMarkerTap.
+ */
+const TAP_KINDS = ['skku_building', 'eskara26'] as const;
 
 // ── Internal helpers ──
 
@@ -44,6 +55,12 @@ function parseCampusDef(raw: Record<string, unknown>): CampusDef | null {
     defaultZoom: Number(raw.defaultZoom ?? 15.8),
     defaultTilt: Number(raw.defaultTilt ?? 0),
     defaultBearing: Number(raw.defaultBearing ?? 0),
+    // Left unread for as long as it has existed, so `campuses[].radiusM` was
+    // served, declared on CampusDef and consumed by campusProximity — and every
+    // campus still silently used the hardcoded fallback. `toFiniteNumber` rather
+    // than `Number()`: a null must stay absent so the fallback applies, not
+    // become a 0 m radius that puts the camera outside every campus.
+    radiusM: toFiniteNumber(raw.radiusM) ?? undefined,
   };
 }
 
@@ -70,6 +87,10 @@ function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
     defaultVisible: (raw.defaultVisible as boolean) ?? false,
     endpoint: raw.endpoint as string,
     markerStyle: asMember(raw.markerStyle, MARKER_STYLES),
+    // Absent means `true`. Never fail closed: a server predating the field must
+    // not silently strip every toggle off the filter sheet. Only an explicit
+    // `false` locks the control.
+    userConfigurable: raw.userConfigurable === false ? false : true,
     style: raw.style
       ? parseLayerStyle(raw.style as Record<string, unknown>)
       : undefined,
@@ -91,6 +112,38 @@ export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
       parseLayerDef(l as Record<string, unknown>),
     ),
   };
+}
+
+/**
+ * Narrow `tap` to a kind this build can route, or `null`.
+ *
+ * An unrecognised kind returns `null` rather than dropping the marker: a kind we
+ * cannot route is still a place we can draw, and a missing pin is a failure
+ * nobody can see or report while an inert one is obvious. That is the same
+ * fail-soft the server's own degraded building fallback takes, which ships
+ * `tap: null` deliberately because there is no document behind those markers.
+ */
+function parseMarkerTap(raw: unknown): MarkerTap | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  const kind = asMember(t.kind, TAP_KINDS);
+  if (!kind) return null;
+  const placeId = t.placeId;
+  if (typeof placeId !== 'string' || placeId === '') return null;
+  return { kind, placeId };
+}
+
+/**
+ * Keep an ISO instant only if it actually parses.
+ *
+ * A malformed string would reach the window comparison as `NaN`, and every
+ * comparison against `NaN` is false — so `now >= startAt` and `now < endAt` both
+ * fail and the marker silently never draws. Dropping to `null` means "unbounded
+ * on that side", which draws.
+ */
+function parseInstant(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  return Number.isNaN(Date.parse(raw)) ? null : raw;
 }
 
 export function parseMarkerData(
@@ -119,19 +172,36 @@ export function parseMarkerData(
     const campus = asMember(raw.campus, CAMPUSES);
     if (!campus) return [];
 
+    // Layers share endpoints — both building layers come from
+    // /map/markers/campus, all six event layers from /map/markers/eskara26 — so
+    // `layerId` is what separates one layer's markers from another's. A marker
+    // without it belongs to no layer, and keeping it would mean either drawing it
+    // on every layer sharing the response or on none.
+    const id = raw.id;
+    const layerId = raw.layerId;
+    if (typeof id !== 'string' || id === '') return [];
+    if (typeof layerId !== 'string' || layerId === '') return [];
+
+    // `ko` is the source language and always present upstream. Without it there
+    // is nothing to draw, and a blank marker still occupies a tap target and a
+    // caption-collision slot — which is why the server drops these too.
+    const rawText = (raw.text ?? {}) as Record<string, unknown>;
+    const ko = typeof rawText.ko === 'string' ? rawText.ko : '';
+    if (ko === '') return [];
+    const en = typeof rawText.en === 'string' && rawText.en !== '' ? rawText.en : ko;
+    const zh = typeof rawText.zh === 'string' && rawText.zh !== '' ? rawText.zh : undefined;
+
     return [
       {
-        skkuId: raw.skkuId as number | undefined,
+        id,
+        layerId,
         lat,
         lng,
         campus,
-        displayNo: (raw.displayNo as string) ?? undefined,
-        text: raw.text
-          ? {
-              ko: ((raw.text as Record<string, unknown>).ko as string) ?? '',
-              en: ((raw.text as Record<string, unknown>).en as string) ?? '',
-            }
-          : undefined,
+        text: zh ? { ko, en, zh } : { ko, en },
+        startAt: parseInstant(raw.startAt),
+        endAt: parseInstant(raw.endAt),
+        tap: parseMarkerTap(raw.tap),
       },
     ];
   });

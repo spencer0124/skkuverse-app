@@ -9,6 +9,13 @@
  * than a failure. The server has shipped two layers for a while: building numbers
  * and building names, separately toggleable.
  *
+ * Both point at the SAME endpoint, which is the server's shape and not a typo:
+ * they are the same documents differing only in which field becomes the visible
+ * string, and each layer renders the subset carrying its own `layerId`. The
+ * marker cache is keyed on the endpoint string, so two toggles cost one fetch.
+ * The old `?overlay=number|label` is gone — a server still receiving it ignores
+ * it, but keeping it here would split one cache entry into two.
+ *
  * Labels are raw Korean strings, not i18n keys, matching the server: layer labels
  * are server-driven display text that FilterSheet renders as-is.
  *
@@ -45,16 +52,18 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       type: 'marker',
       label: '건물번호',
       defaultVisible: true,
-      endpoint: '/map/markers/campus?overlay=number',
+      endpoint: '/map/markers/campus',
       markerStyle: 'numberCircle',
+      userConfigurable: true,
     },
     {
       id: 'building_labels',
       type: 'marker',
       label: '건물이름',
       defaultVisible: true,
-      endpoint: '/map/markers/campus?overlay=label',
+      endpoint: '/map/markers/campus',
       markerStyle: 'textLabel',
+      userConfigurable: true,
     },
   ],
 };

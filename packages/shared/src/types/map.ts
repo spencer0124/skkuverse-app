@@ -50,8 +50,24 @@ export interface MapLayerDef {
   label: string;
   defaultVisible: boolean;
   endpoint: string;
-  markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel';
+  markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel' | 'placeDot';
   style?: MapLayerStyle;
+  /**
+   * May the user change this layer's visibility.
+   *
+   * A separate axis from `defaultVisible`, which says what the value *is*:
+   * this says *who may change it*. The four combinations give an always-on
+   * background layer, an ordinary toggle, an opt-in, and a defined-but-inert
+   * kill switch.
+   *
+   * **Absent means `true`.** Never fail closed — a server predating the field,
+   * or a response that lost it, must not silently lock every control on the
+   * map. It governs the affordance, not the capability: a locked layer still
+   * renders, still fetches and is still deep-linkable, and the resolution stays
+   * a fallback chain so a hidden control cannot destroy the stored preference
+   * underneath it.
+   */
+  userConfigurable?: boolean;
 }
 
 // ── Aggregate config from GET /map/config ──
@@ -64,13 +80,55 @@ export interface MapConfig {
 
 // ── Marker data from layer endpoints ──
 
+/**
+ * What a marker tap resolves to, or `null` for a marker that is not interactive.
+ *
+ * `placeId` is a string for every kind, including a building whose id is numeric
+ * in Mongo — one addressing scheme is the point, and the narrowing back to a
+ * number happens in the building branch, where `GET /building/:id` needs one.
+ *
+ * This replaced a bare `skkuId?: number`, which could only ever address a
+ * building.
+ */
+export type MarkerTap =
+  | { kind: 'skku_building'; placeId: string }
+  | { kind: 'eskara26'; placeId: string };
+
 export interface RawMarkerData {
-  skkuId?: number;
+  /**
+   * Unique within its layer, NOT across layers: one building is drawn once per
+   * building layer and both markers carry this same value. The React key is
+   * therefore `layerId` plus this — see MapMarkerLayer.
+   */
+  id: string;
+  /** Which layer draws this marker. Layers share endpoints, so this is the filter. */
+  layerId: string;
   lat: number;
   lng: number;
   campus: Campus;
-  displayNo?: string;
-  text?: { ko: string; en: string };
+  /**
+   * The string this marker displays — a building number, a building name, a
+   * booth title. The layer's `markerStyle` decides how it is drawn, which is
+   * why a separate `displayNo` no longer exists.
+   *
+   * Every language the server holds, not the one matching `Accept-Language`:
+   * a building carries `{ko, en}` while an ops-authored booth title may also
+   * carry `zh`, and resolving server-side would mean discarding the rest.
+   */
+  text: { ko: string; en: string; zh?: string };
+  /**
+   * ISO instants bounding when this marker is drawn, `null` for unbounded on
+   * that side. Both null means always visible, and only that.
+   *
+   * There is deliberately no `status` on the wire. It was only ever a cache of
+   * this arithmetic, and it forced both-bounds-null to mean two opposite things
+   * — an always-on facility and a cancelled booth. A cancellation is expressed
+   * by the marker not being served, so a marker that arrives is real and the
+   * device answers visibility from its own clock.
+   */
+  startAt: string | null;
+  endAt: string | null;
+  tap: MarkerTap | null;
 }
 
 // ── Polyline data ──
