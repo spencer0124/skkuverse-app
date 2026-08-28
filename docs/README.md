@@ -76,6 +76,7 @@ crosses package boundaries.
 | [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, predicate evaluation and stackKey pin rendering |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 | [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
+| [campus-sheet-liquid-glass.md](explanation/campus-sheet-liquid-glass.md) | Why the campus sheet is a floating glass card low down and an opaque sheet at the top detent |
 
 ### decisions (ADR)
 

@@ -3,7 +3,7 @@ title: Campus Map Reconciliation
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-27
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -109,7 +109,10 @@ rest", so idle answers it directly and needs no debouncing. Both are forwarded t
   animation.** The card first shipped fully transparent, with map markers showing through its
   text. Every glass surface that works in this app is mounted plainly. If the card ever needs to
   animate in, drive it from the parent's own animated style rather than a layout animation
-  wrapped around it.
+  wrapped around it. An animated style is not the same thing as `entering`, and the sheet's own
+  glass card does sit under one — see
+  [campus-sheet-liquid-glass.md](campus-sheet-liquid-glass.md), which also covers why glass must
+  never be shaped by a rounded `overflow: 'hidden'` parent.
 - **The card shares the lower row with the locate button** at `MAP_CONTROL_HEIGHT`, mirroring
   the toggle and filter button at the top. `controlMetrics.ts` exists so those four cannot drift
   apart.

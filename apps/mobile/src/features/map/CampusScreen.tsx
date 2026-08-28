@@ -8,7 +8,8 @@
  *   CampusToggle (absolute, top — the row the search bar used to hold)
  *   FilterButton (absolute, right of the toggle)
  *   BottomSheet (snap: SHEET_SNAP_PERCENTS)
- *     ├─ handleComponent={SheetHandle}
+ *     ├─ backgroundComponent={SheetBackground}  (glass card ⇄ opaque sheet)
+ *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
  *     └─ BottomSheetScrollView → SearchBar
  *   BuildingDetailSheet (modal, on marker tap)
  *   FilterSheet (modal, on filter button tap)
@@ -24,6 +25,7 @@ import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetModal,
 } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import {
   CrosshairSimpleIcon,
@@ -49,7 +51,7 @@ import {
 } from '@skkuverse/shared';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
-import { GlassIconButton } from '@/components/glass';
+import { GlassIconButton, GLASS_AVAILABLE } from '@/components/glass';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
@@ -60,6 +62,8 @@ import { ActiveChipStrip } from './components/ActiveChipStrip';
 import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
+import { SheetBackground } from './components/SheetBackground';
+import { sheetChromeAt } from './utils/sheetChrome';
 import { HeadingLocateIcon } from './components/HeadingLocateIcon';
 import { CampusSuggestionCard } from './components/CampusSuggestionCard';
 import {
@@ -139,6 +143,9 @@ const EXPLICIT_CAMERA_RESULT_WINDOW_MS = 6000;
  */
 const SHEET_SNAP_PERCENTS = [30, 50, 85] as const;
 
+/** Index of the top detent — the one at which the card is fully attached. */
+const SHEET_LAST_INDEX = SHEET_SNAP_PERCENTS.length - 1;
+
 /**
  * Which snap the locate button stops following the sheet at — the middle one.
  *
@@ -190,6 +197,19 @@ export function CampusScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const sheetTop = useSharedValue(windowHeight);
 
+  /**
+   * The sheet's live detent, 0..2, fractional mid-drag.
+   *
+   * Seeded at 0 rather than -1: gorhom reports -1 until its first layout, and
+   * the card should be floating from the first frame it is visible rather than
+   * springing outward once layout lands.
+   *
+   * `animatedIndex` and `animatedPosition` are filled by two independent
+   * reactions inside the sheet, so asking for this one cannot perturb the other
+   * — which matters, because `sheetTop` is what the locate button rides.
+   */
+  const sheetIndex = useSharedValue(0);
+
   const { t, tpl } = useT();
 
   // Memoised: `useLocationTracking` depends on this object, and a fresh literal
@@ -222,6 +242,43 @@ export function CampusScreen() {
    */
   const locateAnchorTop =
     sheetContainerHeight * (1 - SHEET_SNAP_PERCENTS[LOCATE_ANCHOR_SNAP_INDEX] / 100);
+
+  /**
+   * The sheet's background: a floating glass card low down, an ordinary opaque
+   * sheet at the top detent.
+   *
+   * A closure rather than the component itself, because `containerHeight` is
+   * measured here and gorhom passes a background component only its own
+   * `animatedIndex`/`animatedPosition`. Memoised on the measurement so a drag,
+   * which changes neither, never rebuilds the element type and remounts the
+   * GlassView underneath the user's finger.
+   */
+  /**
+   * The card's side gap, applied to the sheet body so the background, the
+   * handle and the content all inset together.
+   *
+   * A margin is legal here where `left`/`right` would not be: gorhom composes
+   * `[style, styles.container, containerAnimatedStyle]`, so its own absolute
+   * positioning wins any collision, and a margin on a box pinned to both edges
+   * simply narrows it. The alternative — insetting the background alone — puts
+   * the sheet's touch area outside its visible card, which is worse than the
+   * per-frame layout this costs.
+   */
+  const sheetBodyStyle = useAnimatedStyle(
+    () => ({ marginHorizontal: sheetChromeAt(sheetIndex.get(), SHEET_LAST_INDEX).inset }),
+    [],
+  );
+
+  const renderSheetBackground = useCallback(
+    (props: BottomSheetBackgroundProps) => (
+      <SheetBackground
+        {...props}
+        containerHeight={sheetContainerHeight}
+        lastIndex={SHEET_LAST_INDEX}
+      />
+    ),
+    [sheetContainerHeight],
+  );
 
   const {
     mode: trackingMode,
@@ -1032,8 +1089,12 @@ export function CampusScreen() {
           snapPoints={snapPoints}
           enableDynamicSizing={false}
           handleComponent={SheetHandle}
+          backgroundComponent={renderSheetBackground}
           index={0}
           animatedPosition={sheetTop}
+          animatedIndex={sheetIndex}
+          // Off iOS 26 the sheet stays attached, so it must not inset at all.
+          style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
           <BottomSheetScrollView style={styles.sheetContent}>
             {/* No mapConfig gate and no skeleton any more: the sheet holds the
@@ -1124,9 +1185,11 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   sheetTopWrap: {
+    // 16 measured from the CARD's edge, not the screen's: the body carries the
+    // inset, so this padding rides in with it and stays correct at every detent.
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
