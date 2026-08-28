@@ -7,11 +7,11 @@ import Animated, {
   withSequence,
   withDelay,
   withTiming,
-  interpolate,
   Easing,
 } from 'react-native-reanimated';
 import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
+import { FloatingEmoji, type EmojiSpec } from '@/components/FloatingEmoji';
 import { logHomeContentSelect } from '@/services/analytics';
 import { handleSduiAction } from '@/sdui/action-handler';
 
@@ -93,15 +93,6 @@ const SHORT_TEXT_WIDTH = HEADING_FONT * 1.7;
 // in the tight state. The difference is the inward-translate amount.
 const LEFT_TIGHT_TRANSLATE = (RIGHT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
 const RIGHT_TIGHT_TRANSLATE = -(LEFT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
-
-type EmojiSpec = {
-  ch: string;
-  left: `${number}%`;
-  top: `${number}%`;
-  size: number;
-  rot: number;
-  delay: number;
-};
 
 // Right-zone emoji cluster — organic scatter around 📢 anchor (the largest,
 // focal). Sizes graduated (28→16) so the eye reads anchor first then drifts
@@ -260,48 +251,6 @@ export function HeroBanner() {
   );
 }
 
-function FloatingEmoji({ spec }: { spec: EmojiSpec }) {
-  const bob = useSharedValue(0);
-
-  useEffect(() => {
-    bob.value = withDelay(
-      spec.delay,
-      withRepeat(
-        withTiming(1, {
-          duration: 4000,
-          easing: Easing.inOut(Easing.quad),
-        }),
-        -1,
-        true,
-      ),
-    );
-  }, [bob, spec.delay]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(bob.value, [0, 1], [0, -10]) },
-      { rotate: `${spec.rot}deg` },
-    ],
-  }));
-
-  return (
-    <Animated.Text
-      style={[
-        styles.emoji,
-        {
-          left: spec.left,
-          top: spec.top,
-          fontSize: spec.size,
-          lineHeight: spec.size * 1.2,
-        },
-        animStyle,
-      ]}
-    >
-      {spec.ch}
-    </Animated.Text>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
     height: 96,
@@ -357,10 +306,6 @@ const styles = StyleSheet.create({
     color: SdsColors.brandDark,
     letterSpacing: -HEADING_FONT * 0.03,
     textAlign: 'center',
-  },
-  emoji: {
-    position: 'absolute',
-    fontFamily: 'TossFaceFontMac',
   },
   chevronWrap: {
     position: 'absolute',

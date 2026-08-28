@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
-import { SdsColors, SdsTypo, SdsSpacing, useT } from '@skkuverse/shared';
+import {
+  SdsColors,
+  SdsTypo,
+  SdsSpacing,
+  authStore,
+  useAuthStore,
+  useSettingsStore,
+  useT,
+} from '@skkuverse/shared';
 import { useAppInit } from '@/hooks/useAppInit';
 import { useOTAUpdate } from '@/hooks/useOTAUpdate';
 import { checkForceUpdate } from '@/hooks/checkForceUpdate';
+import { IntroScreen } from '@/features/intro/IntroScreen';
 import { SKKUverseSplash } from './SKKUverseSplash';
 import { ForceUpdateScreen } from './ForceUpdateScreen';
 
@@ -35,6 +44,11 @@ export function InitGate({ children }: { children: ReactNode }) {
   const backgroundAt = useRef<number>(0);
   const otaDone = useRef(false);
   const isChecking = useRef(false);
+
+  // ── First-launch intro ──
+  const authInitialized = useAuthStore((s) => s.isInitialized);
+  const [showIntro, setShowIntro] = useState(false);
+  const introDecided = useRef(false);
 
   // ── Cold start OTA check ──
   useEffect(() => {
@@ -112,6 +126,25 @@ export function InitGate({ children }: { children: ReactNode }) {
     })();
   }, [phase, isReady, error]);
 
+  // ── First-launch intro gate ──
+  //
+  // Waits on `authInitialized`, not just `phase`. authStore defaults
+  // `isAnonymous: true` and only learns the truth when onAuthStateChanged
+  // fires, which lands AFTER useAppInit sets isReady — so deciding on `phase`
+  // alone would flash the tour at an already-signed-in user. `isInitialized` is
+  // set by setAuthenticated/setUnauthenticated and is the honest signal.
+  //
+  // The ref freezes the decision: signing in on the last page flips
+  // `isAnonymous` to false, and without it this effect would tear the intro
+  // down mid-flow. After that only IntroScreen's onDone closes it.
+  useEffect(() => {
+    if (introDecided.current) return;
+    if (phase !== 'ready' || !authInitialized) return;
+    introDecided.current = true;
+    const seen = useSettingsStore.getState().introSeen;
+    setShowIntro(authStore.getState().isAnonymous && !seen);
+  }, [phase, authInitialized]);
+
   // ── Render ──
 
   if (phase === 'forceUpdate') {
@@ -128,9 +161,26 @@ export function InitGate({ children }: { children: ReactNode }) {
     );
   }
 
+  // The intro REPLACES children rather than overlaying them, the same way
+  // ForceUpdateScreen does. Mounting the tab tree behind it would fire
+  // screen_view for tabs nobody has seen and warm queries for a user who may
+  // never arrive. A cold-start deep link still survives: +native-intent stashes
+  // it in a module singleton, and the consumers in app/_layout.tsx drain it on
+  // mount — which now happens when the intro dismisses.
+  //
+  // The splash stays on top of both so the splash → intro handoff is seamless.
   return (
     <>
-      {children}
+      {showIntro ? (
+        <IntroScreen
+          onDone={() => {
+            useSettingsStore.getState().completeIntro();
+            setShowIntro(false);
+          }}
+        />
+      ) : (
+        children
+      )}
       {showSplash && (
         <SKKUverseSplash
           isReady={phase === 'ready'}

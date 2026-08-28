@@ -68,6 +68,7 @@ crosses package boundaries.
 | [architecture.md](explanation/architecture.md) | The whole system, from monorepo boundaries and data flow through to the provider stack and its diagrams |
 | [fcm-architecture.md](explanation/fcm-architecture.md) | Current FCM architecture: v5 SSOT, tabsContract, delivery, auth transition |
 | [notices-feature.md](explanation/notices-feature.md) | Notices: server-driven tabs, markdown rendering, the onboarding gate and auto-restore |
+| [first-launch-intro.md](explanation/first-launch-intro.md) | The four-page value tour: why it gates inside InitGate, and how it lets the notices wizard skip its login step |
 | [app-check.md](explanation/app-check.md) | App Check: debug token injection paths, Play Integrity throttling and cache priming |
 | [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | Why every modal route needs its own SafeAreaProvider |

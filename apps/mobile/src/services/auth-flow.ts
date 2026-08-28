@@ -14,11 +14,12 @@ import {
 } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
 
-export type AuthFlowScope = 'login' | 'notices' | 'onboarding';
+export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
 
 /**
- * Phase A+B+C of the sign-in flow shared by all 3 entrypoints (login screen,
- * notices landing "이미 가입한 적 있어요", onboarding wizard step-4):
+ * Phase A+B+C of the sign-in flow shared by all 4 entrypoints (login screen,
+ * notices landing "이미 가입한 적 있어요", onboarding wizard step-4, and the
+ * first-launch intro's final page):
  *
  *   A. Pre-unregister the current (anon) device so the post-signin re-register
  *      can claim the doc under the new uid via Firestore rule path b

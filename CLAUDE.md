@@ -107,6 +107,16 @@ The gate and restore mechanisms in detail (the v2 gate screen, why the header an
 - **The 'dept' key is hardcoded across three places.** The department mirror is read in the `notices/index.tsx` handler, the `useAppInit.ts` listener, and `functions/src/notifications/tabsContract.ts`. Renaming it needs a coordinated change.
 - **The gate branch has to genuinely unmount the header and bottomAccessory** (fire `headerShown: false`, and make the accessory prop itself `undefined`). Hiding one or covering it with an overlay does not work.
 
+### First-launch intro (`src/features/intro/`, 2026-08-28)
+
+A four-page value tour (shuttle → campus map → AI notices → Google sign-in, skippable) shown **once** to every user who is not signed in with a Google account. Not to be confused with the 7-step notices wizard above: different flag, different audience, different mount. **Full detail: `docs/explanation/first-launch-intro.md`.** The invariants worth knowing mid-session:
+
+- **`introSeen` and `onboardingCompleted` are different gates.** `introSeen` (`packages/shared/src/store/settings.ts`) only records that the tour was shown; it never unlocks the notices tab. It was added without a store version bump on purpose, so an install predating the key falls back to `false` and gets toured once.
+- **The intro is a branch of `InitGate`, not a route.** It replaces `children` the way `ForceUpdateScreen` does, so nothing mounts behind it and it is not a deep-link surface. It waits on `authStore.isInitialized` — **not** just `isReady` — because `isAnonymous` defaults to true and Firebase answers after `useAppInit` finishes; a ref then freezes the decision so signing in on the last page cannot unmount the screen mid-flow.
+- **Sign-in is the last step and routes nowhere.** `classifyAndRestoreOnboarding` is still called, but purely for its restore side effect; the `kind` is ignored. A new user meets the notices wizard later, from the notices tab.
+- **The wizard's `skipLogin` is frozen at mount.** `OnboardingState.skipLogin` comes from `authStore` in the lazy initializer, and makes `NEXT` 3→5 and `PREV` 5→3. Never recompute it from live `isAnonymous`, which flips mid-wizard.
+- **`reducer.ts` must stay free of relative runtime imports.** `node --experimental-strip-types --test` erases the type-only `./types` import; a value import would break `reducer.test.mts`. That is why `MAX_INTEREST_DEPTS` lives there.
+
 ### Design System (`@skkuverse/sds`)
 
 Provides themed components via `SDSProvider`. Design tokens (colors, typography, spacing, radius, shadows) are centralized in `@skkuverse/shared/tokens/`.
