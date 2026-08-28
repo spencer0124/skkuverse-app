@@ -22,12 +22,20 @@ export interface SettingsState {
   primaryDeptId: string | null;
   /** Interest departments chosen during onboarding, max 3 (temporary — promotes to Firestore preferences on completion). */
   interestDeptIds: string[];
+  /**
+   * Whether the first-launch value tour (셔틀 → 캠퍼스맵 → AI공지 → 로그인) has
+   * been shown. Device-local and one-way — distinct from `onboardingCompleted`,
+   * which gates the notices tab and means "finished the 7-step notices wizard".
+   */
+  introSeen: boolean;
 }
 
 interface SettingsActions {
   setPreferredCampus: (campus: Campus) => void;
   setAppLanguage: (language: AppLanguage) => void;
   setLastTab: (tab: TabRoute) => void;
+  /** Mark the first-launch intro as shown. Called on both skip and sign-in. */
+  completeIntro: () => void;
   completeOnboarding: (data: {
     campus: Campus;
     // null when the user tapped "내 학과가 없어요" on Step 2 of the wizard.
@@ -59,10 +67,11 @@ interface SettingsActions {
    * Wipe user-scoped fields so the next sign-in (or anon fallback) starts
    * from a clean slate. Used by the account-deletion flow.
    *
-   * Preserves device-local fields (preferredCampus, appLanguage, lastTab)
-   * — those represent the device owner's UI choices, not the deleted user's
-   * data, and resetting them would force the user to re-pick campus/language
-   * on a device they still own.
+   * Preserves device-local fields (preferredCampus, appLanguage, lastTab,
+   * introSeen) — those represent the device owner's UI choices, not the
+   * deleted user's data, and resetting them would force the user to re-pick
+   * campus/language, or sit through the first-launch tour again, on a device
+   * they still own.
    */
   resetUserScopedState: () => void;
 }
@@ -79,6 +88,12 @@ export type SettingsStore = SettingsState & SettingsActions;
  *   The picker selection state moved to Firestore (preferences/main →
  *   pickerSelections) as part of the v5 SSOT redesign so picks sync
  *   across devices. Local stale data is dropped silently on hydration.
+ *
+ * `introSeen` was added WITHOUT a version bump, deliberately. Zustand's default
+ * merge is `{...initializerState, ...persisted}`, so a v4 payload that predates
+ * the key falls back to `false` and the existing install sees the first-launch
+ * tour once — which is the intended rollout. Bumping the version would only run
+ * `migrate`, which is the wrong lever for "everyone who has not signed in".
  */
 export const useSettingsStore = create<SettingsStore>()(
   persist(
@@ -89,10 +104,12 @@ export const useSettingsStore = create<SettingsStore>()(
       onboardingCompleted: false,
       primaryDeptId: null,
       interestDeptIds: [],
+      introSeen: false,
 
       setPreferredCampus: (campus) => set({ preferredCampus: campus }),
       setAppLanguage: (language) => set({ appLanguage: language }),
       setLastTab: (tab) => set({ lastTab: tab }),
+      completeIntro: () => set({ introSeen: true }),
       completeOnboarding: (data) =>
         set({
           preferredCampus: data.campus,

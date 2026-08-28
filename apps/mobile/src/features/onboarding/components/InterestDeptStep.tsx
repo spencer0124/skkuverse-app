@@ -9,7 +9,7 @@ import {
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
-import { MAX_INTEREST_DEPTS } from '../types';
+import { MAX_INTEREST_DEPTS } from '../reducer';
 import { DeptRow } from './DeptRow';
 import { logOnboardingStep } from '@/services/analytics';
 

@@ -442,6 +442,22 @@ const ko = {
   'onboarding.interestDept.recommendedSection': '같은 단과대학',
   'onboarding.interestDept.othersSection': '기타 학과',
 
+  // ── First-launch intro ──
+  // The 4-page value tour shown once to every user who is not signed in with a
+  // Google account. Distinct from the `onboarding.*` block above, which is the
+  // 7-step notices wizard behind the notices tab.
+  'intro.shuttleTitle': '셔틀, 언제 오는지\n바로 확인해요',
+  'intro.shuttleBody': '실시간 위치와 시간표를 한 화면에서 봐요',
+  'intro.mapTitle': '강의실 찾다가\n헤매지 마세요',
+  'intro.mapBody': '건물부터 호실까지 지도에서 찾아드려요',
+  'intro.noticesTitle': '성균관대 공지,\n찾지 말고 받아보세요',
+  'intro.noticesBody': 'AI가 중요한 내용만 알려드려요',
+  'intro.loginTitle': '성대생이라면\n모든 기능을 누려보세요',
+  'intro.loginBody': 'AI공지 요약, 공지 알림, 셔틀정보, 캠퍼스맵',
+  'intro.next': '다음',
+  'intro.loginCta': '1초만에 구글 계정으로 로그인하기',
+  'intro.loginSkip': '나중에 할게요',
+
   // ── Settings ──
   'settings.title': '설정',
   'settings.account': '계정 설정',
@@ -909,6 +925,19 @@ const en: TranslationMap = {
   'onboarding.interestDept.recommendedSection': 'Same college',
   'onboarding.interestDept.othersSection': 'Other departments',
 
+  // ── First-launch intro ──
+  'intro.shuttleTitle': 'See when the next\nshuttle arrives',
+  'intro.shuttleBody': 'Live positions and timetables on one screen',
+  'intro.mapTitle': 'Never wander looking\nfor a lecture room',
+  'intro.mapBody': 'Find any building and room on the campus map',
+  'intro.noticesTitle': 'Get SKKU notices\ninstead of hunting for them',
+  'intro.noticesBody': 'AI tells you only what matters',
+  'intro.loginTitle': 'At SKKU?\nUnlock every feature',
+  'intro.loginBody': 'AI notice summaries, alerts, shuttle times, campus map',
+  'intro.next': 'Next',
+  'intro.loginCta': 'Sign in with Google in a second',
+  'intro.loginSkip': 'Maybe later',
+
   // ── Settings ──
   'settings.title': 'Settings',
   'settings.account': 'Account',
@@ -1375,6 +1404,19 @@ const zh: TranslationMap = {
   'onboarding.unsupportedDept.reason.temporarilyUnavailable': '临时维护中',
   'onboarding.interestDept.recommendedSection': '同学院',
   'onboarding.interestDept.othersSection': '其他学科',
+
+  // ── First-launch intro ──
+  'intro.shuttleTitle': '校车什么时候到，\n一眼就知道',
+  'intro.shuttleBody': '实时位置和时刻表都在同一个页面',
+  'intro.mapTitle': '再也不用为找教室\n绕圈子',
+  'intro.mapBody': '从楼栋到房间号，地图上都能找到',
+  'intro.noticesTitle': '成均馆大学的通知，\n不用找，直接收',
+  'intro.noticesBody': 'AI 只告诉你重要的内容',
+  'intro.loginTitle': '成大学生的话，\n所有功能都能用',
+  'intro.loginBody': 'AI 通知摘要、通知提醒、校车信息、校园地图',
+  'intro.next': '下一步',
+  'intro.loginCta': '一秒用谷歌账号登录',
+  'intro.loginSkip': '以后再说',
 
   // ── Settings ──
   'settings.title': '设置',

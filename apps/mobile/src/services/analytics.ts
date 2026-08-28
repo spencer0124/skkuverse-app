@@ -467,6 +467,32 @@ export function logOnboardingStep(params: {
   });
 }
 
+/**
+ * First-launch intro funnel. A separate event from `onboarding_step` on
+ * purpose: the intro is a marketing tour every anonymous user sees, while the
+ * 7-step wizard is a configuration flow only notices-tab users reach. Merging
+ * them would make wizard drop-off unreadable.
+ */
+export type IntroStepKey = 'shuttle' | 'map' | 'notices' | 'login';
+export type IntroAction =
+  | 'enter'
+  | 'advance'
+  | 'skip'
+  | 'signin_attempt'
+  | 'signin_success'
+  | 'signin_error';
+export function logIntroStep(params: {
+  step: IntroStepKey;
+  action: IntroAction;
+  detail?: string;
+}) {
+  logEvent('intro_step', {
+    step: params.step,
+    action: params.action,
+    ...(params.detail && { detail: truncate(params.detail) }),
+  });
+}
+
 /** Notification tab toggle (settings or onboarding screen). */
 export function logNotificationTabToggle(params: {
   tab_key: string;

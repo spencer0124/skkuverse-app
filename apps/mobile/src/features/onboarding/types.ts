@@ -13,6 +13,13 @@ export interface OnboardingState {
   // prepareCategoryStep에서 조립한 picker selections를 finalize 시 동일하게 재사용.
   // assemble을 두 번 호출하면 tabsConfig race에 노출되므로 reducer state로 stash.
   seededPickerSelections: Record<string, string[]> | null;
+  /**
+   * Frozen at mount: the user was already signed in when the wizard opened, so
+   * step 4 (login) is skipped in both directions. Set from authStore in the
+   * lazy initializer — deliberately NOT read live, since signing in mid-wizard
+   * would otherwise change the ladder underneath the user.
+   */
+  skipLogin: boolean;
 }
 
 export type OnboardingAction =
@@ -26,6 +33,3 @@ export type OnboardingAction =
   | { type: 'DECLINE_NOTIFICATIONS' }
   | { type: 'NEXT' }
   | { type: 'PREV' };
-
-export const MAX_INTEREST_DEPTS = 4;
-export const TOTAL_STEPS = 7;

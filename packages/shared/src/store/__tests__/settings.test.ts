@@ -19,6 +19,7 @@ const initialState = {
   onboardingCompleted: false,
   primaryDeptId: null,
   interestDeptIds: [],
+  introSeen: false,
 };
 
 describe('useSettingsStore.restoreOnboardingFromRemote', () => {
@@ -85,5 +86,38 @@ describe('useSettingsStore.restoreOnboardingFromRemote', () => {
     expect(s.lastTab).toBe('home');
     expect(s.onboardingCompleted).toBe(true);
     expect(s.primaryDeptId).toBe('cs');
+  });
+});
+
+describe('useSettingsStore.completeIntro', () => {
+  beforeEach(() => {
+    useSettingsStore.setState(initialState);
+  });
+
+  it('defaults to not-yet-seen so an install that predates the key is toured', () => {
+    // 버전 범프 없이 필드를 추가한 근거 — zustand persist merge가 누락 키를
+    // initializer 기본값으로 되돌리므로 기존 설치도 false로 시작한다.
+    expect(useSettingsStore.getState().introSeen).toBe(false);
+  });
+
+  it('marks the tour as seen', () => {
+    useSettingsStore.getState().completeIntro();
+    expect(useSettingsStore.getState().introSeen).toBe(true);
+  });
+
+  it('does not unlock the notices gate', () => {
+    // introSeen과 onboardingCompleted는 서로 다른 게이트다. 인트로를 건너뛴
+    // 사용자는 여전히 공지 탭에서 위저드를 거쳐야 한다.
+    useSettingsStore.getState().completeIntro();
+    expect(useSettingsStore.getState().onboardingCompleted).toBe(false);
+  });
+
+  it('survives resetUserScopedState — it is device UI state, not user data', () => {
+    // 회원 탈퇴 후 익명으로 돌아가도 인트로를 다시 보여주지 않는다.
+    useSettingsStore.getState().completeIntro();
+    useSettingsStore.getState().resetUserScopedState();
+    const s = useSettingsStore.getState();
+    expect(s.introSeen).toBe(true);
+    expect(s.onboardingCompleted).toBe(false);
   });
 });
