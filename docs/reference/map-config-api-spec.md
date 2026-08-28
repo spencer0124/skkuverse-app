@@ -159,8 +159,8 @@ An empty body. The client keeps its cached config.
 | `type` | string | Yes | `"marker"` or `"polyline"`. The client ignores a type it does not know |
 | `label` | string | Yes | Localised text for the filter UI |
 | `markerStyle` | string | No | How a `marker` layer draws: `numberCircle`, `numberDot`, `textLabel` or `placeDot`. An unrecognised value falls back to the number-dot rendering |
-| `defaultVisible` | boolean | No | What the value **is** on first load, defaulting to `false` |
-| `userConfigurable` | boolean | No | **Who may change it.** A separate axis from `defaultVisible`. An **absent value means `true`** — never fail closed, or a server predating the field would silently strip every toggle off the filter sheet. It governs the affordance, not the capability: a locked layer still renders, still fetches and is still deep-linkable, only its control disappears |
+| `defaultVisible` | boolean | No | The layer's starting visibility, defaulting to `false` |
+| `userConfigurable` | boolean | No | Whether the user may change that visibility — a separate axis from `defaultVisible`. An **absent value means `true`** — never fail closed, or a server predating the field would silently strip every toggle off the filter sheet. It governs the affordance, not the capability: a locked layer still renders, still fetches and is still deep-linkable, only its control disappears |
 | `endpoint` | string | Yes | Where to fetch this layer's markers or coordinates. **Not unique** — see the note in the summary |
 | `style` | object | No | Rendering hints. Only `color` is supported today |
 
