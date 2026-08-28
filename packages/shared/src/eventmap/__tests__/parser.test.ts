@@ -18,10 +18,10 @@
  * server, so a new member added there is caught only by someone remembering. The
  * fix is a generator, not a stricter sentence in this comment.
  *
- * The pre-`basemapOverride` shape is asserted explicitly (`delete raw.basemapOverride`
- * below) rather than by leaving the fixture behind the server. That shape still
- * matters — it is every snapshot published before the field existed, and those are
- * served immutable for a year.
+ * The fixture still carries `basemapOverride`, which the server ships and this
+ * parser no longer reads. That is deliberate: the file's contract is real server
+ * output, and leaving it in makes the no-drop test above also the proof that an
+ * unread member on the wire is harmless — the schema is additive-only.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -50,28 +50,6 @@ describe('parseEventMapSnapshot — real server output', () => {
     expect(snapshot!.layers).toHaveLength(5);
     expect(snapshot!.chipGroups).toHaveLength(4);
     expect(Object.keys(snapshot!.icons)).toHaveLength(12);
-  });
-
-  it('reads the basemapOverride the server now ships', () => {
-    // ESKARA hides 건물번호 so pins stay legible, and leaves 건물이름
-    // (`building_labels`) up for orientation.
-    expect(parse(fixture()).snapshot!.basemapOverride).toEqual({ building_numbers: false });
-  });
-
-  it('defaults basemapOverride to {} when the field is absent', () => {
-    // The shape of every snapshot published before the field existed. Those are
-    // served `immutable, max-age=1y`, so they are still in caches and must not
-    // be dropped whole for missing a member they could not have carried.
-    const raw = fixture();
-    delete raw.basemapOverride;
-    expect(parse(raw).snapshot!.basemapOverride).toEqual({});
-  });
-
-  it('drops a non-boolean override value rather than coercing it', () => {
-    const raw = { ...fixture(), basemapOverride: { building_numbers: false, junk: 'nope' } };
-    // "nope" is not a visibility, and truthiness would silently force a layer ON
-    // — revealing a layer the event meant to hide is the unrecoverable direction.
-    expect(parse(raw).snapshot!.basemapOverride).toEqual({ building_numbers: false });
   });
 
   it('pins the fixture to the webview URL rule the server now enforces', () => {

@@ -115,19 +115,10 @@ function SheetCloseButton({ label }: { label: string }) {
 
 interface FilterSheetProps {
   mapConfig: MapConfig;
-  /**
-   * The event's forced layer visibility, exactly as CampusScreen resolves it.
-   *
-   * Passed in rather than re-derived: this sheet read `layers[id]?.visible`
-   * alone, so during a festival it showed 건물번호 switched ON while the map was
-   * hiding it. A control that disagrees with the thing it controls is worse than
-   * no control.
-   */
-  basemapOverride: Record<string, boolean>;
 }
 
 export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
-  function FilterSheet({ mapConfig, basemapOverride }, ref) {
+  function FilterSheet({ mapConfig }, ref) {
     const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
     const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
     const layers = useMapLayerStore((s) => s.layers);
@@ -236,13 +227,10 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
               // so an older server loses nothing.
               .filter((layer) => layer.userConfigurable !== false)
               .map((layer) => {
-                // The same three-tier chain CampusScreen renders with. Read, not
-                // written: forcing the value into the store would destroy a
-                // preference the user cannot re-express while the event overrides it.
-                const visible =
-                  basemapOverride[layer.id] ??
-                  layers[layer.id]?.visible ??
-                  layer.defaultVisible;
+                // The same expression CampusScreen renders with, which is what
+                // keeps this control honest — it once read `layers[id]?.visible`
+                // alone and showed 건물번호 ON while the map was hiding it.
+                const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
                 return (
                   <View key={layer.id} style={styles.col}>
                     <MapTile

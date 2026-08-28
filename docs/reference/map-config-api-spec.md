@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-27
+last-updated: 2026-08-28
 audience: public
 ---
 
@@ -100,8 +100,11 @@ Returns the campus definitions and the list of available map layers.
 > not part of the response.
 >
 > **Building numbers and building names being separate layers is part of the contract.**
-> Hiding the numbers during an event while keeping the names depends on that split. See
-> [eventmap-rendering.md](../explanation/eventmap-rendering.md), section 8.1.
+> The split is what lets a user keep the names for orientation while turning the numbers off,
+> or the reverse — two independent toggles over one set of documents. An earlier revision
+> justified it by an event's ability to force the numbers off; that mechanism
+> ([`basemapOverride`](../explanation/eventmap-rendering.md)) has been removed, and the split
+> stands on its own without it.
 
 ### Response (304)
 

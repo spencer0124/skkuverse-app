@@ -53,8 +53,7 @@ export async function handleSilentPush(
       queryClient.invalidateQueries({ queryKey: MAP_CONFIG_KEY }),
       // Still the manifest and not the snapshot: a new version means a new
       // snapshotUrl, which is a new query key, so the snapshot refetches on its
-      // own. It no longer draws pins, but it is what the peek sheet renders and
-      // where basemapOverride comes from.
+      // own. It no longer draws pins, but it is what the peek sheet renders.
       queryClient.invalidateQueries({ queryKey: EVENTMAP_MANIFEST_KEY }),
     ]);
   } catch (e) {

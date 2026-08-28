@@ -330,22 +330,6 @@ export function CampusScreen() {
     }).length;
   }, [mapConfig, layers]);
 
-  /**
-   * Base-map visibility with the event's override applied ON TOP, derived per
-   * render and never written to a store.
-   *
-   * The override normally hides 건물번호 while leaving 건물이름 up, so event pins
-   * are legible without stripping the map of orientation. Deriving it rather
-   * than forcing-then-restoring matters: a restore that never runs — app killed,
-   * activation flipped — would leave the user's building-number layer off
-   * permanently, with nothing on screen to explain why. Derived, the override
-   * simply stops existing when the event does.
-   */
-  // Gated on the event being live rather than on there being pins to draw:
-  // chips can legitimately filter every pin away, and keying off the count would
-  // flash 건물번호 back on mid-event the moment a filter matched nothing.
-  const basemapOverride = eventActive ? (eventMap.snapshot?.basemapOverride ?? {}) : {};
-
   // ── Camera move on campus switch ──
 
   /**
@@ -748,14 +732,12 @@ export function CampusScreen() {
             camera={cameraCommand}
           >
             {mapConfig.layers.map((layer) => {
-              // The event's override wins over the user's toggle while it is
-              // active, and disappears with it. initFromConfig deliberately
-              // preserves user toggles, so nothing here can un-hide a layer the
-              // event asked to hide.
-              const visible =
-                basemapOverride[layer.id] ??
-                layers[layer.id]?.visible ??
-                layer.defaultVisible;
+              // The user's toggle, or the layer's own default. Nothing else gets
+              // a say: an event used to be able to force a base-map layer to a
+              // visibility from its snapshot, which made this a three-tier chain
+              // every reader had to reproduce exactly. Event layers are ordinary
+              // layers now.
+              const visible = layers[layer.id]?.visible ?? layer.defaultVisible;
               if (!visible) return null;
 
               if (layer.type === 'polyline') {
@@ -774,8 +756,8 @@ export function CampusScreen() {
                 server now serves them as ordinary marker layers, so the loop
                 above draws them and this sibling would be a duplicate — six
                 layers' worth of pins on top of the snapshot's own. The snapshot
-                is still fetched: it is what the peek sheet renders and what
-                supplies basemapOverride. */}
+                is still fetched: it is what the peek sheet renders, and what
+                resolves a tapped booth's placeId to a stack. */}
           </CampusNaverMap>
         )}
 
@@ -933,11 +915,7 @@ export function CampusScreen() {
               source={buildingSource}
               onConnectionTap={handleConnectionTap}
             />
-            <FilterSheet
-              ref={filterSheetRef}
-              mapConfig={mapConfig}
-              basemapOverride={basemapOverride}
-            />
+            <FilterSheet ref={filterSheetRef} mapConfig={mapConfig} />
           </>
         )}
 

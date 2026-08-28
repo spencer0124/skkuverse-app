@@ -481,20 +481,9 @@ export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
       // Defaults to {} on purpose. Snapshots published before this field existed
       // are immutable and live on in caches; requiring it would drop them whole
       // and blank the map.
-      basemapOverride: parseBasemapOverride(obj.basemapOverride),
     },
     dropped,
   };
-}
-
-function parseBasemapOverride(raw: unknown): Record<string, boolean> {
-  const obj = asRecord(raw);
-  if (!obj) return {};
-  const out: Record<string, boolean> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (typeof v === 'boolean') out[k] = v;
-  }
-  return out;
 }
 
 /**
