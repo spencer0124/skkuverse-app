@@ -235,11 +235,11 @@ interface MapChip {
 
 > [!IMPORTANT]
 > The drop is deliberate, and is the opposite call from `tap` on a marker. A marker is a *place*
-> that also happens to be tappable, so an unroutable one stays drawn and inert; a chip **is** its
+> that also happens to be tappable, so an unroutable one stays drawn and inert; a chip is its
 > action, so an unroutable chip is a button that visibly does nothing. A missing button is better
 > than a dead one.
 >
-> `MapChip` is also **not** the event map's `ChipSpec` / `ChipGroupSpec`. Those carry a predicate
+> `MapChip` is also not the event map's `ChipSpec` / `ChipGroupSpec`. Those carry a predicate
 > and filter snapshot items client-side. A map chip carries an action and has no predicate at all.
 > The names are close because the UI affordance is the same pill; the contracts are unrelated.
 
@@ -253,7 +253,7 @@ interface MapChip {
    flag already answers who may make one. Inert today, since nothing is `false`.
 
 Together these are what let a festival chip swap the festival layers while the building layers stay
-visible **and** stay user-toggleable. Neither "exclusive over everything" nor "purely additive"
+visible and stay user-toggleable. Neither "exclusive over everything" nor "purely additive"
 does that: the first turns the baseline off, the second cannot give a clean single-purpose view.
 
 The client holds both rules in one place, `packages/shared/src/map/chips.ts`, unit-tested against
@@ -296,7 +296,7 @@ client falls back member by member, so a partial object cannot produce a `NaN` z
 
 > [!NOTE]
 > **A camera cannot be honoured in one call, and that is a client limit rather than a schema one.**
-> The Naver SDK's `animateCameraTo` takes a coordinate, a zoom and a duration but **not** tilt or
+> The Naver SDK's `animateCameraTo` takes a coordinate, a zoom and a duration but not tilt or
 > bearing; the declarative `camera` prop carries tilt and bearing and has **no** duration. So a
 > camera with `tilt === 0 && bearing === 0` goes through the imperative method and keeps its
 > `durationMs`, and any other goes through the prop and animates at the SDK's own pace. The choice
