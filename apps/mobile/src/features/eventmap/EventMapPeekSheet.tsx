@@ -28,6 +28,7 @@ import {
 import {
   resolveSlots,
   SdsColors,
+  useT,
   type EventMapAction,
   type EventMapCardTemplate,
   type EventMapStack,
@@ -36,6 +37,7 @@ import { Txt } from '@skkuverse/sds';
 import { GLASS_AVAILABLE } from '@/components/glass';
 import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
 import { SheetHandle } from '@/features/map/components/SheetHandle';
+import { SheetCloseButton } from '@/features/map/components/SheetCloseButton';
 import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { CardRenderer } from './CardRenderer';
@@ -64,6 +66,7 @@ interface EventMapPeekSheetProps {
 export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetProps>(
   function EventMapPeekSheet({ stack, cardTemplates, bottomGap, onDismiss }, ref) {
     const snapPoints = useMemo(() => [PEEK_MIN_SNAP, '85%'], []);
+    const { t } = useT();
 
     // A closure rather than the component itself, because the card's bottom
     // gap is a prop here and gorhom passes a background component only its own
@@ -100,6 +103,12 @@ export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetP
         stackBehavior="replace"
         onDismiss={onDismiss}
       >
+        {/* The X is a sibling of the scroll view, pinned: inside it, it would
+            ride up and out of reach once the stack's cards outgrew the sheet.
+            No title beside it — every card carries its own. */}
+        <View style={styles.header}>
+          <SheetCloseButton label={t('common.close')} />
+        </View>
         <BottomSheetScrollView style={styles.container} contentContainerStyle={styles.content}>
           {stack?.items.map((item, index) => (
             <View key={item.id} style={index > 0 ? styles.subsequent : undefined}>
@@ -207,6 +216,16 @@ function ActionButton({ action }: { action: EventMapAction }) {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    // The content's own gutter, so the X sits flush with the cards' right edge.
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
   container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
   content: { paddingHorizontal: 20, paddingBottom: 32 },
   card: { marginHorizontal: SHEET_FLOAT_INSET },

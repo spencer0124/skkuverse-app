@@ -33,6 +33,7 @@ import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMappin
 import { GLASS_AVAILABLE } from '@/components/glass';
 import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
 import { SheetHandle } from '@/features/map/components/SheetHandle';
+import { SheetCloseButton } from '@/features/map/components/SheetCloseButton';
 import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import {
   logBuildingView,
@@ -218,6 +219,12 @@ export const BuildingDetailSheet = forwardRef<
       style={GLASS_AVAILABLE ? styles.card : undefined}
       onDismiss={onDismiss}
     >
+      {/* The X is a sibling of the scroll view, pinned: inside it, it would
+          scroll away with the photo header, and closing has to stay one tap
+          away at every scroll position. */}
+      <View style={styles.header}>
+        <SheetCloseButton label={t('common.close')} />
+      </View>
       <BottomSheetScrollView style={styles.container}>
         {isLoading && (
           <View style={styles.loading}>
@@ -454,6 +461,15 @@ const DESC_LINE_HEIGHT = 22.5; // t6 lineHeight (packages/sds/src/foundation/typ
 const FADE_WIDTH = 48; // gradient fade region width
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: SdsSpacing.base,
+    paddingBottom: SdsSpacing.sm,
+  },
   container: {
     flex: 1,
     width: '100%',

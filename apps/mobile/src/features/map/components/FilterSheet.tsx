@@ -20,16 +20,14 @@
  */
 
 import { forwardRef, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
   BottomSheetScrollView,
-  useBottomSheetModal,
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
-import { XIcon } from 'phosphor-react-native';
 import {
   isLayerVisible,
   useMapLayerStore,
@@ -44,6 +42,7 @@ import {
 import { MapTile } from './MapTile';
 import type { MapThumbPalette } from './MapThumb';
 import { GlassCardBackground } from './GlassCardBackground';
+import { SheetCloseButton } from './SheetCloseButton';
 import { toCssColor } from '../utils/toCssColor';
 import { SHEET_FLOAT_INSET } from '../utils/sheetChrome';
 import { GLASS_AVAILABLE } from '@/components/glass';
@@ -94,26 +93,6 @@ function LayerBadge({ layer }: { layer: MapLayerDef }) {
     );
   }
   return <Text style={styles.badgeEmoji}>{LAYER_EMOJI_FALLBACK}</Text>;
-}
-
-/**
- * The close button lives in its own component because `useBottomSheetModal()`
- * reads context the modal provides — calling it in `FilterSheet` itself, which
- * renders that modal, would read from outside its own provider.
- */
-function SheetCloseButton({ label }: { label: string }) {
-  const { dismiss } = useBottomSheetModal();
-  return (
-    <Pressable
-      onPress={() => dismiss()}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={styles.close}
-    >
-      <XIcon size={18} color={SdsColors.grey700} weight="bold" />
-    </Pressable>
-  );
 }
 
 interface FilterSheetProps {
@@ -349,14 +328,6 @@ const styles = StyleSheet.create({
   /** 캠퍼스 is `sectionTitle` verbatim; only the margin moves to the row. */
   headerTitle: {
     marginBottom: 0,
-  },
-  close: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: SdsColors.grey100,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sectionTitle: {
     ...SdsTypo.t5,

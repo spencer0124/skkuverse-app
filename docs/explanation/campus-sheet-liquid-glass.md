@@ -296,6 +296,14 @@ The filter sheet is deliberately outside this. It floats beside the campus card
 on the same bottom line, as the previous section describes, and closing the card
 under it would leave the layers grid hanging over an empty map.
 
+Every modal sheet also carries an explicit X, `SheetCloseButton`, pinned in a
+header row above its scroll view rather than placed inside it: a sheet that can
+only be dragged away looks stuck to anyone who does not know the gesture, and
+inside the scroll view the X would ride out of reach the moment the content
+outgrew the sheet. It is one component for the three sheets because
+`useBottomSheetModal()` has to be called from inside the modal's own provider,
+and each sheet renders that provider itself.
+
 One consequence for the campus sheet's own behaviour: the effect that raises it
 to the middle detent when the event list appears does nothing while a modal has
 the screen. The chips stay reachable above a peek sheet, and raising the campus
