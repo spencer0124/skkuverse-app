@@ -2,27 +2,21 @@
  * Event map client state.
  *
  * Separate from `useMapLayerStore` on purpose — two lifetimes. The campus layer
- * store holds permanent assets; everything here belongs to one event and is
- * meant to be forgotten when the next one arrives. Folding event layer ids into
- * the permanent store would leave dead `eskara-2026` keys in persisted state
- * forever.
+ * store is ephemeral, seeded from `/map/config` on every launch, and that is
+ * where an event layer's visibility lives now, festival layers included: they
+ * are ordinary served layers. What is left here is the one per-event choice
+ * worth keeping across launches, the sort, keyed to the layer set it was made
+ * for so next year's event does not inherit it.
  */
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { EventMapChipGroup, EventMapSnapshot } from '../types/eventmap';
+import type { EventMapSnapshot } from '../types/eventmap';
 import { mmkvStateStorage } from './mmkv-storage';
 
-/** Off the wire type rather than a second literal union that could drift. */
-type ChipSelection = EventMapChipGroup['selection'];
-
 interface EventMapState {
-  /** Which layer set the persisted toggles belong to. */
+  /** Which layer set the persisted sort belongs to. */
   activeLayerSetId: string | null;
-  /** Layer id → user's explicit choice. Absent means "use the layer's default". */
-  layerVisibility: Record<string, boolean>;
-  /** Group id → selected chip ids. Composition rules live in `selectMatchingItems`. */
-  selectedChips: Record<string, string[]>;
   sortId: string | null;
   /** Which stack's peek sheet is open. Never persisted. */
   selectedStackKey: string | null;
@@ -30,15 +24,6 @@ interface EventMapState {
 
 interface EventMapActions {
   initFromSnapshot: (snapshot: EventMapSnapshot) => void;
-  toggleLayer: (layerId: string) => void;
-  /**
-   * `selection` is passed in rather than read from a stored snapshot: the store
-   * deliberately holds no copy of the snapshot, so the caller — which already has
-   * the group in hand to render it — supplies the one field the semantics need.
-   */
-  toggleChip: (groupId: string, chipId: string, selection: ChipSelection) => void;
-  /** Restore every group to its `defaultSelected` set. Backs the reset button. */
-  clearChips: (snapshot: EventMapSnapshot) => void;
   setSortId: (sortId: string) => void;
   setSelectedStackKey: (stackKey: string | null) => void;
 }
@@ -47,34 +32,9 @@ export type EventMapStore = EventMapState & EventMapActions;
 
 const initialState: EventMapState = {
   activeLayerSetId: null,
-  layerVisibility: {},
-  selectedChips: {},
   sortId: null,
   selectedStackKey: null,
 };
-
-function seedDefaults(snapshot: EventMapSnapshot): {
-  layerVisibility: Record<string, boolean>;
-  selectedChips: Record<string, string[]>;
-  sortId: string | null;
-} {
-  const layerVisibility: Record<string, boolean> = {};
-  for (const layer of snapshot.layers) layerVisibility[layer.id] = layer.defaultVisible;
-
-  return {
-    layerVisibility,
-    selectedChips: seedChips(snapshot),
-    sortId: snapshot.sorts[0]?.id ?? null,
-  };
-}
-
-function seedChips(snapshot: EventMapSnapshot): Record<string, string[]> {
-  const selectedChips: Record<string, string[]> = {};
-  for (const group of snapshot.chipGroups) {
-    selectedChips[group.id] = group.chips.filter((c) => c.defaultSelected).map((c) => c.id);
-  }
-  return selectedChips;
-}
 
 export const useEventMapStore = create<EventMapStore>()(
   persist(
@@ -84,61 +44,14 @@ export const useEventMapStore = create<EventMapStore>()(
       initFromSnapshot: (snapshot) =>
         set((state) => {
           // A different layer set is a different event. Start clean rather than
-          // inheriting last year's toggles — and this reset is what bounds the
-          // persisted blob to one event's worth of keys.
+          // inheriting last year's sort.
           if (state.activeLayerSetId !== snapshot.id) {
-            return { activeLayerSetId: snapshot.id, ...seedDefaults(snapshot) };
+            return { activeLayerSetId: snapshot.id, sortId: snapshot.sorts[0]?.id ?? null };
           }
-
-          // Same event: seed only ids not already tracked, so a refetch cannot
-          // undo a toggle the user just made. Mirrors useMapLayerStore.
-          const layerVisibility = { ...state.layerVisibility };
-          for (const layer of snapshot.layers) {
-            if (!(layer.id in layerVisibility)) layerVisibility[layer.id] = layer.defaultVisible;
-          }
-          const selectedChips = { ...state.selectedChips };
-          for (const group of snapshot.chipGroups) {
-            if (!(group.id in selectedChips)) {
-              selectedChips[group.id] = group.chips
-                .filter((c) => c.defaultSelected)
-                .map((c) => c.id);
-            }
-          }
-          return {
-            layerVisibility,
-            selectedChips,
-            sortId: state.sortId ?? snapshot.sorts[0]?.id ?? null,
-          };
+          // Same event: keep the user's choice, so a refetch cannot undo a sort
+          // they just picked. Mirrors useMapLayerStore's seeding rule.
+          return { sortId: state.sortId ?? snapshot.sorts[0]?.id ?? null };
         }),
-
-      toggleLayer: (layerId) =>
-        set((state) => ({
-          layerVisibility: {
-            ...state.layerVisibility,
-            [layerId]: !(state.layerVisibility[layerId] ?? true),
-          },
-        })),
-
-      toggleChip: (groupId, chipId, selection) =>
-        set((state) => {
-          const current = state.selectedChips[groupId] ?? [];
-          if (selection === 'single') {
-            // Replace, and refuse to empty. A single-select group is an exclusive
-            // axis, and ESKARA spells its "no constraint" case as an explicit
-            // `day_all` chip — so deselecting the active one has no meaning the
-            // config can express, and tapping it again is a no-op rather than a
-            // silent widening.
-            return current[0] === chipId
-              ? state
-              : { selectedChips: { ...state.selectedChips, [groupId]: [chipId] } };
-          }
-          const next = current.includes(chipId)
-            ? current.filter((id) => id !== chipId)
-            : [...current, chipId];
-          return { selectedChips: { ...state.selectedChips, [groupId]: next } };
-        }),
-
-      clearChips: (snapshot) => set({ selectedChips: seedChips(snapshot) }),
 
       setSortId: (sortId) => set({ sortId }),
 
@@ -146,13 +59,18 @@ export const useEventMapStore = create<EventMapStore>()(
     }),
     {
       name: 'eventmap',
-      // v2 dropped `clockOffset`. persist shallow-merges the stored blob over
-      // the initial state, so without a migration an existing install would
-      // reintroduce the key as a stray property the types no longer describe.
-      version: 2,
+      // Every bump has left a key behind: v2 dropped `clockOffset`, v3 dropped
+      // `layerVisibility` and `selectedChips` when the snapshot stopped carrying
+      // layers and chip groups. persist shallow-merges the stored blob over the
+      // initial state, so without a migration an existing install would
+      // reintroduce each as a stray property the types no longer describe.
+      version: 3,
       migrate: (persisted) => {
         if (persisted && typeof persisted === 'object') {
-          delete (persisted as Record<string, unknown>).clockOffset;
+          const blob = persisted as Record<string, unknown>;
+          delete blob.clockOffset;
+          delete blob.layerVisibility;
+          delete blob.selectedChips;
         }
         return persisted as EventMapStore;
       },
@@ -161,8 +79,6 @@ export const useEventMapStore = create<EventMapStore>()(
       // cold start, for a booth the user tapped yesterday, is never right.
       partialize: (state) => ({
         activeLayerSetId: state.activeLayerSetId,
-        layerVisibility: state.layerVisibility,
-        selectedChips: state.selectedChips,
         sortId: state.sortId,
       }),
     },

@@ -553,13 +553,8 @@ const ko = {
   'eventmap.status.upcoming': '준비중',
   'eventmap.status.closed': '종료',
   'eventmap.status.unknown': '정보 없음',
-  'eventmap.stack.othersHere': '같은 자리의 다른 부스',
-  'eventmap.list.title': '목록',
   'eventmap.list.count': '{0}곳',
   'eventmap.list.empty': '조건에 맞는 곳이 없어요',
-  'eventmap.list.sort': '정렬',
-  'eventmap.filter.section': '행사',
-  'eventmap.filter.reset': '초기화',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -1039,13 +1034,8 @@ const en: TranslationMap = {
   'eventmap.status.upcoming': 'Opening soon',
   'eventmap.status.closed': 'Closed',
   'eventmap.status.unknown': 'No info',
-  'eventmap.stack.othersHere': 'Also at this spot',
-  'eventmap.list.title': 'List',
   'eventmap.list.count': '{0}',
   'eventmap.list.empty': 'Nothing matches these filters',
-  'eventmap.list.sort': 'Sort',
-  'eventmap.filter.section': 'Event',
-  'eventmap.filter.reset': 'Reset',
 };
 
 const zh: TranslationMap = {
@@ -1514,13 +1504,8 @@ const zh: TranslationMap = {
   'eventmap.status.upcoming': '准备中',
   'eventmap.status.closed': '已结束',
   'eventmap.status.unknown': '暂无信息',
-  'eventmap.stack.othersHere': '同一位置的其他摊位',
-  'eventmap.list.title': '列表',
   'eventmap.list.count': '{0}处',
   'eventmap.list.empty': '没有符合条件的地点',
-  'eventmap.list.sort': '排序',
-  'eventmap.filter.section': '活动',
-  'eventmap.filter.reset': '重置',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

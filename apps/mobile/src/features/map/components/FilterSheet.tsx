@@ -1,24 +1,18 @@
 /**
  * Filter bottom sheet — the full filter surface.
  *
- * Two data sources with two lifetimes, deliberately kept apart: the campus and
- * base-layer tiles come from `/map/config` and are permanent, while the event
- * sections come from the snapshot and vanish with the event. They share a sheet
- * because they answer the same user question ("what is on my map"), not because
- * they are the same kind of thing.
- *
- * Every chip group lives here, including the ones `EventMapChipRow` also shows.
- * That is not duplication: the row carries the unlabelled groups as one-tap
- * toggles, and this is where a group with a heading can actually have one.
+ * Everything here comes from `/map/config`: the campus pills and one tile per
+ * user-configurable layer, festival layers included. The server serves those
+ * as ordinary layers while an activation is open, so they appear in the grid
+ * without this file knowing a festival exists — and hiding one here is the
+ * same write a chip makes, read back by the same `isLayerVisible`.
  *
  * No sort control. Sort is only observable in the list, so a selector here would
- * be a control that appears to do nothing — see `EventMapListSheet`.
+ * be a control that appears to do nothing — see `EventListPanel`.
  *
  * Campus and layer are thumbnail tiles rather than text pills. A pill row states
  * what a layer is called; a tile shows what turning it on does to the map, which
- * is the actual question. The event groups stay on `FilterPill` on purpose —
- * they are open-ended server strings with no map appearance to preview, so a
- * tile would promise a picture it cannot draw.
+ * is the actual question.
  *
  * On iOS 26 the sheet is a floating Liquid Glass card rather than a panel
  * welded to the screen edges, matching the campus sheet behind it. It gets
@@ -305,13 +299,6 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
                 );
               })}
           </View>
-
-          {/* The event chip groups stood here. Chips filter snapshot ITEMS,
-              and the map's pins now come from /map/markers/eskara26 layers that
-              chips cannot reach — so they would narrow the list sheet alone
-              while appearing to narrow the map. The six festival layers show up
-              in the grid above on their own, because the server puts them in
-              mapConfig.layers. */}
         </BottomSheetScrollView>
       </BottomSheetModal>
     );
@@ -403,30 +390,5 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.grey200,
     marginTop: SdsSpacing.md,
     marginBottom: SdsSpacing.lg,
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  reset: {
-    ...SdsTypo.t7,
-    fontWeight: '600',
-    color: SdsColors.grey600,
-    marginBottom: SdsSpacing.sm,
-  },
-  group: {
-    marginTop: SdsSpacing.md,
-  },
-  groupLabel: {
-    ...SdsTypo.t7,
-    fontWeight: '600',
-    color: SdsColors.grey600,
-    marginBottom: 6,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
 });

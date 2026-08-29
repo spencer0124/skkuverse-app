@@ -3,7 +3,7 @@ title: Deep Link Reference
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-29
 audience: internal
 ---
 
@@ -132,10 +132,13 @@ guarantee that next year's event demands another new scheme.
   Notices and mini apps have no whitelist entry for the same reason.
 - **`/map/hssc` is unaffected.** The pattern ends at `/map`, so a path carrying another
   segment fails to match and flows on to the whitelist, which sends it to the SVG floor map.
-- `placeId` is checked for **shape only** (`/^[a-z0-9-]+$/`) and never looked up. The reason
-  matches the mini app slug: this function runs outside the React tree, so a lookup here
-  would duplicate the request and block the first navigation. Path traversal such as
-  `../../etc` is caught by that pattern.
+- The value is checked for **shape only**, by `PLACE_ID_RE` in `app/+native-intent.tsx`, and
+  never looked up. Two forms pass: a bare `<placeId>`, and `<kind>:<placeId>` — the two fields of
+  a marker's `tap`, so `event:nsc-truck-05` and `skku_building:2` are links copied straight off a
+  pin — where the kind has to be one of `PLACE_KINDS` in the same file. A bare id resolves the way
+  it always has, against the event snapshot. The reason for shape-only matches the mini app slug:
+  this function runs outside the React tree, so a lookup here would duplicate the request and
+  block the first navigation. Path traversal such as `../../etc` fails the pattern.
 - An id that matches nothing is either never stashed in `pendingMapPlaceLink` or never
   resolved from the snapshot, so the user **arrives at the campus tab with no sheet**. There
   is no error screen.

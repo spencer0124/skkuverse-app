@@ -1,265 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "eskara-2026",
   "materializedAt": "2026-09-16T09:00:00.000Z",
   "nextChangeAt": "2026-09-16T11:00:00.000Z",
   "timezone": "Asia/Seoul",
   "campus": "nsc",
-  "camera": {
-    "lat": 37.295129,
-    "lng": 126.971234,
-    "zoom": 17.5
-  },
-  "basemapOverride": {
-    "building_numbers": false
-  },
-  "icons": {
-    "generic": {
-      "kind": "symbol",
-      "symbol": "green"
-    },
-    "generic_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    },
-    "bar": {
-      "kind": "symbol",
-      "symbol": "red"
-    },
-    "bar_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    },
-    "booth": {
-      "kind": "symbol",
-      "symbol": "blue"
-    },
-    "booth_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    },
-    "food": {
-      "kind": "symbol",
-      "symbol": "yellow"
-    },
-    "food_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    },
-    "stage": {
-      "kind": "symbol",
-      "symbol": "pink"
-    },
-    "stage_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    },
-    "facility": {
-      "kind": "symbol",
-      "symbol": "lightblue"
-    },
-    "facility_off": {
-      "kind": "symbol",
-      "symbol": "gray"
-    }
-  },
   "lang": "ko",
-  "layers": [
-    {
-      "id": "bar",
-      "render": "pin",
-      "label": "주점",
-      "filter": [
-        "has",
-        "cat:bar"
-      ],
-      "defaultVisible": true,
-      "minZoom": 15,
-      "maxZoom": null,
-      "iconId": "bar",
-      "sortId": "manual"
-    },
-    {
-      "id": "booth",
-      "render": "pin",
-      "label": "부스",
-      "filter": [
-        "has",
-        "cat:booth"
-      ],
-      "defaultVisible": true,
-      "minZoom": 15,
-      "maxZoom": null,
-      "iconId": "booth",
-      "sortId": "manual"
-    },
-    {
-      "id": "food",
-      "render": "pin",
-      "label": "먹거리",
-      "filter": [
-        "has",
-        "cat:food"
-      ],
-      "defaultVisible": true,
-      "minZoom": 15,
-      "maxZoom": null,
-      "iconId": "food",
-      "sortId": "manual"
-    },
-    {
-      "id": "stage",
-      "render": "pin",
-      "label": "공연",
-      "filter": [
-        "has",
-        "cat:stage"
-      ],
-      "defaultVisible": true,
-      "minZoom": 14,
-      "maxZoom": null,
-      "iconId": "stage",
-      "sortId": "manual"
-    },
-    {
-      "id": "facility",
-      "render": "pin",
-      "label": "편의시설",
-      "filter": [
-        "has",
-        "cat:facility"
-      ],
-      "defaultVisible": true,
-      "minZoom": 16,
-      "maxZoom": null,
-      "iconId": "facility",
-      "sortId": "title"
-    }
-  ],
-  "chipGroups": [
-    {
-      "id": "day",
-      "label": "일자",
-      "selection": "single",
-      "chips": [
-        {
-          "id": "day_all",
-          "label": "전체",
-          "defaultSelected": true,
-          "predicate": [
-            "all"
-          ]
-        },
-        {
-          "id": "day_1",
-          "label": "1일차",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "day:1"
-          ]
-        },
-        {
-          "id": "day_2",
-          "label": "2일차",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "day:2"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "slot",
-      "label": "시간대",
-      "selection": "multi",
-      "chips": [
-        {
-          "id": "slot_day",
-          "label": "주간",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "slot:day"
-          ]
-        },
-        {
-          "id": "slot_night",
-          "label": "야간",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "slot:night"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "category",
-      "label": "종류",
-      "selection": "multi",
-      "chips": [
-        {
-          "id": "cat_food",
-          "label": "먹거리",
-          "defaultSelected": false,
-          "predicate": [
-            "hasAny",
-            [
-              "cat:food",
-              "cat:bar"
-            ]
-          ]
-        },
-        {
-          "id": "cat_booth",
-          "label": "부스",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "cat:booth"
-          ]
-        },
-        {
-          "id": "cat_stage",
-          "label": "공연",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "cat:stage"
-          ]
-        },
-        {
-          "id": "cat_facility",
-          "label": "편의시설",
-          "defaultSelected": false,
-          "predicate": [
-            "has",
-            "cat:facility"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "now",
-      "label": null,
-      "selection": "multi",
-      "chips": [
-        {
-          "id": "open_now",
-          "label": "지금 운영중",
-          "defaultSelected": false,
-          "predicate": [
-            "status",
-            [
-              "open"
-            ]
-          ]
-        }
-      ]
-    }
-  ],
   "sorts": [
     {
       "id": "manual",
@@ -359,18 +105,12 @@
       "lng": 126.971331,
       "title": "화장실 (생명공학관)",
       "subtitle": "총학생회",
-      "tags": [
-        "cat:facility",
-        "kind:facility",
-        "place:nsc-toilet-bioeng",
-        "zone:생명공학관"
-      ],
+      "tags": [],
       "status": "open",
       "startAt": null,
       "endAt": null,
       "hoursLabel": null,
-      "iconId": "facility",
-      "iconIdClosed": "facility_off",
+      "layerId": "eskara26_facility",
       "pinPriority": 10,
       "cardTemplateId": "facility",
       "order": 0,
@@ -390,20 +130,14 @@
       "title": "소융대 티셔츠 부스",
       "subtitle": "정보통신대학 학생회",
       "tags": [
-        "cat:booth",
-        "day:1",
-        "slot:day",
-        "tenant:cse-council",
-        "kind:council",
-        "place:nsc-truck-01",
-        "zone:후문-신관 도로"
+        "학생회",
+        "굿즈"
       ],
       "status": "open",
       "startAt": "2026-09-16T07:00:00.000Z",
       "endAt": "2026-09-16T11:00:00.000Z",
       "hoursLabel": null,
-      "iconId": "booth",
-      "iconIdClosed": "booth_off",
+      "layerId": "eskara26_booth",
       "pinPriority": 20,
       "cardTemplateId": "booth",
       "order": 1,
@@ -437,21 +171,12 @@
       "lng": 126.971501,
       "title": "야간주점 1번",
       "subtitle": "예술대학 학생회",
-      "tags": [
-        "cat:bar",
-        "day:1",
-        "slot:night",
-        "tenant:art-council",
-        "kind:council",
-        "place:nsc-truck-01",
-        "zone:후문-신관 도로"
-      ],
+      "tags": [],
       "status": "upcoming",
       "startAt": "2026-09-16T14:00:00.000Z",
       "endAt": "2026-09-16T22:00:00.000Z",
       "hoursLabel": null,
-      "iconId": "bar",
-      "iconIdClosed": "bar_off",
+      "layerId": "eskara26_bar",
       "pinPriority": 30,
       "cardTemplateId": "bar",
       "order": 2,
@@ -470,21 +195,12 @@
       "lng": 126.971492,
       "title": "푸드트럭 · 마감",
       "subtitle": "더머거",
-      "tags": [
-        "cat:food",
-        "day:1",
-        "slot:day",
-        "tenant:themugger",
-        "kind:vendor",
-        "place:nsc-truck-02",
-        "zone:후문-신관 도로"
-      ],
+      "tags": [],
       "status": "closed",
       "startAt": "2026-09-15T23:00:00.000Z",
       "endAt": "2026-09-16T04:00:00.000Z",
       "hoursLabel": null,
-      "iconId": "food",
-      "iconIdClosed": "food_off",
+      "layerId": "eskara26_food",
       "pinPriority": 20,
       "cardTemplateId": "booth",
       "order": 3,
@@ -504,20 +220,13 @@
       "title": "푸드트럭 · 우천 취소",
       "subtitle": "취소된 업체",
       "tags": [
-        "cat:food",
-        "day:1",
-        "slot:day",
-        "tenant:rain-cancelled",
-        "kind:vendor",
-        "place:nsc-truck-03",
-        "zone:후문-신관 도로"
+        "푸드트럭"
       ],
       "status": "closed",
       "startAt": null,
       "endAt": null,
       "hoursLabel": null,
-      "iconId": "food",
-      "iconIdClosed": "food_off",
+      "layerId": "eskara26_food",
       "pinPriority": 20,
       "cardTemplateId": "booth",
       "order": 4,
@@ -538,21 +247,12 @@
       "lng": 126.971747,
       "title": "메인 스테이지",
       "subtitle": "ESKARA 운영본부",
-      "tags": [
-        "cat:stage",
-        "day:1",
-        "slot:night",
-        "tenant:eskara-hq",
-        "kind:council",
-        "place:nsc-main-stage",
-        "zone:대운동장"
-      ],
+      "tags": [],
       "status": "upcoming",
       "startAt": "2026-09-16T16:00:00.000Z",
       "endAt": "2026-09-16T20:00:00.000Z",
       "hoursLabel": null,
-      "iconId": "stage",
-      "iconIdClosed": "stage_off",
+      "layerId": "eskara26_stage",
       "pinPriority": 40,
       "cardTemplateId": "booth",
       "order": 5,

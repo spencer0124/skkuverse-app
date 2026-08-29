@@ -2,7 +2,7 @@
  * Renders one map layer's markers.
  *
  * **Layers share endpoints.** Both building layers come from
- * `/map/markers/campus`, all six event layers from `/map/markers/eskara26`, and
+ * `/map/markers/campus`, every event layer from `/map/markers/event`, and
  * the marker cache is keyed on the endpoint string — so layers sharing a URL
  * share one fetch and one cache entry, and each renders only the subset carrying
  * its own `layerId`. Without that filter every layer draws the whole response:

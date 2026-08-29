@@ -15,31 +15,20 @@ import type {
   EventMapAction,
   EventMapCardSlot,
   EventMapCardTemplate,
-  EventMapChip,
-  EventMapChipGroup,
   EventMapItem,
-  EventMapLayer,
   EventMapManifest,
   EventMapSnapshot,
   EventMapSort,
-  IconSpec,
   ItemStatus,
-  LayerRender,
   SortKey,
 } from '../types/eventmap';
-import {
-  EVENTMAP_SCHEMA_VERSION,
-  ITEM_STATUSES,
-  LAYER_RENDERS,
-  SORT_KEYS,
-} from '../types/eventmap';
+import { EVENTMAP_SCHEMA_VERSION, ITEM_STATUSES, SORT_KEYS } from '../types/eventmap';
 import { parseActionType } from '../types/sdui';
 // Imported, never redeclared: a second `['hssc','nsc'] as const` in this file
 // would be a closed set with two homes, and the two would drift.
 import { CAMPUSES } from '../constants/campus';
 import { SUPPORTED_LANGUAGES } from '../i18n/constants';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
-import { isValidPredicate } from './predicate';
 
 const HTTPS_RE = /^https:\/\//;
 /**
@@ -56,9 +45,6 @@ const ROUTE_RE = /^\/(?![/\\])\S*$/;
 
 /** Counts, plus a capped sample so an unknown value is identifiable without a log flood. */
 export interface DroppedCounts {
-  layers: number;
-  chips: number;
-  chipGroups: number;
   sorts: number;
   cardTemplates: number;
   items: number;
@@ -69,16 +55,7 @@ export interface DroppedCounts {
 const MAX_REASONS = 10;
 
 function emptyDropped(): DroppedCounts {
-  return {
-    layers: 0,
-    chips: 0,
-    chipGroups: 0,
-    sorts: 0,
-    cardTemplates: 0,
-    items: 0,
-    actions: 0,
-    reasons: [],
-  };
+  return { sorts: 0, cardTemplates: 0, items: 0, actions: 0, reasons: [] };
 }
 
 function note(dropped: DroppedCounts, reason: string): void {
@@ -103,131 +80,11 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
 }
 
-function asBool(v: unknown, fallback: boolean): boolean {
-  return typeof v === 'boolean' ? v : fallback;
-}
-
 function asNullableNumber(v: unknown): number | null {
   return toFiniteNumber(v);
 }
 
-// ── Icons ──
-
-/**
- * An unknown `kind` coerces to the library's own default rather than dropping the
- * entry: a pin with a fallback icon is still tappable, and colour is the only
- * thing lost. `symbol` is not validated against the SDK's union here — that
- * allowlist lives app-side in features/eventmap/icon.ts, because packages/shared
- * must not depend on the map SDK.
- */
-const FALLBACK_ICON: IconSpec = { kind: 'symbol', symbol: 'green' };
-
-function parseIcons(raw: unknown): Record<string, IconSpec> {
-  const obj = asRecord(raw);
-  if (!obj) return {};
-  const out: Record<string, IconSpec> = {};
-  for (const [id, spec] of Object.entries(obj)) {
-    const s = asRecord(spec);
-    if (!s) {
-      out[id] = FALLBACK_ICON;
-      continue;
-    }
-    if (s.kind === 'symbol') {
-      const symbol = asString(s.symbol);
-      out[id] = symbol ? { kind: 'symbol', symbol } : FALLBACK_ICON;
-      continue;
-    }
-    if (s.kind === 'remote') {
-      const uri = asString(s.uri);
-      const width = toFiniteNumber(s.width);
-      const height = toFiniteNumber(s.height);
-      out[id] =
-        uri && width !== null && height !== null
-          ? { kind: 'remote', uri, width, height }
-          : FALLBACK_ICON;
-      continue;
-    }
-    out[id] = FALLBACK_ICON;
-  }
-  return out;
-}
-
 // ── Structure ──
-
-function parseLayer(raw: unknown, dropped: DroppedCounts): EventMapLayer | null {
-  const obj = asRecord(raw);
-  const id = asString(obj?.id);
-  if (!obj || !id) {
-    note(dropped, 'layer: missing id');
-    return null;
-  }
-  const render = asMember<LayerRender>(obj.render, LAYER_RENDERS);
-  if (!render) {
-    note(dropped, `layer ${id}: unknown render ${String(obj.render)}`);
-    return null;
-  }
-  // A layer whose filter cannot be trusted would show everything or nothing.
-  // Dropping the layer is the only outcome that is neither.
-  if (!isValidPredicate(obj.filter)) {
-    note(dropped, `layer ${id}: invalid filter`);
-    return null;
-  }
-  return {
-    id,
-    render,
-    label: asString(obj.label) ?? id,
-    filter: obj.filter,
-    defaultVisible: asBool(obj.defaultVisible, true),
-    minZoom: asNullableNumber(obj.minZoom),
-    maxZoom: asNullableNumber(obj.maxZoom),
-    iconId: asString(obj.iconId) ?? '',
-    sortId: asString(obj.sortId) ?? '',
-  };
-}
-
-function parseChip(raw: unknown, dropped: DroppedCounts): EventMapChip | null {
-  const obj = asRecord(raw);
-  const id = asString(obj?.id);
-  if (!obj || !id) {
-    note(dropped, 'chip: missing id');
-    return null;
-  }
-  if (!isValidPredicate(obj.predicate)) {
-    note(dropped, `chip ${id}: invalid predicate`);
-    return null;
-  }
-  return {
-    id,
-    label: asString(obj.label) ?? id,
-    defaultSelected: asBool(obj.defaultSelected, false),
-    predicate: obj.predicate,
-  };
-}
-
-function parseChipGroup(raw: unknown, dropped: DroppedCounts): EventMapChipGroup | null {
-  const obj = asRecord(raw);
-  const id = asString(obj?.id);
-  if (!obj || !id) {
-    note(dropped, 'chipGroup: missing id');
-    return null;
-  }
-  const rawChips = Array.isArray(obj.chips) ? obj.chips : [];
-  const chips = rawChips
-    .map((c) => parseChip(c, dropped))
-    .filter((c): c is EventMapChip => c !== null);
-  dropped.chips += rawChips.length - chips.length;
-  // A group with no usable chip is a control that cannot do anything.
-  if (chips.length === 0) {
-    note(dropped, `chipGroup ${id}: no valid chips`);
-    return null;
-  }
-  return {
-    id,
-    label: asNullableString(obj.label),
-    selection: obj.selection === 'single' ? 'single' : 'multi',
-    chips,
-  };
-}
 
 function parseSort(raw: unknown, dropped: DroppedCounts): EventMapSort | null {
   const obj = asRecord(raw);
@@ -346,6 +203,16 @@ function parseItem(raw: unknown, dropped: DroppedCounts): EventMapItem | null {
     note(dropped, `item ${id}: coordinates out of range`);
     return null;
   }
+  // Required, not defaulted: an item that names no layer could never be shown
+  // or hidden with its pin, so the list would carry a row the map cannot
+  // explain. Dropping it is also what makes a stale cache honest — a v1 item
+  // has no layerId, and the schema gate above already turns that whole
+  // snapshot away, so this is the per-item posture for a malformed v2 one.
+  const layerId = asString(obj.layerId);
+  if (!layerId) {
+    note(dropped, `item ${id}: missing layerId`);
+    return null;
+  }
 
   const media = asRecord(obj.media);
   const fieldsRaw = asRecord(obj.fields) ?? {};
@@ -375,8 +242,7 @@ function parseItem(raw: unknown, dropped: DroppedCounts): EventMapItem | null {
     startAt: asNullableString(obj.startAt),
     endAt: asNullableString(obj.endAt),
     hoursLabel: asNullableString(obj.hoursLabel),
-    iconId: asString(obj.iconId) ?? '',
-    iconIdClosed: asNullableString(obj.iconIdClosed),
+    layerId,
     pinPriority: toFiniteNumber(obj.pinPriority) ?? 0,
     cardTemplateId: asString(obj.cardTemplateId) ?? '',
     order: toFiniteNumber(obj.order) ?? 0,
@@ -400,7 +266,7 @@ export interface ParsedSnapshot {
  * @param raw the `data` member of the response envelope.
  *
  * Returns `snapshot: null` — base map intact, no error surfaced — when the
- * payload is unusable or declares a schema this build cannot render.
+ * payload is unusable or declares a schema other than the one this build reads.
  */
 export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
   const dropped = emptyDropped();
@@ -410,9 +276,17 @@ export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
     return { snapshot: null, dropped };
   }
 
+  // Exact match, not "at most this build's": a version bump is a breaking
+  // change, and the last-known-good cache outlives app updates, so the blob a
+  // previous build wrote can arrive here too. Accepting an older schema would
+  // yield a snapshot whose every item is dropped further down — an event with
+  // nothing in it, which is a worse answer than no event.
   const schemaVersion = toFiniteNumber(obj.schemaVersion) ?? 0;
-  if (schemaVersion > EVENTMAP_SCHEMA_VERSION) {
-    note(dropped, `snapshot: schemaVersion ${schemaVersion} newer than this build`);
+  if (schemaVersion !== EVENTMAP_SCHEMA_VERSION) {
+    note(
+      dropped,
+      `snapshot: schemaVersion ${schemaVersion} is not the ${EVENTMAP_SCHEMA_VERSION} this build reads`,
+    );
     return { snapshot: null, dropped };
   }
 
@@ -423,25 +297,6 @@ export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
     note(dropped, 'snapshot: missing id, version or campus');
     return { snapshot: null, dropped };
   }
-
-  const cameraRaw = asRecord(obj.camera);
-  const camera = {
-    lat: toFiniteNumber(cameraRaw?.lat) ?? 0,
-    lng: toFiniteNumber(cameraRaw?.lng) ?? 0,
-    zoom: toFiniteNumber(cameraRaw?.zoom) ?? 15.8,
-  };
-
-  const rawLayers = Array.isArray(obj.layers) ? obj.layers : [];
-  const layers = rawLayers
-    .map((l) => parseLayer(l, dropped))
-    .filter((l): l is EventMapLayer => l !== null);
-  dropped.layers += rawLayers.length - layers.length;
-
-  const rawGroups = Array.isArray(obj.chipGroups) ? obj.chipGroups : [];
-  const chipGroups = rawGroups
-    .map((g) => parseChipGroup(g, dropped))
-    .filter((g): g is EventMapChipGroup => g !== null);
-  dropped.chipGroups += rawGroups.length - chipGroups.length;
 
   const rawSorts = Array.isArray(obj.sorts) ? obj.sorts : [];
   const sorts = rawSorts
@@ -471,16 +326,9 @@ export function parseEventMapSnapshot(raw: unknown): ParsedSnapshot {
       nextChangeAt: asNullableString(obj.nextChangeAt),
       timezone: asString(obj.timezone) ?? 'Asia/Seoul',
       campus,
-      camera,
-      icons: parseIcons(obj.icons),
-      layers,
-      chipGroups,
       sorts,
       cardTemplates,
       items,
-      // Defaults to {} on purpose. Snapshots published before this field existed
-      // are immutable and live on in caches; requiring it would drop them whole
-      // and blank the map.
     },
     dropped,
   };

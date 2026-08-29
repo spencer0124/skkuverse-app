@@ -2,10 +2,11 @@
  * Event map wire types — what `GET /eventmap/manifest` and
  * `GET /eventmap/snapshot/:id/:version` actually return.
  *
- * The server has already resolved every i18n string to a flat string, every date
- * to an ISO instant, and every icon reference to an id in the `icons` dict. The
- * app resolves exactly three things, none of them a business rule: predicate
- * evaluation, distance, and status against the device clock.
+ * The server has already resolved every i18n string to a flat string and every
+ * date to an ISO instant. The app resolves exactly one thing, and it is not a
+ * business rule: status against the device clock. Which layer an item belongs
+ * to arrives as `layerId` — a `/map/config` layer id, the same one the item's
+ * marker carries — so the list and the pins can never disagree about membership.
  *
  * ## Mirrored from skkuverse-server/src/eventmap/types.ts
  *
@@ -17,9 +18,6 @@
  * | here                  | skkuverse-server        |
  * | --------------------- | ----------------------- |
  * | `EventMapAction`      | `WireAction`            |
- * | `EventMapLayer`       | `WireLayer`             |
- * | `EventMapChip`        | `WireChip`              |
- * | `EventMapChipGroup`   | `WireChipGroup`         |
  * | `EventMapSort`        | `WireSort`              |
  * | `EventMapCardSlot`    | `WireCardSlot`          |
  * | `EventMapCardTemplate`| `WireCardTemplate`      |
@@ -34,63 +32,23 @@ import type { AppLanguage, Campus } from '../store/settings';
 import type { ActionType } from './sdui';
 
 /**
- * A snapshot declaring a higher version describes a shape this build cannot be
- * trusted to render, so it is ignored entirely and the base map is left alone.
- * Bump only for a breaking change — the schema is additive-only, and unknown
- * fields are already ignored by the parser.
+ * The one schema this build reads. A snapshot declaring any other version is
+ * ignored entirely and the base map is left alone — older as well as newer,
+ * because a bump means a breaking change: v2 removed the predicate layers, the
+ * chip groups and the icon table, and every item gained `layerId`. Within a
+ * version the schema is additive-only and the parser ignores unknown fields,
+ * so bump only for a change of that kind.
  */
-export const EVENTMAP_SCHEMA_VERSION = 1;
+export const EVENTMAP_SCHEMA_VERSION = 2;
 
 // ── Closed unions ──
 
 export const ITEM_STATUSES = ['open', 'upcoming', 'closed', 'unknown'] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
-/** `cluster` and `list` stay in the contract so switching is a server edit. */
-export const LAYER_RENDERS = ['pin', 'cluster', 'list'] as const;
-export type LayerRender = (typeof LAYER_RENDERS)[number];
-
 /** `distance` is absent: it needs expo-location, which is not a dependency. */
 export const SORT_KEYS = ['order', 'title', 'startAt'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
-
-/**
- * The closed predicate node set, shared by layer filters and chips.
- *
- * Canonical list: eventmap-api.md §2. The server validates against its own copy
- * and this file carries the app's; `__tests__/predicate.test.ts` asserts every
- * predicate in the live ESKARA config passes `isValidPredicate`, so a node kind
- * added server-side fails app CI rather than silently hiding pins.
- */
-export const PREDICATE_KINDS = [
-  'all',
-  'has',
-  'hasAny',
-  'hasAll',
-  'not',
-  'and',
-  'or',
-  'status',
-] as const;
-
-export type Predicate =
-  | ['all']
-  | ['has', string]
-  | ['hasAny', string[]]
-  | ['hasAll', string[]]
-  | ['not', Predicate]
-  | ['and', Predicate[]]
-  | ['or', Predicate[]]
-  | ['status', ItemStatus[]];
-
-/**
- * ESKARA 2026 ships `symbol` only. `remote` is declared so swapping in real pin
- * art is a server config edit with no client release — but a remote URI that
- * 404s renders a blank marker, which the parser cannot detect.
- */
-export type IconSpec =
-  | { kind: 'symbol'; symbol: string }
-  | { kind: 'remote'; uri: string; width: number; height: number };
 
 // ── Structure ──
 
@@ -101,32 +59,6 @@ export interface EventMapAction {
   /** Always a complete URL, except for `content` where it is prose. */
   actionValue: string;
   style?: 'primary' | 'secondary';
-}
-
-export interface EventMapLayer {
-  id: string;
-  render: LayerRender;
-  label: string;
-  filter: Predicate;
-  defaultVisible: boolean;
-  minZoom: number | null;
-  maxZoom: number | null;
-  iconId: string;
-  sortId: string;
-}
-
-export interface EventMapChip {
-  id: string;
-  label: string;
-  defaultSelected: boolean;
-  predicate: Predicate;
-}
-
-export interface EventMapChipGroup {
-  id: string;
-  label: string | null;
-  selection: 'single' | 'multi';
-  chips: EventMapChip[];
 }
 
 export interface EventMapSort {
@@ -159,6 +91,7 @@ export interface EventMapItem {
   lng: number;
   title: string;
   subtitle: string | null;
+  /** Author tags only. Nothing derived travels here any more. */
   tags: string[];
   /**
    * As of `materializedAt`. `startAt`/`endAt` travel with it because the version
@@ -175,8 +108,13 @@ export interface EventMapItem {
   startAt: string | null;
   endAt: string | null;
   hoursLabel: string | null;
-  iconId: string;
-  iconIdClosed: string | null;
+  /**
+   * The `/map/config` layer this item belongs to — the same id its marker
+   * carries on `/map/markers/event`, stamped by one resolver server-side. The
+   * list filters on it. Required: an item without one is dropped at parse time,
+   * since it could never be shown or hidden with its pin.
+   */
+  layerId: string;
   pinPriority: number;
   cardTemplateId: string;
   order: number;
@@ -197,10 +135,6 @@ export interface EventMapSnapshot {
   nextChangeAt: string | null;
   timezone: string;
   campus: Campus;
-  camera: { lat: number; lng: number; zoom: number };
-  icons: Record<string, IconSpec>;
-  layers: EventMapLayer[];
-  chipGroups: EventMapChipGroup[];
   sorts: EventMapSort[];
   cardTemplates: EventMapCardTemplate[];
   items: EventMapItem[];

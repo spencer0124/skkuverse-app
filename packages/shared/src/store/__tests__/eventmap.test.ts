@@ -1,10 +1,12 @@
 /**
- * Event map chip and sort state.
+ * Event map sort state and its persistence.
  *
- * The state and its persistence shipped in Phase 3 and are already exercised by
- * the seeding path; what is new here is the write side. Two rules carry the
- * weight: a single-select group is exclusive and cannot be emptied, and reset
- * restores `defaultSelected` rather than clearing to nothing.
+ * The store holds one per-event choice, the sort, keyed to the layer set it was
+ * made for. Two rules carry the weight: a refetch of the same event must not
+ * undo a sort the user just picked, and a different event must not inherit
+ * last year's. The persisted blob is schema-versioned, and the migration is
+ * tested directly because the keys it drops are exactly the ones an old install
+ * would otherwise rehydrate as stray properties.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -27,67 +29,20 @@ const SNAPSHOT = snapshotFixture as unknown as EventMapSnapshot;
 const reset = () =>
   useEventMapStore.setState({
     activeLayerSetId: null,
-    layerVisibility: {},
-    selectedChips: {},
     sortId: null,
     selectedStackKey: null,
   });
 
-describe('useEventMapStore chips and sort', () => {
+describe('useEventMapStore sort', () => {
   beforeEach(() => {
     reset();
     useEventMapStore.getState().initFromSnapshot(SNAPSHOT);
   });
 
-  it('seeds selections from defaultSelected and the first sort', () => {
+  it("seeds the sort from the snapshot's first entry", () => {
     const s = useEventMapStore.getState();
-    // ESKARA marks only day_all as defaultSelected; every other group starts empty.
-    expect(s.selectedChips.day).toEqual(['day_all']);
-    expect(s.selectedChips.slot).toEqual([]);
+    expect(s.activeLayerSetId).toBe(SNAPSHOT.id);
     expect(s.sortId).toBe(SNAPSHOT.sorts[0]?.id);
-  });
-
-  it('multi-select toggles in place, both directions', () => {
-    const { toggleChip } = useEventMapStore.getState();
-    toggleChip('slot', 'slot_night', 'multi');
-    toggleChip('slot', 'slot_day', 'multi');
-    expect(useEventMapStore.getState().selectedChips.slot).toEqual(['slot_night', 'slot_day']);
-
-    toggleChip('slot', 'slot_night', 'multi');
-    expect(useEventMapStore.getState().selectedChips.slot).toEqual(['slot_day']);
-  });
-
-  it('multi-select can be emptied — an empty group is a legal "no constraint"', () => {
-    const { toggleChip } = useEventMapStore.getState();
-    toggleChip('slot', 'slot_day', 'multi');
-    toggleChip('slot', 'slot_day', 'multi');
-    expect(useEventMapStore.getState().selectedChips.slot).toEqual([]);
-  });
-
-  it('single-select replaces rather than accumulating', () => {
-    useEventMapStore.getState().toggleChip('day', 'day_2', 'single');
-    expect(useEventMapStore.getState().selectedChips.day).toEqual(['day_2']);
-  });
-
-  it('single-select refuses to empty itself', () => {
-    // Deselecting the active chip has no meaning the config can express — ESKARA
-    // spells "no constraint" as an explicit day_all chip — so re-tapping is inert
-    // rather than a silent widening to everything.
-    const { toggleChip } = useEventMapStore.getState();
-    toggleChip('day', 'day_2', 'single');
-    toggleChip('day', 'day_2', 'single');
-    expect(useEventMapStore.getState().selectedChips.day).toEqual(['day_2']);
-  });
-
-  it('clearChips restores defaultSelected, not an empty map', () => {
-    const { toggleChip, clearChips } = useEventMapStore.getState();
-    toggleChip('day', 'day_2', 'single');
-    toggleChip('slot', 'slot_night', 'multi');
-
-    clearChips(SNAPSHOT);
-    const s = useEventMapStore.getState();
-    expect(s.selectedChips.day).toEqual(['day_all']);
-    expect(s.selectedChips.slot).toEqual([]);
   });
 
   it('setSortId records the chosen sort', () => {
@@ -95,26 +50,43 @@ describe('useEventMapStore chips and sort', () => {
     expect(useEventMapStore.getState().sortId).toBe('soon');
   });
 
-  it('a refetch of the same event does not undo a selection just made', () => {
-    const { toggleChip } = useEventMapStore.getState();
-    toggleChip('day', 'day_2', 'single');
-    toggleChip('slot', 'slot_night', 'multi');
-
+  it('a refetch of the same event does not undo a sort just chosen', () => {
+    useEventMapStore.getState().setSortId('soon');
     useEventMapStore.getState().initFromSnapshot(SNAPSHOT);
-    const s = useEventMapStore.getState();
-    expect(s.selectedChips.day).toEqual(['day_2']);
-    expect(s.selectedChips.slot).toEqual(['slot_night']);
-    expect(s.sortId).toBe(SNAPSHOT.sorts[0]?.id);
+    expect(useEventMapStore.getState().sortId).toBe('soon');
   });
 
-  it('a different layer set starts clean — last year’s chips do not survive', () => {
-    useEventMapStore.getState().toggleChip('day', 'day_2', 'single');
+  it("a different layer set starts clean — last year's sort does not survive", () => {
     useEventMapStore.getState().setSortId('soon');
-
     useEventMapStore.getState().initFromSnapshot({ ...SNAPSHOT, id: 'eskara-2027' });
     const s = useEventMapStore.getState();
     expect(s.activeLayerSetId).toBe('eskara-2027');
-    expect(s.selectedChips.day).toEqual(['day_all']);
     expect(s.sortId).toBe(SNAPSHOT.sorts[0]?.id);
+  });
+});
+
+describe('useEventMapStore persistence', () => {
+  it('persists the sort and its layer set, never the open sheet', () => {
+    const { partialize } = useEventMapStore.persist.getOptions();
+    const state = { ...useEventMapStore.getState(), activeLayerSetId: 'e', sortId: 'soon' };
+    expect(partialize!({ ...state, selectedStackKey: 'k' })).toEqual({
+      activeLayerSetId: 'e',
+      sortId: 'soon',
+    });
+  });
+
+  it('migrates a v2 blob by dropping the keys the snapshot no longer carries', async () => {
+    // persist shallow-merges the stored blob over the initial state, so a key
+    // that merely stopped being written would come back on every launch.
+    const { migrate, version } = useEventMapStore.persist.getOptions();
+    expect(version).toBe(3);
+    const v2 = {
+      activeLayerSetId: 'eskara-2026',
+      layerVisibility: { bar: true },
+      selectedChips: { day: ['day_all'] },
+      sortId: 'soon',
+      clockOffset: 12,
+    };
+    expect(await migrate!(v2, 2)).toEqual({ activeLayerSetId: 'eskara-2026', sortId: 'soon' });
   });
 });

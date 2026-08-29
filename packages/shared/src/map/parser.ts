@@ -38,7 +38,7 @@ const MARKER_STYLES = [
  * The tap kinds this build knows how to route. A kind outside the set leaves the
  * marker drawn but inert — see parseMarkerTap.
  */
-const TAP_KINDS = ['skku_building', 'eskara26'] as const;
+const TAP_KINDS = ['skku_building', 'event'] as const;
 /**
  * The chip actions this build can dispatch. A kind outside the set drops the
  * whole chip — see parseChip.
@@ -346,7 +346,7 @@ export function parseMarkerData(
     if (!campus) return [];
 
     // Layers share endpoints — both building layers come from
-    // /map/markers/campus, all six event layers from /map/markers/eskara26 — so
+    // /map/markers/campus, every event layer from /map/markers/event — so
     // `layerId` is what separates one layer's markers from another's. A marker
     // without it belongs to no layer, and keeping it would mean either drawing it
     // on every layer sharing the response or on none.

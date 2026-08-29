@@ -216,7 +216,7 @@ export interface MapConfig {
  */
 export type MarkerTap =
   | { kind: 'skku_building'; placeId: string }
-  | { kind: 'eskara26'; placeId: string };
+  | { kind: 'event'; placeId: string };
 
 export interface RawMarkerData {
   /**

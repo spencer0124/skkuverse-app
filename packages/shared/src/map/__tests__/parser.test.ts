@@ -196,16 +196,16 @@ describe('parseMarkerData — text, the field that replaced displayNo', () => {
 describe('parseMarkerData — tap and window', () => {
   it('narrows a known tap kind', () => {
     const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'eskara26', placeId: 'nsc-plaza-a3' } })] }),
+      envelope({ markers: [marker({ tap: { kind: 'event', placeId: 'nsc-plaza-a3' } })] }),
     );
-    expect(out[0]?.tap).toEqual({ kind: 'eskara26', placeId: 'nsc-plaza-a3' });
+    expect(out[0]?.tap).toEqual({ kind: 'event', placeId: 'nsc-plaza-a3' });
   });
 
   it('keeps the marker but makes it inert on an unknown tap kind', () => {
     // Fail soft: a kind we cannot route is still a place we can draw, and a
     // missing pin is a failure nobody can see or report.
     const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'eskara27', placeId: 'x' } })] }),
+      envelope({ markers: [marker({ tap: { kind: 'eskara26', placeId: 'x' } })] }),
     );
     expect(out).toHaveLength(1);
     expect(out[0]?.tap).toBeNull();
@@ -239,7 +239,7 @@ describe('parseMarkerData — tap and window', () => {
 
 describe('parseMapConfig — chipGroupId, the group a chip may swap a layer within', () => {
   it('keeps a declared group verbatim', () => {
-    expect(parseLayers({ chipGroupId: 'eskara26' }).chipGroupId).toBe('eskara26');
+    expect(parseLayers({ chipGroupId: 'eskara-2026' }).chipGroupId).toBe('eskara-2026');
   });
 
   it('parses an absent group to null, so no chip may change the layer', () => {

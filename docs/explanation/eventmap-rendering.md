@@ -3,14 +3,14 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-28
+last-updated: 2026-08-29
 audience: internal
 ---
 
 # Event Map Rendering
 
 > How the app consumes the event map contract. It decides nothing: which layers exist, what is open,
-> what a chip means all arrive as data. Ownership is
+> which layer a booth belongs to all arrive as data. Ownership is
 > [ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md);
 > the server side is [`eventmap-api.md`](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/eventmap-api.md).
 
@@ -19,14 +19,15 @@ audience: internal
 | | |
 | --- | --- |
 | Requests | `GET /eventmap/manifest` (poll) → `GET /eventmap/snapshot/:id/:version` (immutable) |
-| New shared code | `packages/shared/src/eventmap/`: types, predicate, parser, hooks, store |
-| New app code | `apps/mobile/src/features/eventmap/` |
-| Touched | `CampusScreen`, `CampusNaverMap`, `MapMarkerLayer`, `FilterSheet`, `map/parser.ts`, `types/sdui.ts`, `features/search/store.ts`, `+native-intent.tsx` |
-| Rendering | `<NaverMapMarkerOverlay>` children, with **no clustering** (§6) |
+| Shared code | `packages/shared/src/eventmap/`: types, parser, derive, hooks, store |
+| App code | `apps/mobile/src/features/eventmap/`: the peek sheet, the list panel, the card renderer |
+| Touched | `CampusScreen`, `MapMarkerLayer`, `FilterSheet`, `map/parser.ts`, `types/sdui.ts`, `features/search/store.ts`, `+native-intent.tsx` |
+| Pins | Ordinary `/map/config` marker layers, drawn by `MapMarkerLayer` (§6) |
 
-The app computes exactly three things, none of them a business rule: **predicate evaluation** (string
-comparison against `item.tags`), **distance** (GPS is only on the device), and **status** (recomputed
-against the device clock, §5).
+The app computes exactly one thing, and it is not a business rule: **status**, recomputed against
+the device clock (§5). Everything else arrives resolved. Which layer an item belongs to is
+`item.layerId` — a `/map/config` layer id, stamped server-side by the same resolver that stamps the
+item's marker (§4).
 
 The map renders **places**. It has no concept of an event, a booth, or a mini-app; those reach the
 user only through the action union (§7).
@@ -34,7 +35,7 @@ user only through the action union (§7).
 ## 2. Fetch path
 
 Cold start is two requests. Every poll after that is one small request that usually returns **304**. The
-snapshot carries structure and items together, so toggling a layer or chip costs **zero** network.
+snapshot carries structure and items together, so a sort or a layer toggle costs **zero** network.
 
 | Hook | Endpoint | staleTime | On failure |
 | --- | --- | --- | --- |
@@ -90,61 +91,57 @@ than vanishing silently.
 
 | Unknown | Enforced in | Behaviour |
 | --- | --- | --- |
-| any field | parser | ignored — schema is additive-only |
-| `layer.render` | `eventmap/parser.ts` | drop the layer, warn once, count it |
-| predicate node kind | `eventmap/predicate.ts` | **evaluates `false`** |
+| any field | parser | ignored — within a schema version the wire is additive-only |
+| `schemaVersion` other than the app's | parser | ignore the snapshot; base map intact — **older as well as newer**, see below |
+| `item.layerId` missing | parser | drop the item, count it |
 | `sort.by` | parser | drop that sort option |
-| `icon.kind` | parser | coerce to `{symbol:'green'}` — the library's own default |
 | `item.status` | parser | coerce to `unknown` |
-| `chip.predicate` invalid | parser | drop the chip |
 | card slot → missing field | `CardRenderer` | render nothing for that slot |
 | `actionType` | `parseActionType` | `'unknown'`; `handleSduiAction` no-ops it |
-| `schemaVersion` > app's | hook | ignore the snapshot; base map intact |
 
-**Predicates fail closed.** A node returning `true` when unrecognized shows a booth a filter meant to
-hide; returning `false` shows fewer things. Fewer is recoverable.
+**The schema gate is an exact match.** A version bump is a breaking change — v2 removed the
+predicate layers, the chip groups and the icon table, and made `layerId` required — and the
+last-known-good cache outlives an app update, so the blob a previous build wrote reaches the parser
+too. Read as the current schema it would parse into an event whose every item is dropped: the
+event counted as active, the list announcing nothing. "No event" is the honest answer. The stale
+blob is rejected once, and the next successful fetch overwrites it under the same cache key, so
+nothing is orphaned in MMKV.
 
-## 4. Predicate evaluator
+## 4. Layer membership and the list
 
-`packages/shared/src/eventmap/predicate.ts` — pure, ~40 lines, closed node set:
+An item belongs to exactly one `/map/config` layer, named by `item.layerId`. That id is the same one
+its marker carries on `/map/markers/event`, because the server stamps both through one resolver
+over the festival config's `itemDefaults` — so the pin and the row can never disagree about which
+layer a booth is in. The app never derives membership; there is nothing to evaluate.
 
-```text
-all | has | hasAny | hasAll | not | and | or | status
-```
+### 4.1 The list shows the items of the visible layers
 
-No arithmetic, no field access. A Mapbox-style expression language is a DSL that then needs
-versioning of its own, and nothing in the product needs it.
+`selectVisibleItems` (`packages/shared/src/eventmap/derive.ts`) keeps the items whose layer is drawn:
+the layer exists in the served config **and** `isLayerVisible(layer, states)` — the same function the
+render loop, the filter badge, the filter sheet's tiles and the chips read. It is the fifth reader of
+that function, deliberately not a fifth copy: the one time a reader carried its own expression, the
+filter sheet showed 건물번호 ON while the map hid it. <!-- conventions:allow-korean: the layer label the app shows -->
 
-### 4.1 How chips compose
+An item naming a layer this build was not served is not listed. There is no pin for it either — the
+marker route serves markers per served layer — so the two stay in step for an id outside the
+activation window too. Input order is preserved, so the sort (§4.2) applied upstream survives.
 
-The wire carries predicates and never says how to combine them, and
-[ADR 0004](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md)
-puts predicate evaluation on the client. So the composition rule is the app's, and it lives in
-`selectMatchingItems` (`packages/shared/src/eventmap/derive.ts`):
+The list lives **in the campus sheet**, in place of the server's campus feed, while a chip has
+narrowed the map (`findNarrowedChip` in `packages/shared/src/map/chips.ts` returns one). The sheet's
+body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to
+its middle detent when the list appears — enough to read a few rows with the pins still showing —
+and the feed returns when the narrowing is cleared. Two consequences worth knowing:
 
-| Scope | Rule | Why |
-| --- | --- | --- |
-| Within a group | **OR** | A group is one axis. Selecting both 주간 and 야간 widens it <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
-| Across groups | **AND** | Groups are independent axes. Adding 먹거리 to 야간 narrows <!-- conventions:allow-korean: ESKARA's shipped chip labels --> |
-| A group with nothing selected | **no constraint** | The answer to "you chose nothing" must never be an empty map |
+- Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
+  on the derived flag, not a call inside the chip handler.
+- The reset chip restores the group's defaults, which `findNarrowedChip` reads as "narrowed to
+  nothing", so it lights the festival pins and flies there but leaves the feed in the sheet. If that
+  reads wrong on device, the alternative — showing the list whenever any event layer is visible —
+  would replace the feed for the whole festival, which is a product call rather than a code one.
 
-The empty case is worth stating because ESKARA does not rely on it: its `day` group spells "all" as
-an explicit `day_all` chip whose predicate is `['all']`. But a group can still arrive empty — every
-chip deselected, or every selected id dropped by the parser — and the failure would be silent and
-total.
-
-The same reasoning covers a selected id with no surviving chip: the parser drops a chip whose
-predicate fails validation, so a persisted selection can outlive the chip that named it. It is
-ignored rather than counted as a miss, because otherwise one config typo empties the map.
-
-**Chips filter items, and stacks are rebuilt from the survivors.** Never the other way round:
-`selectVisibleStacks` matches on `stack.lead` alone, so filtering at stack level would drop a booth
-the user explicitly asked for merely because the booth sharing its `stackKey` sorts first — and the
-marker caption's `+N` would count items that are no longer shown.
-
-The unfiltered stacks stay available as `allStacks`, and that is what an open peek sheet and a
-`skkuverse://map?place=` link resolve against. A shared link has to reach a booth the recipient's
-chips happen to hide, and toggling a chip must not slam shut a sheet someone is reading.
+Every stack stays available to a pin tap, a deep link and an already-open peek sheet regardless of
+the filter (`useEventMap().stacks`): a shared link must reach a booth whose layer the recipient
+happens to have hidden, and hiding a layer must not slam shut a sheet someone is reading.
 
 ### 4.2 Sort is only observable in the list
 
@@ -153,7 +150,7 @@ chips happen to hide, and toggling a chip must not slam shut a sheet someone is 
 differ, <!-- conventions:allow-korean: ESKARA's shipped sort label --> since its 추천순 sort has `id: 'manual'` and `by: 'order'`.
 
 Sorting has no effect on pins, which are positional, nor inside one pin's peek sheet, whose order is
-`compareForStack`'s. It is therefore visible **only** in `EventMapListSheet`, which is why the sort
+`compareForStack`'s. It is therefore visible **only** in `EventListPanel`, which is why the sort
 control lives there and deliberately not in `FilterSheet` — a sort selector beside the filters would
 be a control that appears to do nothing, the same dead-control shape the distance sort is hidden to
 avoid.
@@ -162,25 +159,13 @@ Every comparator falls through to `id`, for the reason `compareForStack` already
 re-derives on every `statusEpoch` tick, so a tie is a list that reshuffles itself while it is being
 read.
 
-### 4.3 Parity with the server
+### 4.3 The join is a contract, not a convention
 
-The evaluator only needs a twin if the **server** also evaluates predicates, which it does solely to
-compute filter option counts — and counts are on the cut list. While they stay cut, this file lives
-in the app alone and there is nothing to keep in sync.
-
-If counts ever arrive, never hand-maintain a second fixture. Register
-`predicate-vectors.json` through the fleet contract system, governed by
-[umbrella ADR 0002 — pull-based config contracts](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0002-pull-based-config-contracts.md):
-
-| Piece | Where |
-| --- | --- |
-| Origin | `skkuverse/contracts/predicate-vectors.json` |
-| Registry | `skkuverse/contracts/manifest.json` |
-| Local copy | vendored under `__tests__/`, hash-locked in `.contracts.lock.json` |
-| Refresh | `python3 <skkuverse>/exported/sync_contracts.py pull --repo app` |
-
-> The vendored copy is a **generated artifact**. Never hand-edit it, and never resolve a merge
-> conflict in `.contracts.lock.json` by hand — take either side and re-run `pull`.
+The design rests on `marker.layerId === item.layerId` for the same booth. The server guarantees it by
+construction — one table, one resolver — and this repo pins its half: the parser test parses the
+hand-maintained snapshot fixture and asserts every item's `layerId` is a layer id in the captured
+live `/map/config` (`map/__tests__/fixtures/map-config-live.json`). A festival layer renamed on the
+server fails that test rather than silently emptying the list.
 
 ## 5. Status derivation
 
@@ -237,8 +222,10 @@ refetch hot loop on festival day.
 
 ## 6. Rendering: pins, not clusters
 
-Verified against the current release, not assumed: we run 2.7.0, latest is 2.9.0, and
-`src/types/ClusterMarkerProp.ts` is **byte-identical** between them.
+Booth pins are drawn by `MapMarkerLayer`, one `<NaverMapMarkerOverlay>` per marker the server
+serves, exactly as the building layers are. The choice of overlays over the SDK's clusterer predates
+that and still holds. Verified against the current release, not assumed: we run 2.7.0, latest is
+2.9.0, and `src/types/ClusterMarkerProp.ts` is **byte-identical** between them.
 
 | | `NaverMapMarkerOverlay` | `ClusterMarkerProp` |
 | --- | --- | --- |
@@ -250,66 +237,36 @@ Verified against the current release, not assumed: we run 2.7.0, latest is 2.9.0
 
 A cluster leaf accepts only `identifier`, `latitude`, `longitude`, `image`, `width`, `height`. It
 would erase booth **names** — the primary affordance at a festival — and make dim-when-closed
-inexpressible. The existing building layer already draws 100+ overlay markers on this same screen.
+inexpressible. The building layer already draws 100+ overlay markers on this same screen.
 
 Upstream is `mym0404/react-native-naver-map` and this is unlikely to change: issue **#23** was opened
 by the maintainer in 2024 promising these options and was stale-bot closed undelivered; PR **#139**
 (cluster image + leaf caption) has been open and stalled on CI since 2025-09-24; issue **#22** (iOS
 `screenDistance` broken) was stale-closed with no fix.
 
-- There is **no cluster-teardown flicker to design around.** Chip toggles touch React children only.
+- There is **no cluster-teardown flicker to design around.** Layer toggles touch React children only.
   (`clusters` is keyed by a hash of the whole marker array, and **both** platforms wipe every
   clusterer when it changes — iOS `RNCNaverMapView.mm:234-245`, Android `RNCNaverMapViewManager.kt:547-556`.)
 - The `updateLeafMarker` marker-reuse warning in Naver's native docs is an **Android SDK concern that
   does not apply** at the RN declarative layer.
-- `render: 'pin' | 'cluster' | 'list'` stays in the wire contract, so switching later is a server edit.
 
 ### 6.1 Density levers, in order
 
 1. `isHideCollidedCaptions` — already used by the `textLabel` branch of `MapMarkerLayer`
-2. Per-layer `minZoom` / `maxZoom`, server-supplied
-3. **`stackKey`**
+2. **`stackKey`**
 
 ### 6.2 `stackKey`
 
 Same plot, two occupants (a daytime booth and a night stall) means two items at identical coordinates.
 
-The server emits `stackKey` and `pinPriority`. The client renders **at most one marker per
-`stackKey`**, keeping the highest priority (ties broken by status rank
-`open > upcoming > closed > unknown`); a tap opens a peek sheet listing every item sharing the key.
+The server emits `stackKey` and `pinPriority`. The client groups items by `stackKey` (`buildStacks`),
+and a tap on a booth's pin opens a peek sheet listing every item sharing the key, lead first — the
+highest `pinPriority`, ties broken by status rank `open > upcoming > closed > unknown`, then `order`,
+then `id`. That is a total order on purpose: a partial one lets the lead differ between two renders
+of the same data, and the peek sheet's first card would flicker on every status tick.
 
 Generic on purpose: `stackKey` is a string the server chooses. Normally `placeId`; if the main field is too
 dense the server switches it to `zone`. **No data change, no app release.**
-
-### 6.3 `EventMapPinLayer`
-
-One `<NaverMapMarkerOverlay>` per deduped `stackKey`:
-
-| Prop | Value |
-| --- | --- |
-| `image` | resolved from `icons` **by `kind`** — see below |
-| `caption` | title, with `isHideCollidedCaptions` |
-| `alpha` | `status === 'closed' ? 0.45 : 1` — applies to icon together with caption |
-| `minZoom` / `maxZoom` | from the layer |
-| `onTap` | `selectStack(stackKey)` |
-| children | **none** — sidesteps the Android bitmap-snapshot race in [`android-naver-map-markers.md`](android-naver-map-markers.md) |
-
-Icon resolution is by `kind`, in `apps/mobile/src/features/eventmap/icon.ts`:
-
-| `IconSpec` | → |
-| --- | --- |
-| `{kind:'symbol', symbol}` | `{symbol}` when the value is in the SDK's `MarkerSymbol` union |
-| `{kind:'remote', uri, width, height}` | `{httpUri: uri}` **plus** width/height — without them the SDK sizes from the downloaded bitmap, which differs between debug and release |
-| unknown id, unknown kind, symbol outside the union | `{symbol:'green'}` |
-
-An `{httpUri}`-only reading of this table would land every ESKARA pin on the green fallback: the live
-config ships **symbol icons exclusively**, and colour is the entire visual differentiation — bar red,
-booth blue, food yellow, stage pink, facility lightblue, every `*_off` gray. The allowlist lives in
-the app rather than `packages/shared` because `MarkerSymbol` is the SDK's union and shared must not
-depend on the SDK; the wire type is an open string, so the check belongs on the app side of that seam.
-
-`item.iconIdClosed` swaps in **alongside** the `alpha` dimming, not instead of it: the closed icon
-carries the meaning, the alpha carries the emphasis, and either alone reads as a rendering glitch.
 
 ## 7. Actions and the map scheme
 
@@ -368,11 +325,14 @@ stops the default `'switch'` from resurrecting `BuildingDetailSheet` underneath.
 
 ```text
 skkuverse://map?place=<placeId>
+skkuverse://map?place=<kind>:<placeId>
 ```
 
 Independent of any consumer. A booth and a building are addressed identically, because both are
-places. It needed almost no new machinery — the search→map handoff already did this work, so a deep
-link became a **second producer** for the same store (`useMapNavStore`, in `features/search/store.ts`).
+places; the kinded form is literally the two fields of a marker's `tap`, so a link copied from one
+can never disagree with it. It needed almost no new machinery — the search→map handoff already did
+this work, so a deep link became a **second producer** for the same store (`useMapNavStore`, in
+`features/search/store.ts`).
 
 `MapNavPayload` is discriminated because the two producers know different things:
 
@@ -390,7 +350,7 @@ map must then leave the campus alone rather than guess and jump the user to the 
 `+native-intent.tsx` **intercepts** `/map`, and deliberately does not add it to `ALLOWED_PATHS` —
 that would leave a second, unreachable path through the same function, which is why notices and
 mini-apps have no whitelist entry either. `MAP_PATH_RE` ends at `/map`, so **`/map/hssc` keeps
-falling through to the webview SVG floor map.** The `place` id is shape-checked but not looked up:
+falling through to the webview SVG floor map.** The `place` value is shape-checked but not looked up:
 this runs outside the React tree, so a lookup would be a duplicate request blocking the app's first
 navigation.
 
@@ -426,101 +386,91 @@ release.
 
 ## 8. State
 
-A new `useEventMapStore` (Zustand):
+`useEventMapStore` (Zustand):
 
 ```ts
-{ activeLayerSetId, layerVisibility, selectedChips: Record<groupId, string[]>,
-  sortId, selectedStackKey }
+{ activeLayerSetId, sortId, selectedStackKey }
 ```
 
-Persisted: everything except `selectedStackKey` — a peek sheet reopening on cold start, for a booth
-tapped yesterday, is never right.
+Persisted: `activeLayerSetId` and `sortId`. Never `selectedStackKey` — a peek sheet reopening on cold
+start, for a booth tapped yesterday, is never right.
 
 **The persisted blob is schema-versioned**, with `version` and `migrate` in
-`packages/shared/src/store/eventmap.ts`. The current migration deletes a stored `clockOffset`, left
-behind by the design §5.1 describes: dropping a key from `partialize` only stops new writes, and
-persist shallow-merges the stored blob over the initial state, so an existing install would rehydrate
-it as a property the types no longer describe. Every bump is **one-directional** — an OTA rollback to
-a bundle published before it finds the newer `version` in MMKV, has no way down, and discards the
-blob, so layer visibility, chips and sort all revert to defaults. Nothing irreplaceable is lost, but
-it is silent, and it reaches you as "my filters reset" rather than as a rollback symptom.
+`packages/shared/src/store/eventmap.ts`. Every bump so far has been a key leaving: `clockOffset`
+(the design §5.1 describes), then `layerVisibility` and `selectedChips` when the snapshot stopped
+carrying layers and chip groups. Dropping a key from `partialize` only stops new writes, and persist
+shallow-merges the stored blob over the initial state, so an existing install would rehydrate it as
+a property the types no longer describe. The migration deletes them, and the store test calls
+`persist.getOptions().migrate` on a v2 blob to prove it. Every bump is **one-directional** — an OTA
+rollback to a bundle published before it finds the newer `version` in MMKV, has no way down, and
+discards the blob, so the sort reverts to the snapshot's first. Nothing irreplaceable is lost, but
+it is silent.
 
-`initFromSnapshot` seeds defaults for **unknown ids only**, mirroring `initFromConfig` so user toggles
-survive a refetch — except when `activeLayerSetId` changes, which means a different event entirely and
-starts clean. That reset is what bounds the persisted blob to one event's worth of keys.
+`initFromSnapshot` seeds the sort from the snapshot's first entry when the layer set changes — a
+different event starts clean — and otherwise keeps the user's choice, so a refetch cannot undo a sort
+they just picked. The write side is `setSortId` and `setSelectedStackKey`, both user gestures, and
+that is a constraint rather than a coincidence: a write here re-renders every `useEventMap()`
+consumer and costs an MMKV write. Nothing on a polling cadence belongs in this store — the clock
+offset was written on every manifest poll, which re-rendered `CampusScreen` for the whole of an event
+without changing a single derived value.
 
-The write side is `toggleLayer`, `toggleChip`, `clearChips` and `setSortId` — every one of them a user
-gesture, and that is a constraint rather than a coincidence. A write here re-renders every
-`useEventMap()` consumer, since zustand compares with `Object.is` and the hooks subscribe to whole
-slices, and it costs an MMKV write on top. Nothing on a polling cadence belongs in this store: the
-clock offset was written on every manifest poll, which re-rendered `CampusScreen` and the pin layer
-for the whole of an event without changing a single derived value.
-
-`toggleChip` takes the group's `selection` as an argument rather than reading it from a stored
-snapshot, because the store deliberately keeps no copy of one — the caller already holds the group in
-order to render it.
-
-Its two halves differ on purpose. A `multi` group toggles in place and **may be emptied**, which §4.1
-reads as "no constraint". A `single` group **replaces and refuses to empty**: deselecting the active
-chip has no meaning the config can express, since ESKARA spells that case as an explicit `day_all`
-chip, so re-tapping is inert rather than a silent widening to everything. `clearChips` restores each
-group's `defaultSelected` set for the same reason — resetting to nothing would be a different state
-from the one the server shipped.
-
-**`useMapLayerStore` is left untouched** — two stores, two lifetimes. Coupling per-event state into
-the permanent campus-layer store would leave dead `eskara-2026` keys in persisted state forever.
+**Layer visibility is not here.** Festival layers are ordinary `/map/config` layers, so their
+visibility lives in `useMapLayerStore` with every other layer's — ephemeral, seeded from each layer's
+`defaultVisible` on launch, written by chips and by the filter sheet's tiles. Two stores, two
+lifetimes: that one is the map's, this one is the event's, and keeping event keys out of the map's
+is what stops a persisted blob accumulating a festival's worth of dead ids.
 
 ### 8.1 `basemapOverride` is gone
 
 The snapshot used to name base-map layers the event forced to a visibility — in practice one
-boolean, hiding the building numbers while the festival ran. **It has been removed from the app.** Layer
-visibility is now `userToggle[id] ?? layer.defaultVisible` and nothing else, everywhere it is read.
-
-An event layer is an ordinary layer. It has no way to reach across and change a base-map layer's
-visibility, and a user who wants the building numbers off during a festival turns them off with the
-toggle that was always there.
+boolean, hiding the building numbers while the festival ran. It is gone on both sides: the server no
+longer ships it and nothing here reads it. Visibility is `userToggle[id] ?? layer.defaultVisible`
+everywhere it is read, and an event layer is an ordinary layer with no way to reach across and change
+another's.
 
 The removal is worth recording rather than just doing, because the cost was not the field. It was
 that a cross-cutting override is a **resolution rule** every reader has to implement identically:
 `FilterSheet` implemented two tiers of the three and so reported the building-number layer ON
-while the map drew nothing, and the repair was to thread the override into a second component. Two tiers cannot drift
-that way, because `defaultVisible` travels on the layer the caller is already holding.
-
-The server still ships the field. Nothing reads it, and the parser drops unknown members silently
-(§3), so it is inert. The fixture in `eventmap/__tests__/fixtures/` deliberately keeps it, which is
-what makes the no-drop parse test also the proof that an unread member on the wire is harmless.
+while the map drew nothing. Two tiers cannot drift that way, because `defaultVisible` travels on the
+layer the caller is already holding. If a festival wants the building numbers off, that is now a
+`/map/config` `defaultVisible` question.
 
 ## 9. Where the code lives
 
-Shipped in Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issues/15)):
+Phase 3 ([skkuverse#15](https://github.com/spencer0124/skkuverse/issues/15)) built the fetch, parse
+and status core; Phase 6 ([skkuverse#18](https://github.com/spencer0124/skkuverse/issues/18)) added
+the cards, sort and list; the v2 contract
+([skkuverse-server#109](https://github.com/spencer0124/skkuverse-server/pull/109)) moved layer
+membership to the server and the list into the campus sheet.
 
 | File | What |
 | --- | --- |
 | `packages/shared/src/types/eventmap.ts` | wire types, mirrored from the server with a name-mapping table in the header |
 | `packages/shared/src/eventmap/clock.ts` | status derivation, `nextBoundaryAfter` (§5) |
-| `packages/shared/src/eventmap/predicate.ts` | `evaluatePredicate` + `isValidPredicate` (§4) |
 | `packages/shared/src/eventmap/parser.ts` | tolerant parse → `{ snapshot, dropped }` (§3) |
-| `packages/shared/src/eventmap/derive.ts` | status re-derivation, stack building, visible-stack selection (§6.2) |
+| `packages/shared/src/eventmap/derive.ts` | status re-derivation, stack building (§6.2), `selectVisibleItems` (§4.1), `sortItems` (§4.2) |
+| `packages/shared/src/eventmap/card.ts` | `resolveSlots` — template slots the item can actually fill |
 | `packages/shared/src/eventmap/{repository,useEventMap}.ts` | fetch, MMKV last-known-good, hooks (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
-| `apps/mobile/src/features/eventmap/icon.ts` | `IconSpec` → SDK image prop (§6.3) |
-| `apps/mobile/src/features/eventmap/EventMapPinLayer.tsx` | one marker per stack — **no longer mounted**, see the note below |
+| `packages/shared/src/map/chips.ts` | `isLayerVisible` and the chip rules the list borrows (§4.1) |
+| `apps/mobile/src/features/eventmap/CardRenderer.tsx` | draws resolved slots in declared order; `compact` for list rows |
+| `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet; the only home for the sort control |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | stacked-place sheet + action buttons |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
-| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`; resolves place links |
+| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, joins items to layers, swaps the sheet body, resolves place links |
+| `apps/mobile/src/features/map/components/MapMarkerLayer.tsx` | draws every `/map/config` layer, booth pins included |
+| `apps/mobile/src/components/glass.tsx` | moved out of the mini-app feature; `GlassChip` gained `selected` |
+| `packages/shared/src/tokens/shadows.ts` | `glassFloat`, promoted from two hand-rolled copies |
 
 > [!IMPORTANT]
-> **Booth pins no longer come from the snapshot.** The server serves them as ordinary marker layers
-> (`GET /map/markers/eskara26`, six `placeDot` layers in `/map/config`), so `MapMarkerLayer` draws
-> them and `EventMapPinLayer` is unmounted — leaving both would have drawn every booth twice. The
-> chip row went with it, because chips filter snapshot *items* and cannot reach a marker that came
-> from a layer endpoint. What sits in that spot now is a **different contract**: `/map/config`
-> serves its own chips, which carry an action and a layer set rather than a predicate, and act on
-> the layers themselves — see
-> [map-config-api-spec.md](../reference/map-config-api-spec.md). The snapshot is still fetched for
-> the peek sheet's card templates and for the `placeId → stack` lookup behind a booth tap. Sections 6 and 8 above still describe the pin
-> layer as it was built; they are history until the retirement in §9 finishes.
-> The marker contract is `skkuverse-server/docs/reference/map-markers-api.md`.
+> **Booth pins come from `/map/config`, not the snapshot.** The server serves them as ordinary
+> `placeDot` marker layers on `/map/markers/event`, each with `tap: { kind: 'event', placeId }`, so
+> `MapMarkerLayer` draws them like any other layer and nothing in the snapshot is ever drawn. The
+> snapshot is fetched for what only it has — the card templates, the sorts, and the items the peek
+> sheet and the list render — joined to the pins by `placeId` (a tap) and `layerId` (the list). The
+> chips over the map are `/map/config`'s too, carrying an action and a layer set rather than a
+> predicate; see [map-config-api-spec.md](../reference/map-config-api-spec.md). The marker contract
+> is `skkuverse-server/docs/reference/map-markers-api.md`.
 
 Fixed on the way through: the map parser's unchecked union casts and silent `(0,0)` coordinates,
 `parseActionType`'s unknown → `'external'`, the stale offline `DEFAULT_MAP_CONFIG`, hardcoded caption
@@ -528,27 +478,9 @@ colours, and the custom-scheme authority defect that had silently broken every
 `skkuverse://<segment>` link.
 
 `CampusNaverMap` needed **no change** — it already forwards `children` verbatim into `NaverMapView`,
-and Phase 3 needs no new map-level prop.
+and no phase has needed a new map-level prop.
 
-Added in Phase 6 ([skkuverse#18](https://github.com/spencer0124/skkuverse/issues/18)):
-
-| File | What |
-| --- | --- |
-| `packages/shared/src/eventmap/derive.ts` | `selectMatchingItems` (§4.1) and `sortItems` (§4.2), beside the Phase 3 transforms |
-| `packages/shared/src/eventmap/card.ts` | `resolveSlots` — template slots the item can actually fill |
-| `packages/shared/src/store/eventmap.ts` | `toggleChip`, `clearChips`, `setSortId` (§8) |
-| `apps/mobile/src/features/eventmap/CardRenderer.tsx` | draws resolved slots in declared order; `compact` for list rows |
-| `apps/mobile/src/features/eventmap/EventMapChipRow.tsx` | unlabelled groups as one-tap toggles over the map |
-| `apps/mobile/src/features/eventmap/EventMapListSheet.tsx` | the list, and the only home for the sort control |
-| `apps/mobile/src/features/map/components/FilterSheet.tsx` | every chip group, under the existing campus and base-layer pills |
-| `apps/mobile/src/features/map/components/FilterButton.tsx` | given an entry point at last, plus an active-filter count badge |
-| `apps/mobile/src/components/glass.tsx` | moved out of the mini-app feature; `GlassChip` gained `selected` |
-| `packages/shared/src/tokens/shadows.ts` | `glassFloat`, promoted from two hand-rolled copies |
-
-`EventMapPinLayer` needed **no change**: it is a pure `React.memo` over the stacks it is handed, so a
-chip filters it by changing a prop.
-
-The card body is now entirely the server's. What `EventMapPeekSheet` keeps is what no template
+The card body is entirely the server's. What `EventMapPeekSheet` keeps is what no template
 describes — the sheet chrome and the actions row, including `ActionButton`'s dismiss-before-navigate,
 which is a portal ordering constraint (§7.1) rather than a styling choice.
 
@@ -566,10 +498,6 @@ which is a portal ordering constraint (§7.1) rather than a styling choice.
   but it reads as a regression in QA unless you know.
 - **`expo-location` is not a dependency.** Distance sort requires adding it — a native module, so a
   fresh dev-client build. If permission is denied, **hide** the sort rather than showing a dead control.
-- **A horizontal `ScrollView` over the map eats a full-width touch band.** It stretches to its
-  parent's width whether or not it draws anything there, so a one-chip strip would cost a whole band
-  of map panning. `EventMapChipRow` is a wrapping row sized with `alignSelf: 'flex-start'` under
-  `pointerEvents="box-none"` instead.
 - **The card body follows the template's declared order.** ESKARA's `booth` template starts
   `[thumbnail, title, …]`, so the thumbnail is a block **above** the title rather than beside it. A
   "if slot 0 is a thumbnail and slot 1 a title, lay them out as a row" rule would hold for exactly
@@ -579,14 +507,15 @@ which is a portal ordering constraint (§7.1) rather than a styling choice.
   Separately, `patches/@mj-studio+react-native-naver-map+2.7.0.patch` is now redundant — PR #184
   (ours) shipped upstream in v2.7.1 with a better fix.
 - **`useMapConfig` must keep its never-throw fallback.** The event map is a separate request precisely
-  so a map-config hiccup cannot take it down, and vice versa.
+  so a map-config hiccup cannot take it down, and vice versa — which is also why the item-to-layer
+  join happens in `CampusScreen`, the one place holding both, rather than inside `useEventMap`.
 
 ## 11. Related
 
 - [ADR 0004 — event map layer ownership](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0004-event-map-layer-ownership.md)
 - [Server API reference](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/eventmap-api.md)
 - [Implementation plan — skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11)
-- [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race the pin layer avoids
+- [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race `MapMarkerLayer` avoids
 - [App ADR 0006 — mini-app webview & push architecture](../decisions/0006-miniapp-webview-push-architecture.md)
 - [App ADR 0007 — status derives against the device clock](../decisions/0007-device-clock-event-map-status.md) — the reasoning behind §5.1
-- [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts, cited in §4.1.)*
+- [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts.)*

@@ -1,25 +1,10 @@
 export { deriveItemStatus, nextBoundaryAfter, parseInstant } from './clock';
 
-export { evaluatePredicate, isValidPredicate } from './predicate';
-export type { PredicateSubject } from './predicate';
-
 export { parseEventMapManifest, parseEventMapSnapshot } from './parser';
 export type { DroppedCounts, ParsedSnapshot } from './parser';
 
-export {
-  buildStacks,
-  deriveItems,
-  selectMatchingItems,
-  selectVisibleStacks,
-  sortItems,
-} from './derive';
-export type {
-  BuiltStacks,
-  DerivedItem,
-  EventMapStack,
-  MatchingItemsInput,
-  VisibleStacksInput,
-} from './derive';
+export { buildStacks, deriveItems, selectVisibleItems, sortItems } from './derive';
+export type { BuiltStacks, DerivedItem, EventMapStack, VisibleItemsInput } from './derive';
 
 export { resolveSlots } from './card';
 export type { ResolvedSlot } from './card';

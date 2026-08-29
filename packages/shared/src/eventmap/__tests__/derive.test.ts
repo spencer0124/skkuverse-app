@@ -1,15 +1,16 @@
 /**
- * Stacks and visibility.
+ * Stacks and the list's layer filter.
  *
  * The ordering assertions matter more than they look: `pinPriority` plus status
  * alone leaves ties, and a tie means the lead can differ between two renders of
- * the same data — so the marker's icon and caption flicker every time status
+ * the same data — so the peek sheet's first card flickers every time status
  * re-derives. The shuffle test is the regression guard.
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildStacks, deriveItems, selectVisibleStacks } from '../derive';
-import type { EventMapItem, EventMapLayer, Predicate } from '../../types/eventmap';
+import { buildStacks, deriveItems, selectVisibleItems } from '../derive';
+import type { EventMapItem } from '../../types/eventmap';
+import type { MapLayerDef } from '../../types/map';
 
 const HOUR = 60 * 60 * 1000;
 const T0 = Date.parse('2026-09-16T03:00:00.000Z');
@@ -28,8 +29,7 @@ const item = (over: Partial<EventMapItem> = {}): EventMapItem =>
     startAt: null,
     endAt: null,
     hoursLabel: null,
-    iconId: 'generic',
-    iconIdClosed: null,
+    layerId: 'eskara26_booth',
     pinPriority: 0,
     cardTemplateId: 'booth',
     order: 0,
@@ -39,16 +39,14 @@ const item = (over: Partial<EventMapItem> = {}): EventMapItem =>
     ...over,
   }) as EventMapItem;
 
-const layer = (over: Partial<EventMapLayer> = {}): EventMapLayer => ({
-  id: 'l1',
-  render: 'pin',
-  label: 'L',
-  filter: ['all'] as Predicate,
+/** A `/map/config` layer — the kind an item's `layerId` names. */
+const mapLayer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
+  type: 'marker',
+  label: over.id,
   defaultVisible: true,
-  minZoom: null,
-  maxZoom: null,
-  iconId: 'generic',
-  sortId: 'manual',
+  endpoint: '/map/markers/event',
+  chipGroupId: 'eskara-2026',
+  userConfigurable: true,
   ...over,
 });
 
@@ -63,8 +61,9 @@ describe('deriveItems', () => {
   });
 
   it('returns the same object when nothing changed, keeping references stable', () => {
-    // Referential stability matters: EventMapPinLayer is memoized, so a fresh
-    // object per item on every tick would rebuild every overlay.
+    // Referential stability matters: the list rows and the peek sheet are keyed
+    // on item identity, so a fresh object per item on every tick would rebuild
+    // every row.
     const i = item({ status: 'open' });
     expect(deriveItems([i], T0)[0]).toBe(i);
   });
@@ -131,83 +130,54 @@ describe('buildStacks', () => {
   });
 });
 
-describe('selectVisibleStacks', () => {
-  const { stacks } = buildStacks([item({ id: 'bar', tags: ['cat:bar'], status: 'open' })]);
+describe('selectVisibleItems', () => {
+  const bar = item({ id: 'bar-1', layerId: 'eskara26_bar' });
+  const food = item({ id: 'food-1', layerId: 'eskara26_food' });
+  const layers = [mapLayer({ id: 'eskara26_bar' }), mapLayer({ id: 'eskara26_food' })];
+  const ids = (items: readonly EventMapItem[]) => items.map((i) => i.id);
 
-  it('keeps a stack admitted by a visible layer', () => {
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [layer({ id: 'bar', filter: ['has', 'cat:bar'] })],
-      layerVisibility: { bar: true },
+  it('lists exactly the items whose layer is drawn', () => {
+    const out = selectVisibleItems({
+      items: [bar, food],
+      layers,
+      states: { eskara26_bar: { visible: true }, eskara26_food: { visible: false } },
     });
-    expect(out).toHaveLength(1);
+    expect(ids(out)).toEqual(['bar-1']);
   });
 
-  it('drops a stack no visible layer admits', () => {
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [layer({ id: 'food', filter: ['has', 'cat:food'] })],
-      layerVisibility: { food: true },
-    });
-    expect(out).toHaveLength(0);
-  });
-
-  it('falls back to defaultVisible for a layer the store has not seen', () => {
+  it("falls back to the layer's own default for a layer the store has not seen", () => {
+    // The same rule the map draws by: `states[id]?.visible ?? defaultVisible`.
+    // A store that has seen nothing yet must list what the map is showing.
+    expect(ids(selectVisibleItems({ items: [bar, food], layers, states: {} }))).toEqual([
+      'bar-1',
+      'food-1',
+    ]);
+    const hiddenByDefault = [
+      mapLayer({ id: 'eskara26_bar' }),
+      mapLayer({ id: 'eskara26_food', defaultVisible: false }),
+    ];
     expect(
-      selectVisibleStacks({ stacks, layers: [layer({ defaultVisible: true })], layerVisibility: {} }),
-    ).toHaveLength(1);
-    expect(
-      selectVisibleStacks({ stacks, layers: [layer({ defaultVisible: false })], layerVisibility: {} }),
-    ).toHaveLength(0);
+      ids(selectVisibleItems({ items: [bar, food], layers: hiddenByDefault, states: {} })),
+    ).toEqual(['bar-1']);
   });
 
-  it('shows an item any visible layer admits, not only one all of them do', () => {
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [
-        layer({ id: 'bar', filter: ['has', 'cat:bar'] }),
-        layer({ id: 'food', filter: ['has', 'cat:food'] }),
-      ],
-      layerVisibility: { bar: true, food: true },
-    });
-    expect(out).toHaveLength(1);
+  it('lists nothing for an item naming a layer this build was not served', () => {
+    // No layer, no pin — and the marker route only serves markers for served
+    // layers, so the list stays in step with the map for an id outside the
+    // activation window too.
+    const stray = item({ id: 'stray', layerId: 'eskara27_bar' });
+    expect(selectVisibleItems({ items: [stray], layers, states: {} })).toEqual([]);
   });
 
-  it('takes the most permissive zoom when two admitting layers disagree', () => {
-    // A pin must not vanish because a SECOND layer also matched it. The ESKARA
-    // layers really do range minZoom 14-16.
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [
-        layer({ id: 'a', minZoom: 16, maxZoom: 18 }),
-        layer({ id: 'b', minZoom: 14, maxZoom: 20 }),
-      ],
-      layerVisibility: { a: true, b: true },
-    });
-    expect(out[0]).toMatchObject({ minZoom: 14, maxZoom: 20 });
+  it('keeps the order it was given, so a sort applied upstream survives', () => {
+    expect(ids(selectVisibleItems({ items: [food, bar], layers, states: {} }))).toEqual([
+      'food-1',
+      'bar-1',
+    ]);
   });
 
-  it('treats a null bound as unbounded, which beats any number', () => {
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [layer({ id: 'a', minZoom: 16 }), layer({ id: 'b', minZoom: null })],
-      layerVisibility: { a: true, b: true },
-    });
-    expect(out[0]!.minZoom).toBeNull();
-  });
-
-  it('carries a single layer bound through unchanged', () => {
-    const out = selectVisibleStacks({
-      stacks,
-      layers: [layer({ minZoom: 15, maxZoom: null })],
-      layerVisibility: { l1: true },
-    });
-    expect(out[0]).toMatchObject({ minZoom: 15, maxZoom: null });
-  });
-
-  it('returns nothing when every layer is hidden, without evaluating predicates', () => {
-    expect(
-      selectVisibleStacks({ stacks, layers: [layer()], layerVisibility: { l1: false } }),
-    ).toEqual([]);
+  it('returns nothing when every layer is hidden', () => {
+    const states = { eskara26_bar: { visible: false }, eskara26_food: { visible: false } };
+    expect(selectVisibleItems({ items: [bar, food], layers, states })).toEqual([]);
   });
 });

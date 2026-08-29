@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-28
+last-updated: 2026-08-29
 audience: public
 ---
 
@@ -22,15 +22,15 @@ first needed.
 | --- | --- |
 | `GET /map/config` | The layer registry, the campus definitions, the chips and the camera defaults |
 | `GET /map/markers/campus` | Every building marker, for both building layers |
-| `GET /map/markers/eskara26` | Every published festival booth, for all six event layers |
+| `GET /map/markers/event` | Every published booth of the live festival, for every event layer |
 | The `endpoint` value of a layer | Polyline coordinate data |
 
 Every response uses the v2 envelope format, `{ meta, data }`.
 
 > [!IMPORTANT]
 > **Layers share endpoints, and the client MUST filter by `layerId`.** One route serves one
-> data source, not one layer: both building layers read `/map/markers/campus`, all six event
-> layers read `/map/markers/eskara26`. The marker cache is keyed on the endpoint string, so
+> data source, not one layer: both building layers read `/map/markers/campus`, every event
+> layer reads `/map/markers/event`. The marker cache is keyed on the endpoint string, so
 > layers sharing a URL cost one fetch between them and each renders
 > `markers.filter((m) => m.layerId === layer.id)`. Without that filter every layer draws the
 > whole response — which is exactly how both building layers came to draw all 137 buildings
@@ -103,8 +103,8 @@ them, and the camera settings the app applies to moves it makes on its own.
         "label": "주점", // conventions:allow-korean: live server payload
         "defaultVisible": true,
         "userConfigurable": true,
-        "endpoint": "/map/markers/eskara26",
-        "chipGroupId": "eskara26",
+        "endpoint": "/map/markers/event",
+        "chipGroupId": "eskara-2026",
         "style": { "color": "F04452", "width": 22, "height": 30, "captionTextSize": 9 }
       }
     ],
@@ -136,9 +136,11 @@ them, and the camera settings the app applies to moves it makes on its own.
 ```
 
 > [!NOTE]
-> The sample is abridged — the live response carries a second building layer, **six**
-> `eskara26_*` layers and **seven** chips, the festival half of each only while an activation
-> window is open. It matched `GET /map/config` as of 2026-08-28.
+> The sample is abridged — the live response carries a second building layer and, only while an
+> activation window is open, the festival's layers and chips. The chips begin with a reset chip the
+> server synthesises as `<layerSetId>_all`, labelled with the festival's name and naming its
+> default-visible layers, followed by the ones the festival config authors. It matched
+> `GET /map/config` as of 2026-08-29.
 > The authority is the server's `src/map/map-config.data.ts`. An earlier revision of this
 > document described a single `campus_buildings` layer and `bus_route_*` polylines, neither of
 > which exists: the polylines are commented out on the server. The old
@@ -239,9 +241,10 @@ interface MapChip {
 > action, so an unroutable chip is a button that visibly does nothing. A missing button is better
 > than a dead one.
 >
-> `MapChip` is also not the event map's `ChipSpec` / `ChipGroupSpec`. Those carry a predicate
-> and filter snapshot items client-side. A map chip carries an action and has no predicate at all.
-> The names are close because the UI affordance is the same pill; the contracts are unrelated.
+> A map chip is also not a filter over snapshot items. The event map once shipped chip groups of
+> its own, each chip a predicate evaluated client-side; those left the wire with snapshot schema
+> v2, and the chips the map shows are these alone — an action and a layer set. What the list in
+> the campus sheet shows follows from layer visibility, never from a chip's own state.
 
 ### What a chip tap may change — two rules
 
@@ -307,8 +310,8 @@ client falls back member by member, so a partial object cannot produce a `NaN` z
 ## Marker endpoints
 
 `GET /map/markers/campus` returns **every** building, on both campuses, for **both** building
-layers. `GET /map/markers/eskara26` returns every published booth of the live festival, for all
-six event layers, and an empty list when no activation is open. Both produce the same object.
+layers. `GET /map/markers/event` returns every published booth of the live festival, for every
+event layer, and an empty list when no activation is open. Both produce the same object.
 
 ### The marker schema
 
@@ -346,12 +349,16 @@ six event layers, and an empty list when no activation is open. Both produce the
 ```ts
 type MarkerTap =
   | { kind: 'skku_building'; placeId: string }
-  | { kind: 'eskara26'; placeId: string };
+  | { kind: 'event'; placeId: string };
 ```
 
 `placeId` is a **string for every kind**, including a building whose id is numeric in Mongo. One
 addressing scheme is the point; the client narrows it back to a number inside its building
 branch, where `GET /building/:id` needs one.
+
+`event` names the **kind** of place, not the festival. Next year's markers carry the same kind, and
+the client resolves `placeId` against whichever event snapshot is live — so a new festival is a
+server config edit, and the client branch is already there.
 
 ### `text` ships every language and is not resolved server-side
 
@@ -420,7 +427,7 @@ there is none, on this endpoint or any other. It was a plan, written as though i
 | `['map', 'layer', 'markers', endpoint]` | 10 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
 
 Server-side `Cache-Control` is the other half and is the server's to state:
-`/map/markers/campus` is a day (or `no-store` on its degraded fallback), `/map/markers/eskara26`
+`/map/markers/campus` is a day (or `no-store` on its degraded fallback), `/map/markers/event`
 is a minute. `/map/config` carries only Express's auto-generated `ETag` and `Vary`.
 
 A silent `eventmap-refresh` push invalidates the marker key prefix and `['map','config']`
@@ -445,8 +452,8 @@ nothing in the quit state.
 - `style` grew once already, with the geometry the client used to hardcode. It can grow again
   the same way — `opacity` or `icon` — because an unknown member is ignored.
 - POI category layers for restaurants or ATMs would be additional `"marker"` layers, in a
-  later phase. The festival layers are the proof this works: six of them arrived as data, with
-  no client release.
+  later phase. The festival layers are the proof this works: they arrived as data, with no
+  client release.
 - **Grouping arrived, as `chipGroupId`.** A second group needs no client change: the resolution
   is generic over the group string, and the clear control reads each layer's own
   `defaultVisible` rather than any chip's `layerIds`.
@@ -455,9 +462,10 @@ nothing in the quit state.
   endpoint **string** and a URL carrying a camera position would mint a fresh entry per pan. The
   shape is in the server's `map-chip.types.ts`.
 - The `campuses` array can grow without a client change, for a new satellite campus.
-- A **new `tap.kind` does not**. `eskara26` names the festival, so `eskara27` needs a client
-  branch that knows the kind, a new route and a new layer set. That was chosen knowingly, for
-  ids that say which festival they belong to; the trade is in the server's `map-markers-api.md`.
+- A **new `tap.kind` does not** — it is the one thing here that still needs a client branch,
+  because the client routes a tap on it. That is exactly why the festival kind is `event` rather
+  than the festival's name: the branch resolves `placeId` against whichever event is live, so the
+  next festival needs no new kind, no new route and no client release.
 
 ## Related
 

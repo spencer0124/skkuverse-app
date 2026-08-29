@@ -1,9 +1,10 @@
 /**
- * Snapshot → what the map actually draws.
+ * Snapshot → what the map and the list actually show.
  *
- * Three transforms, in order: re-derive each item's status against the server
- * clock, collapse co-located items into stacks (one marker each), then select
- * the stacks the visible layers admit.
+ * Two transforms, in order: re-derive each item's status against the clock,
+ * then collapse co-located items into stacks (one peek sheet each). Beside them
+ * sit the two selections the list needs — which items the visible layers admit,
+ * and in what order.
  *
  * Pure, and deliberately in packages/shared rather than the app: vitest reaches
  * here, while apps/mobile's `node --test` runner does not reach `.tsx`. The
@@ -11,16 +12,10 @@
  * test, so they live where one can be written.
  */
 
-import type {
-  EventMapChipGroup,
-  EventMapItem,
-  EventMapLayer,
-  ItemStatus,
-  Predicate,
-  SortKey,
-} from '../types/eventmap';
+import type { EventMapItem, ItemStatus, SortKey } from '../types/eventmap';
+import type { MapLayerDef } from '../types/map';
+import { isLayerVisible, type LayerVisibilityStates } from '../map/chips';
 import { deriveItemStatus } from './clock';
-import { evaluatePredicate } from './predicate';
 
 /** An item whose `status` has been replaced by the clock-derived one. */
 export type DerivedItem = EventMapItem;
@@ -31,9 +26,6 @@ export interface EventMapStack {
   lead: DerivedItem;
   /** Every item on this key, lead first, in the same order the peek sheet lists them. */
   items: DerivedItem[];
-  /** Most permissive bounds across the layers that admitted this stack. */
-  minZoom: number | null;
-  maxZoom: number | null;
 }
 
 const STATUS_RANK: Record<ItemStatus, number> = {
@@ -46,7 +38,7 @@ const STATUS_RANK: Record<ItemStatus, number> = {
 /**
  * A TOTAL order, which matters more than it looks. `pinPriority` and status
  * alone leave ties, and a tie means the lead can differ between two renders of
- * the same data — so the marker's icon and caption flicker every time status
+ * the same data — so the peek sheet's first card flickers every time status
  * re-derives. `order` then `id` makes the result a pure function of the set.
  */
 function compareForStack(a: DerivedItem, b: DerivedItem): number {
@@ -83,13 +75,7 @@ export function buildStacks(items: readonly DerivedItem[]): BuiltStacks {
   const byPlaceId = new Map<string, EventMapStack>();
   for (const [stackKey, group] of grouped) {
     const sorted = [...group].sort(compareForStack);
-    const stack: EventMapStack = {
-      stackKey,
-      lead: sorted[0]!,
-      items: sorted,
-      minZoom: null,
-      maxZoom: null,
-    };
+    const stack: EventMapStack = { stackKey, lead: sorted[0]!, items: sorted };
     stacks.push(stack);
     // Several items can share a placeId (day booth + night 주점). They resolve to
     // the same stack, so first-wins is not a choice being made here.
@@ -100,128 +86,36 @@ export function buildStacks(items: readonly DerivedItem[]): BuiltStacks {
   return { stacks, byPlaceId };
 }
 
-export interface VisibleStacksInput {
-  stacks: readonly EventMapStack[];
-  layers: readonly EventMapLayer[];
-  /** Layer id → visible. A layer absent from the map falls back to `defaultVisible`. */
-  layerVisibility: Readonly<Record<string, boolean>>;
-}
-
-/**
- * Keep stacks admitted by at least one visible layer, carrying that layer's zoom
- * bounds.
- *
- * Two rules the wire contract leaves open:
- *
- * - **Any, not all.** An item shown by a visible layer is shown, even if another
- *   visible layer's filter rejects it. Layers are additive views, not a
- *   conjunction.
- * - **Most permissive zoom.** When two admitting layers disagree, take
- *   `min(minZoom)` and `max(maxZoom)`. A pin must not vanish because a *second*
- *   layer also happened to match it. Live concern rather than hypothetical: the
- *   ESKARA layers range `minZoom` 14–16.
- *
- * Matching is on the LEAD item, which is what the marker represents.
- */
-export function selectVisibleStacks({
-  stacks,
-  layers,
-  layerVisibility,
-}: VisibleStacksInput): EventMapStack[] {
-  const visible = layers.filter((l) => layerVisibility[l.id] ?? l.defaultVisible);
-  if (visible.length === 0) return [];
-
-  const out: EventMapStack[] = [];
-  for (const stack of stacks) {
-    const subject = { tags: stack.lead.tags, status: stack.lead.status };
-    const admitting = visible.filter((l) => evaluatePredicate(l.filter, subject));
-    if (admitting.length === 0) continue;
-    out.push({
-      ...stack,
-      minZoom: mergeBound(
-        admitting.map((l) => l.minZoom),
-        Math.min,
-      ),
-      maxZoom: mergeBound(
-        admitting.map((l) => l.maxZoom),
-        Math.max,
-      ),
-    });
-  }
-  return out;
-}
-
-/**
- * `null` means unbounded, which is maximally permissive — so a single unbounded
- * layer makes the merged bound unbounded, and otherwise the most permissive
- * numeric value wins.
- */
-function mergeBound(
-  values: readonly (number | null)[],
-  pick: (a: number, b: number) => number,
-): number | null {
-  let out: number | null = null;
-  for (const v of values) {
-    if (v === null) return null;
-    out = out === null ? v : pick(out, v);
-  }
-  return out;
-}
-
-export interface MatchingItemsInput {
+export interface VisibleItemsInput {
   items: readonly DerivedItem[];
-  chipGroups: readonly EventMapChipGroup[];
-  /** Group id → selected chip ids. */
-  selectedChips: Readonly<Record<string, string[]>>;
+  /** The `/map/config` layers this build was served. */
+  layers: readonly MapLayerDef[];
+  /** The map layer store's `layers` slice — the user's toggles. */
+  states: LayerVisibilityStates;
 }
 
 /**
- * Keep the items every chip group admits.
+ * The items whose layer is drawn right now, in the order they were given.
  *
- * The composition rule is the APP's, not the server's: the wire carries
- * predicates and never says how to combine them, and ADR 0004 puts predicate
- * evaluation on this side. So it is stated here rather than inferred at each
- * call site:
+ * One rule, and it is the map's rule rather than a second one: an item is
+ * listed exactly when its pin is. Both come down to `isLayerVisible` over the
+ * same `/map/config` layer — the render loop, the filter badge, the filter
+ * sheet's tiles and the chips already read it, and this is the fifth reader
+ * rather than a fifth copy, so the list cannot show 주점 while the map hides it.
  *
- * - **OR within a group.** 주간 + 야간 selected shows both. A group is one axis,
- *   and selecting more of an axis widens it.
- * - **AND across groups.** 야간 AND 먹거리. Groups are independent axes, and
- *   selecting on a second one narrows.
- * - **An empty group is no constraint**, never "hide everything". ESKARA spells
- *   "all" as an explicit `day_all` chip whose predicate is `['all']`, so empty is
- *   not how the config expresses it — but a group can still arrive empty (every
- *   chip deselected, or every selected id dropped by the parser), and the answer
- *   to "you have chosen nothing" must not be an empty map.
+ * An item naming a layer this build was not served is not listed. There is no
+ * pin for it either: the marker route serves markers per served layer, so the
+ * two stay in step for an id outside the activation window too.
  *
- * A selected id with no surviving chip is ignored rather than counted as a miss.
- * The parser drops a chip whose predicate fails validation, so a persisted
- * selection can outlive the chip it named; treating that as "matches nothing"
- * would empty the map over a config typo.
- *
- * Status comes from the DERIVED item, which is why this runs after `deriveItems`
- * — a `['status', ['open']]` chip has to track the clock.
+ * Order is preserved so a sort applied upstream survives the filter.
  */
-export function selectMatchingItems({
-  items,
-  chipGroups,
-  selectedChips,
-}: MatchingItemsInput): DerivedItem[] {
-  // One pass over the config, not once per item.
-  const axes: Predicate[][] = [];
-  for (const group of chipGroups) {
-    const selected = selectedChips[group.id];
-    if (!selected || selected.length === 0) continue;
-    const predicates = group.chips
-      .filter((chip) => selected.includes(chip.id))
-      .map((chip) => chip.predicate);
-    if (predicates.length > 0) axes.push(predicates);
+export function selectVisibleItems({ items, layers, states }: VisibleItemsInput): DerivedItem[] {
+  const visible = new Set<string>();
+  for (const layer of layers) {
+    if (isLayerVisible(layer, states)) visible.add(layer.id);
   }
-  if (axes.length === 0) return [...items];
-
-  return items.filter((item) => {
-    const subject = { tags: item.tags, status: item.status };
-    return axes.every((predicates) => predicates.some((p) => evaluatePredicate(p, subject)));
-  });
+  if (visible.size === 0) return [];
+  return items.filter((item) => visible.has(item.layerId));
 }
 
 /**
@@ -241,7 +135,7 @@ function compareStartAt(a: DerivedItem, b: DerivedItem): number {
 }
 
 /**
- * Sort for a list view. Pins are positional and stack order is `compareForStack`'s,
+ * Sort for the list. Pins are positional and stack order is `compareForStack`'s,
  * so this is the only place a sort is observable.
  *
  * Every comparator falls through to `id`, for the same reason `compareForStack`

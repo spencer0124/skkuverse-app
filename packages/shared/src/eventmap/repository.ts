@@ -73,8 +73,8 @@ export async function fetchEventMapSnapshot(url: string): Promise<EventMapBundle
 
   const { snapshot, dropped } = result.data;
   if (!snapshot) {
-    // Unusable or newer-than-this-build. Not an error the user should see, but
-    // there is nothing to render and nothing worth caching.
+    // Unusable, or a schema this build does not read. Not an error the user
+    // should see, but there is nothing to render and nothing worth caching.
     throw new Error('Event map snapshot unusable');
   }
   if (__DEV__ && dropped.reasons.length > 0) {

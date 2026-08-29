@@ -11,8 +11,10 @@
  *     ├─ backgroundComponent={SheetBackground}  (glass card ⇄ opaque sheet)
  *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
  *     └─ BottomSheetScrollView → SduiSectionList (the server's campus feed)
+ *        ⇄ EventListPanel, while a chip has narrowed the map (the event list)
  *   BuildingDetailSheet (modal, on marker tap)
  *   FilterSheet (modal, on filter button tap)
+ *   EventMapPeekSheet (modal, on booth tap or list row)
  *
  * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
@@ -27,10 +29,7 @@ import BottomSheet, {
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
-import {
-  CrosshairSimpleIcon,
-  ListBulletsIcon,
-} from 'phosphor-react-native';
+import { CrosshairSimpleIcon } from 'phosphor-react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import {
   useCampusSections,
@@ -43,16 +42,18 @@ import {
   isLayerVisible,
   resolveChipGroupDefaults,
   resolveChipLayerVisibility,
+  selectVisibleItems,
   DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
+  type DerivedItem,
   type MapChip,
   type MapChipCamera,
   type MarkerTap,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
-import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
+import { EventListPanel } from '@/features/eventmap/EventListPanel';
 import { GlassIconButton, GLASS_AVAILABLE } from '@/components/glass';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
@@ -180,13 +181,23 @@ const MAP_TOP_ROW_GAP = 10;
  */
 const LOCATE_ANCHOR_SNAP_INDEX = 1;
 
+/**
+ * Where the sheet goes when the event list appears in it — the middle detent.
+ *
+ * The same index as the locate anchor, for a different reason: enough sheet to
+ * read a few rows, with the map still showing the pins the rows describe.
+ * Someone who tapped 주점 wants the map, not a full-height list. Kept separate
+ * from `LOCATE_ANCHOR_SNAP_INDEX` because they only happen to agree.
+ */
+const EVENT_LIST_SNAP_INDEX = 1;
+
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<NaverMapViewRef>(null);
+  const sheetRef = useRef<BottomSheet>(null);
   const detailSheetRef = useRef<BottomSheetModal>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
   const peekSheetRef = useRef<BottomSheetModal>(null);
-  const listSheetRef = useRef<BottomSheetModal>(null);
 
   // ── Data ──
   const { data: mapConfig } = useMapConfig();
@@ -477,16 +488,16 @@ export function CampusScreen() {
   const eventMap = useEventMap();
   const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
   const selectedStackKey = useEventMapStore((s) => s.selectedStackKey);
-  // Resolved against ALL stacks, not the chip-filtered ones. An open peek sheet
-  // must survive a chip toggle that happens to exclude the booth being read, and
-  // a `skkuverse://map?place=` link must reach a booth the current chips hide.
+  // Resolved against EVERY stack, not the listed ones. An open peek sheet must
+  // survive a layer toggle that happens to hide the booth being read, and a
+  // `skkuverse://map?place=` link must reach a booth the current layers hide.
   const selectedStack =
-    eventMap.allStacks.find((s) => s.stackKey === selectedStackKey) ?? null;
+    eventMap.stacks.find((s) => s.stackKey === selectedStackKey) ?? null;
 
   // A stackKey can disappear mid-session — the server can flip stackKeyBy from
   // placeId to zone to thin out a crowded plaza, which re-keys every stack. An
-  // empty sheet is worse than no sheet. Keyed on allStacks, so this fires on a
-  // genuine server re-key and not on a filter the user just applied.
+  // empty sheet is worse than no sheet. Keyed on the full stack set, so this
+  // fires on a genuine server re-key and not on a layer the user just hid.
   useEffect(() => {
     if (selectedStackKey && !selectedStack) peekSheetRef.current?.dismiss();
   }, [selectedStackKey, selectedStack]);
@@ -770,6 +781,46 @@ export function CampusScreen() {
     if (next) setLayersVisible(next);
   }, [narrowedChip, mapConfig, setLayersVisible]);
 
+  // ── The event list in the sheet ──
+
+  /**
+   * What the campus sheet shows: the event list while a chip has narrowed the
+   * map, the server's campus feed otherwise.
+   *
+   * Narrowed, not merely "an event is on": the feed is the sheet's resting
+   * content, and a chip tap is the moment the user asks what is in the view
+   * they just chose. The reset chip restores the group's defaults, which
+   * `findNarrowedChip` reads as narrowed to nothing — so it flies to the
+   * festival and lights its pins but leaves the feed in place. `eventActive`
+   * keeps the list off a campus the event is not on: the toggle can be flipped
+   * away while the festival layers stay narrowed.
+   */
+  const showEventList = narrowedChip !== null && eventActive;
+
+  /**
+   * The list's rows: the items whose layer is drawn, in the active sort.
+   *
+   * `selectVisibleItems` reads the same `isLayerVisible` the render loop below
+   * does — the fifth reader of that function, deliberately not a fifth copy —
+   * so a row appears exactly when its pin does.
+   */
+  const listedItems = useMemo(
+    () =>
+      mapConfig
+        ? selectVisibleItems({ items: eventMap.items, layers: mapConfig.layers, states: layers })
+        : [],
+    [mapConfig, eventMap.items, layers],
+  );
+
+  // When the list appears, bring the sheet up to the middle detent — enough to
+  // read it, with the map still showing the pins it describes. An effect on the
+  // derived flag rather than a call inside the chip handler, so narrowing
+  // through the filter sheet's tiles gets the same reveal, and the reset chip,
+  // whose result is "not narrowed", gets none.
+  useEffect(() => {
+    if (showEventList) sheetRef.current?.snapToIndex(EVENT_LIST_SNAP_INDEX);
+  }, [showEventList]);
+
   // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
   const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
   const clearPendingNavPayload = useMapNavStore((s) => s.clearPendingNavPayload);
@@ -942,7 +993,7 @@ export function CampusScreen() {
           detailSheetRef.current?.present();
           return;
         }
-        case 'eskara26': {
+        case 'event': {
           const stack = stacksByPlaceId.get(tap.placeId);
           if (!stack) return;
           handleSelectStack(stack.stackKey);
@@ -953,14 +1004,18 @@ export function CampusScreen() {
     [stacksByPlaceId, handleSelectStack],
   );
 
-  // The list is a way into a pin, not a parallel surface: dismiss it so backing
-  // out of the peek sheet lands on the map rather than on a stack of two sheets.
+  // A list row is the same way into a pin that the pin itself is, plus the
+  // camera: the row was chosen off a list, so the map has not been looked at
+  // yet. Immediate on both counts — the deep-link path's staggered timeouts
+  // exist because it may be switching campus first, and a row never is. The
+  // peek sheet's low detent sits above the campus sheet's, so it covers the
+  // list rather than stacking a second grab handle on it.
   const handleSelectFromList = useCallback(
-    (stackKey: string) => {
-      listSheetRef.current?.dismiss();
-      handleSelectStack(stackKey);
+    (item: DerivedItem) => {
+      moveTo({ lat: item.lat, lng: item.lng, ...cameraDefaults.markerFocus });
+      handleSelectStack(item.stackKey);
     },
-    [handleSelectStack],
+    [moveTo, cameraDefaults, handleSelectStack],
   );
 
   const handlePeekDismiss = useCallback(() => {
@@ -1012,10 +1067,10 @@ export function CampusScreen() {
             {/* Booth pins used to be drawn here, from the event snapshot, by a
                 second marker component beside the config-driven layers. The
                 server now serves them as ordinary marker layers, so the loop
-                above draws them and this sibling would be a duplicate — six
-                layers' worth of pins on top of the snapshot's own. The snapshot
-                is still fetched: it is what the peek sheet renders, and what
-                resolves a tapped booth's placeId to a stack. */}
+                above draws them and a sibling would draw every booth twice. The
+                snapshot is still fetched: it is what the peek sheet and the
+                list render, and what resolves a tapped booth's placeId to a
+                stack. */}
           </CampusNaverMap>
         )}
 
@@ -1038,23 +1093,10 @@ export function CampusScreen() {
                 onPress={() => filterSheetRef.current?.present()}
               />
             )}
-            {eventActive && (
-              <GlassIconButton
-                label={t('eventmap.list.title')}
-                icon={<ListBulletsIcon size={20} color={SdsColors.grey700} />}
-                onPress={() => {
-                  logCampusContentSelect({
-                    content_type: 'eventmap_list_button',
-                    item_id: 'open',
-                  });
-                  listSheetRef.current?.present();
-                }}
-              />
-            )}
           </View>
           {/* The event map's chip row stood here and was removed: its chips
               filtered snapshot ITEMS, and the pins now come from
-              /map/markers/eskara26 layers that such a chip cannot reach. This is
+              /map/markers/event layers that such a chip cannot reach. This is
               its replacement, and it is a different contract — a map chip
               carries an ACTION and has no predicate at all.
 
@@ -1156,8 +1198,12 @@ export function CampusScreen() {
           </View>
         </Animated.View>
 
-        {/* Snapping bottom sheet with SDUI */}
+        {/* Snapping bottom sheet: the campus feed, or the event list while a
+            chip has narrowed the map. One body or the other, never both — a
+            gorhom scrollable cannot nest inside another, and each registers
+            itself with the sheet on mount, so the swap keeps the pan gesture. */}
         <BottomSheet
+          ref={sheetRef}
           snapPoints={snapPoints}
           enableDynamicSizing={false}
           handleComponent={SheetHandle}
@@ -1168,15 +1214,24 @@ export function CampusScreen() {
           // Off iOS 26 the sheet stays attached, so it must not inset at all.
           style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
-          {/* The scroll view is what gives the sheet's body a content pane and
-              keeps the content pan gesture, so a drag anywhere on the card still
-              moves it. It stays mounted even when the feed is empty. */}
-          <BottomSheetScrollView
-            style={styles.sheetContent}
-            contentContainerStyle={styles.sheetFeed}
-          >
-            <SduiSectionList sections={campusFeed?.sections ?? []} />
-          </BottomSheetScrollView>
+          {showEventList ? (
+            <EventListPanel
+              items={listedItems}
+              sorts={eventMap.snapshot?.sorts ?? []}
+              cardTemplates={cardTemplates}
+              onSelectItem={handleSelectFromList}
+            />
+          ) : (
+            /* The scroll view is what gives the sheet's body a content pane and
+               keeps the content pan gesture, so a drag anywhere on the card
+               still moves it. It stays mounted even when the feed is empty. */
+            <BottomSheetScrollView
+              style={styles.sheetContent}
+              contentContainerStyle={styles.sheetFeed}
+            >
+              <SduiSectionList sections={campusFeed?.sections ?? []} />
+            </BottomSheetScrollView>
+          )}
         </BottomSheet>
 
         {/* Modal sheets */}
@@ -1204,13 +1259,6 @@ export function CampusScreen() {
           stack={selectedStack}
           cardTemplates={cardTemplates}
           onDismiss={handlePeekDismiss}
-        />
-        <EventMapListSheet
-          ref={listSheetRef}
-          items={eventActive ? eventMap.allItems : []}
-          sorts={eventMap.snapshot?.sorts ?? []}
-          cardTemplates={cardTemplates}
-          onSelectItem={handleSelectFromList}
         />
       </View>
   );

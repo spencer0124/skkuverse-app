@@ -11,23 +11,21 @@
  *
  * So it is **maintained by hand**, and re-running the seed would not reproduce it —
  * it would replace it, taking those cases with it. When the server changes what
- * `materialize()` emits, apply that delta here.
+ * `materialize()` emits, apply that delta here. The v2 delta was applied that way:
+ * the predicate layers, chip groups, icon table and camera left the top level,
+ * every item gained `layerId` and lost its icon ids, and tags became author tags.
  *
  * Which is the weakness worth naming: nothing enforces the shape agreement. The
  * server has no test that its output parses here and this repo cannot run the
  * server, so a new member added there is caught only by someone remembering. The
  * fix is a generator, not a stricter sentence in this comment.
- *
- * The fixture still carries `basemapOverride`, which the server ships and this
- * parser no longer reads. That is deliberate: the file's contract is real server
- * output, and leaving it in makes the no-drop test above also the proof that an
- * unread member on the wire is harmless — the schema is additive-only.
  */
 
 import { describe, it, expect } from 'vitest';
 import { parseEventMapManifest, parseEventMapSnapshot } from '../parser';
 import { EVENTMAP_SCHEMA_VERSION } from '../../types/eventmap';
 import snapshotFixture from './fixtures/eskara-snapshot.json';
+import liveMapConfig from '../../map/__tests__/fixtures/map-config-live.json';
 
 /** Deep clone so a mutation in one test cannot leak into another. */
 const fixture = () => JSON.parse(JSON.stringify(snapshotFixture)) as Record<string, unknown>;
@@ -40,16 +38,18 @@ describe('parseEventMapSnapshot — real server output', () => {
     expect(snapshot).not.toBeNull();
     expect(dropped.reasons).toEqual([]);
     expect(dropped.items).toBe(0);
-    expect(dropped.layers).toBe(0);
     expect(dropped.actions).toBe(0);
   });
 
-  it('keeps every item, layer, chip group and icon', () => {
+  it('keeps every item, each on a layer the live /map/config serves', () => {
+    // The join the design rests on: an item's layerId is a map layer id, stamped
+    // by the same resolver that stamps its marker. Checked against the captured
+    // /map/config rather than a list written here, so a festival layer renamed
+    // on the server fails this test instead of silently emptying the list.
     const { snapshot } = parse(fixture());
     expect(snapshot!.items).toHaveLength(6);
-    expect(snapshot!.layers).toHaveLength(5);
-    expect(snapshot!.chipGroups).toHaveLength(4);
-    expect(Object.keys(snapshot!.icons)).toHaveLength(12);
+    const served = new Set(liveMapConfig.data.layers.map((l) => l.id));
+    for (const item of snapshot!.items) expect(served).toContain(item.layerId);
   });
 
   it('pins the fixture to the webview URL rule the server now enforces', () => {
@@ -94,7 +94,17 @@ describe('parseEventMapSnapshot — refusals', () => {
     const raw = { ...fixture(), schemaVersion: EVENTMAP_SCHEMA_VERSION + 1 };
     const { snapshot, dropped } = parse(raw);
     expect(snapshot).toBeNull();
-    expect(dropped.reasons[0]).toContain('newer than this build');
+    expect(dropped.reasons[0]).toContain(`is not the ${EVENTMAP_SCHEMA_VERSION} this build reads`);
+  });
+
+  it('ignores an OLDER schema too — the last-known-good cache outlives an app update', () => {
+    // A v1 blob written by the previous build has no layerId on any item. Read
+    // as v2 it would parse into an event with everything dropped, and the sheet
+    // would announce "0곳" for a festival that is on. No event is the honest answer.
+    const raw = { ...fixture(), schemaVersion: EVENTMAP_SCHEMA_VERSION - 1 };
+    const { snapshot, dropped } = parse(raw);
+    expect(snapshot).toBeNull();
+    expect(dropped.reasons[0]).toContain(`schemaVersion ${EVENTMAP_SCHEMA_VERSION - 1}`);
   });
 
   it('returns null rather than throwing for a non-object payload', () => {
@@ -138,48 +148,17 @@ describe('parseEventMapSnapshot — per-entry drops', () => {
     expect(snapshot!.items[0]!.stackKey).toBe('p9');
   });
 
-  it('drops a layer whose render it does not know', () => {
-    const layers = [{ ...(snapshotFixture as { layers: unknown[] }).layers[0] as object, render: 'hologram' }];
-    const { snapshot, dropped } = parse({ ...fixture(), layers });
-    expect(snapshot!.layers).toEqual([]);
-    expect(dropped.layers).toBe(1);
-  });
-
-  it('drops a layer whose filter cannot be trusted', () => {
-    // A layer with an unusable filter would show everything or nothing; neither
-    // is a safe guess, so the layer goes.
-    const layers = [{ ...(snapshotFixture as { layers: unknown[] }).layers[0] as object, filter: ['not', ['bogus']] }];
-    expect(parse({ ...fixture(), layers }).snapshot!.layers).toEqual([]);
-  });
-
-  it('drops a chip with an invalid predicate, and its group if nothing survives', () => {
-    const chipGroups = [
-      { id: 'g', label: null, selection: 'multi', chips: [{ id: 'c', label: 'C', predicate: ['bogus'] }] },
-    ];
-    const { snapshot, dropped } = parse({ ...fixture(), chipGroups });
-    expect(snapshot!.chipGroups).toEqual([]);
-    expect(dropped.chips).toBe(1);
-    expect(dropped.chipGroups).toBe(1);
+  it('drops an item that names no layer, and counts it', () => {
+    // Without a layerId the row could never be shown or hidden with its pin.
+    const { snapshot, dropped } = parse(withItems([item({ id: 'orphan', layerId: undefined })]));
+    expect(snapshot!.items).toEqual([]);
+    expect(dropped.items).toBe(1);
+    expect(dropped.reasons[0]).toContain('missing layerId');
   });
 
   it('drops a sort whose key it cannot honour', () => {
     const { snapshot } = parse({ ...fixture(), sorts: [{ id: 's', label: 'S', by: 'distance' }] });
     expect(snapshot!.sorts).toEqual([]);
-  });
-
-  it('coerces an unknown icon kind to the library default', () => {
-    const { snapshot } = parse({ ...fixture(), icons: { weird: { kind: 'lottie', src: 'x' } } });
-    expect(snapshot!.icons.weird).toEqual({ kind: 'symbol', symbol: 'green' });
-  });
-
-  it('keeps a remote icon with its dimensions', () => {
-    const icons = { pin: { kind: 'remote', uri: 'https://e.com/p.png', width: 32, height: 40 } };
-    expect(parse({ ...fixture(), icons }).snapshot!.icons.pin).toEqual({
-      kind: 'remote',
-      uri: 'https://e.com/p.png',
-      width: 32,
-      height: 40,
-    });
   });
 });
 
@@ -234,7 +213,7 @@ describe('parseEventMapSnapshot — action validation', () => {
 
 describe('parseEventMapManifest', () => {
   const active = {
-    schemaVersion: 1,
+    schemaVersion: EVENTMAP_SCHEMA_VERSION,
     activeLayerSetId: 'eskara-2026',
     version: 17,
     snapshotUrl: '/eventmap/snapshot/eskara-2026/17?lang=ko',
@@ -249,7 +228,7 @@ describe('parseEventMapManifest', () => {
 
   it('reads an inactive manifest as no event', () => {
     const out = parseEventMapManifest({
-      schemaVersion: 1,
+      schemaVersion: EVENTMAP_SCHEMA_VERSION,
       activeLayerSetId: null,
       version: null,
       snapshotUrl: null,

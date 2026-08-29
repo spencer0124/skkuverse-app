@@ -43,7 +43,7 @@ export async function handleSilentPush(
 
   try {
     await Promise.all([
-      // The booth PINS come from /map/markers/eskara26 now, so this is the one
+      // The booth PINS come from /map/markers/event now, so this is the one
       // that actually moves the map. A prefix, not a key: layers share an
       // endpoint and the endpoint is the last segment, so this reaches every
       // marker query without this file having to know any endpoint's spelling.
