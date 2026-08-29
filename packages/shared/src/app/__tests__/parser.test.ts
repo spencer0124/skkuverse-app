@@ -6,7 +6,7 @@ import type { ApiEnvelope } from '../../api/types';
  * `webview.bridgeOrigins` is a SECURITY list — it decides which pages may reach
  * the native bridge from the /webview shell. Every degraded path here must
  * shrink the grant, never widen it, which is the opposite of how the rest of
- * this package falls back (useCampusSections serves defaults when the API dies).
+ * this package falls back (useMapConfig serves defaults when the API dies).
  */
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({

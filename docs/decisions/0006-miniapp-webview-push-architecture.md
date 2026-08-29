@@ -3,7 +3,7 @@ title: Mini App Webview & Push Architecture
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-26
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -182,9 +182,11 @@ a precondition of that change rather than a follow-up to it.
   `BRIDGE_ORIGINS` in the server's `src/infra/origins.ts`. A capability prop passed by the
   caller would become a second, and staler, source of truth.
 - **Fail closed.** No config, a failed fetch, unparseable data, or an origin mismatch all
-  yield `[]`. This is **deliberately the opposite** of how the rest of this package fails,
-  where `useCampusSections` hands back defaults. A stale tab beats an empty one, but failing
-  open here would hand `Linking.openURL` to an unvetted page.
+  yield `[]`. This inverts how the rest of this package fails, where `useMapConfig` hands
+  back defaults because a map with no campuses is broken while a stale one is merely old.
+  Failing open here would instead hand `Linking.openURL` to an unvetted page. (This clause
+  named `useCampusSections` when it was written; that hook's defaults were later emptied on
+  purpose, so it is no longer an example of failing open.)
 - **`web:navigate` is excluded from the grant set.** `apps/webview` has never sent it, yet
   the handler sat there unguarded. Do not revive it without a path allowlist.
 

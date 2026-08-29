@@ -66,6 +66,35 @@ established by putting a throwaway `GlassView` in the background slot and
 looking at it, not by reasoning, and any future glass surface under a Reanimated
 parent deserves the same check.
 
+## What may sit on the card
+
+The fill and the geometry do not ramp together, and content has to be designed against the
+fill's schedule rather than the card's. `sheetChromeAt` interpolates the inset and the corner
+radius across the whole travel, but ramps `fillOpacity` over the final segment alone. So
+every detent below the top one is glass, with the live map showing through, and the opaque
+surface only arrives as the sheet attaches.
+
+**Each block paints its own fill.** A block that supplies none is text over a moving map for
+most of the sheet's travel, legible over a pale campus basemap and not over a satellite tile.
+The blocks in place today mostly satisfy this without having been designed for it. The notice
+bar carries an amber fill, while the banner and the grid tiles are opaque by construction.
+The section title supplies nothing, and is the one to check first when a new palette or
+basemap arrives.
+
+**Content is not branched on the detent.** Nothing reads the sheet's index to decide what to
+draw, and adding that costs more than it looks: the wrapper carrying the animated opacity may
+never become an ancestor of a `GlassView`, since opacity there is an off-switch rather than a
+fade. Making each block legible on glass is cheaper and does not spread the constraint.
+
+**The sheet's content wrapper carries the only horizontal padding in the column.** The card's
+inset animates, so a gutter baked into a block would be measured from an edge that moves. The
+reasoning is recorded next to the dispatcher in `apps/mobile/src/sdui/renderer.tsx`.
+
+Reaching for a `WebView` here fails on the first rule before any of the usual arguments
+apply: it paints an opaque background, so it would read as a solid rectangle inside a
+translucent card. The contract for what the sheet renders is
+[sdui-campus-spec.md](../reference/sdui-campus-spec.md).
+
 ## The card's bottom edge has to be an explicit height
 
 The obvious way to leave a gap under a floating card is `bottom: <gap>`. It does

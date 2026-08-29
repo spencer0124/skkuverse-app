@@ -3,7 +3,7 @@ title: Architecture Overview
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -99,15 +99,20 @@ NativeTabs constraint, are in the tab structure section of the root `CLAUDE.md` 
 
 ## Server-Driven UI (SDUI)
 
-The section layout of the home and campus screens is decided by **server config** rather than
-by code. The app fetches the config and renders it with the widgets in
-`apps/mobile/src/sdui/`.
+The campus tab's bottom sheet is laid out by server config rather than by code. The app
+fetches the config and renders it with the widgets in `apps/mobile/src/sdui/`.
 
-- `src/sdui/renderer.tsx` maps a section config to a widget.
+- `src/sdui/renderer.tsx` maps a section config to a widget, with a `never` guard that fails
+  the build on an unhandled type.
 - `src/sdui/widgets/` holds the widget implementations: Banner, ButtonGrid, Notice,
   SectionTitle and the rest.
 - `src/sdui/action-handler.ts` handles server-defined actions such as 'route', intercepting a
   bare `/` to avoid the phantom history entry.
+
+The home screen is not among the surfaces this lays out. Its grid and sections are
+written in `HomeScreen.tsx`; it reaches into `src/sdui/` for the action handler alone, which
+is also what routes a push notification's tap. The action vocabulary is the widely shared
+part of this module, and the section rendering is not.
 
 The SSOT for the contract between server and client is
 [../reference/sdui-campus-spec.md](../reference/sdui-campus-spec.md).

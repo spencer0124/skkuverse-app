@@ -3,7 +3,13 @@
  *
  * Fetches SDUI sections from `GET /ui/home/campus` via TanStack Query.
  * On API failure, returns DEFAULT_CAMPUS_SECTIONS — queryFn never throws,
- * so `isError` is never true (matches Flutter controller fallback pattern).
+ * so `isError` is never true.
+ *
+ * Those defaults are now empty (see `sdui/defaults.ts`), which means a caller
+ * cannot tell a dead API from a server with nothing to show. That is deliberate
+ * for the campus sheet, the only consumer: both answers render the same empty
+ * card. A future consumer that needs to tell them apart should read
+ * `query.isFetched` rather than reintroduce a non-empty fallback here.
  *
  * Flutter source: lib/features/campus_map/controller/campus_map_controller.dart
  */
