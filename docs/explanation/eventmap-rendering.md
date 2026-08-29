@@ -126,6 +126,12 @@ An item naming a layer this build was not served is not listed. There is no pin 
 marker route serves markers per served layer — so the two stay in step for an id outside the
 activation window too. Input order is preserved, so the sort (§4.2) applied upstream survives.
 
+The list describes the layer; the pin describes the moment. `MapMarkerLayer` additionally draws a
+marker only inside its own `startAt`/`endAt` window (`useVisibleByWindow`), so a session that has
+ended keeps its row — with the status badge saying so — while its pin is gone. Verified on the
+simulator the day after the demo sessions: 주점 listed 28 rows and drew no pin, the in-window stage
+marker drew beside its two rows. <!-- conventions:allow-korean: the chip label the app shows -->
+
 The list lives **in the campus sheet**, in place of the server's campus feed, while a chip has
 narrowed the map (`findNarrowedChip` in `packages/shared/src/map/chips.ts` returns one). The sheet's
 body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to

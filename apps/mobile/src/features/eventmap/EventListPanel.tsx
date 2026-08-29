@@ -3,7 +3,9 @@
  *
  * Rows are the items of the layers the map is drawing — `selectVisibleItems`
  * decides that, on the same `isLayerVisible` the render loop uses, so the list
- * and the pins cannot disagree. Which is also why this is a panel inside the
+ * and the pins cannot disagree about a layer. (A session outside its own time
+ * window keeps its row, with a status badge, while its pin waits for the
+ * window.) Which is also why this is a panel inside the
  * persistent sheet rather than a modal of its own: it describes the map the
  * user is looking at, and it goes away with the narrowing that produced it.
  *

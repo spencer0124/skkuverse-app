@@ -98,10 +98,13 @@ export interface VisibleItemsInput {
  * The items whose layer is drawn right now, in the order they were given.
  *
  * One rule, and it is the map's rule rather than a second one: an item is
- * listed exactly when its pin is. Both come down to `isLayerVisible` over the
- * same `/map/config` layer — the render loop, the filter badge, the filter
- * sheet's tiles and the chips already read it, and this is the fifth reader
- * rather than a fifth copy, so the list cannot show 주점 while the map hides it.
+ * listed exactly when its layer is drawn. Both come down to `isLayerVisible`
+ * over the same `/map/config` layer — the render loop, the filter badge, the
+ * filter sheet's tiles and the chips already read it, and this is the fifth
+ * reader rather than a fifth copy, so the list cannot show 주점 while the map
+ * hides it. A pin additionally observes its own `startAt`/`endAt` window on
+ * the device clock, so a session outside it is a row with a status badge and
+ * no pin: the list describes the layer, the pin the moment.
  *
  * An item naming a layer this build was not served is not listed. There is no
  * pin for it either: the marker route serves markers per served layer, so the

@@ -802,7 +802,8 @@ export function CampusScreen() {
    *
    * `selectVisibleItems` reads the same `isLayerVisible` the render loop below
    * does — the fifth reader of that function, deliberately not a fifth copy —
-   * so a row appears exactly when its pin does.
+   * so a row is listed exactly when its layer is drawn. A pin additionally
+   * observes its own time window; the row shows that as a status badge instead.
    */
   const listedItems = useMemo(
     () =>
