@@ -118,9 +118,9 @@ layer a booth is in. The app never derives membership; there is nothing to evalu
 
 `selectVisibleItems` (`packages/shared/src/eventmap/derive.ts`) keeps the items whose layer is drawn:
 the layer exists in the served config **and** `isLayerVisible(layer, states)` — the same function the
-render loop, the filter badge, the filter sheet's tiles and the chips read. It is the fifth reader of
-that function, deliberately not a fifth copy: the one time a reader carried its own expression, the
-filter sheet showed 건물번호 ON while the map hid it. <!-- conventions:allow-korean: the layer label the app shows -->
+render loop, the filter sheet's tiles and the chips read. It is the fourth reader of that function,
+deliberately not a fourth copy: the one time a reader carried its own expression, the filter sheet
+showed 건물번호 ON while the map hid it. <!-- conventions:allow-korean: the layer label the app shows -->
 
 An item naming a layer this build was not served is not listed. There is no pin for it either — the
 marker route serves markers per served layer — so the two stay in step for an id outside the

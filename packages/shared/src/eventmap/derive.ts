@@ -99,10 +99,9 @@ export interface VisibleItemsInput {
  *
  * One rule, and it is the map's rule rather than a second one: an item is
  * listed exactly when its layer is drawn. Both come down to `isLayerVisible`
- * over the same `/map/config` layer — the render loop, the filter badge, the
- * filter sheet's tiles and the chips already read it, and this is the fifth
- * reader rather than a fifth copy, so the list cannot show 주점 while the map
- * hides it. A pin additionally observes its own `startAt`/`endAt` window on
+ * over the same `/map/config` layer — the render loop, the filter sheet's
+ * tiles and the chips already read it, and this is the fourth reader rather
+ * than a fourth copy, so the list cannot show 주점 while the map hides it. A pin additionally observes its own `startAt`/`endAt` window on
  * the device clock, so a session outside it is a row with a status badge and
  * no pin: the list describes the layer, the pin the moment.
  *

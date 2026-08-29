@@ -569,22 +569,6 @@ export function CampusScreen() {
 
   const eventActive = eventMap.snapshot != null && eventMap.snapshot.campus === selectedCampus;
 
-  /**
-   * How many layers are hidden. Drives the filter button badge.
-   *
-   * Counted off layer visibility rather than chip groups, because layers are
-   * what narrows the map now. A layer that is hidden by default is not counted:
-   * the badge means "you have narrowed this", and 편의시설 starting hidden is
-   * the server's choice, not the user's.
-   */
-  const activeFilterCount = useMemo(() => {
-    if (!mapConfig) return 0;
-    return mapConfig.layers.filter((layer) => {
-      if (layer.userConfigurable === false) return false;
-      return layer.defaultVisible && !isLayerVisible(layer, layers);
-    }).length;
-  }, [mapConfig, layers]);
-
   // ── Camera move on campus switch ──
 
   /**
@@ -861,7 +845,7 @@ export function CampusScreen() {
    * The list's rows: the items whose layer is drawn, in the active sort.
    *
    * `selectVisibleItems` reads the same `isLayerVisible` the render loop below
-   * does — the fifth reader of that function, deliberately not a fifth copy —
+   * does — the fourth reader of that function, deliberately not a fourth copy —
    * so a row is listed exactly when its layer is drawn. A pin additionally
    * observes its own time window; the row shows that as a status badge instead.
    */
@@ -1156,10 +1140,7 @@ export function CampusScreen() {
               <CampusToggle campuses={mapConfig.campuses} onPick={handleCampusPick} />
             )}
             {mapConfig && (
-              <FilterButton
-                activeCount={activeFilterCount}
-                onPress={() => filterSheetRef.current?.present()}
-              />
+              <FilterButton onPress={() => filterSheetRef.current?.present()} />
             )}
           </View>
           {/* The event map's chip row stood here and was removed: its chips

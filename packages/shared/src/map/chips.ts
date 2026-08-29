@@ -32,10 +32,11 @@ export type LayerVisibilityStates = Readonly<Record<string, { visible: boolean }
  * Is this layer drawn right now: the user's toggle, or the layer's own default.
  *
  * One function rather than the expression, which used to be written out at
- * three call sites — `CampusScreen`'s render loop, its filter badge and
- * `FilterSheet`'s tiles. They drifted once already: the sheet read
- * `states[id]?.visible` alone and showed 건물번호 ON while the map was hiding
- * it. Chips are the fourth reader, and a fourth copy is how that happens again.
+ * three call sites — `CampusScreen`'s render loop, a filter-button badge it no
+ * longer has, and `FilterSheet`'s tiles. They drifted once already: the sheet
+ * read `states[id]?.visible` alone and showed 건물번호 ON while the map was
+ * hiding it. The chips and the event list read it too now, and another copy
+ * is how that happens again.
  */
 export function isLayerVisible(
   layer: MapLayerDef,
@@ -166,9 +167,9 @@ export function resolveChipGroupDefaults(
  * Is this chip's group sitting at the visibility the server declared?
  *
  * Drives whether a clear control is offered at all: there is nothing to clear
- * when nothing has been narrowed. The same rule the filter badge already uses,
- * where a layer hidden by the server's own default does not count as the user
- * having narrowed anything.
+ * when nothing has been narrowed. A layer hidden by the server's own default
+ * does not count as the user having narrowed anything — 편의시설 ships hidden,
+ * and that is the server's choice rather than a filter to clear.
  */
 export function isChipGroupAtDefaults(
   chip: MapChip,
