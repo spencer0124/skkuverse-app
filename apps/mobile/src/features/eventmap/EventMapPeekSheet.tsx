@@ -23,6 +23,7 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
   useBottomSheetModal,
+  type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import {
   resolveSlots,
@@ -32,18 +33,18 @@ import {
   type EventMapStack,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { GLASS_AVAILABLE } from '@/components/glass';
+import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
+import { SheetHandle } from '@/features/map/components/SheetHandle';
+import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { CardRenderer } from './CardRenderer';
 
 /**
- * Strictly above the persistent CampusScreen BottomSheet's collapsed detent
- * (`SHEET_SNAP_PERCENTS` there), so this fully occludes it rather than stacking
- * a second grab handle on its chrome. Both are real sheets with their own pan
- * responders, and overlapping them silently puts two in the same band.
- *
- * The number is not derived from that one, so lowering the campus sheet gives
- * this more clearance rather than less — but raising it back above this value
- * would break the occlusion, which is the direction to watch.
+ * The low detent: one card's worth, with the map still showing the pin it
+ * describes. It no longer has to clear the campus sheet's own detents — that
+ * sheet steps aside (closes) before this one rises and returns when it goes,
+ * so the two are never on screen together. See `sheetHandoff.ts`.
  */
 const PEEK_MIN_SNAP = '45%';
 
@@ -51,19 +52,49 @@ interface EventMapPeekSheetProps {
   stack: EventMapStack | null;
   /** Snapshot templates, keyed by id. `undefined` for an item falls back inside `resolveSlots`. */
   cardTemplates: Map<string, EventMapCardTemplate>;
+  /**
+   * Gap between the card's bottom edge and the screen's, in the modal's own
+   * (window) coordinates — the campus card's edge restated, so the two cards
+   * sit on one line. Computed by `CampusScreen`, which measures both.
+   */
+  bottomGap: number;
   onDismiss: () => void;
 }
 
 export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetProps>(
-  function EventMapPeekSheet({ stack, cardTemplates, onDismiss }, ref) {
+  function EventMapPeekSheet({ stack, cardTemplates, bottomGap, onDismiss }, ref) {
     const snapPoints = useMemo(() => [PEEK_MIN_SNAP, '85%'], []);
+
+    // A closure rather than the component itself, because the card's bottom
+    // gap is a prop here and gorhom passes a background component only its own
+    // animated values.
+    const renderBackground = useCallback(
+      (props: BottomSheetBackgroundProps) => (
+        <GlassCardBackground {...props} bottomGap={bottomGap} />
+      ),
+      [bottomGap],
+    );
 
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
         enableDynamicSizing={false}
-        handleIndicatorStyle={styles.handleIndicator}
+        // The grabber bar alone: a handle that painted its own fill would be a
+        // white lid across the top of the glass.
+        handleComponent={SheetHandle}
+        backgroundComponent={renderBackground}
+        // The same route the filter sheet takes to its card — `detached` puts
+        // the inset on the hosting container and stops clipping, so the shadow
+        // and the glass edge survive; the margin rides on the body so the
+        // background, the handle and the content inset as one. All off below
+        // iOS 26, where this stays the attached panel it shipped as. Unlike the
+        // filter sheet this one still moves between two detents, and that is
+        // fine: the card keeps one shape at both, and only the campus sheet
+        // needs a crossfade because only it attaches at the top.
+        detached={GLASS_AVAILABLE}
+        bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
+        style={GLASS_AVAILABLE ? styles.card : undefined}
         // The default 'switch' MINIMIZES BuildingDetailSheet and restores it when
         // this closes, resurfacing a sheet the user never asked for.
         stackBehavior="replace"
@@ -178,12 +209,7 @@ function ActionButton({ action }: { action: EventMapAction }) {
 const styles = StyleSheet.create({
   container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
   content: { paddingHorizontal: 20, paddingBottom: 32 },
-  handleIndicator: {
-    backgroundColor: SdsColors.grey300,
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
+  card: { marginHorizontal: SHEET_FLOAT_INSET },
   subsequent: {
     marginTop: 20,
     paddingTop: 20,

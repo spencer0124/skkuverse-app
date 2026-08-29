@@ -12,6 +12,7 @@ import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetScrollView,
+  type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapTrifoldIcon } from 'phosphor-react-native';
@@ -29,6 +30,10 @@ import { AccordionList, Badge, Gradient, ListHeader, ListRow, Txt, type Accordio
 import { BuildingHeader } from './BuildingHeader';
 import { ConnectionsSection } from './ConnectionsSection';
 import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMapping';
+import { GLASS_AVAILABLE } from '@/components/glass';
+import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
+import { SheetHandle } from '@/features/map/components/SheetHandle';
+import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import {
   logBuildingView,
   type BuildingDetailSource,
@@ -42,7 +47,15 @@ interface BuildingDetailSheetProps {
   skkuId: number | null;
   highlightSpaceCd?: string;
   source?: BuildingDetailSource;
+  /**
+   * Gap between the card's bottom edge and the screen's, in the modal's own
+   * (window) coordinates — the campus card's edge restated, so the two cards
+   * sit on one line. Computed by `CampusScreen`, which measures both.
+   */
+  bottomGap: number;
   onConnectionTap: (targetSkkuId: number) => void;
+  /** Fired by gorhom once the sheet is fully gone; the campus sheet returns on it. */
+  onDismiss?: () => void;
 }
 
 /** 8px grey50 section divider */
@@ -53,7 +66,10 @@ function SectionDivider() {
 export const BuildingDetailSheet = forwardRef<
   BottomSheetModal,
   BuildingDetailSheetProps
->(function BuildingDetailSheet({ skkuId, highlightSpaceCd, source, onConnectionTap }, ref) {
+>(function BuildingDetailSheet(
+  { skkuId, highlightSpaceCd, source, bottomGap, onConnectionTap, onDismiss },
+  ref,
+) {
   const { data, isLoading } = useBuildingDetail(skkuId);
   const lang = useSettingsStore((s) => s.appLanguage);
   const { t, tpl } = useT();
@@ -171,12 +187,36 @@ export const BuildingDetailSheet = forwardRef<
     router.push(`/map/hssc?building=${encodeURIComponent(hsscMapName)}` as never);
   }, [hsscMapName, ref, router]);
 
+  // A closure rather than the component itself, because the card's bottom gap
+  // is a prop here and gorhom passes a background component only its own
+  // animated values.
+  const renderBackground = useCallback(
+    (props: BottomSheetBackgroundProps) => (
+      <GlassCardBackground {...props} bottomGap={bottomGap} />
+    ),
+    [bottomGap],
+  );
+
   return (
     <BottomSheetModal
       ref={ref}
       snapPoints={['85%']}
       enableDynamicSizing={false}
-      handleIndicatorStyle={styles.handleIndicator}
+      // The grabber bar alone; a handle painting its own fill would be a white
+      // lid across the top of the glass.
+      handleComponent={SheetHandle}
+      backgroundComponent={renderBackground}
+      // The same floating Liquid Glass card the campus and filter sheets are,
+      // by the filter sheet's route: `detached` with a `bottomInset` makes the
+      // sheet body's box the visible card and stops the clipping that would
+      // cut the shadow and the glass edge; the margin rides on the body so the
+      // background, the handle and the content inset together. All off below
+      // iOS 26. The campus sheet closes before this rises (`sheetHandoff.ts`),
+      // so the card never stacks on another.
+      detached={GLASS_AVAILABLE}
+      bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
+      style={GLASS_AVAILABLE ? styles.card : undefined}
+      onDismiss={onDismiss}
     >
       <BottomSheetScrollView style={styles.container}>
         {isLoading && (
@@ -420,12 +460,7 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
   },
-  handleIndicator: {
-    backgroundColor: SdsColors.grey300,
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
+  card: { marginHorizontal: SHEET_FLOAT_INSET },
   loading: {
     padding: 40,
     alignItems: 'center',

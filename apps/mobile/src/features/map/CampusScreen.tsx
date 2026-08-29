@@ -12,14 +12,14 @@
  *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
  *     └─ BottomSheetScrollView → SduiSectionList (the server's campus feed)
  *        ⇄ EventListPanel, while a chip has narrowed the map (the event list)
- *   BuildingDetailSheet (modal, on marker tap)
- *   FilterSheet (modal, on filter button tap)
- *   EventMapPeekSheet (modal, on booth tap or list row)
+ *   BuildingDetailSheet (modal, on marker tap) ┐ the campus sheet steps aside
+ *   EventMapPeekSheet (modal, booth tap / row) ┘ for these — `sheetHandoff.ts`
+ *   FilterSheet (modal, on filter button tap — floats beside the campus card)
  *
  * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -66,6 +66,13 @@ import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
 import { SheetBackground } from './components/SheetBackground';
 import { sheetChromeAt, SHEET_FLOAT_INSET } from './utils/sheetChrome';
+import {
+  IDLE_HANDOFF,
+  releaseHandoff,
+  requestHandoff,
+  sheetSettled,
+  type SheetHandoff,
+} from './utils/sheetHandoff';
 import { HeadingLocateIcon } from './components/HeadingLocateIcon';
 import { CampusSuggestionCard } from './components/CampusSuggestionCard';
 import {
@@ -282,17 +289,17 @@ export function CampusScreen() {
   }, []);
 
   /**
-   * Where the filter sheet's card should stop, measured from the WINDOW's
-   * bottom edge.
+   * Where a modal sheet's card should stop, measured from the WINDOW's bottom
+   * edge. One value for the filter, peek and building sheets.
    *
-   * That sheet is a modal, so it is portalled out to the root and its container
-   * is the whole window, while this screen's sheet floats inside the root view
-   * measured just above. Restating the campus card's own bottom edge in the
-   * modal's coordinates is what puts the two cards on one line, and it stays
-   * true whether or not the tab bar takes a bite out of this screen — a
-   * constant picked to look right would drift the moment either changed.
+   * A modal is portalled out to the root and its container is the whole
+   * window, while this screen's sheet floats inside the root view measured
+   * just above. Restating the campus card's own bottom edge in the modal's
+   * coordinates is what puts every card on one line, and it stays true whether
+   * or not the tab bar takes a bite out of this screen — a constant picked to
+   * look right would drift the moment either changed.
    */
-  const filterCardBottomGap = useMemo(
+  const modalCardBottomGap = useMemo(
     () =>
       sheetContainerHeight > 0
         ? windowHeight - sheetContainerHeight + SHEET_FLOAT_INSET
@@ -362,6 +369,59 @@ export function CampusScreen() {
     ),
     [sheetContainerHeight],
   );
+
+  // ── Handing the screen to a detail modal ──
+
+  /**
+   * Two sheets never stack. A detail modal asks for the screen through
+   * `presentOverSheet`: the campus sheet goes down, the modal rises once gorhom
+   * reports it closed, and `releaseSheet` — wired to the modal's `onDismiss` —
+   * returns the sheet to the detent it left. The decisions are
+   * `sheetHandoff.ts`'s, pure and tested; this holds the refs and makes the
+   * calls. Refs rather than state: nothing here is rendered, and a re-render
+   * per detent report would be a re-render of the whole map for nothing.
+   *
+   * The filter sheet does not go through this. It floats beside the campus
+   * card by design, on the same bottom line.
+   */
+  const handoff = useRef<SheetHandoff>(IDLE_HANDOFF);
+  const waitingModal = useRef<RefObject<BottomSheetModal | null> | null>(null);
+
+  const presentOverSheet = useCallback((modal: RefObject<BottomSheetModal | null>) => {
+    const { state, close, present } = requestHandoff(handoff.current);
+    handoff.current = state;
+    if (close) {
+      waitingModal.current = modal;
+      sheetRef.current?.close();
+    }
+    if (present) modal.current?.present();
+  }, []);
+
+  const handleSheetSettled = useCallback((index: number) => {
+    const { state, present } = sheetSettled(handoff.current, index);
+    handoff.current = state;
+    if (present) {
+      const modal = waitingModal.current;
+      waitingModal.current = null;
+      modal?.current?.present();
+    }
+  }, []);
+
+  // Both, on purpose: `onChange` is the detent report the hand-off tracks, and
+  // `onClose` is the one report that must not be missed. `sheetSettled` is
+  // idempotent for a closed report, so hearing it twice presents once.
+  const handleSheetChange = useCallback(
+    (index: number) => handleSheetSettled(index),
+    [handleSheetSettled],
+  );
+  const handleSheetClose = useCallback(() => handleSheetSettled(-1), [handleSheetSettled]);
+
+  const releaseSheet = useCallback(() => {
+    const { state, snapTo } = releaseHandoff(handoff.current);
+    handoff.current = state;
+    waitingModal.current = null;
+    if (snapTo !== null) sheetRef.current?.snapToIndex(snapTo);
+  }, []);
 
   const {
     mode: trackingMode,
@@ -817,9 +877,13 @@ export function CampusScreen() {
   // read it, with the map still showing the pins it describes. An effect on the
   // derived flag rather than a call inside the chip handler, so narrowing
   // through the filter sheet's tiles gets the same reveal, and the reset chip,
-  // whose result is "not narrowed", gets none.
+  // whose result is "not narrowed", gets none. Not while a modal has the
+  // screen: the chips stay reachable above a peek sheet, and raising the
+  // campus sheet under it would stack the two — the hand-off restores it.
   useEffect(() => {
-    if (showEventList) sheetRef.current?.snapToIndex(EVENT_LIST_SNAP_INDEX);
+    if (showEventList && handoff.current.restoreTo === null) {
+      sheetRef.current?.snapToIndex(EVENT_LIST_SNAP_INDEX);
+    }
   }, [showEventList]);
 
   // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
@@ -880,7 +944,7 @@ export function CampusScreen() {
     setSelectedSkkuId(payload.skkuId);
     setHighlightSpaceCd(payload.highlightSpaceCd);
     setTimeout(() => {
-      detailSheetRef.current?.present();
+      presentOverSheet(detailSheetRef);
     }, 400);
   }, [
     pendingPayload,
@@ -889,6 +953,7 @@ export function CampusScreen() {
     setSelectedCampus,
     moveTo,
     cameraDefaults,
+    presentOverSheet,
   ]);
 
   // ── Resolve a building deep link, once there is a sheet to open ──
@@ -902,7 +967,7 @@ export function CampusScreen() {
     // Same 400ms as the search handoff: presenting a modal in the same frame the
     // screen mounts drops the animation.
     const timer = setTimeout(() => {
-      detailSheetRef.current?.present();
+      presentOverSheet(detailSheetRef);
       // Cleared HERE and not before the timer, which is what makes this work at
       // all: `pendingBuildingId` is a dependency of this effect, so clearing it
       // up front re-runs the effect, and the previous run's cleanup then clears
@@ -911,7 +976,7 @@ export function CampusScreen() {
       setPendingBuildingId(null);
     }, 400);
     return () => clearTimeout(timer);
-  }, [pendingBuildingId, mapConfig]);
+  }, [pendingBuildingId, mapConfig, presentOverSheet]);
 
   // ── Resolve a place deep link, once the snapshot has actually settled ──
   useEffect(() => {
@@ -943,7 +1008,7 @@ export function CampusScreen() {
     }, 100);
     setSelectedStackKey(stack.stackKey);
     setTimeout(() => {
-      peekSheetRef.current?.present();
+      presentOverSheet(peekSheetRef);
     }, 400);
   }, [
     pendingPlaceId,
@@ -955,15 +1020,16 @@ export function CampusScreen() {
     setSelectedStackKey,
     moveTo,
     cameraDefaults,
+    presentOverSheet,
   ]);
 
   // ── Event pin tap ──
   const handleSelectStack = useCallback(
     (stackKey: string) => {
       setSelectedStackKey(stackKey);
-      peekSheetRef.current?.present();
+      presentOverSheet(peekSheetRef);
     },
-    [setSelectedStackKey],
+    [setSelectedStackKey, presentOverSheet],
   );
 
   /**
@@ -991,7 +1057,7 @@ export function CampusScreen() {
           setBuildingSource('marker');
           setSelectedSkkuId(skkuId);
           setHighlightSpaceCd(undefined);
-          detailSheetRef.current?.present();
+          presentOverSheet(detailSheetRef);
           return;
         }
         case 'event': {
@@ -1002,7 +1068,7 @@ export function CampusScreen() {
         }
       }
     },
-    [stacksByPlaceId, handleSelectStack],
+    [stacksByPlaceId, handleSelectStack, presentOverSheet],
   );
 
   // A list row is the same way into a pin that the pin itself is, plus the
@@ -1021,7 +1087,8 @@ export function CampusScreen() {
 
   const handlePeekDismiss = useCallback(() => {
     setSelectedStackKey(null);
-  }, [setSelectedStackKey]);
+    releaseSheet();
+  }, [setSelectedStackKey, releaseSheet]);
 
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
@@ -1212,6 +1279,8 @@ export function CampusScreen() {
           index={0}
           animatedPosition={sheetTop}
           animatedIndex={sheetIndex}
+          onChange={handleSheetChange}
+          onClose={handleSheetClose}
           // Off iOS 26 the sheet stays attached, so it must not inset at all.
           style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
@@ -1243,12 +1312,14 @@ export function CampusScreen() {
               skkuId={selectedSkkuId}
               highlightSpaceCd={highlightSpaceCd}
               source={buildingSource}
+              bottomGap={modalCardBottomGap}
               onConnectionTap={handleConnectionTap}
+              onDismiss={releaseSheet}
             />
             <FilterSheet
               ref={filterSheetRef}
               mapConfig={mapConfig}
-              bottomGap={filterCardBottomGap}
+              bottomGap={modalCardBottomGap}
             />
           </>
         )}
@@ -1259,6 +1330,7 @@ export function CampusScreen() {
           ref={peekSheetRef}
           stack={selectedStack}
           cardTemplates={cardTemplates}
+          bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
         />
       </View>

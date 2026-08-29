@@ -129,14 +129,17 @@ activation window too. Input order is preserved, so the sort (§4.2) applied ups
 The list describes the layer; the pin describes the moment. `MapMarkerLayer` additionally draws a
 marker only inside its own `startAt`/`endAt` window (`useVisibleByWindow`), so a session that has
 ended keeps its row — with the status badge saying so — while its pin is gone. Verified on the
-simulator the day after the demo sessions: 주점 listed 28 rows and drew no pin, the in-window stage
-marker drew beside its two rows. <!-- conventions:allow-korean: the chip label the app shows -->
+simulator the day after the demo sessions: 주점 listed 28 rows and drew no pin, the in-window stage <!-- conventions:allow-korean: the chip label the app shows -->
+marker drew beside its two rows.
 
 The list lives **in the campus sheet**, in place of the server's campus feed, while a chip has
 narrowed the map (`findNarrowedChip` in `packages/shared/src/map/chips.ts` returns one). The sheet's
 body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to
 its middle detent when the list appears — enough to read a few rows with the pins still showing —
-and the feed returns when the narrowing is cleared. Two consequences worth knowing:
+and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
+campus sheet closes first and the peek sheet rises once it has landed; it comes back to the same
+detent, list and all, when the peek sheet is dismissed — the hand-off is described in
+[campus-sheet-liquid-glass.md](campus-sheet-liquid-glass.md). Two consequences worth knowing:
 
 - Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
   on the derived flag, not a call inside the chip handler.
