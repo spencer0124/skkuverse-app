@@ -1,20 +1,21 @@
 /**
- * SDUI Button Grid — emoji + text buttons in a flexible grid.
+ * SDUI Button Grid — emoji + text buttons in an N-column grid.
  *
- * Each item is 77×77 with emoji on top and fitted title below.
- * Taps dispatch via `handleSduiAction`.
+ * Sizes itself from its PARENT, never from the window. The campus sheet's card
+ * is inset from the screen and that inset animates 8→0 as the sheet rises, so a
+ * width derived from `useWindowDimensions` overflows the card at every detent
+ * and by a different amount at each one. Rows of `flex: 1` tiles need no
+ * measurement at all — flexbox divides whatever width arrives, on every frame,
+ * for free. `aspectRatio` keeps them square for the same reason.
+ *
+ * `section.columns` is honoured rather than assumed to be four. The parser
+ * already defaults it, so a server that ships a three-column group gets one.
  *
  * Flutter source: sdui_button_grid_widget.dart + option_campus_service_button.dart
  */
 
 import { useMemo } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  useWindowDimensions,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SdsColors, type SduiButtonGrid as ButtonGridType } from '@skkuverse/shared';
 import { handleSduiAction } from '../action-handler';
 import { logSduiContentSelect } from '@/services/analytics';
@@ -23,41 +24,56 @@ interface Props {
   section: ButtonGridType;
 }
 
-const GRID_PADDING = 16;
 const GRID_GAP = 8;
-const GRID_COLS = 4;
-const PHONE_MAX_WIDTH = 480;
+
+/**
+ * Stops the tiles growing to absurd squares on a tablet. A cap, not a width:
+ * the grid still takes less when the card gives it less.
+ */
+const GRID_MAX_WIDTH = 480;
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
+}
 
 export function ButtonGrid({ section }: Props) {
-  const { width: screenW } = useWindowDimensions();
-  const { containerWidth, itemSize } = useMemo(() => {
-    const w = Math.min(screenW, PHONE_MAX_WIDTH);
-    const inner = w - GRID_PADDING * 2;
-    const size = (inner - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
-    return { containerWidth: w, itemSize: size };
-  }, [screenW]);
+  const columns = Math.max(1, section.columns);
+  const rows = useMemo(() => chunk(section.items, columns), [section.items, columns]);
 
   return (
-    <View style={[styles.container, { width: containerWidth }]}>
-      {section.items.map((item) => (
-        <Pressable
-          key={item.id}
-          style={[styles.button, { width: itemSize, height: itemSize }]}
-          onPress={() => {
-            logSduiContentSelect({ content_type: 'button_grid_item', item_id: item.id });
-            handleSduiAction({
-              actionType: item.actionType,
-              actionValue: item.actionValue,
-              webviewTitle: item.webviewTitle,
-              webviewColor: item.webviewColor,
-            });
-          }}
-        >
-          <Text style={styles.emoji}>{item.emoji}</Text>
-          <Text style={styles.title} numberOfLines={1}>
-            {item.title}
-          </Text>
-        </Pressable>
+    <View style={styles.container}>
+      {rows.map((row, rowIndex) => (
+        <View key={row[0]?.id ?? rowIndex} style={styles.row}>
+          {row.map((item) => (
+            <Pressable
+              key={item.id}
+              style={styles.button}
+              onPress={() => {
+                logSduiContentSelect({ content_type: 'button_grid_item', item_id: item.id });
+                handleSduiAction({
+                  actionType: item.actionType,
+                  actionValue: item.actionValue,
+                  webviewTitle: item.webviewTitle,
+                  webviewColor: item.webviewColor,
+                });
+              }}
+            >
+              <Text style={styles.emoji}>{item.emoji}</Text>
+              <Text style={styles.title} numberOfLines={1}>
+                {item.title}
+              </Text>
+            </Pressable>
+          ))}
+          {/* A short final row must keep the column width of a full one, or
+              three items stretch to fill four columns' worth of space. */}
+          {Array.from({ length: columns - row.length }, (_, i) => (
+            <View key={`filler-${i}`} style={styles.filler} />
+          ))}
+        </View>
       ))}
     </View>
   );
@@ -65,13 +81,18 @@ export function ButtonGrid({ section }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: GRID_PADDING,
-    gap: GRID_GAP,
+    width: '100%',
+    maxWidth: GRID_MAX_WIDTH,
     alignSelf: 'center',
+    gap: GRID_GAP,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: GRID_GAP,
   },
   button: {
+    flex: 1,
+    aspectRatio: 1,
     borderRadius: 16,
     backgroundColor: SdsColors.grey50,
     alignItems: 'center',
@@ -79,6 +100,9 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: SdsColors.grey200,
+  },
+  filler: {
+    flex: 1,
   },
   emoji: {
     fontFamily: 'TossFaceFontMac',

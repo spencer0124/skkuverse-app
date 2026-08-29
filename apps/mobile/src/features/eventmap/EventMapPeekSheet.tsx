@@ -36,10 +36,14 @@ import { handleSduiAction } from '@/sdui/action-handler';
 import { CardRenderer } from './CardRenderer';
 
 /**
- * Strictly above the persistent CampusScreen BottomSheet's 30% detent, so this
- * fully occludes it rather than stacking a second grab handle on its chrome.
- * Both are real sheets with their own pan responders; dropping below ~32%
- * silently puts two of them in the same band.
+ * Strictly above the persistent CampusScreen BottomSheet's collapsed detent
+ * (`SHEET_SNAP_PERCENTS` there), so this fully occludes it rather than stacking
+ * a second grab handle on its chrome. Both are real sheets with their own pan
+ * responders, and overlapping them silently puts two in the same band.
+ *
+ * The number is not derived from that one, so lowering the campus sheet gives
+ * this more clearance rather than less — but raising it back above this value
+ * would break the occlusion, which is the direction to watch.
  */
 const PEEK_MIN_SNAP = '45%';
 
