@@ -1,4 +1,67 @@
 import { ExpoConfig, ConfigContext } from "expo/config";
+import { NAVER_MAP_CLIENT_ID, PROD_API_URL } from "./config/constants";
+
+// Substrings that only ever appear in a host living on a developer's machine.
+// `localhost` and `127.0.0.1` resolve to the phone itself once the bundle is on
+// a device, and `10.0.2.2` is the Android emulator's alias for the host
+// loopback, so all three are unreachable from a real install. `http://` is here
+// too: every deployed API host is https, so a plaintext scheme is a dev-server
+// tell no matter what follows it.
+const LOCAL_HOST_MARKERS = ["localhost", "127.0.0.1", "10.0.2.2", "http://"];
+
+// The profiles whose artifacts leave this machine. A native build announces
+// itself through EAS_BUILD_PROFILE; an OTA publish never touches EAS, so
+// `scripts/ota-{beta,release}.sh` announce themselves through RELEASE_CHANNEL.
+// Checking only the first is what let two OTA publishes ship with no API host
+// at all — see resolveBaseUrl below.
+const SHIPPING_PROFILES = ["beta", "production"];
+
+/** The profile this evaluation is shipping under, from either signal. */
+function shippingProfile(): string | undefined {
+  const profile = process.env.EAS_BUILD_PROFILE ?? process.env.RELEASE_CHANNEL;
+  return profile !== undefined && SHIPPING_PROFILES.includes(profile)
+    ? profile
+    : undefined;
+}
+
+/**
+ * Resolves the value that goes into `extra.baseUrl`.
+ *
+ * **On a shipping profile the environment variable is not consulted at all** —
+ * not defaulted, not validated, ignored. This tree used to read
+ * `process.env.EXPO_PUBLIC_BASE_URL` bare, and `packages/shared/src/api/config.ts`
+ * falls back to the retired `api.skkuuniverse.com` when `extra.baseUrl` is
+ * missing. So an OTA published with the variable unset silently pointed every
+ * install at a dead host. That has already happened twice, on the 1.0.0 and
+ * 3.5.0 runtime channels.
+ *
+ * Off a shipping profile the variable is an optional local override.
+ */
+function resolveBaseUrl(): string {
+  const profile = shippingProfile();
+
+  if (profile !== undefined) {
+    // Unreachable by construction while PROD_API_URL is a real https host, and
+    // kept precisely for that reason: if it ever fires, the committed constant
+    // has been edited into something that must not ship.
+    const localMarker = LOCAL_HOST_MARKERS.find((marker) =>
+      PROD_API_URL.toLowerCase().includes(marker),
+    );
+    if (localMarker !== undefined) {
+      throw new Error(
+        `PROD_API_URL is "${PROD_API_URL}", which points at a local ` +
+          `development host (matched on "${localMarker}"), but the build ` +
+          `profile is "${profile}" — an artifact from that profile goes to ` +
+          "real users, whose phones cannot reach it. Fix the constant in " +
+          "apps/mobile/config/constants.js.",
+      );
+    }
+    return PROD_API_URL;
+  }
+
+  // Trimmed, because `''` and `'  '` both mean the substitution never happened.
+  return process.env.EXPO_PUBLIC_BASE_URL?.trim() || PROD_API_URL;
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -27,7 +90,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   extra: {
-    baseUrl: process.env.EXPO_PUBLIC_BASE_URL,
+    baseUrl: resolveBaseUrl(),
     env: process.env.EXPO_PUBLIC_ENV,
     // Debug-only. Surfaced so app-check.ts can pass it into
     // provider.configure({ debugToken }) — RN Firebase then setenv()'s
@@ -41,8 +104,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // public repo. In those builds __DEV__ is false and the provider is
     // App Attest / Play Integrity anyway, so the debug token would be
     // dead weight even if present — but defense in depth.
-    ...(process.env.EAS_BUILD_PROFILE === "beta" ||
-    process.env.EAS_BUILD_PROFILE === "production"
+    //
+    // DEFAULT-DENY, and read why before loosening it. This used to test
+    // EAS_BUILD_PROFILE alone, i.e. it INCLUDED the tokens whenever that
+    // variable was unset — and an OTA publish never sets it, because eoas does
+    // not go through EAS. `scripts/ota-{beta,release}.sh` export
+    // RELEASE_CHANNEL instead and `source .env`, so both debug tokens would
+    // have been written into the manifest at ota.skkuverse.com, which is
+    // public. A registered debug token mints valid App Check tokens and
+    // bypasses App Attest / Play Integrity outright.
+    ...(shippingProfile() !== undefined
       ? {}
       : {
           firebaseAppCheckDebugTokenIos:
@@ -145,7 +216,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "@mj-studio/react-native-naver-map",
       {
-        client_id: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID ?? "",
+        // Committed constant, not an env var. It never varied between dev
+        // and release, and reading it from `.env` meant an empty string
+        // whenever the file did not carry it — which is now always, since the
+        // value moved into config/constants.js on the current tree.
+        client_id: NAVER_MAP_CLIENT_ID,
       },
     ],
     [

@@ -19,12 +19,20 @@ import { authStore } from '@skkuverse/shared';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import { unregisterDevice } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { GOOGLE_WEB_CLIENT_ID } from '../../config/constants';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
 
 export function configureGoogleSignIn() {
   GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID!,
+    // A committed constant rather than `process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+    // Metro INLINES an EXPO_PUBLIC_* value at bundle time, so an OTA published
+    // from a shell whose `.env` does not carry it ships `undefined` here and
+    // Google Sign-In fails for every user who takes the update — silently, and
+    // only at the moment somebody tries to sign in. An OAuth client ID is
+    // public by design (it travels in the authorisation request itself), so
+    // committing it leaks nothing; see config/constants.js.
+    webClientId: GOOGLE_WEB_CLIENT_ID,
     hostedDomain: 'g.skku.edu',
   });
 }
