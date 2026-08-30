@@ -388,10 +388,7 @@ export type CampusContentType =
   // `logLayerToggle` per layer the chip switched: one tap would emit five layer
   // events and drown the signal the user actually gave.
   | 'map_chip'
-  | 'eventmap_chip'
-  | 'eventmap_filter_chip'
   | 'eventmap_sort'
-  | 'eventmap_list_button'
   | 'eventmap_list_row';
 export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);

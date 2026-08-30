@@ -28,8 +28,8 @@ const layer = (id: string, defaultVisible: boolean): MapLayerDef => ({
   type: 'marker',
   label: id,
   defaultVisible,
-  endpoint: '/map/markers/eskara26',
-  chipGroupId: 'eskara26',
+  endpoint: '/map/markers/event',
+  chipGroupId: 'eskara-2026',
   userConfigurable: true,
 });
 

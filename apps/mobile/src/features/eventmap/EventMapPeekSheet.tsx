@@ -1,20 +1,20 @@
 /**
  * Peek sheet for a tapped event pin.
  *
- * One pin can stand for several occupants of the same plot — a day booth and a
- * night 주점 share coordinates — so this lists every item on the tapped
- * `stackKey`, lead first, rather than showing only what the marker drew.
+ * **One place, not a stack.** This used to list every occupant of the tapped
+ * `stackKey`, because several sessions collapsed onto one plot and a tap could
+ * not say which was meant. A place is one document now and `tap.placeId` is its
+ * own id, so two booths sharing a coordinate are two taps — and which of them
+ * the pin stands for at this hour is `resolvePinCollisions`' answer, made
+ * before the tap ever happens.
  *
  * ## What this file owns, and what it does not
  *
- * The card body is the server's: `CardRenderer` draws whatever slots the item's
- * `cardTemplateId` resolves to. What stays here is everything the template does
- * not describe — the sheet chrome and the actions row, including the
+ * The card body is `PlaceCard` — a fixed layout, since the template tier left
+ * the wire with the snapshot. What stays here is everything the card does not
+ * describe: the sheet chrome and the actions row, including the
  * dismiss-before-navigate discipline in `ActionButton`, which is a portal
  * ordering constraint rather than a styling choice.
- *
- * Still not rendered: `media.images`. It is carried on the item but has no slot
- * kind, so a gallery would be a wire contract addition.
  */
 
 import React, { forwardRef, useCallback, useMemo } from 'react';
@@ -23,91 +23,121 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
   useBottomSheetModal,
+  type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import {
-  resolveSlots,
+  pickI18nText,
   SdsColors,
-  type EventMapAction,
-  type EventMapCardTemplate,
-  type EventMapStack,
+  useSettingsStore,
+  useT,
+  type MarkerAction,
+  type RawMarkerData,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { GLASS_AVAILABLE } from '@/components/glass';
+import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
+import { SheetHandle } from '@/features/map/components/SheetHandle';
+import { SheetCloseButton } from '@/features/map/components/SheetCloseButton';
+import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import { handleSduiAction } from '@/sdui/action-handler';
-import { CardRenderer } from './CardRenderer';
+import { PlaceCard } from './PlaceCard';
 
 /**
- * Strictly above the persistent CampusScreen BottomSheet's collapsed detent
- * (`SHEET_SNAP_PERCENTS` there), so this fully occludes it rather than stacking
- * a second grab handle on its chrome. Both are real sheets with their own pan
- * responders, and overlapping them silently puts two in the same band.
- *
- * The number is not derived from that one, so lowering the campus sheet gives
- * this more clearance rather than less — but raising it back above this value
- * would break the occlusion, which is the direction to watch.
+ * The low detent: one card's worth, with the map still showing the pin it
+ * describes. It no longer has to clear the campus sheet's own detents — that
+ * sheet steps aside (closes) before this one rises and returns when it goes,
+ * so the two are never on screen together. See `sheetHandoff.ts`.
  */
 const PEEK_MIN_SNAP = '45%';
 
 interface EventMapPeekSheetProps {
-  stack: EventMapStack | null;
-  /** Snapshot templates, keyed by id. `undefined` for an item falls back inside `resolveSlots`. */
-  cardTemplates: Map<string, EventMapCardTemplate>;
+  place: RawMarkerData | null;
+  /** From `useWindowClock`, so the pill matches the pin that was tapped. */
+  now: number;
+  /**
+   * Gap between the card's bottom edge and the screen's, in the modal's own
+   * (window) coordinates — the campus card's edge restated, so the two cards
+   * sit on one line. Computed by `CampusScreen`, which measures both.
+   */
+  bottomGap: number;
   onDismiss: () => void;
 }
 
 export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetProps>(
-  function EventMapPeekSheet({ stack, cardTemplates, onDismiss }, ref) {
+  function EventMapPeekSheet({ place, now, bottomGap, onDismiss }, ref) {
     const snapPoints = useMemo(() => [PEEK_MIN_SNAP, '85%'], []);
+    const { t } = useT();
+
+    // A closure rather than the component itself, because the card's bottom
+    // gap is a prop here and gorhom passes a background component only its own
+    // animated values.
+    const renderBackground = useCallback(
+      (props: BottomSheetBackgroundProps) => (
+        <GlassCardBackground {...props} bottomGap={bottomGap} />
+      ),
+      [bottomGap],
+    );
 
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={snapPoints}
         enableDynamicSizing={false}
-        handleIndicatorStyle={styles.handleIndicator}
+        // The grabber bar alone: a handle that painted its own fill would be a
+        // white lid across the top of the glass.
+        handleComponent={SheetHandle}
+        backgroundComponent={renderBackground}
+        // The same route the filter sheet takes to its card — `detached` puts
+        // the inset on the hosting container and stops clipping, so the shadow
+        // and the glass edge survive; the margin rides on the body so the
+        // background, the handle and the content inset as one. All off below
+        // iOS 26, where this stays the attached panel it shipped as. Unlike the
+        // filter sheet this one still moves between two detents, and that is
+        // fine: the card keeps one shape at both, and only the campus sheet
+        // needs a crossfade because only it attaches at the top.
+        detached={GLASS_AVAILABLE}
+        bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
+        style={GLASS_AVAILABLE ? styles.card : undefined}
         // The default 'switch' MINIMIZES BuildingDetailSheet and restores it when
         // this closes, resurfacing a sheet the user never asked for.
         stackBehavior="replace"
         onDismiss={onDismiss}
       >
+        {/* The X is a sibling of the scroll view, pinned: inside it, it would
+            ride up and out of reach once a long field list outgrew the sheet.
+            No title beside it — the card carries its own. */}
+        <View style={styles.header}>
+          <SheetCloseButton label={t('common.close')} />
+        </View>
         <BottomSheetScrollView style={styles.container} contentContainerStyle={styles.content}>
-          {stack?.items.map((item, index) => (
-            <View key={item.id} style={index > 0 ? styles.subsequent : undefined}>
-              <ItemBody item={item} template={cardTemplates.get(item.cardTemplateId)} />
-            </View>
-          ))}
+          {place ? <PlaceBody place={place} now={now} /> : null}
         </BottomSheetScrollView>
       </BottomSheetModal>
     );
   },
 );
 
-function ItemBody({
-  item,
-  template,
-}: {
-  item: EventMapStack['lead'];
-  template: EventMapCardTemplate | undefined;
-}) {
+function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
+  const lang = useSettingsStore((s) => s.appLanguage);
+
   // `content` is prose to show in place. The global dispatcher is
   // fire-and-forget and has no surface to render into, so the split happens
   // here — and `miniapp`/`unknown` render nothing at all, because a button that
   // does nothing is worse than a missing button.
-  const inline = item.actions.filter((a) => a.actionType === 'content');
-  const buttons = item.actions.filter(
+  const inline = place.actions.filter((a) => a.actionType === 'content');
+  const buttons = place.actions.filter(
     (a) => a.actionType === 'route' || a.actionType === 'webview' || a.actionType === 'external',
   );
 
   return (
     <View>
-      <CardRenderer slots={resolveSlots(template, item)} status={item.status} />
+      <PlaceCard place={place} now={now} />
 
       {inline.map((action) => (
         <View key={action.id} style={styles.inlineBlock}>
-          {action.label ? (
-            <Txt typography="t7" fontWeight="bold" color={SdsColors.grey700}>
-              {action.label}
-            </Txt>
-          ) : null}
+          <Txt typography="t7" fontWeight="bold" color={SdsColors.grey700}>
+            {pickI18nText(action.label, lang)}
+          </Txt>
           <Txt typography="t7" color={SdsColors.grey900}>
             {action.actionValue}
           </Txt>
@@ -125,10 +155,12 @@ function ItemBody({
   );
 }
 
-function ActionButton({ action }: { action: EventMapAction }) {
+function ActionButton({ action }: { action: MarkerAction }) {
+  const lang = useSettingsStore((s) => s.appLanguage);
   // `dismiss()` with no key closes the top-most modal in the provider's queue,
   // which is this sheet whenever one of its own buttons is being pressed.
   const { dismiss } = useBottomSheetModal();
+  const label = pickI18nText(action.label, lang);
 
   const onPress = useCallback(() => {
     // Close BEFORE navigating. A BottomSheetModal does not live in the screen
@@ -144,7 +176,7 @@ function ActionButton({ action }: { action: EventMapAction }) {
     // browser instead of pushing.
     //
     // Dismissing (rather than restoring the sheet on the way back) is also the
-    // behaviour we want: onDismiss clears selectedStackKey, so backing out of
+    // behaviour we want: onDismiss clears selectedPlaceId, so backing out of
     // the webview lands on the plain campus map instead of a sheet the user
     // already navigated away from.
     dismiss();
@@ -153,9 +185,9 @@ function ActionButton({ action }: { action: EventMapAction }) {
       actionValue: action.actionValue,
       // The button's own label titles the webview, so the user lands on a screen
       // named after what they tapped.
-      webviewTitle: action.label,
+      webviewTitle: label,
     });
-  }, [action, dismiss]);
+  }, [action, dismiss, label]);
 
   const primary = action.style === 'primary';
   return (
@@ -169,27 +201,26 @@ function ActionButton({ action }: { action: EventMapAction }) {
         fontWeight="bold"
         color={primary ? '#FFFFFF' : SdsColors.grey900}
       >
-        {action.label}
+        {label}
       </Txt>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    // The content's own gutter, so the X sits flush with the cards' right edge.
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
   container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
   content: { paddingHorizontal: 20, paddingBottom: 32 },
-  handleIndicator: {
-    backgroundColor: SdsColors.grey300,
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-  },
-  subsequent: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: SdsColors.grey200,
-  },
+  card: { marginHorizontal: SHEET_FLOAT_INSET },
   inlineBlock: { marginTop: 12, gap: 2 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   actionButton: {

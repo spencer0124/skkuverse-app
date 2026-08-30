@@ -74,7 +74,7 @@ const PLACE_ID_RE = /^(?:([a-z0-9_]+):)?([a-z0-9-]+)$/;
 // The kinds this build can route. A link naming anything else is dropped rather
 // than stripped down to its id: guessing which kind an unknown prefix meant is
 // how a booth link opens the wrong building.
-const PLACE_KINDS = ['skku_building', 'eskara26'] as const;
+const PLACE_KINDS = ['skku_building', 'event'] as const;
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full

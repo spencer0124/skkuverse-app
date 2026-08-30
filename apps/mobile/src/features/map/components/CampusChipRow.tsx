@@ -18,14 +18,14 @@
  * strip can simply stop naming one. The two share `GlassChip`'s metrics so the
  * swap does not change the band's height.
  *
- * A horizontal ScrollView, unlike `EventMapChipRow`'s wrapping row, which
- * documents its refusal of one. Both are right for their case. That row carries
- * a couple of one-tap event toggles and can afford to stay content-sized, so it
- * claims no touch area it does not draw into. This row is the Naver-Maps
- * category strip — the overflow off the right edge IS the affordance telling
- * you there are more — and that needs a real scroller. The cost is a band the
- * map cannot be panned through; it is bounded to the chip height, sits directly
- * under the control row, and is the same trade Naver Maps itself makes.
+ * A horizontal ScrollView, knowing what it costs. A scroller over the map
+ * stretches to its parent's width whether or not it draws anything there, so
+ * it claims a full-width band the map cannot be panned through — which is why
+ * the event map's old one-tap toggle row was a content-sized wrapping row
+ * instead. This row is the Naver-Maps category strip — the overflow off the
+ * right edge IS the affordance telling you there are more — and that needs a
+ * real scroller. The band is bounded to the chip height, sits directly under
+ * the control row, and is the same trade Naver Maps itself makes.
  */
 
 import { ScrollView, StyleSheet, Text } from 'react-native';

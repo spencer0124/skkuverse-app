@@ -41,8 +41,12 @@ const marker = (over: Record<string, unknown> = {}) => ({
   lng: 126.97,
   campus: 'nsc',
   text: { ko: '수선관', en: 'Suseon Hall' },
-  startAt: null,
-  endAt: null,
+  subtitle: null,
+  hours: [],
+  fields: [],
+  actions: [],
+  order: 0,
+  pinPriority: 0,
   tap: { kind: 'skku_building', placeId: '1' },
   ...over,
 });
@@ -196,16 +200,16 @@ describe('parseMarkerData — text, the field that replaced displayNo', () => {
 describe('parseMarkerData — tap and window', () => {
   it('narrows a known tap kind', () => {
     const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'eskara26', placeId: 'nsc-plaza-a3' } })] }),
+      envelope({ markers: [marker({ tap: { kind: 'event', placeId: 'nsc-plaza-a3' } })] }),
     );
-    expect(out[0]?.tap).toEqual({ kind: 'eskara26', placeId: 'nsc-plaza-a3' });
+    expect(out[0]?.tap).toEqual({ kind: 'event', placeId: 'nsc-plaza-a3' });
   });
 
   it('keeps the marker but makes it inert on an unknown tap kind', () => {
     // Fail soft: a kind we cannot route is still a place we can draw, and a
     // missing pin is a failure nobody can see or report.
     const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'eskara27', placeId: 'x' } })] }),
+      envelope({ markers: [marker({ tap: { kind: 'eskara26', placeId: 'x' } })] }),
     );
     expect(out).toHaveLength(1);
     expect(out[0]?.tap).toBeNull();
@@ -216,30 +220,122 @@ describe('parseMarkerData — tap and window', () => {
     expect(out[0]?.tap).toBeNull();
   });
 
-  it('keeps both bounds null, which means always visible and only that', () => {
-    const out = parseMarkerData(envelope({ markers: [marker()] }));
-    expect(out[0]?.startAt).toBeNull();
-    expect(out[0]?.endAt).toBeNull();
+  it('keeps an absent hours list empty, which means always open and only that', () => {
+    const out = parseMarkerData(envelope({ markers: [marker({ hours: undefined })] }));
+    expect(out[0]?.hours).toEqual([]);
   });
 
-  it('keeps a parseable instant verbatim', () => {
+  it('keeps a fully bounded window verbatim', () => {
+    const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: '2026-09-16T11:00:00.000Z' }];
+    const out = parseMarkerData(envelope({ markers: [marker({ hours })] }));
+    expect(out[0]?.hours).toEqual(hours);
+  });
+
+  it('keeps every window of a place open on two days', () => {
+    // The whole reason `hours` is an array: one window per document made a booth
+    // open on both festival days into two documents, and the list showed it twice.
+    const hours = [
+      { startAt: '2026-08-27T09:00:00.000Z', endAt: '2026-08-27T15:00:00.000Z' },
+      { startAt: '2026-08-28T09:00:00.000Z', endAt: '2026-08-28T15:00:00.000Z' },
+    ];
+    const out = parseMarkerData(envelope({ markers: [marker({ hours })] }));
+    expect(out[0]?.hours).toHaveLength(2);
+  });
+
+  it('drops a half-bounded window rather than admitting a second way to say "no limit"', () => {
     const out = parseMarkerData(
-      envelope({ markers: [marker({ startAt: '2026-09-16T07:00:00.000Z' })] }),
+      envelope({
+        markers: [marker({ hours: [{ startAt: '2026-09-16T07:00:00.000Z', endAt: null }] })],
+      }),
     );
-    expect(out[0]?.startAt).toBe('2026-09-16T07:00:00.000Z');
+    expect(out[0]?.hours).toEqual([]);
   });
 
-  it('drops an unparseable instant to null rather than carrying NaN into the window', () => {
-    // Every comparison against NaN is false, so `now >= startAt` and `now < endAt`
-    // would both fail and the marker would silently never draw.
-    const out = parseMarkerData(envelope({ markers: [marker({ startAt: 'soon' })] }));
-    expect(out[0]?.startAt).toBeNull();
+  it('drops an unparseable bound rather than carrying NaN into the comparison', () => {
+    // Every comparison against NaN is false, so the window would never be open
+    // and the place would read as permanently closed with nothing to blame.
+    const out = parseMarkerData(
+      envelope({ markers: [marker({ hours: [{ startAt: 'soon', endAt: 'later' }] })] }),
+    );
+    expect(out[0]?.hours).toEqual([]);
+  });
+});
+
+describe('parseMarkerData — the place document the card renders', () => {
+  it('reads subtitle, fields and actions', () => {
+    const out = parseMarkerData(
+      envelope({
+        markers: [
+          marker({
+            subtitle: { ko: '연합 주점', en: 'Joint bar' },
+            fields: [{ label: { ko: '메뉴', en: 'Menu' }, value: { ko: '골뱅이소면', en: 'Noodles' } }],
+            actions: [
+              {
+                id: 'a1',
+                label: { ko: '안내', en: 'Info' },
+                actionType: 'webview',
+                actionValue: 'https://example.com',
+                style: 'primary',
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(out[0]?.subtitle?.ko).toBe('연합 주점');
+    expect(out[0]?.fields).toHaveLength(1);
+    expect(out[0]?.actions[0]?.style).toBe('primary');
+  });
+
+  it('leaves a building\'s booth-shaped half as stated emptiness', () => {
+    const out = parseMarkerData(envelope({ markers: [marker()] }));
+    expect(out[0]?.subtitle).toBeNull();
+    expect(out[0]?.fields).toEqual([]);
+    expect(out[0]?.actions).toEqual([]);
+  });
+
+  it('keeps a button whose actionType this build cannot route', () => {
+    // `parseActionType` degrades it to 'unknown', which the handler declines to
+    // open. A button that does nothing beats a booth that is missing.
+    const out = parseMarkerData(
+      envelope({
+        markers: [
+          marker({
+            actions: [
+              { id: 'a1', label: { ko: 'X' }, actionType: 'teleport', actionValue: 'x' },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(out[0]?.actions[0]?.actionType).toBe('unknown');
+  });
+
+  it('drops a button with no value, and serves the place without it', () => {
+    const out = parseMarkerData(
+      envelope({
+        markers: [
+          marker({
+            actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'webview', actionValue: '' }],
+          }),
+        ],
+      }),
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]?.actions).toEqual([]);
+  });
+
+  it('defaults order and pinPriority to 0 rather than NaN', () => {
+    // NaN would make every collision comparison false and the ladder non-total.
+    const out = parseMarkerData(envelope({ markers: [marker({ order: 'first' })] }));
+    expect(out[0]?.order).toBe(0);
+    expect(out[0]?.pinPriority).toBe(0);
   });
 });
 
 describe('parseMapConfig — chipGroupId, the group a chip may swap a layer within', () => {
   it('keeps a declared group verbatim', () => {
-    expect(parseLayers({ chipGroupId: 'eskara26' }).chipGroupId).toBe('eskara26');
+    expect(parseLayers({ chipGroupId: 'eskara-2026' }).chipGroupId).toBe('eskara-2026');
   });
 
   it('parses an absent group to null, so no chip may change the layer', () => {

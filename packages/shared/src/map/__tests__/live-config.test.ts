@@ -4,8 +4,8 @@
  * The unit suites next door feed the parser shapes chosen to exercise one rule
  * each. This one feeds it the bytes production actually served, captured during
  * an open festival activation so the fixture carries both halves of the
- * response — the two permanent building layers and the six festival ones, plus
- * all seven chips.
+ * response — the permanent building layers and the festival's, plus the reset
+ * chip the server synthesises and the chips the festival config authors.
  *
  * What it guards is the seam the unit tests cannot see: that the field names,
  * nesting and value shapes the server ships are the ones the parser reaches
@@ -99,10 +99,13 @@ describe('the live response, parsed whole', () => {
     // The reset chip restores the group's DEFAULT set, not literally every
     // layer: naming an opt-in layer would turn on something the user never
     // asked for and leave no chip that returns to the ordinary view.
-    const reset = CONFIG.chips.find((c) => c.id === 'eskara26_view_all');
-    if (!reset) return; // no festival in the fixture — nothing to assert
-    expect(resolveChipLayerVisibility(reset, CONFIG.layers)).toEqual(
-      resolveChipGroupDefaults(reset, CONFIG.layers),
+    // `<layerSetId>_all` is the id the server synthesises for the reset chip.
+    // A hard miss, not a skip: the fixture was captured inside the window, so
+    // a chip not being there means the contract moved.
+    const reset = CONFIG.chips.find((c) => c.id === 'eskara-2026_all');
+    expect(reset).toBeDefined();
+    expect(resolveChipLayerVisibility(reset!, CONFIG.layers)).toEqual(
+      resolveChipGroupDefaults(reset!, CONFIG.layers),
     );
   });
 
@@ -118,8 +121,8 @@ describe('the live response, parsed whole', () => {
 
   it('names the chip a real narrowing lands on', () => {
     const stage = CONFIG.chips.find((c) => c.id === 'eskara26_view_stage');
-    if (!stage) return; // no festival in the fixture — nothing to assert
-    const target = resolveChipLayerVisibility(stage, CONFIG.layers) ?? {};
+    expect(stage).toBeDefined();
+    const target = resolveChipLayerVisibility(stage!, CONFIG.layers) ?? {};
     const narrowed = Object.fromEntries(
       CONFIG.layers.map((l) => [
         l.id,

@@ -3,7 +3,7 @@ title: The campus sheet's Liquid Glass card
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-28
+last-updated: 2026-08-29
 audience: internal
 ---
 
@@ -11,8 +11,8 @@ audience: internal
 
 > Why the campus tab's bottom sheet is a floating glass card at its low detents
 > and an ordinary opaque sheet at its top one, the non-obvious things that shape
-> how it is built, and how the filter sheet on the same screen reaches the same
-> card by a different route.
+> how it is built, how the modal sheets on the same screen reach the same card
+> by a different route, and why the campus sheet steps aside for two of them.
 
 On iOS 26 the campus sheet follows Apple Maps and Find My: low down it is a
 card floating clear of the screen edges with all four corners rounded and the
@@ -201,11 +201,14 @@ chosen to fit the corner, and the value it implies is far too small. The
 symptom of too small is specific — the straight edges keep their full gap while
 the gap pinches shut diagonally at the corner.
 
-## The filter sheet gets the same card from gorhom rather than computing it
+## The modal sheets get the same card from gorhom rather than computing it
 
-The layers button on this screen opens a second sheet, and on iOS 26 that one is
-a floating card too. It arrives there by a different route, which is worth
-knowing before either is changed.
+The layers button opens a second sheet, a booth pin or a list row opens the peek
+sheet, and a building pin opens the building detail sheet. On iOS 26 every one
+of them is a floating card too. They arrive there by a different route from the
+campus sheet, which is worth knowing before any of them is changed. The filter
+sheet is described first because it is the simplest case; the two detail sheets
+take the same props and differ only in still being draggable.
 
 The filter sheet has one snap point and both pan gestures off, so it cannot
 move. Nothing has to be interpolated across a drag, which removes the
@@ -222,6 +225,13 @@ None of that is available to the campus sheet. `detached` is a static mode,
 while that sheet has to float low down and attach at the top, which is exactly
 why its card's bottom edge has to be computed instead.
 
+The peek sheet and the building detail sheet keep their detents and their drag,
+and `detached` is fine with that: the card keeps one shape at every detent, and
+only the campus sheet needs a crossfade because only it attaches at the top.
+Both keep a grabber, and it is the campus sheet's `SheetHandle` — the bar alone —
+because a handle that painted its own fill would be a white lid across the top
+of the glass.
+
 What does carry across unchanged: the side inset rides on the sheet body's own
 `style` as a margin, for the reason given above; the accessibility props
 gorhom's default background declares have to be re-declared; and the glass is
@@ -236,10 +246,10 @@ own and then sits visibly above the card behind it. That was the first attempt,
 and it was obvious on the device.
 
 So `CampusScreen` restates the campus card's own bottom edge in the modal's
-coordinates and passes it down as a prop. Both cards then share one line and one
-bottom corner radius, whatever the tab bar does or does not take out of the root
-view's height. A constant picked to look right would have drifted
-the moment either container changed.
+coordinates and passes it down as one prop to all three modals. Every card then
+shares one line and one bottom corner radius, whatever the tab bar does or does
+not take out of the root view's height. A constant picked to look right would
+have drifted the moment either container changed.
 
 ### The backdrop had to be dimmed less
 
@@ -252,3 +262,50 @@ off its own opacity, so tapping outside still closes the sheet.
 > `bottomInset` also shrinks the container that a percentage snap point resolves
 > against, so the same percentage yields a slightly shorter sheet than it did
 > while attached. Worth knowing before tuning that number.
+
+## The campus sheet steps aside for a detail sheet
+
+Stacking two cards on one bottom edge is the filter sheet's arrangement, and it works
+there because the filter sheet is a short-lived control the campus card sits
+beside. A detail sheet is a destination, and a peek sheet rising over a campus
+card that is still showing read as two sheets stacked — a second grab handle in
+the same band, and the list the user was reading half-covered.
+
+So the campus sheet hands the screen over. When a detail modal asks for it, the
+campus sheet closes first; the modal is held until gorhom reports the sheet
+closed, then rises from the bottom; and when the modal is dismissed the campus
+sheet returns to the detent it left. The user sees one sheet go down and another
+come up, in sequence, rather than one landing on top of the other.
+
+The decisions are a pure state machine in
+`apps/mobile/src/features/map/utils/sheetHandoff.ts`, tested under `node --test`
+without the screen. Three of its rules are the ones that would go wrong if the
+screen improvised them:
+
+- **The restore point is the user's, not the first modal's.** A modal replacing
+  another (`stackBehavior="replace"`) finds the campus sheet already closed and
+  presents at once, and the detent remembered by the first request survives.
+- **A closed report releases a waiting modal once.** gorhom reports every
+  settled detent through one callback and closing through another; the screen
+  feeds both into the same transition, and the wait is cleared on the first
+  closed report, so hearing it twice presents once.
+- **A release with nothing saved snaps nowhere.** A modal that never took the
+  screen must not make the sheet jump on its way out.
+
+The filter sheet is deliberately outside this. It floats beside the campus card
+on the same bottom line, as the previous section describes, and closing the card
+under it would leave the layers grid hanging over an empty map.
+
+Every modal sheet also carries an explicit X, `SheetCloseButton`, pinned in a
+header row above its scroll view rather than placed inside it: a sheet that can
+only be dragged away looks stuck to anyone who does not know the gesture, and
+inside the scroll view the X would scroll away the moment the content
+outgrew the sheet. It is one component for the three sheets because
+`useBottomSheetModal()` has to be called from inside the modal's own provider,
+and each sheet renders that provider itself.
+
+One consequence for the campus sheet's own behaviour: the effect that raises it
+to the middle detent when the event list appears does nothing while a modal has
+the screen. The chips stay reachable above a peek sheet, and raising the campus
+sheet under it would stack the two — the hand-off restores it when the modal
+goes.

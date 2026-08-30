@@ -6,6 +6,7 @@
 
 
 import type { Campus } from '../store/settings';
+import type { ActionType } from './sdui';
 // ── Naver Map config ──
 
 export interface NaverConfig {
@@ -216,7 +217,59 @@ export interface MapConfig {
  */
 export type MarkerTap =
   | { kind: 'skku_building'; placeId: string }
-  | { kind: 'eskara26'; placeId: string };
+  | { kind: 'event'; placeId: string };
+
+/**
+ * Every language the server holds, not the one matching `Accept-Language`.
+ *
+ * A building carries `{ko, en}` while an ops-authored booth title may also carry
+ * `zh`, and the two producers share one schema — so resolving server-side would
+ * mean picking one string and discarding the rest. `ko` is the source language
+ * and always present; `en` has already fallen back to it upstream when nobody
+ * wrote an English one.
+ */
+export interface I18nText {
+  ko: string;
+  en: string;
+  zh?: string;
+}
+
+/**
+ * One interval a place is open.
+ *
+ * **Both bounds are real, and half-bounded is not expressible.** That is the
+ * server's rule, not a narrowing applied here: you write two windows, or none.
+ * Allowing one open end would give the field a second way to say "no limit",
+ * which is exactly the ambiguity that made a `status` field load-bearing before
+ * — both-bounds-null had to mean an always-on 화장실 AND a rain-cancelled bar.
+ */
+export interface TimeWindow {
+  startAt: string;
+  endAt: string;
+}
+
+/** One card row, in authored order, carrying its own label. */
+export interface MarkerField {
+  label: I18nText;
+  value: I18nText;
+}
+
+/**
+ * One sheet button, in authored order.
+ *
+ * `actionValue` is complete by the time it ships: a `webview` value is authored
+ * root-relative and resolved against the server's `WEBVIEW_ORIGIN` at serve
+ * time, so the client only ever sees an absolute URL — a relative string handed
+ * to a URL opener is the shape of an open redirect. `route` is the exception and
+ * stays root-relative, because it reaches the app's own navigator.
+ */
+export interface MarkerAction {
+  id: string;
+  label: I18nText;
+  actionType: ActionType;
+  actionValue: string;
+  style?: 'primary' | 'secondary';
+}
 
 export interface RawMarkerData {
   /**
@@ -239,19 +292,32 @@ export interface RawMarkerData {
    * a building carries `{ko, en}` while an ops-authored booth title may also
    * carry `zh`, and resolving server-side would mean discarding the rest.
    */
-  text: { ko: string; en: string; zh?: string };
+  text: I18nText;
+  /** What this marker is, under its name — a tenant, a department. `null` for every building. */
+  subtitle: I18nText | null;
   /**
-   * ISO instants bounding when this marker is drawn, `null` for unbounded on
-   * that side. Both null means always visible, and only that.
+   * Every interval this place is open, in authored order. **Empty means always
+   * open, and only that.**
    *
    * There is deliberately no `status` on the wire. It was only ever a cache of
-   * this arithmetic, and it forced both-bounds-null to mean two opposite things
-   * — an always-on facility and a cancelled booth. A cancellation is expressed
-   * by the marker not being served, so a marker that arrives is real and the
-   * device answers visibility from its own clock.
+   * `isOpenNow`, and caching it forced a single both-bounds-null pair to mean
+   * two opposite things depending on a sibling field. A cancellation is
+   * expressed by the marker not being served at all — a cancelled place is
+   * deleted, not flagged — which is what frees `[]` to mean one thing.
+   *
+   * This replaced a scalar `startAt`/`endAt` pair. With one window per document
+   * a booth open on both festival days had to be TWO documents, and the list
+   * showed every place twice with nothing to tell the rows apart.
    */
-  startAt: string | null;
-  endAt: string | null;
+  hours: TimeWindow[];
+  /** Card rows in authored order. Empty for a building. */
+  fields: MarkerField[];
+  /** Sheet buttons in authored order. Empty for a building. */
+  actions: MarkerAction[];
+  /** Author's sort position, and the last tiebreak in a coordinate collision. Lower wins. */
+  order: number;
+  /** First step of the collision ladder, from the layer set's category table. Higher wins. `0` for a building. */
+  pinPriority: number;
   tap: MarkerTap | null;
 }
 

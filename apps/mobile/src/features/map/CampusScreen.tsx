@@ -11,13 +11,15 @@
  *     ├─ backgroundComponent={SheetBackground}  (glass card ⇄ opaque sheet)
  *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
  *     └─ BottomSheetScrollView → SduiSectionList (the server's campus feed)
- *   BuildingDetailSheet (modal, on marker tap)
- *   FilterSheet (modal, on filter button tap)
+ *        ⇄ EventListPanel, while a chip has narrowed the map (the event list)
+ *   BuildingDetailSheet (modal, on marker tap) ┐ the campus sheet steps aside
+ *   EventMapPeekSheet (modal, booth tap / row) ┘ for these — `sheetHandoff.ts`
+ *   FilterSheet (modal, on filter button tap — floats beside the campus card)
  *
  * Flutter source: lib/features/campus_map/ui/campus_map_tab.dart
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,33 +29,38 @@ import BottomSheet, {
 } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
-import {
-  CrosshairSimpleIcon,
-  ListBulletsIcon,
-} from 'phosphor-react-native';
+import { CrosshairSimpleIcon } from 'phosphor-react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import {
   useCampusSections,
   useMapConfig,
   useMapLayerStore,
-  useEventMap,
+  useSettingsStore,
+  useLayerMarkers,
+  useWindowClock,
   useEventMapStore,
   useT,
   findNarrowedChip,
   isLayerVisible,
   resolveChipGroupDefaults,
   resolveChipLayerVisibility,
+  selectVisibleMarkers,
+  sortPlaces,
+  isFestivalLayer,
+  withoutFestival,
   DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
   type MapChip,
   type MapChipCamera,
   type MarkerTap,
+  type RawMarkerData,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
-import { EventMapListSheet } from '@/features/eventmap/EventMapListSheet';
+import { EventListPanel } from '@/features/eventmap/EventListPanel';
 import { GlassIconButton, GLASS_AVAILABLE } from '@/components/glass';
+import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
 import { MapPolylineLayer } from './components/MapPolylineLayer';
@@ -65,6 +72,13 @@ import { FilterButton } from './components/FilterButton';
 import { SheetHandle } from './components/SheetHandle';
 import { SheetBackground } from './components/SheetBackground';
 import { sheetChromeAt, SHEET_FLOAT_INSET } from './utils/sheetChrome';
+import {
+  IDLE_HANDOFF,
+  releaseHandoff,
+  requestHandoff,
+  sheetSettled,
+  type SheetHandoff,
+} from './utils/sheetHandoff';
 import { HeadingLocateIcon } from './components/HeadingLocateIcon';
 import { CampusSuggestionCard } from './components/CampusSuggestionCard';
 import {
@@ -108,7 +122,7 @@ import {
 // (`packages/shared/src/types/eventmap.ts`)이 이 저장소의 선례다.
 
 /**
- * How long a place deep link waits for the event map snapshot before giving up.
+ * How long a place deep link waits for the event markers before giving up.
  * Named rather than inlined because the number encodes a judgement: congested
  * festival wifi on an uncached first run regularly exceeds 10s.
  */
@@ -180,21 +194,60 @@ const MAP_TOP_ROW_GAP = 10;
  */
 const LOCATE_ANCHOR_SNAP_INDEX = 1;
 
+/**
+ * Where the sheet goes when the event list appears in it — the middle detent.
+ *
+ * The same index as the locate anchor, for a different reason: enough sheet to
+ * read a few rows, with the map still showing the pins the rows describe.
+ * Someone who tapped 주점 wants the map, not a full-height list. Kept separate
+ * from `LOCATE_ANCHOR_SNAP_INDEX` because they only happen to agree.
+ */
+const EVENT_LIST_SNAP_INDEX = 1;
+
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<NaverMapViewRef>(null);
+  const sheetRef = useRef<BottomSheet>(null);
   const detailSheetRef = useRef<BottomSheetModal>(null);
   const filterSheetRef = useRef<BottomSheetModal>(null);
   const peekSheetRef = useRef<BottomSheetModal>(null);
-  const listSheetRef = useRef<BottomSheetModal>(null);
 
   // ── Data ──
-  const { data: mapConfig } = useMapConfig();
+
+  /**
+   * The client festival gate, applied ONCE, here.
+   *
+   * Everything festival-shaped is downstream of these two: the filter tiles, the
+   * chip row, the pins, the `/map/markers/event` fetch each pin layer would
+   * start, the event list that replaces the sheet's feed, and the peek sheet a
+   * booth tap or a `?place=` link opens. Stripping the config at the point it
+   * enters the screen is what removes all of them without a single
+   * festival-aware branch further down — see `festivalGate.ts` for what decides,
+   * and `packages/shared/src/map/festival.ts` for the filter.
+   *
+   * A second consumer of `useMapConfig` would NOT inherit this. There is none
+   * today; one that appears has to opt in here or gate itself.
+   */
+  const festivalUnlocked = isFestivalUnlocked();
+
+  const { data: rawMapConfig } = useMapConfig();
+  const mapConfig = useMemo(
+    () => (rawMapConfig && !festivalUnlocked ? withoutFestival(rawMapConfig) : rawMapConfig),
+    [rawMapConfig, festivalUnlocked],
+  );
 
   /**
    * The sheet's feed. Rendered in the server's order, and empty is a normal
    * answer — the defaults are empty on purpose, so a dead API and a server with
    * nothing to promote both land here as an empty card over the map.
+   *
+   * Behind the festival gate, which is why it is not fetched at all while that
+   * is shut. The server still serves `campus_buttons` here — 건물지도, 건물코드,
+   * 분실물, 문의하기 — and the home grid already carries all four, so an empty
+   * card over the map is the better resting state than a duplicate of another
+   * tab. Gating it on the same switch rather than deleting the call keeps the
+   * feed one flip away for the day the server replaces those buttons with
+   * something worth showing.
    *
    * No skeleton. `CampusSkeleton` exists but mimics a button grid, which is the
    * shape this surface is moving away from, and grey shimmer blocks on a
@@ -202,7 +255,7 @@ export function CampusScreen() {
    * The card is small and the query is cached for a minute, so the honest
    * loading state here is an empty card for one paint.
    */
-  const { data: campusFeed } = useCampusSections();
+  const { data: campusFeed } = useCampusSections({ enabled: festivalUnlocked });
 
   // ── Store ──
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
@@ -271,17 +324,17 @@ export function CampusScreen() {
   }, []);
 
   /**
-   * Where the filter sheet's card should stop, measured from the WINDOW's
-   * bottom edge.
+   * Where a modal sheet's card should stop, measured from the WINDOW's bottom
+   * edge. One value for the filter, peek and building sheets.
    *
-   * That sheet is a modal, so it is portalled out to the root and its container
-   * is the whole window, while this screen's sheet floats inside the root view
-   * measured just above. Restating the campus card's own bottom edge in the
-   * modal's coordinates is what puts the two cards on one line, and it stays
-   * true whether or not the tab bar takes a bite out of this screen — a
-   * constant picked to look right would drift the moment either changed.
+   * A modal is portalled out to the root and its container is the whole
+   * window, while this screen's sheet floats inside the root view measured
+   * just above. Restating the campus card's own bottom edge in the modal's
+   * coordinates is what puts every card on one line, and it stays true whether
+   * or not the tab bar takes a bite out of this screen — a constant picked to
+   * look right would drift the moment either changed.
    */
-  const filterCardBottomGap = useMemo(
+  const modalCardBottomGap = useMemo(
     () =>
       sheetContainerHeight > 0
         ? windowHeight - sheetContainerHeight + SHEET_FLOAT_INSET
@@ -351,6 +404,59 @@ export function CampusScreen() {
     ),
     [sheetContainerHeight],
   );
+
+  // ── Handing the screen to a detail modal ──
+
+  /**
+   * Two sheets never stack. A detail modal asks for the screen through
+   * `presentOverSheet`: the campus sheet goes down, the modal rises once gorhom
+   * reports it closed, and `releaseSheet` — wired to the modal's `onDismiss` —
+   * returns the sheet to the detent it left. The decisions are
+   * `sheetHandoff.ts`'s, pure and tested; this holds the refs and makes the
+   * calls. Refs rather than state: nothing here is rendered, and a re-render
+   * per detent report would be a re-render of the whole map for nothing.
+   *
+   * The filter sheet does not go through this. It floats beside the campus
+   * card by design, on the same bottom line.
+   */
+  const handoff = useRef<SheetHandoff>(IDLE_HANDOFF);
+  const waitingModal = useRef<RefObject<BottomSheetModal | null> | null>(null);
+
+  const presentOverSheet = useCallback((modal: RefObject<BottomSheetModal | null>) => {
+    const { state, close, present } = requestHandoff(handoff.current);
+    handoff.current = state;
+    if (close) {
+      waitingModal.current = modal;
+      sheetRef.current?.close();
+    }
+    if (present) modal.current?.present();
+  }, []);
+
+  const handleSheetSettled = useCallback((index: number) => {
+    const { state, present } = sheetSettled(handoff.current, index);
+    handoff.current = state;
+    if (present) {
+      const modal = waitingModal.current;
+      waitingModal.current = null;
+      modal?.current?.present();
+    }
+  }, []);
+
+  // Both, on purpose: `onChange` is the detent report the hand-off tracks, and
+  // `onClose` is the one report that must not be missed. `sheetSettled` is
+  // idempotent for a closed report, so hearing it twice presents once.
+  const handleSheetChange = useCallback(
+    (index: number) => handleSheetSettled(index),
+    [handleSheetSettled],
+  );
+  const handleSheetClose = useCallback(() => handleSheetSettled(-1), [handleSheetSettled]);
+
+  const releaseSheet = useCallback(() => {
+    const { state, snapTo } = releaseHandoff(handoff.current);
+    handoff.current = state;
+    waitingModal.current = null;
+    if (snapTo !== null) sheetRef.current?.snapToIndex(snapTo);
+  }, []);
 
   const {
     mode: trackingMode,
@@ -474,45 +580,82 @@ export function CampusScreen() {
   }, [mapConfig, initFromConfig]);
 
   // ── Event map ──
-  const eventMap = useEventMap();
-  const setSelectedStackKey = useEventMapStore((s) => s.setSelectedStackKey);
-  const selectedStackKey = useEventMapStore((s) => s.selectedStackKey);
-  // Resolved against ALL stacks, not the chip-filtered ones. An open peek sheet
-  // must survive a chip toggle that happens to exclude the booth being read, and
-  // a `skkuverse://map?place=` link must reach a booth the current chips hide.
-  const selectedStack =
-    eventMap.allStacks.find((s) => s.stackKey === selectedStackKey) ?? null;
-
-  // A stackKey can disappear mid-session — the server can flip stackKeyBy from
-  // placeId to zone to thin out a crowded plaza, which re-keys every stack. An
-  // empty sheet is worse than no sheet. Keyed on allStacks, so this fires on a
-  // genuine server re-key and not on a filter the user just applied.
-  useEffect(() => {
-    if (selectedStackKey && !selectedStack) peekSheetRef.current?.dismiss();
-  }, [selectedStackKey, selectedStack]);
-
-  const cardTemplates = useMemo(
-    () => new Map((eventMap.snapshot?.cardTemplates ?? []).map((tmpl) => [tmpl.id, tmpl])),
-    [eventMap.snapshot?.cardTemplates],
+  //
+  // There is no event-map request any more. The snapshot tier that carried
+  // items, card templates and sorts was deleted server-side; a booth is an
+  // ordinary marker on whatever `/map/config` lists as a festival layer's
+  // endpoint, so the pins the map already fetches ARE the data the list and the
+  // peek sheet render. One fetch, one cache entry, and no way for a list to
+  // disagree with the pin beside it.
+  //
+  // The endpoint is read off the served layers rather than hardcoded: the route
+  // is named for the mechanism, so next year's festival changes the layer set
+  // and not the URL — and this build never has to know either.
+  const eventEndpoint = useMemo(
+    () => mapConfig?.layers.find(isFestivalLayer)?.endpoint ?? null,
+    [mapConfig],
   );
-
-  const eventActive = eventMap.snapshot != null && eventMap.snapshot.campus === selectedCampus;
+  const eventQuery = useLayerMarkers(eventEndpoint ?? '', eventEndpoint !== null);
+  const eventMarkers = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
 
   /**
-   * How many layers are hidden. Drives the filter button badge.
+   * A `now` that moves when a booth opens or closes.
    *
-   * Counted off layer visibility rather than chip groups, because layers are
-   * what narrows the map now. A layer that is hidden by default is not counted:
-   * the badge means "you have narrowed this", and 편의시설 starting hidden is
-   * the server's choice, not the user's.
+   * The list's pills and the pin ladder both read it, so they change together at
+   * a boundary rather than one of them waiting for an unrelated re-render. It is
+   * NOT shared with `MapMarkerLayer`, which arms its own on the same data — two
+   * timers on one boundary is cheaper than lifting the marker query up here just
+   * to pass a number down.
    */
-  const activeFilterCount = useMemo(() => {
-    if (!mapConfig) return 0;
-    return mapConfig.layers.filter((layer) => {
-      if (layer.userConfigurable === false) return false;
-      return layer.defaultVisible && !isLayerVisible(layer, layers);
-    }).length;
-  }, [mapConfig, layers]);
+  const now = useWindowClock(eventMarkers);
+
+  const sortId = useEventMapStore((s) => s.sortId);
+  const appLanguage = useSettingsStore((s) => s.appLanguage);
+  const setSelectedPlaceId = useEventMapStore((s) => s.setSelectedPlaceId);
+  const selectedPlaceId = useEventMapStore((s) => s.selectedPlaceId);
+  const syncLayerSet = useEventMapStore((s) => s.syncLayerSet);
+
+  /** The live layer set, for keying the persisted sort. `chipGroupId` is its id. */
+  const activeLayerSetId = useMemo(
+    () => mapConfig?.layers.find(isFestivalLayer)?.chipGroupId ?? null,
+    [mapConfig],
+  );
+  useEffect(() => {
+    syncLayerSet(activeLayerSetId);
+  }, [activeLayerSetId, syncLayerSet]);
+
+  /**
+   * placeId → place. Built from EVERY event marker rather than the listed ones,
+   * so an open peek sheet survives a layer toggle that hides the booth being
+   * read, and a `skkuverse://map?place=` link reaches a booth the current layers
+   * hide.
+   */
+  const placesById = useMemo(() => {
+    const map = new Map<string, RawMarkerData>();
+    for (const m of eventMarkers) {
+      if (m.tap?.kind === 'event') map.set(m.tap.placeId, m);
+    }
+    return map;
+  }, [eventMarkers]);
+
+  const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
+
+  // A place can leave the set mid-session — ops deletes a cancelled booth, and
+  // the marker route is only cached for a minute. An empty sheet is worse than
+  // no sheet.
+  useEffect(() => {
+    if (selectedPlaceId && !selectedPlace) peekSheetRef.current?.dismiss();
+  }, [selectedPlaceId, selectedPlace]);
+
+  /**
+   * Is the live event on the campus the toggle is showing?
+   *
+   * Read off the markers themselves now rather than a snapshot's `campus` field.
+   * An activation is single-campus, so the first marker answers for all of them,
+   * and an empty set answers "no event" — which is what `/map/markers/event`
+   * returns outside the window.
+   */
+  const eventActive = eventMarkers.length > 0 && eventMarkers[0]!.campus === selectedCampus;
 
   // ── Camera move on campus switch ──
 
@@ -547,7 +690,7 @@ export function CampusScreen() {
    * Set to skip exactly one run of the effect below.
    *
    * Only the `switch` suggestion sets it. Every other campus change — the
-   * toggle, a place deep link, an event-map snapshot — wants the camera to
+   * toggle, a place deep link, an event place — wants the camera to
    * follow, and that one does not: the camera is already on the campus being
    * switched to. A ref rather than state because it must not itself cause a
    * render; it is read by the effect the same tick the campus changes.
@@ -555,7 +698,7 @@ export function CampusScreen() {
   const suppressNextCampusFocus = useRef(false);
 
   // Covers every campus change, not just the toggle's: a place deep link and an
-  // event-map snapshot both set the campus too, and each wants the camera to
+  // event place link both set the campus too, and each wants the camera to
   // follow.
   useEffect(() => {
     if (suppressNextCampusFocus.current) {
@@ -770,6 +913,82 @@ export function CampusScreen() {
     if (next) setLayersVisible(next);
   }, [narrowedChip, mapConfig, setLayersVisible]);
 
+  // ── The event list in the sheet ──
+
+  /**
+   * What the campus sheet shows: the event list while a chip has narrowed the
+   * map, the server's campus feed otherwise.
+   *
+   * Narrowed, not merely "an event is on": the feed is the sheet's resting
+   * content, and a chip tap is the moment the user asks what is in the view
+   * they just chose. The reset chip restores the group's defaults, which
+   * `findNarrowedChip` reads as narrowed to nothing — so it flies to the
+   * festival and lights its pins but leaves the feed in place. `eventActive`
+   * keeps the list off a campus the event is not on: the toggle can be flipped
+   * away while the festival layers stay narrowed.
+   */
+  const showEventList = narrowedChip !== null && eventActive;
+
+  /**
+   * The layer ids whose markers compete for a coordinate: the FESTIVAL layers
+   * currently drawn.
+   *
+   * Computed here rather than inside `MapMarkerLayer` because only this screen
+   * holds both halves — which layers exist, and which the user has left on. The
+   * building layers are excluded by `isFestivalLayer` for a reason worth
+   * restating: they draw one building twice on purpose, a number and a name at
+   * one point from records sharing an `id`, which the ladder would read as a
+   * total tie and resolve by suppressing one of them.
+   */
+  const collisionPeers = useMemo(
+    () =>
+      new Set(
+        (mapConfig?.layers ?? [])
+          .filter((l) => isFestivalLayer(l) && isLayerVisible(l, layers))
+          .map((l) => l.id),
+      ),
+    [mapConfig, layers],
+  );
+
+  /**
+   * The list's rows: the places whose layer is drawn, in the active sort.
+   *
+   * `selectVisibleMarkers` reads the same `isLayerVisible` the render loop below
+   * does — deliberately not a second copy — so a row is listed exactly when its
+   * layer is drawn. A place the pin ladder suppressed for a shared coordinate
+   * still gets a row: that ladder answers which pin is drawn there, not whether
+   * the place exists.
+   */
+  const listedPlaces = useMemo(
+    () =>
+      mapConfig
+        ? sortPlaces(
+            selectVisibleMarkers({
+              markers: eventMarkers,
+              layers: mapConfig.layers,
+              states: layers,
+            }),
+            sortId,
+            appLanguage,
+            now,
+          )
+        : [],
+    [mapConfig, eventMarkers, layers, sortId, appLanguage, now],
+  );
+
+  // When the list appears, bring the sheet up to the middle detent — enough to
+  // read it, with the map still showing the pins it describes. An effect on the
+  // derived flag rather than a call inside the chip handler, so narrowing
+  // through the filter sheet's tiles gets the same reveal, and the reset chip,
+  // whose result is "not narrowed", gets none. Not while a modal has the
+  // screen: the chips stay reachable above a peek sheet, and raising the
+  // campus sheet under it would stack the two — the hand-off restores it.
+  useEffect(() => {
+    if (showEventList && handoff.current.restoreTo === null) {
+      sheetRef.current?.snapToIndex(EVENT_LIST_SNAP_INDEX);
+    }
+  }, [showEventList]);
+
   // ── Pending map navigation (search, and `skkuverse://map?place=<id>`) ──
   const pendingPayload = useMapNavStore((s) => s.pendingNavPayload);
   const clearPendingNavPayload = useMapNavStore((s) => s.clearPendingNavPayload);
@@ -784,7 +1003,7 @@ export function CampusScreen() {
       const p = pendingMapPlaceLink.consume();
       if (!p) return;
       // A building is resolvable on its own — `/building/:id` needs nothing but
-      // the id — so it does not wait on the event snapshot the way a booth does.
+      // the id — so it does not wait on the event markers the way a booth does.
       // A bare id (no prefix) keeps its historical meaning: an event place.
       if (p.kind === 'skku_building') {
         const skkuId = Number(p.placeId);
@@ -803,8 +1022,8 @@ export function CampusScreen() {
     if (!payload) return;
 
     // A 'place' payload carries only an id; its coordinates live in the event
-    // map snapshot, which a cold-start deep link can easily beat. Held until the
-    // snapshot settles, then resolved below.
+    // marker fetch, which a cold-start deep link can easily beat. Held until
+    // the markers settle, then resolved below.
     if (payload.kind === 'place') {
       setPendingPlaceId(payload.placeId);
       return;
@@ -828,7 +1047,7 @@ export function CampusScreen() {
     setSelectedSkkuId(payload.skkuId);
     setHighlightSpaceCd(payload.highlightSpaceCd);
     setTimeout(() => {
-      detailSheetRef.current?.present();
+      presentOverSheet(detailSheetRef);
     }, 400);
   }, [
     pendingPayload,
@@ -837,6 +1056,7 @@ export function CampusScreen() {
     setSelectedCampus,
     moveTo,
     cameraDefaults,
+    presentOverSheet,
   ]);
 
   // ── Resolve a building deep link, once there is a sheet to open ──
@@ -850,7 +1070,7 @@ export function CampusScreen() {
     // Same 400ms as the search handoff: presenting a modal in the same frame the
     // screen mounts drops the animation.
     const timer = setTimeout(() => {
-      detailSheetRef.current?.present();
+      presentOverSheet(detailSheetRef);
       // Cleared HERE and not before the timer, which is what makes this work at
       // all: `pendingBuildingId` is a dependency of this effect, so clearing it
       // up front re-runs the effect, and the previous run's cleanup then clears
@@ -859,59 +1079,62 @@ export function CampusScreen() {
       setPendingBuildingId(null);
     }, 400);
     return () => clearTimeout(timer);
-  }, [pendingBuildingId, mapConfig]);
+  }, [pendingBuildingId, mapConfig, presentOverSheet]);
 
-  // ── Resolve a place deep link, once the snapshot has actually settled ──
+  // ── Resolve a place deep link, once the markers have actually settled ──
+  //
+  // `isFetched` rather than "has data": it is the only value that separates "no
+  // event today", which is a decided answer worth abandoning on, from "the
+  // request has not come back yet", which is worth waiting for. A disabled query
+  // — the festival gate shut, or no festival layer served — never fetches, so it
+  // counts as settled and the link is abandoned on the first pass.
+  const eventSettled = eventEndpoint === null || eventQuery.isFetched;
   useEffect(() => {
     if (!pendingPlaceId) return;
 
-    // Abandon rather than fire late. Offline with no cache means isSettled may
-    // never arrive, and without this the camera would yank minutes later when
-    // the network came back — long after the user moved on. Congested festival
-    // wifi on a first run regularly exceeds 10s, so this is generous; MMKV
-    // restore is instant, so it only governs the cold, uncached path.
+    // Abandon rather than fire late. Offline on a cold start means `isFetched`
+    // may take a while, and without this the camera would yank minutes later
+    // when the network came back — long after the user moved on. Congested
+    // festival wifi on a first run regularly exceeds 10s, so this is generous.
     const abandon = setTimeout(() => setPendingPlaceId(null), PLACE_LINK_ABANDON_MS);
-    if (!eventMap.isSettled) return () => clearTimeout(abandon);
+    if (!eventSettled) return () => clearTimeout(abandon);
     clearTimeout(abandon);
 
     setPendingPlaceId(null); // one shot, resolvable or not
-    const stack = eventMap.stacksByPlaceId.get(pendingPlaceId);
+    const place = placesById.get(pendingPlaceId);
     // An id that matches nothing lands on the campus tab with no sheet. That is
     // the documented behaviour, not a swallowed error.
-    if (!stack) return;
+    if (!place) return;
 
-    const snapshotCampus = eventMap.snapshot?.campus;
-    if (snapshotCampus && snapshotCampus !== selectedCampus) {
-      setSelectedCampus(snapshotCampus);
-    }
+    if (place.campus !== selectedCampus) setSelectedCampus(place.campus);
     // Same 100ms → camera(500ms) → 400ms → present choreography as the search
     // handoff, so this screen has one such sequence rather than two.
     setTimeout(() => {
-      moveTo({ lat: stack.lead.lat, lng: stack.lead.lng, ...cameraDefaults.markerFocus });
+      moveTo({ lat: place.lat, lng: place.lng, ...cameraDefaults.markerFocus });
     }, 100);
-    setSelectedStackKey(stack.stackKey);
+    setSelectedPlaceId(pendingPlaceId);
     setTimeout(() => {
-      peekSheetRef.current?.present();
+      presentOverSheet(peekSheetRef);
     }, 400);
   }, [
     pendingPlaceId,
-    eventMap.isSettled,
-    eventMap.stacksByPlaceId,
-    eventMap.snapshot?.campus,
+    eventSettled,
+    placesById,
     selectedCampus,
     setSelectedCampus,
-    setSelectedStackKey,
+    setSelectedPlaceId,
     moveTo,
     cameraDefaults,
+    presentOverSheet,
   ]);
 
   // ── Event pin tap ──
-  const handleSelectStack = useCallback(
-    (stackKey: string) => {
-      setSelectedStackKey(stackKey);
-      peekSheetRef.current?.present();
+  const handleSelectPlace = useCallback(
+    (placeId: string) => {
+      setSelectedPlaceId(placeId);
+      presentOverSheet(peekSheetRef);
     },
-    [setSelectedStackKey],
+    [setSelectedPlaceId, presentOverSheet],
   );
 
   /**
@@ -923,12 +1146,11 @@ export function CampusScreen() {
    * building branch, because that is the only place that needs one:
    * `GET /building/:id` takes a numeric id.
    *
-   * A booth resolves through the snapshot's `stacksByPlaceId`, which is built
-   * from ALL items rather than the filtered ones, so a tap always reaches the
-   * plot it was drawn for. A miss opens nothing — the same no-error behaviour
-   * the `?place=` deep link already has.
+   * A booth resolves through `placesById`, built from ALL event markers rather
+   * than the listed ones, so a tap always reaches the place it was drawn for. A
+   * miss opens nothing — the same no-error behaviour the `?place=` deep link
+   * already has.
    */
-  const stacksByPlaceId = eventMap.stacksByPlaceId;
   const handleMarkerTap = useCallback(
     (tap: MarkerTap) => {
       switch (tap.kind) {
@@ -939,33 +1161,40 @@ export function CampusScreen() {
           setBuildingSource('marker');
           setSelectedSkkuId(skkuId);
           setHighlightSpaceCd(undefined);
-          detailSheetRef.current?.present();
+          presentOverSheet(detailSheetRef);
           return;
         }
-        case 'eskara26': {
-          const stack = stacksByPlaceId.get(tap.placeId);
-          if (!stack) return;
-          handleSelectStack(stack.stackKey);
+        case 'event': {
+          if (!placesById.has(tap.placeId)) return;
+          handleSelectPlace(tap.placeId);
           return;
         }
       }
     },
-    [stacksByPlaceId, handleSelectStack],
+    [placesById, handleSelectPlace, presentOverSheet],
   );
 
-  // The list is a way into a pin, not a parallel surface: dismiss it so backing
-  // out of the peek sheet lands on the map rather than on a stack of two sheets.
+  // A list row is the same way into a pin that the pin itself is, plus the
+  // camera: the row was chosen off a list, so the map has not been looked at
+  // yet. Immediate on both counts — the deep-link path's staggered timeouts
+  // exist because it may be switching campus first, and a row never is. The
+  // peek sheet's low detent sits above the campus sheet's, so it covers the
+  // list rather than stacking a second grab handle on it.
   const handleSelectFromList = useCallback(
-    (stackKey: string) => {
-      listSheetRef.current?.dismiss();
-      handleSelectStack(stackKey);
+    (place: RawMarkerData) => {
+      moveTo({ lat: place.lat, lng: place.lng, ...cameraDefaults.markerFocus });
+      // Every listed place is an event marker, so `tap` is non-null and carries
+      // the place's own id. Falling back to `id` keeps this total anyway: the two
+      // are the same string for an event marker.
+      handleSelectPlace(place.tap?.placeId ?? place.id);
     },
-    [handleSelectStack],
+    [moveTo, cameraDefaults, handleSelectPlace],
   );
 
   const handlePeekDismiss = useCallback(() => {
-    setSelectedStackKey(null);
-  }, [setSelectedStackKey]);
+    setSelectedPlaceId(null);
+    releaseSheet();
+  }, [setSelectedPlaceId, releaseSheet]);
 
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
@@ -1005,17 +1234,17 @@ export function CampusScreen() {
                 <MapMarkerLayer
                   key={layer.id}
                   layer={layer}
+                  collisionPeers={collisionPeers}
                   onMarkerTap={handleMarkerTap}
                 />
               );
             })}
-            {/* Booth pins used to be drawn here, from the event snapshot, by a
-                second marker component beside the config-driven layers. The
-                server now serves them as ordinary marker layers, so the loop
-                above draws them and this sibling would be a duplicate — six
-                layers' worth of pins on top of the snapshot's own. The snapshot
-                is still fetched: it is what the peek sheet renders, and what
-                resolves a tapped booth's placeId to a stack. */}
+            {/* Booth pins used to be drawn here, from a separate event
+                snapshot, by a second marker component beside the config-driven
+                layers. The server serves them as ordinary marker layers now, so
+                the loop above draws them and a sibling would draw every booth
+                twice — and that snapshot is gone entirely: the markers the loop
+                fetches are also what the list and the peek sheet render. */}
           </CampusNaverMap>
         )}
 
@@ -1033,28 +1262,12 @@ export function CampusScreen() {
               <CampusToggle campuses={mapConfig.campuses} onPick={handleCampusPick} />
             )}
             {mapConfig && (
-              <FilterButton
-                activeCount={activeFilterCount}
-                onPress={() => filterSheetRef.current?.present()}
-              />
-            )}
-            {eventActive && (
-              <GlassIconButton
-                label={t('eventmap.list.title')}
-                icon={<ListBulletsIcon size={20} color={SdsColors.grey700} />}
-                onPress={() => {
-                  logCampusContentSelect({
-                    content_type: 'eventmap_list_button',
-                    item_id: 'open',
-                  });
-                  listSheetRef.current?.present();
-                }}
-              />
+              <FilterButton onPress={() => filterSheetRef.current?.present()} />
             )}
           </View>
           {/* The event map's chip row stood here and was removed: its chips
               filtered snapshot ITEMS, and the pins now come from
-              /map/markers/eskara26 layers that such a chip cannot reach. This is
+              /map/markers/event layers that such a chip cannot reach. This is
               its replacement, and it is a different contract — a map chip
               carries an ACTION and has no predicate at all.
 
@@ -1156,8 +1369,12 @@ export function CampusScreen() {
           </View>
         </Animated.View>
 
-        {/* Snapping bottom sheet with SDUI */}
+        {/* Snapping bottom sheet: the campus feed, or the event list while a
+            chip has narrowed the map. One body or the other, never both — a
+            gorhom scrollable cannot nest inside another, and each registers
+            itself with the sheet on mount, so the swap keeps the pan gesture. */}
         <BottomSheet
+          ref={sheetRef}
           snapPoints={snapPoints}
           enableDynamicSizing={false}
           handleComponent={SheetHandle}
@@ -1165,18 +1382,37 @@ export function CampusScreen() {
           index={0}
           animatedPosition={sheetTop}
           animatedIndex={sheetIndex}
+          onChange={handleSheetChange}
+          onClose={handleSheetClose}
           // Off iOS 26 the sheet stays attached, so it must not inset at all.
           style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
-          {/* The scroll view is what gives the sheet's body a content pane and
-              keeps the content pan gesture, so a drag anywhere on the card still
-              moves it. It stays mounted even when the feed is empty. */}
-          <BottomSheetScrollView
-            style={styles.sheetContent}
-            contentContainerStyle={styles.sheetFeed}
-          >
-            <SduiSectionList sections={campusFeed?.sections ?? []} />
-          </BottomSheetScrollView>
+          {showEventList ? (
+            <EventListPanel
+              places={listedPlaces}
+              now={now}
+              onSelectPlace={handleSelectFromList}
+            />
+          ) : (
+            /* The scroll view is what gives the sheet's body a content pane and
+               keeps the content pan gesture, so a drag anywhere on the card
+               still moves it. It stays mounted even when the feed is empty. */
+            <BottomSheetScrollView
+              style={styles.sheetContent}
+              contentContainerStyle={styles.sheetFeed}
+            >
+              {/* Empty while the gate is shut, and the GATE is what says so —
+                  not the disabled query. `enabled: false` stops refetching but
+                  keeps whatever the cache already holds, so a session that
+                  fetched before the gate closed would still render the feed.
+                  The query gate saves the request; this one is the promise. The
+                  scroll view stays mounted either way — it is what gives the
+                  sheet its content pane and keeps the drag gesture. */}
+              <SduiSectionList
+                sections={festivalUnlocked ? (campusFeed?.sections ?? []) : []}
+              />
+            </BottomSheetScrollView>
+          )}
         </BottomSheet>
 
         {/* Modal sheets */}
@@ -1187,12 +1423,14 @@ export function CampusScreen() {
               skkuId={selectedSkkuId}
               highlightSpaceCd={highlightSpaceCd}
               source={buildingSource}
+              bottomGap={modalCardBottomGap}
               onConnectionTap={handleConnectionTap}
+              onDismiss={releaseSheet}
             />
             <FilterSheet
               ref={filterSheetRef}
               mapConfig={mapConfig}
-              bottomGap={filterCardBottomGap}
+              bottomGap={modalCardBottomGap}
             />
           </>
         )}
@@ -1201,16 +1439,10 @@ export function CampusScreen() {
             map-config hiccup cannot take it down, and vice versa. */}
         <EventMapPeekSheet
           ref={peekSheetRef}
-          stack={selectedStack}
-          cardTemplates={cardTemplates}
+          place={selectedPlace}
+          now={now}
+          bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
-        />
-        <EventMapListSheet
-          ref={listSheetRef}
-          items={eventActive ? eventMap.allItems : []}
-          sorts={eventMap.snapshot?.sorts ?? []}
-          cardTemplates={cardTemplates}
-          onSelectItem={handleSelectFromList}
         />
       </View>
   );

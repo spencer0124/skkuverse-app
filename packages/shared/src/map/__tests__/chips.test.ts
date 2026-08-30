@@ -40,8 +40,8 @@ const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   type: 'marker',
   label: over.id,
   defaultVisible: true,
-  endpoint: '/map/markers/eskara26',
-  chipGroupId: 'eskara26',
+  endpoint: '/map/markers/event',
+  chipGroupId: 'eskara-2026',
   userConfigurable: true,
   ...over,
 });
@@ -57,7 +57,7 @@ const LAYERS: MapLayerDef[] = [
   layer({ id: 'eskara26_etc' }),
 ];
 
-/** The five default-visible festival layers — what 축제 전체 restores. */
+/** The five default-visible festival layers — what the reset chip (26ESKARA) restores. */
 const DEFAULT_FESTIVAL_IDS = [
   'eskara26_stage',
   'eskara26_bar',
@@ -81,7 +81,7 @@ const WEBVIEW_CHIP: MapChip = {
 };
 
 const STAGE_CHIP = focusChip('eskara26_view_stage', ['eskara26_stage']);
-const ALL_CHIP = focusChip('eskara26_view_all', DEFAULT_FESTIVAL_IDS);
+const ALL_CHIP = focusChip('eskara-2026_all', DEFAULT_FESTIVAL_IDS);
 
 /**
  * Store shape: an entry per layer the config seeded.

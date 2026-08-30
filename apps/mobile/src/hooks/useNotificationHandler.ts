@@ -12,7 +12,6 @@ import {
   type NotificationData,
 } from '@/services/notification-router';
 import { resolveNotificationChannel } from '@/services/notification-channels';
-import { handleSilentPush } from '@/services/silent-push';
 import { devLog } from '@/services/dev-log';
 
 /**
@@ -108,13 +107,10 @@ export function useNotificationHandler() {
 
       const { notification, data } = message;
 
-      // Silent types first: `onForegroundMessage` is the ONLY foreground entry
-      // point, and the `!notification` guard below would drop a data-only
-      // payload before it was ever looked at. This is also the state where the
-      // event-map query is mounted, so invalidating actually refetches now —
-      // the case the silent push exists for.
-      if (await handleSilentPush(data)) return;
-
+      // A data-only payload falls straight through here. The one silent type
+      // this app ever had was `eventmap-refresh`, which invalidated the event
+      // map's snapshot queries; the server deleted the snapshot tier and the
+      // publish push with it, so there is no sender left and nothing to handle.
       if (!notification) return;
 
       try {

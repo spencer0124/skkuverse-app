@@ -2,7 +2,7 @@
  * Renders one map layer's markers.
  *
  * **Layers share endpoints.** Both building layers come from
- * `/map/markers/campus`, all six event layers from `/map/markers/eskara26`, and
+ * `/map/markers/campus`, every event layer from `/map/markers/event`, and
  * the marker cache is keyed on the endpoint string — so layers sharing a URL
  * share one fetch and one cache entry, and each renders only the subset carrying
  * its own `layerId`. Without that filter every layer draws the whole response:
@@ -38,7 +38,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import {
   useLayerMarkers,
-  useVisibleByWindow,
+  useWindowClock,
+  resolvePinCollisions,
   type MapLayerDef,
   type MarkerTap,
   type RawMarkerData,
@@ -121,23 +122,51 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
 
 interface MapMarkerLayerProps {
   layer: MapLayerDef;
+  /**
+   * The layer ids whose markers compete with this one for a coordinate — the
+   * FESTIVAL layers currently drawn, and nothing else.
+   *
+   * Two things are load-bearing about the membership. The building layers are
+   * absent because they draw one building twice on purpose, a number and a name
+   * at one point, from records that share an `id` — the ladder would read that
+   * as a total tie and suppress one of them at random. And it is the layers
+   * currently DRAWN rather than every festival layer, because a hidden 주점
+   * must not suppress a visible 부스: the bar is not on the map to be seen
+   * behind, so hiding it would leave a hole where the booth should be.
+   */
+  collisionPeers: ReadonlySet<string>;
   onMarkerTap: (tap: MarkerTap) => void;
 }
 
-export function MapMarkerLayer({ layer, onMarkerTap }: MapMarkerLayerProps) {
+export function MapMarkerLayer({
+  layer,
+  collisionPeers,
+  onMarkerTap,
+}: MapMarkerLayerProps) {
   const { data: markers } = useLayerMarkers(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  // Layers share endpoints, so this is what separates one layer from another.
-  const own = useMemo(
-    () => (markers ?? []).filter((m) => m.layerId === layer.id),
-    [markers, layer.id],
-  );
+  const all = useMemo(() => markers ?? [], [markers]);
 
-  // A booth appears and disappears on the device's clock rather than on a
-  // refetch: the payload is identical either side of a boundary, so this hook
-  // owns the timer that makes the boundary observable at all.
-  const visible = useVisibleByWindow(own);
+  // A booth changes state on the device's clock rather than on a refetch: the
+  // payload is identical either side of a boundary, so this hook owns the timer
+  // that makes the boundary observable at all. It no longer decides what is
+  // drawn — hours are filtered on and displayed, never hidden on
+  // (map-markers-api §3.3) — it decides who WINS a shared coordinate, which
+  // moves with the clock for exactly the same reason.
+  const now = useWindowClock(all);
+
+  const visible = useMemo(() => {
+    // Layers share endpoints, so this is what separates one layer from another.
+    const own = all.filter((m) => m.layerId === layer.id);
+    if (!collisionPeers.has(layer.id)) return own;
+    // Resolve across every drawn peer FIRST, then take this layer's share. The
+    // other order would let each layer keep its own winner and put two pins back
+    // on the one coordinate the ladder exists to clear.
+    const peers = all.filter((m) => collisionPeers.has(m.layerId));
+    const drawn = new Set(resolvePinCollisions(peers, now));
+    return own.filter((m) => drawn.has(m));
+  }, [all, layer.id, collisionPeers, now]);
 
   if (!visible.length) return null;
 

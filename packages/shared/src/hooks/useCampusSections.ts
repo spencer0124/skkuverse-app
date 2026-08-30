@@ -23,11 +23,21 @@ import type { CampusSectionsResponse } from '../types/sdui';
 
 export const CAMPUS_SECTIONS_KEY = ['campus', 'sections'] as const;
 
-export function useCampusSections() {
+export interface UseCampusSectionsOptions {
+  /**
+   * The same client festival gate the map and the event map take. The campus
+   * sheet renders nothing while it is shut, so fetching a feed that cannot
+   * reach a screen is pure waste — see `apps/mobile/src/features/map/festivalGate.ts`.
+   */
+  enabled?: boolean;
+}
+
+export function useCampusSections({ enabled = true }: UseCampusSectionsOptions = {}) {
   const queryClient = useQueryClient();
 
   const query = useQuery<CampusSectionsResponse>({
     queryKey: CAMPUS_SECTIONS_KEY,
+    enabled,
     queryFn: async () => {
       const result = await safeGet(
         ApiEndpoints.homeCampus(),

@@ -6,17 +6,18 @@
  * what every map app draws for that. Sliders promise numeric ranges to tune,
  * which is not what is in there.
  *
- * `activeCount` is the whole reason the event chip row can stay small: rather
- * than repeating every group over the map, the map shows the one-tap toggles and
- * this badge says how many other axes are narrowing what the user sees. A state
- * signal, not a second copy of the control.
+ * No count badge. It used to show how many layers were hidden, as a "you have
+ * narrowed this" signal — but a chip narrowing is already named by the strip
+ * that replaces the chip row, and a number beside it was a second, vaguer
+ * copy of the same fact. What the sheet behind this button shows is the state
+ * itself.
  *
- * Glass on iOS 26 so it reads as one control set with `SearchBar` beside it —
- * the two sit in the same floating row, and a solid white circle next to a
- * `GlassView` capsule is visibly two design languages.
+ * Glass on iOS 26 so it reads as one control set with the campus toggle beside
+ * it — the two sit in the same floating row, and a solid white circle next to
+ * a `GlassView` capsule is visibly two design languages.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { StackSimpleIcon } from 'phosphor-react-native';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
 import { GlassSurface, GLASS_AVAILABLE, glassFloatShadow } from '@/components/glass';
@@ -25,11 +26,9 @@ import { logCampusContentSelect } from '@/services/analytics';
 
 interface FilterButtonProps {
   onPress: () => void;
-  /** Number of active filter axes. `0` hides the badge. */
-  activeCount?: number;
 }
 
-export function FilterButton({ onPress, activeCount = 0 }: FilterButtonProps) {
+export function FilterButton({ onPress }: FilterButtonProps) {
   const body = (
     <Pressable
       style={styles.pressable}
@@ -40,11 +39,6 @@ export function FilterButton({ onPress, activeCount = 0 }: FilterButtonProps) {
       }}
     >
       <StackSimpleIcon size={20} color={SdsColors.grey700} />
-      {activeCount > 0 ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{String(activeCount)}</Text>
-        </View>
-      ) : null}
     </Pressable>
   );
 
@@ -76,25 +70,5 @@ const styles = StyleSheet.create({
     height: SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    backgroundColor: SdsColors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Below the SdsTypo scale on purpose: it bottoms out at t7 (body copy), and a
-  // counter inside a 16pt circle is a numeral, not text to read.
-  badgeText: {
-    fontSize: 10,
-    lineHeight: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });
