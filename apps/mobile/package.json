@@ -14,7 +14,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@gorhom/bottom-sheet": "^5.2.8",
-    "@mj-studio/react-native-naver-map": "^2.7.0",
+    "@mj-studio/react-native-naver-map": "2.7.1",
     "@notifee/react-native": "^9.1.8",
     "@react-native-firebase/analytics": "^23.8.8",
     "@react-native-firebase/app": "^23.8.8",
