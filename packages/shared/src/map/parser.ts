@@ -8,6 +8,7 @@
 
 import type { ApiEnvelope } from '../api/types';
 import type {
+  I18nText,
   MapConfig,
   NaverConfig,
   CampusDef,
@@ -19,11 +20,15 @@ import type {
   MapChipIcon,
   MapLayerDef,
   MapLayerStyle,
+  MarkerAction,
+  MarkerField,
   RawMarkerData,
   MarkerTap,
   PolylineCoord,
+  TimeWindow,
 } from '../types/map';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
+import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
 import { DEFAULT_CAMERA_DEFAULTS } from './defaults';
 
@@ -44,6 +49,8 @@ const TAP_KINDS = ['skku_building', 'event'] as const;
  * whole chip — see parseChip.
  */
 const CHIP_ACTION_KINDS = ['webview', 'focus'] as const;
+/** A button's emphasis. An unrecognised value falls back to the default look. */
+const ACTION_STYLES = ['primary', 'secondary'] as const;
 
 // ── Internal helpers ──
 
@@ -307,16 +314,92 @@ function parseMarkerTap(raw: unknown): MarkerTap | null {
 }
 
 /**
- * Keep an ISO instant only if it actually parses.
+ * An i18n string set, or `null` when there is no Korean to fall back to.
  *
- * A malformed string would reach the window comparison as `NaN`, and every
- * comparison against `NaN` is false — so `now >= startAt` and `now < endAt` both
- * fail and the marker silently never draws. Dropping to `null` means "unbounded
- * on that side", which draws.
+ * `ko` is the source language and always present upstream, so its absence is a
+ * broken record rather than an untranslated one. `en` falls back to `ko`, and
+ * `zh` is omitted entirely when nobody authored one — which is the normal case
+ * for a building.
  */
-function parseInstant(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  return Number.isNaN(Date.parse(raw)) ? null : raw;
+function parseI18nText(raw: unknown): I18nText | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  const ko = typeof t.ko === 'string' ? t.ko : '';
+  if (ko === '') return null;
+  const en = typeof t.en === 'string' && t.en !== '' ? t.en : ko;
+  const zh = typeof t.zh === 'string' && t.zh !== '' ? t.zh : undefined;
+  return zh ? { ko, en, zh } : { ko, en };
+}
+
+/**
+ * Opening hours, dropping any window that is not fully bounded.
+ *
+ * **Both bounds are required and a half-bounded window is dropped, not
+ * repaired.** The wire has exactly one way to say "no limit" — the empty array —
+ * and admitting a one-ended window here would quietly restore the second way,
+ * which is the ambiguity that forced a `status` field to exist in the first
+ * place. An unparseable bound is the same case: `Date.parse` returning `NaN`
+ * makes every comparison false, so the window would silently never be open.
+ *
+ * A place whose every window is malformed lands on `[]`, which reads as ALWAYS
+ * OPEN rather than never. That is the deliberate direction: an ops typo shows a
+ * booth that is always listed as open, which somebody notices and reports; the
+ * other way it vanishes from the map with nothing to report.
+ */
+function parseHours(raw: unknown): TimeWindow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const w = entry as Record<string, unknown>;
+    const { startAt, endAt } = w;
+    if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt))) return [];
+    if (typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt))) return [];
+    return [{ startAt, endAt }];
+  });
+}
+
+/** Card rows. A row missing either half is dropped; a half-drawn row says nothing. */
+function parseFields(raw: unknown): MarkerField[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const f = entry as Record<string, unknown>;
+    const label = parseI18nText(f.label);
+    const value = parseI18nText(f.value);
+    return label && value ? [{ label, value }] : [];
+  });
+}
+
+/**
+ * Sheet buttons.
+ *
+ * A button with no id, no label or no value is dropped and the place is served
+ * without it — the same call the server makes on its own side, and for the same
+ * reason: losing a button is recoverable in a way that dropping the booth is
+ * not. `actionType` is NOT a drop condition, because `parseActionType` already
+ * degrades an unknown kind to `'unknown'`, which the action handler declines to
+ * open. A button that does nothing is better than a booth that is missing.
+ */
+function parseActions(raw: unknown): MarkerAction[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const a = entry as Record<string, unknown>;
+    const label = parseI18nText(a.label);
+    if (typeof a.id !== 'string' || a.id === '') return [];
+    if (label === null) return [];
+    if (typeof a.actionValue !== 'string' || a.actionValue === '') return [];
+    const style = asMember(a.style, ACTION_STYLES);
+    return [
+      {
+        id: a.id,
+        label,
+        actionType: parseActionType(a.actionType),
+        actionValue: a.actionValue,
+        ...(style ? { style } : {}),
+      },
+    ];
+  });
 }
 
 export function parseMarkerData(
@@ -358,11 +441,8 @@ export function parseMarkerData(
     // `ko` is the source language and always present upstream. Without it there
     // is nothing to draw, and a blank marker still occupies a tap target and a
     // caption-collision slot — which is why the server drops these too.
-    const rawText = (raw.text ?? {}) as Record<string, unknown>;
-    const ko = typeof rawText.ko === 'string' ? rawText.ko : '';
-    if (ko === '') return [];
-    const en = typeof rawText.en === 'string' && rawText.en !== '' ? rawText.en : ko;
-    const zh = typeof rawText.zh === 'string' && rawText.zh !== '' ? rawText.zh : undefined;
+    const text = parseI18nText(raw.text);
+    if (text === null) return [];
 
     return [
       {
@@ -371,9 +451,23 @@ export function parseMarkerData(
         lat,
         lng,
         campus,
-        text: zh ? { ko, en, zh } : { ko, en },
-        startAt: parseInstant(raw.startAt),
-        endAt: parseInstant(raw.endAt),
+        text,
+        // `null` for every building, and stated emptiness rather than an absent
+        // key for the booth-shaped half of the schema — an absent field is a
+        // second thing for this parser to branch on.
+        subtitle: parseI18nText(raw.subtitle),
+        // `[]` reads as ALWAYS OPEN downstream, which is also what a building
+        // wants, so the absent-field fallback and the building's real answer are
+        // the same value rather than two.
+        hours: parseHours(raw.hours),
+        fields: parseFields(raw.fields),
+        actions: parseActions(raw.actions),
+        // `?? 0` on both, and they mean opposite things at 0 by design: `order`
+        // is the LAST tiebreak so an equal one falls through to `id`, while
+        // `pinPriority` 0 is the building's real value and the floor a booth
+        // never sits at. Neither can make the collision ladder non-total.
+        order: toFiniteNumber(raw.order) ?? 0,
+        pinPriority: toFiniteNumber(raw.pinPriority) ?? 0,
         tap: parseMarkerTap(raw.tap),
       },
     ];

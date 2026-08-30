@@ -265,7 +265,7 @@ off its own opacity, so tapping outside still closes the sheet.
 
 ## The campus sheet steps aside for a detail sheet
 
-Two cards on one bottom edge is the filter sheet's arrangement, and it works
+Stacking two cards on one bottom edge is the filter sheet's arrangement, and it works
 there because the filter sheet is a short-lived control the campus card sits
 beside. A detail sheet is a destination, and a peek sheet rising over a campus
 card that is still showing read as two sheets stacked — a second grab handle in
@@ -299,7 +299,7 @@ under it would leave the layers grid hanging over an empty map.
 Every modal sheet also carries an explicit X, `SheetCloseButton`, pinned in a
 header row above its scroll view rather than placed inside it: a sheet that can
 only be dragged away looks stuck to anyone who does not know the gesture, and
-inside the scroll view the X would ride out of reach the moment the content
+inside the scroll view the X would scroll away the moment the content
 outgrew the sheet. It is one component for the three sheets because
 `useBottomSheetModal()` has to be called from inside the modal's own provider,
 and each sheet renders that provider itself.

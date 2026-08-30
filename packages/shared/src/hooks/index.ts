@@ -16,7 +16,7 @@ export {
   MAP_LAYER_MARKERS_KEY,
   MAP_LAYER_POLYLINE_KEY,
 } from './useMapLayers';
-export { useVisibleByWindow } from './useVisibleByWindow';
+export { useWindowClock } from './useWindowClock';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 
 // ── Notice hooks ──

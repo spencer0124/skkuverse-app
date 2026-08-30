@@ -133,15 +133,15 @@ guarantee that next year's event demands another new scheme.
 - **`/map/hssc` is unaffected.** The pattern ends at `/map`, so a path carrying another
   segment fails to match and flows on to the whitelist, which sends it to the SVG floor map.
 - The value is checked for **shape only**, by `PLACE_ID_RE` in `app/+native-intent.tsx`, and
-  never looked up. Two forms pass: a bare `<placeId>`, and `<kind>:<placeId>` — the two fields of
+  never looked up. A bare `<placeId>` passes, and so does `<kind>:<placeId>` — the two fields of
   a marker's `tap`, so `event:nsc-truck-05` and `skku_building:2` are links copied straight off a
   pin — where the kind has to be one of `PLACE_KINDS` in the same file. A bare id resolves the way
-  it always has, against the event snapshot. The reason for shape-only matches the mini app slug:
+  it always has, against the event markers. The reason for shape-only matches the mini app slug:
   this function runs outside the React tree, so a lookup here would duplicate the request and
   block the first navigation. Path traversal such as `../../etc` fails the pattern.
-- An id that matches nothing is either never stashed in `pendingMapPlaceLink` or never
-  resolved from the snapshot, so the user **arrives at the campus tab with no sheet**. There
-  is no error screen.
+- An id that matches nothing is either never stashed in `pendingMapPlaceLink` or never found in
+  `placesById`, so the user **arrives at the campus tab with no sheet**. There is no error screen.
+  The same happens while the festival gate is shut, since no event marker is fetched at all.
 - The consumer is **`CampusScreen`**, not the root layout. `redirectSystemPath` has already
   returned `/(tabs)/campus`, so it is guaranteed mounted, and it is the only place that can
   resolve a placeId.

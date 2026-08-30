@@ -142,14 +142,13 @@ export type {
   MapConfig,
   RawMarkerData,
   MarkerTap,
+  MarkerAction,
+  MarkerField,
+  I18nText,
+  TimeWindow,
   PolylineCoord,
 } from './types/map';
-export type { TimeWindow } from './map/window';
-export {
-  isWithinWindow,
-  nextWindowBoundaryAfter,
-  MAX_TIMEOUT_MS,
-} from './map/window';
+
 
 // ── Building types ──
 export type {
@@ -216,51 +215,30 @@ export {
   isLayerVisible,
   resolveChipGroupDefaults,
   resolveChipLayerVisibility,
+  isFestivalLayer,
+  withoutFestival,
+  resolvePinCollisions,
+  isOpenNow,
+  nextOpeningAfter,
+  nextWindowBoundaryAfter,
+  toEpochMs,
+  MAX_TIMEOUT_MS,
 } from './map';
-export type { LayerVisibilityStates } from './map';
+export type { LayerVisibilityStates, PinCandidate } from './map';
 
 // ── Event map ──
-export type {
-  EventMapAction,
-  EventMapCardSlot,
-  EventMapCardTemplate,
-  EventMapItem,
-  EventMapManifest,
-  EventMapSnapshot,
-  EventMapSort,
-  ItemStatus,
-  SortKey,
-} from './types/eventmap';
-export { EVENTMAP_SCHEMA_VERSION, ITEM_STATUSES, SORT_KEYS } from './types/eventmap';
+//
+// The snapshot tier is gone. `/eventmap/manifest` and `/eventmap/snapshot` were
+// deleted server-side and the place documents they carried now ride on the
+// ordinary marker wire, so what used to be a module of its own is the list and
+// sort rules in `./map` plus the two UI choices below.
 export {
-  buildStacks,
-  deriveItemStatus,
-  deriveItems,
-  eventMapSnapshotKey,
-  nextBoundaryAfter,
-  parseEventMapManifest,
-  parseEventMapSnapshot,
-  parseInstant,
-  readCachedEventMapBundle,
-  resolveSlots,
-  selectVisibleItems,
-  sortItems,
-  useEventMap,
-  useEventMapManifest,
-  useEventMapSnapshot,
-  EVENTMAP_MANIFEST_KEY,
-} from './eventmap';
-export type {
-  BuiltStacks,
-  DerivedItem,
-  DroppedCounts,
-  EventMapBundle,
-  EventMapStack,
-  ParsedSnapshot,
-  ResolvedSlot,
-  UseEventMapResult,
-  VisibleItemsInput,
-} from './eventmap';
+  selectVisibleMarkers,
+  sortPlaces,
+  pickI18nText,
+  PLACE_SORTS,
+} from './map';
+export type { PlaceSortKey, VisibleMarkersInput } from './map';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';
 
@@ -339,7 +317,7 @@ export {
   useLayerPolyline,
   MAP_LAYER_MARKERS_KEY,
   MAP_LAYER_POLYLINE_KEY,
-  useVisibleByWindow,
+  useWindowClock,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,

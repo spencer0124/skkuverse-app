@@ -1,24 +1,23 @@
 /**
  * The event list, living in the campus sheet while a chip has narrowed the map.
  *
- * Rows are the items of the layers the map is drawing — `selectVisibleItems`
+ * Rows are the places of the layers the map is drawing — `selectVisibleMarkers`
  * decides that, on the same `isLayerVisible` the render loop uses, so the list
- * and the pins cannot disagree about a layer. (A session outside its own time
- * window keeps its row, with a status badge, while its pin waits for the
- * window.) Which is also why this is a panel inside the
- * persistent sheet rather than a modal of its own: it describes the map the
- * user is looking at, and it goes away with the narrowing that produced it.
+ * and the pins cannot disagree about a layer. **A place the pin ladder
+ * suppressed still gets a row**: losing a shared coordinate to whoever is open
+ * at this hour says nothing about whether the place exists. That is why this is
+ * a panel inside the persistent sheet rather than a modal of its own — it
+ * describes the map the user is looking at, and it goes away with the narrowing
+ * that produced it.
  *
  * This is the only surface on which a sort is observable. Pins are positional,
- * and the order of items inside one pin's peek sheet is fixed by
- * `compareForStack` — so without a list, `snapshot.sorts` is data the app
- * receives and can never act on. That is also why the sort control lives here
- * rather than in `FilterSheet`: a sort selector next to the filters would be a
- * control with no visible effect.
+ * and a tap now resolves to exactly one place, so without a list the sort would
+ * be a control with no visible effect — which is also why it lives here rather
+ * than in `FilterSheet`.
  *
- * Rows are `compact` cards — same template, same resolver, thumbnail and tags
- * suppressed. Reusing the renderer means a template change shows up in both
- * places, instead of the list quietly drifting into its own layout.
+ * The orders are the client's own. The snapshot used to declare a `sorts` array
+ * with server-authored labels; there is no snapshot, so `PLACE_SORTS` is the
+ * offer and the labels are translations.
  *
  * The sheet's whole body, not a sibling of the feed: a gorhom scrollable cannot
  * nest inside another, so `CampusScreen` mounts this INSTEAD of the feed's
@@ -31,81 +30,79 @@ import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import {
-  resolveSlots,
+  PLACE_SORTS,
   SdsColors,
   useEventMapStore,
   useT,
-  type DerivedItem,
-  type EventMapCardTemplate,
-  type EventMapSort,
+  type PlaceSortKey,
+  type RawMarkerData,
+  type TranslationKey,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { FilterPill } from '@/features/map/components/FilterPill';
 import { logCampusContentSelect } from '@/services/analytics';
-import { CardRenderer } from './CardRenderer';
+import { PlaceCard } from './PlaceCard';
+
+const SORT_LABEL: Record<PlaceSortKey, TranslationKey> = {
+  order: 'eventmap.sort.order',
+  opening: 'eventmap.sort.opening',
+  title: 'eventmap.sort.title',
+};
 
 interface EventListPanelProps {
   /** Already narrowed to the visible layers and in the active sort. */
-  items: readonly DerivedItem[];
-  sorts: readonly EventMapSort[];
-  cardTemplates: Map<string, EventMapCardTemplate>;
-  onSelectItem: (item: DerivedItem) => void;
+  places: readonly RawMarkerData[];
+  /** From `useWindowClock`, so every row's pill re-derives at a boundary together. */
+  now: number;
+  onSelectPlace: (place: RawMarkerData) => void;
 }
 
-export function EventListPanel({ items, sorts, cardTemplates, onSelectItem }: EventListPanelProps) {
+export function EventListPanel({ places, now, onSelectPlace }: EventListPanelProps) {
   const { t, tpl } = useT();
   const sortId = useEventMapStore((s) => s.sortId);
   const setSortId = useEventMapStore((s) => s.setSortId);
 
   const renderItem = useCallback(
-    ({ item }: { item: DerivedItem }) => (
+    ({ item }: { item: RawMarkerData }) => (
       <Pressable
         style={styles.row}
         accessibilityRole="button"
         onPress={() => {
           logCampusContentSelect({ content_type: 'eventmap_list_row', item_id: item.id });
-          onSelectItem(item);
+          onSelectPlace(item);
         }}
       >
-        <CardRenderer
-          slots={resolveSlots(cardTemplates.get(item.cardTemplateId), item)}
-          status={item.status}
-          variant="compact"
-        />
+        <PlaceCard place={item} now={now} variant="compact" />
       </Pressable>
     ),
-    [cardTemplates, onSelectItem],
+    [now, onSelectPlace],
   );
 
   return (
     <>
       <View style={styles.header}>
         <Txt typography="t5" fontWeight="bold">
-          {tpl('eventmap.list.count', items.length)}
+          {tpl('eventmap.list.count', places.length)}
         </Txt>
       </View>
 
-      {sorts.length > 1 ? (
-        <View style={styles.sortRow}>
-          {sorts.map((sort) => (
-            <FilterPill
-              key={sort.id}
-              label={sort.label}
-              // Key off `id`, never `by`: ESKARA's 추천순 has id `manual` and
-              // `by: 'order'`, so the two are not interchangeable.
-              selected={sort.id === sortId}
-              onPress={() => {
-                logCampusContentSelect({ content_type: 'eventmap_sort', item_id: sort.id });
-                setSortId(sort.id);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
+      <View style={styles.sortRow}>
+        {PLACE_SORTS.map((sort) => (
+          <FilterPill
+            key={sort}
+            label={t(SORT_LABEL[sort])}
+            selected={sort === sortId}
+            onPress={() => {
+              logCampusContentSelect({ content_type: 'eventmap_sort', item_id: sort });
+              setSortId(sort);
+            }}
+          />
+        ))}
+      </View>
 
       <BottomSheetFlatList
-        data={items as DerivedItem[]}
-        keyExtractor={(item: DerivedItem) => item.id}
+        data={places as RawMarkerData[]}
+        keyExtractor={(item: RawMarkerData) => item.id}
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}

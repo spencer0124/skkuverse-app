@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-28
+last-updated: 2026-08-30
 audience: internal
 ---
 
@@ -73,7 +73,7 @@ crosses package boundaries.
 | [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | Why every modal route needs its own SafeAreaProvider |
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | The custom view marker bitmap snapshot race, and the fix |
-| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, the `layerId` join to `/map/config` and the list in the campus sheet |
+| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, the `layerId` join to `/map/config`, the list in the campus sheet and the client festival gate |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 | [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
 | [campus-sheet-liquid-glass.md](explanation/campus-sheet-liquid-glass.md) | Why the campus tab's sheets are floating glass cards, and the two different routes they take to get there |

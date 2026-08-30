@@ -3,7 +3,7 @@ title: Event Map Status Derives Against the Device Clock
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-27
+last-updated: 2026-08-30
 audience: internal
 ---
 
@@ -11,7 +11,14 @@ audience: internal
 
 ## Status
 
-Accepted — 2026-08-27.
+Accepted — 2026-08-27. **Amended 2026-08-30**: the snapshot tier this ADR reasons about was deleted
+server-side, so the premise in Context no longer holds — there is no `immutable, max-age=1y` payload
+and no `status` field on the wire. **The decision is unchanged and now applies more widely.**
+Openness is derived on the device from `hours[]` on the ordinary marker wire
+(`packages/shared/src/map/window.ts`), the clock is still uncorrected, and the reason is still the
+one below: a cached map on a dead network must keep telling the truth. Read every mention of
+"snapshot" here as "the marker payload", and see
+[eventmap-rendering.md §5](../explanation/eventmap-rendering.md) for the current design.
 
 ## Context
 
