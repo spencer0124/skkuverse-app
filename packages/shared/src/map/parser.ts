@@ -54,6 +54,12 @@ function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
     defaultVisible: (raw.defaultVisible as boolean) ?? false,
     endpoint: raw.endpoint as string,
     markerStyle: (raw.markerStyle as 'numberCircle' | 'numberDot' | 'textLabel') ?? undefined,
+    // Absent means `null`, which is the server's own meaningful value: a layer
+    // no chip may ever change. The client festival gate keys on it.
+    chipGroupId:
+      typeof raw.chipGroupId === 'string' && raw.chipGroupId !== ''
+        ? raw.chipGroupId
+        : null,
     style: raw.style
       ? parseLayerStyle(raw.style as Record<string, unknown>)
       : undefined,

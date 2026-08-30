@@ -29,8 +29,10 @@ import {
   useMapConfig,
   useCampusSections,
   useMapLayerStore,
+  withoutFestival,
   SdsColors,
 } from '@skkuverse/shared';
+import { isFestivalUnlocked } from './festivalGate';
 import { SduiSectionList } from '@/sdui/renderer';
 import { CampusSkeleton } from '@/sdui/widgets/CampusSkeleton';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -59,7 +61,26 @@ export function CampusScreen() {
   const filterSheetRef = useRef<BottomSheetModal>(null);
 
   // ── Data ──
-  const { data: mapConfig } = useMapConfig();
+
+  /**
+   * The client festival gate, applied ONCE, here.
+   *
+   * Everything festival-shaped on this runtime is downstream of this binding:
+   * the filter sheet's tiles, the render loop's marker layers, and the
+   * `/map/markers/event` fetch each of those layers would start. Stripping the
+   * config where it enters the screen removes all of them without a single
+   * festival-aware branch further down — see `festivalGate.ts` for what
+   * decides, and `packages/shared/src/map/festival.ts` for the filter.
+   *
+   * A second consumer of `useMapConfig` would NOT inherit this. There is none.
+   */
+  const festivalUnlocked = isFestivalUnlocked();
+
+  const { data: rawMapConfig } = useMapConfig();
+  const mapConfig = useMemo(
+    () => (rawMapConfig && !festivalUnlocked ? withoutFestival(rawMapConfig) : rawMapConfig),
+    [rawMapConfig, festivalUnlocked],
+  );
   const {
     data: campusData,
     isLoading: campusLoading,

@@ -188,6 +188,8 @@ export {
   parseMarkerData,
   parsePolylineData,
   DEFAULT_MAP_CONFIG,
+  isFestivalLayer,
+  withoutFestival,
 } from './map';
 
 // ── Building parsers ──

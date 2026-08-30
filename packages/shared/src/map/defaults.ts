@@ -36,6 +36,9 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       defaultVisible: true,
       endpoint: '/building/list',
       markerStyle: 'numberDot',
+      // The offline fallback carries no festival, and cannot: it has no way to
+      // know whether an activation is open. `null` is the honest answer.
+      chipGroupId: null,
     },
   ],
 };

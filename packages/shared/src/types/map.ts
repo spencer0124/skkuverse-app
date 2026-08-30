@@ -40,6 +40,21 @@ export interface MapLayerDef {
   endpoint: string;
   markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel';
   style?: MapLayerStyle;
+  /**
+   * The chip group this layer belongs to, or `null` for a layer no chip may
+   * change — the permanent building layers.
+   *
+   * This build reads it for one purpose: it is what separates festival content
+   * from permanent campus furniture, and so what the client festival gate keys
+   * on (`map/festival.ts`). The chips themselves are a later contract this
+   * build does not have.
+   *
+   * **Not optional, and `null` is the meaningful value rather than an absence.**
+   * A server predating the field parses to `null`, which fails in the safe
+   * direction: an unrecognised layer is treated as permanent and kept, not
+   * stripped from a map that would then be missing its buildings.
+   */
+  chipGroupId: string | null;
 }
 
 // ── Aggregate config from GET /map/config ──
