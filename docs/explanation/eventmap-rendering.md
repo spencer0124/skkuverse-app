@@ -562,8 +562,11 @@ constraint (§7.1) rather than a styling choice.
   with a typo'd `actionType` used to be handed to the webview opener and now does nothing. That is
   the intended direction — the failure mode of not understanding an action should not be to open it —
   but it reads as a regression in QA unless you know.
-- **`expo-location` is not a dependency.** A distance sort requires adding it — a native module, so a
-  fresh dev-client build. If permission is denied, **hide** the sort rather than showing a dead control.
+- **A distance sort needs permission handling, not a new dependency.** `expo-location` is already
+  one (`apps/mobile/package.json`), and `features/map/hooks/useLocationTracking.ts` uses it for the
+  locate button and the heading compass. What a distance sort still needs is the denied-permission
+  path: **hide** the sort rather than show a dead control. This bullet used to say the package was
+  absent, which was true when it was written and stopped being true when location tracking shipped.
 - **Do not bump `@mj-studio/react-native-naver-map`.** 2.9.0 changes nothing about clustering and
   bumps the native Naver SDK, so it needs `expo prebuild --clean` plus a manual `runtimeVersion` bump.
   Separately, `patches/@mj-studio+react-native-naver-map+2.7.0.patch` is now redundant — PR #184
