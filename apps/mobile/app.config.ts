@@ -102,8 +102,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "스꾸버스",
   slug: "skkubus",
   owner: "seungyongcho",
-  version: "3.5.1",
-  orientation: "portrait",
+  version: "3.6.0",
+  orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
   userInterfaceStyle: "light",
@@ -178,6 +178,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "aps-environment":
         process.env.APP_ENV === "development" ? "development" : "production",
     },
+    requireFullScreen: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       UIBackgroundModes: ["remote-notification"],
@@ -211,6 +212,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    ["expo-screen-orientation", { initialOrientation: "DEFAULT" }],
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
     "@react-native-firebase/crashlytics",
@@ -224,6 +226,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           useFrameworks: "static",
+          deploymentTarget: "15.1",
           extraPods: [
             { name: "GoogleMobileAdsMediationFacebook" },
           ],
