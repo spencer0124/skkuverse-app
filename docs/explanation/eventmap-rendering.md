@@ -182,7 +182,7 @@ window per document a booth open on both festival days had to be **two documents
 showed every place twice with nothing on the row to tell the rows apart — 28 `bar` documents over 18
 real bars in production.
 
-The old both-bounds-null had to mean an always-on 화장실 as well as a rain-cancelled bar, which is
+The old both-bounds-null had to mean an always-on 화장실 as well as a rain-cancelled bar, which is <!-- conventions:allow-korean: the place category the app shows -->
 precisely why a sibling `status` field had to exist to tell them apart, and why that field was
 load-bearing rather than redundant. A cancellation is expressed by the marker not being served —
 a cancelled place is deleted, not flagged — which frees `[]` to mean one thing.
@@ -278,7 +278,7 @@ whether a place exists — which is why selection (§4) and collision live in di
 > the same `id` — and they arrive in one `/map/markers/campus` response. Run the ladder over them and
 > every tie falls through to an identical `id`, suppressing one of the two at random. `CampusScreen`
 > passes `MapMarkerLayer` a `collisionPeers` set built from `isFestivalLayer` plus current
-> visibility. The second half matters too: a hidden 주점 must not suppress a visible 부스 and leave a
+> visibility. The second half matters too: a hidden 주점 must not suppress a visible 부스 and leave a <!-- conventions:allow-korean: the layer labels the app shows -->
 > hole where the booth should be.
 
 This replaced `stackKey`, which existed because several sessions collapsed onto one plot and a tap
@@ -554,7 +554,7 @@ constraint (§7.1) rather than a styling choice.
 - **Never run the collision ladder over a whole endpoint response.** The two building layers draw one
   building twice on purpose, from records sharing an `id`, so every tie-break falls through to an
   identical value and one of the pair is suppressed at random. Scope it with `collisionPeers` (§6.2).
-- **`hours: []` is ALWAYS OPEN, never "unknown".** Every place with no window — a 화장실, and also a
+- **`hours: []` is ALWAYS OPEN, never "unknown".** Every place with no window — a 화장실, and also a <!-- conventions:allow-korean: the place category the app shows -->
   place whose every window failed to parse — reads as open. That direction is deliberate: an ops typo
   shows a booth permanently open, which somebody notices and reports, rather than one that silently
   vanishes.
