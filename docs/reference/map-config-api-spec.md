@@ -241,6 +241,37 @@ The selected marker's size comes from `width`/`height`, whatever shape it takes 
 uses `width` as its diameter — so one field sizes the selected state and the two cannot disagree
 about what "selected" looks like.
 
+#### Rolling the festival layers onto it
+
+**The server does not have to send anything.** Every `placeDot` layer already gets `dotThenPin`
+from the client default, so the ESKARA layers switch to dots-plus-selected-pin with no `/map/config`
+change at all. Send `shape` only to opt a layer OUT of that default.
+
+The one case worth considering is a layer whose markers are **few and landmark-like**, where a
+teardrop reads better than a disc and there is no density to relieve — a main stage, say:
+
+```jsonc
+// only the exception needs a field; every other layer is left alone
+{
+  "id": "eskara26_stage",
+  "markerStyle": "placeDot",
+  "style": { "color": "F76CA0", "width": 22, "height": 30, "captionTextSize": 9, "shape": "pin" }
+}
+```
+
+Two things not to do:
+
+- **Do not add `shape` to every layer "for explicitness".** A layer carrying the value that equals
+  the default is a value that cannot follow the default when it changes, and the point of the
+  default living on the client is that it moves with the app that draws it.
+- **Do not put the shape in `markerStyle`.** `markerStyle` is checked against a closed allowlist and
+  an unrecognised member falls through to the building-number rendering, so a build older than the
+  new member draws every booth as a green numbered circle with the booth title inside it.
+
+Sizing, if a layer wants to depart from the defaults: `width`/`height` size the **selected** marker
+whatever shape it takes (a selected disc uses `width` as its diameter), and `size` sizes the
+**unselected** disc. Sending neither is the ordinary case.
+
 **Colour is deliberately absent from the building layers.** The number circle's fill and the
 `placeDot` tint fall back to a design token that resolves per theme, and a hex from the server
 cannot. Geometry is theme-independent and belongs on the wire; a colour that comes from a token
