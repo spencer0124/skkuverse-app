@@ -240,6 +240,7 @@ export {
   selectVisibleMarkers,
   sortPlaces,
   pickI18nText,
+  wrapMarkerLabel,
   PLACE_SORTS,
 } from './map';
 export type { PlaceSortKey, VisibleMarkersInput } from './map';

@@ -292,7 +292,10 @@ by the maintainer in 2024 promising these options and was stale-bot closed undel
 ### 6.1 Density levers, in order
 
 1. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapMarkerLayer`
-2. **the collision ladder** (§6.2)
+2. **the caption line budget** (§6.3) — a narrower caption collides with fewer neighbours, and a
+   collision here hides the whole label rather than shortening it, so wrapping puts *more* names on
+   screen rather than fewer
+3. **the collision ladder** (§6.2)
 
 ### 6.2 One pin per coordinate
 
@@ -331,6 +334,44 @@ whether a place exists — which is why selection (§4) and collision live in di
 This replaced `stackKey`, which existed because several sessions collapsed onto one plot and a tap
 could not say which was meant. A place is one document now and `tap.placeId` is its own id, so two
 booths sharing a spot are two taps and the peek sheet shows one place.
+
+### 6.3 The caption is wrapped in JS, and the native wrapper is switched off
+
+A caption is capped at two lines — 14 display columns for `textLabel`, 16 for `placeDot`, where a
+Hangul syllable counts as 2. `wrapMarkerLabel` (`packages/shared/src/map/text.ts`) inserts the
+breaks and ellipsizes the overflow before the string reaches `caption.text`, and both branches pass
+`requestedWidth: 0`, the SDK's "do not auto-wrap".
+
+**Why not the SDK's own `requestedWidth`,** which exists for exactly this. Two reasons, and the
+second is the one that closes the door:
+
+1. It was already set, to `200`, and had never once fired. That is dp on Android and points on iOS,
+   while the longest booth title renders at about 157dp at `captionTextSize: 9` — the knob sat above
+   every label it governed.
+2. Lowering it would still not be enough. The SDK's own documentation on the prop says the caption
+   breaks at a suitable position **unless the text is written with no spaces at all**. The native
+   wrapper is whitespace-seeking, and the labels that most need breaking are Korean compounds with
+   no whitespace in them: 올림픽기념국민생활관 is 20 columns and zero spaces, 자연과학캠퍼스학생회관
+   is 22 and zero. <!-- conventions:allow-korean: the building names the app draws --> 27 of the 61
+   booth titles likewise carry no space.
+
+So the break opportunities have to be in the string. That is the only lever the native side offers,
+because these captions are the SDK's **native** `caption` prop rather than a React `<Text>` —
+`numberOfLines` does not exist on them, and re-drawing them as custom views would re-enter the
+Android bitmap-snapshot race across ~137 buildings and ~100 booths at once (§6, and
+[android-naver-map-markers.md](android-naver-map-markers.md)).
+
+Two things about the implementation are worth knowing before changing it:
+
+- **The fill is `wrap-ansi` and the width model is `string-width`.** Neither is reimplemented.
+  What is ours is that `wrap-ansi` is called *twice* — soft first, then hard on only those lines
+  that still overflow and also carry a wide character. One pass is wrong in both directions: soft
+  alone leaves a space-free Korean compound on one line, which is the native failure above, and hard
+  alone splits `International` down the middle. A pure-Latin line over the cap is left to overflow,
+  which is what CJK line breaking prescribes.
+- **The two column caps are swept values, not preferences.** At 14 and 16 no wrap leaves a
+  one-syllable widow on the second line, so no line-balancing code has to exist. Retune the constant
+  before reaching for an algorithm.
 
 ## 7. Actions and the map scheme
 

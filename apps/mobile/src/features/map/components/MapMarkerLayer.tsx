@@ -44,6 +44,7 @@ import {
   type MarkerTap,
   type RawMarkerData,
   useSettingsStore,
+  wrapMarkerLabel,
   SdsColors,
 } from '@skkuverse/shared';
 
@@ -80,6 +81,32 @@ const DOT_TEXT_RATIO = 7 / 16;
 
 /** The label layer draws above every other overlay. Was `globalZIndex={100000}`. */
 const LABEL_Z_INDEX = 100000;
+
+/**
+ * The caption's line budget, in display columns — a Hangul syllable is 2.
+ *
+ * NOT arbitrary: both numbers were swept against the 61 real booth titles and
+ * the real building names. At these two values no wrap leaves a one-syllable
+ * widow on the second line (the `600주년기념` / `관` split that reads as a
+ * rendering bug), so no line-balancing code has to exist — the constant does
+ * that work. Only 3 of the 61 booth titles need clamping at all.
+ *
+ * It is a density lever as well as a legibility one. A narrower caption collides
+ * with fewer neighbours, and a collision under `isHideCollidedCaptions` hides the
+ * whole label rather than shortening it, so wrapping puts MORE names on screen.
+ */
+const CAPTION_COLS = { textLabel: 14, placeDot: 16 } as const;
+const CAPTION_MAX_LINES = 2;
+
+/**
+ * `0` is the SDK's "do not auto-wrap". It used to be 200, which sat above every
+ * label it governed — the longest booth title renders at ~157dp — so it never
+ * fired once. Lowering it would not have been enough either: the native wrapper
+ * breaks at whitespace, and the Korean names that need breaking have none.
+ * Line breaking is `wrapMarkerLabel`'s job now, and leaving a second wrapper
+ * live behind it would only make the breaks non-deterministic.
+ */
+const NO_NATIVE_WRAP = 0;
 
 /**
  * Pick the string to draw for the current app language.
@@ -190,10 +217,14 @@ export function MapMarkerLayer({
               height={1}
               image={MARKER_ICON}
               caption={{
-                text: label,
+                text: wrapMarkerLabel(
+                  label,
+                  CAPTION_COLS.textLabel,
+                  CAPTION_MAX_LINES,
+                ),
                 textSize: layer.style?.captionTextSize ?? 7,
                 color: toCssColor(layer.style?.color, 'black'),
-                requestedWidth: 200,
+                requestedWidth: NO_NATIVE_WRAP,
               }}
               isHideCollidedCaptions
               globalZIndex={layer.style?.zIndex ?? LABEL_Z_INDEX}
@@ -223,9 +254,13 @@ export function MapMarkerLayer({
               image={{ symbol: 'black' }}
               tintColor={toCssColor(layer.style?.color, SdsColors.brand)}
               caption={{
-                text: label,
+                text: wrapMarkerLabel(
+                  label,
+                  CAPTION_COLS.placeDot,
+                  CAPTION_MAX_LINES,
+                ),
                 textSize: layer.style?.captionTextSize ?? 9,
-                requestedWidth: 200,
+                requestedWidth: NO_NATIVE_WRAP,
               }}
               // The density lever for a layer that really does put every marker
               // on screen at once, which the building layers never do.
