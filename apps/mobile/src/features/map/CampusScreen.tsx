@@ -1334,6 +1334,7 @@ export function CampusScreen() {
                   key={layer.id}
                   layer={layer}
                   collisionPeers={collisionPeers}
+                  selectedPlaceId={selectedPlaceId}
                   onMarkerTap={handleMarkerTap}
                 />
               );

@@ -33,7 +33,7 @@
  * Flutter source: MapLayerController._buildMarkersFromJson
  */
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import {
@@ -49,8 +49,42 @@ import {
 } from '@skkuverse/shared';
 
 import { toCssColor } from '../utils/toCssColor';
+import { resolveMarkerGeometry } from '../utils/markerShape';
 
 const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
+
+/**
+ * Module constants, NOT inline props, and that is load-bearing on Android.
+ *
+ * `image={{ symbol: 'black' }}` written inline allocates a fresh object on every
+ * render, and Android's `setImage` has no equality guard — it goes back through
+ * Fresco whenever the setter fires. This layer now re-renders on every selection
+ * change, so an inline literal would push ~100 markers back through image
+ * resolution each time a booth is tapped.
+ */
+const PIN_IMAGE = { symbol: 'black' } as const;
+/**
+ * A black disc inside a white ring, on a transparent canvas.
+ *
+ * Black because Naver's tint BLENDS rather than replaces — the same reason
+ * `{symbol: 'black'}` is the tintable teardrop. The core takes the layer's
+ * colour and the ring stays white, so one asset serves every category instead of
+ * one PNG per hex. The transparent margin is the tap target; see
+ * `DOT_CANVAS_RATIO` in `utils/markerShape.ts`.
+ */
+const DOT_IMAGE = require('../../../../assets/images/marker-dot.png');
+
+/**
+ * The selected marker's draw order. Every other marker leaves `zIndex` at the
+ * SDK default of 0, so any positive value wins.
+ *
+ * This buys draw ORDER — the promoted pin paints over its neighbours instead of
+ * under them — which is what the dense strip needs. It is deliberately not
+ * `globalZIndex`: that moves a marker between the SDK's overlay layers, and the
+ * `textLabel` branch below already sets 100000 there, so writing it here would
+ * reorder building names against booth pins.
+ */
+const SELECTED_Z = 1000;
 
 /**
  * Geometry fallbacks, for a server that does not send `style` geometry.
@@ -64,10 +98,6 @@ const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
  * does not.
  */
 const DOT_SIZE = 16;
-
-/** The tintable base icon's natural proportions, so the tint is not distorted. */
-const PIN_WIDTH = 22;
-const PIN_HEIGHT = 30;
 
 /**
  * The number's glyph size as a fraction of the circle it sits in.
@@ -147,6 +177,87 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
   );
 });
 
+/**
+ * The id a selection is expressed in.
+ *
+ * `tap.placeId` is the addressing scheme, and `id` is the same string for an
+ * event marker — the equivalence `handleSelectFromList` already leans on when it
+ * falls back to `place.id`, and the one `resolvePinCollisions` matches on.
+ */
+function placeIdOf(marker: RawMarkerData): string {
+  return marker.tap?.placeId ?? marker.id;
+}
+
+/**
+ * One booth: a small tinted disc, or a teardrop when it is the selected one.
+ *
+ * **Memoised, and that is required rather than a tidy-up.** This layer now
+ * subscribes to the selection, so it re-renders on every marker tap — without
+ * the memo all ~100 booths would rebuild their props (and re-run `object-hash`
+ * over their captions, which the library does per marker per render) each time
+ * somebody opens a peek sheet. With it, a tap re-renders exactly the two markers
+ * whose selection actually changed.
+ *
+ * Every prop is a primitive or a reference React Query keeps stable across
+ * refetches — `layerStyle` off the map config, `tap` off the marker, and an
+ * `onMarkerTap` that is a `useCallback` in `CampusScreen`. A fresh object here
+ * would defeat the memo silently.
+ */
+const PlaceMarker = React.memo(function PlaceMarker({
+  lat,
+  lng,
+  label,
+  layerStyle,
+  isSelected,
+  tap,
+  onMarkerTap,
+}: {
+  lat: number;
+  lng: number;
+  label: string;
+  layerStyle: MapLayerDef['style'];
+  isSelected: boolean;
+  tap: MarkerTap | null;
+  onMarkerTap: (tap: MarkerTap) => void;
+}) {
+  const onTap = useCallback(() => {
+    if (tap) onMarkerTap(tap);
+  }, [tap, onMarkerTap]);
+
+  const geometry = resolveMarkerGeometry(layerStyle?.shape, isSelected, layerStyle);
+
+  return (
+    <NaverMapMarkerOverlay
+      latitude={lat}
+      longitude={lng}
+      width={geometry.width}
+      height={geometry.height}
+      // The anchor moves WITH the shape. A teardrop hangs by its tip and a disc
+      // by its centre, so growing one into the other without this slides the
+      // marker off the coordinate it exists to mark.
+      anchor={{ x: 0.5, y: geometry.anchorY }}
+      // Both states are IMAGES, never React children. A child View re-enters the
+      // Android bitmap-snapshot race and, worse, Android's `ViewChangesTracker`
+      // re-rasterises every custom-view marker every 40 ms forever — which at
+      // ~100 booths is thousands of canvas draws a second on the UI thread.
+      // Naver's tint blends rather than replaces, so a black source plus
+      // `tintColor` expresses the whole appearance without one.
+      image={geometry.kind === 'pin' ? PIN_IMAGE : DOT_IMAGE}
+      tintColor={toCssColor(layerStyle?.color, SdsColors.brand)}
+      caption={{
+        text: wrapMarkerLabel(label, CAPTION_COLS.placeDot, CAPTION_MAX_LINES),
+        textSize: layerStyle?.captionTextSize ?? 9,
+        requestedWidth: NO_NATIVE_WRAP,
+      }}
+      // The density lever for a layer that really does put every marker on
+      // screen at once, which the building layers never do.
+      isHideCollidedCaptions
+      zIndex={isSelected ? SELECTED_Z : 0}
+      onTap={tap ? onTap : undefined}
+    />
+  );
+});
+
 interface MapMarkerLayerProps {
   layer: MapLayerDef;
   /**
@@ -162,12 +273,27 @@ interface MapMarkerLayerProps {
    * behind, so hiding it would leave a hole where the booth should be.
    */
   collisionPeers: ReadonlySet<string>;
+  /**
+   * The place the peek sheet is open on, or `null`.
+   *
+   * Passed down rather than read from `useEventMapStore` here, so the map holds
+   * ONE subscription instead of one per layer — a write to that store re-renders
+   * every consumer, and there are eight of these mounted.
+   *
+   * It reaches two places, and both matter. It promotes one marker's shape, and
+   * it enters the collision ladder as step 0 so the promoted marker is
+   * guaranteed to exist: without that, selecting a place whose coordinate is
+   * shared flies the camera to somebody else's pin while the sheet names a place
+   * that is not drawn.
+   */
+  selectedPlaceId: string | null;
   onMarkerTap: (tap: MarkerTap) => void;
 }
 
 export function MapMarkerLayer({
   layer,
   collisionPeers,
+  selectedPlaceId,
   onMarkerTap,
 }: MapMarkerLayerProps) {
   const { data: markers } = useLayerMarkers(layer.endpoint, true);
@@ -191,9 +317,9 @@ export function MapMarkerLayer({
     // other order would let each layer keep its own winner and put two pins back
     // on the one coordinate the ladder exists to clear.
     const peers = all.filter((m) => collisionPeers.has(m.layerId));
-    const drawn = new Set(resolvePinCollisions(peers, now));
+    const drawn = new Set(resolvePinCollisions(peers, now, selectedPlaceId));
     return own.filter((m) => drawn.has(m));
-  }, [all, layer.id, collisionPeers, now]);
+  }, [all, layer.id, collisionPeers, now, selectedPlaceId]);
 
   if (!visible.length) return null;
 
@@ -235,37 +361,25 @@ export function MapMarkerLayer({
 
         if (layer.markerStyle === 'placeDot') {
           return (
-            <NaverMapMarkerOverlay
+            <PlaceMarker
               // No `label` in this key, unlike the branch below, and that is not
               // an oversight: this marker has no React children, so there is no
               // custom-view bitmap to force a re-capture of. The caption is a
               // native prop the SDK re-applies on its own — it hashes the
               // caption into `caption.key` and updates when the hash changes.
+              //
+              // `isSelected` is deliberately NOT in the key either. Selecting a
+              // marker changes its image, size and anchor through props, which
+              // both platforms diff; remounting instead would tear down a native
+              // overlay on every tap for no gain.
               key={key}
-              latitude={marker.lat}
-              longitude={marker.lng}
-              width={layer.style?.width ?? PIN_WIDTH}
-              height={layer.style?.height ?? PIN_HEIGHT}
-              // The SDK's BLACK symbol is Naver's tintable base, so the layer's
-              // own colour renders exactly rather than being snapped to one of
-              // the seven built-in symbol colours. Drawing this as a child View
-              // instead would re-enter the Android bitmap-snapshot race for
-              // ~100 markers at once, and buy nothing.
-              image={{ symbol: 'black' }}
-              tintColor={toCssColor(layer.style?.color, SdsColors.brand)}
-              caption={{
-                text: wrapMarkerLabel(
-                  label,
-                  CAPTION_COLS.placeDot,
-                  CAPTION_MAX_LINES,
-                ),
-                textSize: layer.style?.captionTextSize ?? 9,
-                requestedWidth: NO_NATIVE_WRAP,
-              }}
-              // The density lever for a layer that really does put every marker
-              // on screen at once, which the building layers never do.
-              isHideCollidedCaptions
-              onTap={onTap}
+              lat={marker.lat}
+              lng={marker.lng}
+              label={label}
+              layerStyle={layer.style}
+              isSelected={selectedPlaceId !== null && placeIdOf(marker) === selectedPlaceId}
+              tap={marker.tap}
+              onMarkerTap={onMarkerTap}
             />
           );
         }

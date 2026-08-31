@@ -49,7 +49,37 @@ export interface MapLayerStyle {
   captionTextSize?: number;
   /** Draw order against other overlays. Was the label layer's globalZIndex. */
   zIndex?: number;
+  /**
+   * How a place marker draws unselected, and what it becomes when selected.
+   *
+   * **Absent means the client's default (`dotThenPin`), not `pin`.** A server
+   * predating the field gets Naver's behaviour rather than the old always-a-pin
+   * look, which is the point: the default is a client decision and the field is
+   * only an override for a layer that wants something else.
+   *
+   * It lives here rather than as a fourth `markerStyle` member, and the failure
+   * direction is the whole argument. An unrecognised `markerStyle` resolves to
+   * `undefined` and falls through to the building-number branch, so a server
+   * shipping a new member would make every older build draw booths as green
+   * numbered circles. An unrecognised `shape` also resolves to `undefined`, but
+   * there that reads as "the server did not say" and the client keeps its own
+   * default. Additive and fail-safe in both directions.
+   *
+   * - `dotThenPin` — a small circle, promoted to a teardrop when selected.
+   * - `dot` — a small circle either way, for a layer where a teardrop is too
+   *   tall to sit in a dense strip.
+   * - `pin` — a teardrop either way. The pre-2026-08 look.
+   */
+  shape?: MarkerShape;
 }
+
+/**
+ * The shapes a place marker can take.
+ *
+ * A literal union rather than a string, so `asMember` can check it and every
+ * `switch` over it is exhaustive. See `MapLayerStyle.shape`.
+ */
+export type MarkerShape = 'pin' | 'dot' | 'dotThenPin';
 
 /**
  * One daily recurring window, in KST wall-clock `"HH:MM"`, half-open

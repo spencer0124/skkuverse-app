@@ -25,7 +25,7 @@ audience: internal
 | Pins | Ordinary `/map/config` marker layers, drawn by `MapMarkerLayer` (§6) |
 
 The app computes exactly two things, and neither is a business rule: **openness**, against the device
-clock (§5), and **which pin wins a shared coordinate** (§6.2). Everything else arrives resolved.
+clock (§5), and **which pin wins a shared coordinate** (§6.3). Everything else arrives resolved.
 Which layer a place belongs to is `layerId` — a `/map/config` layer id, stamped server-side by the
 same resolver that stamps its marker (§4).
 
@@ -50,7 +50,7 @@ fetches are the data the list and the peek sheet render.** What left the client 
 | `cardTemplates`, `EventMapCardSlot`, `resolveSlots`, `CardRenderer` | `PlaceCard`, a fixed layout over `subtitle` / `hours` / `fields` |
 | `sorts` declared by the server | `PLACE_SORTS` in `map/list.ts`, labelled by translation |
 | `status` on the wire, `ItemStatus`, `deriveItemStatus` | `isOpenNow(hours, now)` (§5) |
-| `stackKey`, `buildStacks`, stacked peek cards | `resolvePinCollisions` (§6.2); a tap is one place |
+| `stackKey`, `buildStacks`, stacked peek cards | `resolvePinCollisions` (§6.3); a tap is one place |
 | `eventmap-refresh` silent push, `services/silent-push.ts` | nothing — the server deleted the sender |
 
 ## 2. Fetch path
@@ -122,7 +122,7 @@ marker route serves markers per served layer — so the two stay in step for an 
 activation window too.
 
 **The list describes the layer. The pin describes the coordinate.** A place suppressed by the
-collision ladder (§6.2) keeps its row: losing a shared spot to whoever is open at this hour says
+collision ladder (§6.3) keeps its row: losing a shared spot to whoever is open at this hour says
 nothing about whether the place exists. This is the one place the two views deliberately differ, and
 it is why selection and collision live in separate modules.
 
@@ -204,7 +204,7 @@ rare case justified.
 The client never hides a marker outside its windows. That filtering was how the old map coped
 with a crowded field, which was a workaround for the day-split rather than a feature; layers and
 chips do that job now. `useVisibleByWindow` — which filtered — became `useWindowClock`, which returns
-a `now` and filters nothing. What openness still decides is which pin wins a shared coordinate (§6.2)
+a `now` and filters nothing. What openness still decides is which pin wins a shared coordinate (§6.3)
 and how a row is labelled.
 
 `nextWindowBoundaryAfter` finds the timer's target, and the result is clamped to `MAX_TIMEOUT_MS`:
@@ -259,9 +259,9 @@ The layers' windows are armed on `CampusScreen`'s clock alongside the markers', 
 optional: a layer that is currently hidden is not mounted, so it arms no timer of its own and 18:00
 would otherwise arrive with nothing in the app waiting for it.
 
-## 6. Rendering: pins, not clusters
+## 6. Rendering: shapes, not clusters
 
-Booth pins are drawn by `MapMarkerLayer`, one `<NaverMapMarkerOverlay>` per marker the server
+Booth markers are drawn by `MapMarkerLayer`, one `<NaverMapMarkerOverlay>` per marker the server
 serves, exactly as the building layers are. The choice of overlays over the SDK's clusterer predates
 that and still holds. Verified against the current release, not assumed: we run 2.7.0, latest is
 2.9.0, and `src/types/ClusterMarkerProp.ts` is **byte-identical** between them.
@@ -289,15 +289,58 @@ by the maintainer in 2024 promising these options and was stale-bot closed undel
 - The `updateLeafMarker` marker-reuse warning in Naver's native docs is an **Android SDK concern that
   does not apply** at the RN declarative layer.
 
-### 6.1 Density levers, in order
+### 6.1 A dot by default, a pin when selected
 
-1. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapMarkerLayer`
-2. **the caption line budget** (§6.3) — a narrower caption collides with fewer neighbours, and a
+A place marker is a **small tinted disc**, and only the marker the peek sheet is open on becomes a
+teardrop. That is Naver Map's own answer to the same problem, and the west strip is the problem: two
+columns of ~40 markers, each a 22×30 teardrop, overlapping badly enough that almost no caption
+survives collision.
+
+The axis is `style.shape` on the layer — `dotThenPin` (the default), `dot`, `pin` — resolved by
+`resolveMarkerGeometry` (`features/map/utils/markerShape.ts`) and nowhere else. Three things about
+it are load-bearing:
+
+- **The anchor moves with the shape.** A teardrop hangs by its tip (`y: 1`) and a disc by its centre
+  (`y: 0.5`). Swapping the image on selection without swapping the anchor slides the marker off the
+  coordinate it exists to mark — silently, and only for the marker being looked at. That is why the
+  geometry is a tested pure function rather than three ternaries in the render loop.
+- **Both states stay IMAGES.** Naver's tint blends rather than replaces, so a black source plus
+  `tintColor` expresses the whole appearance: `marker-dot.png` is a black disc inside a white ring,
+  and one asset therefore serves every category colour. Drawing either state as a child View would
+  re-enter the Android bitmap-snapshot race, and with it Android's 40 ms re-rasterisation of every
+  custom-view marker — see [android-naver-map-markers.md](android-naver-map-markers.md).
+- **The dot asset carries transparent padding, and it is the tap target.** `style.size` names the
+  VISIBLE disc; the overlay is told `size * DOT_CANVAS_RATIO`. An 18pt disc on a 28pt canvas is
+  tappable, a bare 14pt one is not.
+
+The selected marker also takes a positive `zIndex`, which buys draw order — it paints over its
+neighbours instead of under them. It is `zIndex` rather than `globalZIndex` deliberately: that
+moves a marker between the SDK's overlay layers, and the `textLabel` branch already sets
+`100000` there.
+
+Selection reaches `MapMarkerLayer` as a **prop from `CampusScreen`**, not a store subscription of
+its own — one subscription instead of eight — and the `placeDot` branch is a memoised `PlaceMarker`
+so a tap re-renders the two markers whose selection changed rather than all ~100.
+
+### 6.2 Density levers, in order
+
+1. **the dot** (§6.1) — roughly 60% less screen area per marker than a teardrop
+2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapMarkerLayer`
+3. **the caption line budget** (§6.4) — a narrower caption collides with fewer neighbours, and a
    collision here hides the whole label rather than shortening it, so wrapping puts *more* names on
    screen rather than fewer
-3. **the collision ladder** (§6.2)
+4. **the collision ladder** (§6.3)
 
-### 6.2 One pin per coordinate
+`isHideCollidedMarkers` is the unused next rung, and it is the one that matches the actual failure:
+screen-space overlap between DISTINCT coordinates, which the ladder does not address at all. It
+hides *other* markers colliding with whichever marker carries the flag, so the selected marker needs
+`isForceShowIcon` to be safe from it. What it cannot give is a **count** — only clustering can, and
+clustering cannot give captions, tint, `zIndex`, anchor or a selected state, because a cluster leaf
+accepts only `identifier`, `latitude`, `longitude`, `image`, `width` and `height` and Naver's default
+leaf updater resets `captionText` to `""` on every pass. The two are mutually exclusive on the same
+markers.
+
+### 6.3 One pin per coordinate
 
 A coordinate is shared for exactly one reason on this map: a spot is used by different occupants at
 different times. The west strip is booths from 11:00 and bars from 18:00, and `daybooth-01` shares
@@ -306,12 +349,22 @@ its point with two bars because it is the same stall re-striped at dusk.
 The server drops, merges and clock-filters nothing — it ships every place with what the client needs
 to disambiguate. `resolvePinCollisions` (`packages/shared/src/map/pins.ts`) picks the pin:
 
+0. **is the selected place** (only while one is selected)
 1. **open right now**
 2. tie → highest `pinPriority`
 3. tie → next opening soonest
 4. tie → lowest `order`, then `id`
 
-**Openness comes first, and the order is load-bearing.** Only step 1 knows about the re-striping.
+**Step 0 answers a different question from the rest, which is why it outranks them.** Steps 1-4 ask
+who best represents a spot right now; step 0 asks which spot the user just asked about. Without it,
+selecting a suppressed place from the list flies the camera to a coordinate carrying somebody else's
+marker while the peek sheet names a place that is not drawn — survivable when every marker was a
+pin, and glaring now that the selected one is the only pin on the map (§6.1). It cannot tie, since
+at most one marker matches, so it is exempt from the totality argument below. It matches on `id`
+rather than `tap.placeId`, which keeps `PinCandidate` minimal: the two are the same string for an
+event marker, and only event layers are ever collision peers.
+
+**Openness comes first among the rest, and the order is load-bearing.** Only step 1 knows about the re-striping.
 With `pinPriority` first the operations desk would spend its entire 11:00–18:00 window hidden behind
 a bar that is shut, because `bar` outranks `booth` on a number that cannot see the clock.
 
@@ -335,7 +388,7 @@ This replaced `stackKey`, which existed because several sessions collapsed onto 
 could not say which was meant. A place is one document now and `tap.placeId` is its own id, so two
 booths sharing a spot are two taps and the peek sheet shows one place.
 
-### 6.3 The caption is wrapped in JS, and the native wrapper is switched off
+### 6.4 The caption is wrapped in JS, and the native wrapper is switched off
 
 A caption is capped at two lines — 14 display columns for `textLabel`, 16 for `placeDot`, where a
 Hangul syllable counts as 2. `wrapMarkerLabel` (`packages/shared/src/map/text.ts`) inserts the
@@ -618,7 +671,7 @@ server opens the window**.
 | `packages/shared/src/map/parser.ts` | tolerant parse of the marker wire (§3), and the unreadable-declaration policy (§5.4) |
 | `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` — absolute instants (§5) |
 | `packages/shared/src/map/daily-window.ts` | `kstMinutesOfDay`, `isDailyWindowOpen`, `nextDailyBoundaryAfter` — recurring KST wall-clock (§5.4) |
-| `packages/shared/src/map/pins.ts` | `resolvePinCollisions` — the coordinate ladder (§6.2) |
+| `packages/shared/src/map/pins.ts` | `resolvePinCollisions` — the coordinate ladder (§6.3) |
 | `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` and `PLACE_SORTS` (§4.2) |
 | `packages/shared/src/map/text.ts` | `pickI18nText` — the one place a language is chosen |
 | `packages/shared/src/map/chips.ts` | `isLayerVisible` (the four tiers, §5.4), `defaultVisibleAt`, and the chip rules the list borrows (§4.1) |
@@ -659,7 +712,7 @@ constraint (§7.1) rather than a styling choice.
   in the ocean and **never throw**. Do not introduce a positional pair here.
 - **Never run the collision ladder over a whole endpoint response.** The two building layers draw one
   building twice on purpose, from records sharing an `id`, so every tie-break falls through to an
-  identical value and one of the pair is suppressed at random. Scope it with `collisionPeers` (§6.2).
+  identical value and one of the pair is suppressed at random. Scope it with `collisionPeers` (§6.3).
 - **`hours: []` is ALWAYS OPEN, never "unknown".** Every place with no window — a 화장실, and also a <!-- conventions:allow-korean: the place category the app shows -->
   place whose every window failed to parse — reads as open. That direction is deliberate: an ops typo
   shows a booth permanently open, which somebody notices and reports, rather than one that silently

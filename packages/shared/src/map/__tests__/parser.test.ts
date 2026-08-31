@@ -465,7 +465,35 @@ describe('parseMapConfig — the marker geometry that used to be hardcoded', () 
       size: 16,
       captionTextSize: 9,
       zIndex: 100000,
+      shape: undefined,
     });
+  });
+});
+
+describe('parseMapConfig — style.shape, the marker shape axis', () => {
+  // The shape axis lives on `style` rather than as a new `markerStyle` member,
+  // and these two tests are the reason. An unknown `markerStyle` resolves to
+  // `undefined`, which falls through to the building-number branch — a server
+  // shipping a new member would make an older build draw every booth as a green
+  // numbered circle. An unknown `shape` resolves to `undefined` too, but that
+  // reads as "the server did not say" and the client keeps its own default. The
+  // failure directions are opposite, which is the whole argument.
+  it('passes each known shape through', () => {
+    for (const shape of ['pin', 'dot', 'dotThenPin'] as const) {
+      expect(parseLayers({ style: { shape } }).style?.shape).toBe(shape);
+    }
+  });
+
+  it('drops an unknown shape to undefined so the client default renders', () => {
+    expect(parseLayers({ style: { shape: 'teardrop' } }).style?.shape).toBeUndefined();
+  });
+
+  it('drops a non-string shape to undefined', () => {
+    expect(parseLayers({ style: { shape: 3 } }).style?.shape).toBeUndefined();
+  });
+
+  it('leaves shape undefined for a server that predates the field', () => {
+    expect(parseLayers({ style: { color: 'F04452' } }).style?.shape).toBeUndefined();
   });
 });
 
@@ -486,6 +514,7 @@ describe('parseMapConfig — a malformed style value falls back rather than beco
       size: undefined,
       captionTextSize: undefined,
       zIndex: undefined,
+      shape: undefined,
     });
   });
 

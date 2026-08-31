@@ -150,3 +150,61 @@ describe('resolvePinCollisions — what it leaves alone', () => {
     expect(resolvePinCollisions([], NOON)).toEqual([]);
   });
 });
+
+describe('resolvePinCollisions — step 0, the selected place wins its coordinate', () => {
+  // Why this outranks openness: a selected place is one the user is LOOKING at.
+  // The peek sheet is open on it and the camera has flown to its coordinate, so
+  // drawing a different occupant there is the map contradicting the sheet in
+  // front of it. Every lower step answers "who best represents this spot right
+  // now"; this one answers "which spot did the user ask about", and that is not
+  // a question the clock gets a vote on.
+  const booth = place({ id: 'daybooth-01', hours: [DAY], pinPriority: 10 });
+  const bar = place({ id: 'bar-01', hours: [NIGHT], pinPriority: 30 });
+
+  it('draws the selected bar at noon, when openness alone would draw the booth', () => {
+    expect(ids(resolvePinCollisions([booth, bar], NOON, 'bar-01'))).toEqual(['bar-01']);
+  });
+
+  it('draws the selected booth at dusk, when openness alone would draw the bar', () => {
+    expect(ids(resolvePinCollisions([booth, bar], DUSK, 'daybooth-01'))).toEqual([
+      'daybooth-01',
+    ]);
+  });
+
+  it('does not depend on input order', () => {
+    expect(ids(resolvePinCollisions([bar, booth], NOON, 'bar-01'))).toEqual(['bar-01']);
+  });
+
+  it('changes nothing when the selected id is at a coordinate of its own', () => {
+    const far = place({ ...ELSEWHERE, id: 'far', hours: [DAY] });
+    expect(ids(resolvePinCollisions([booth, bar, far], NOON, 'far'))).toEqual([
+      'daybooth-01',
+      'far',
+    ]);
+  });
+
+  it('changes nothing when the selected id matches no marker', () => {
+    expect(ids(resolvePinCollisions([booth, bar], NOON, 'not-here'))).toEqual([
+      'daybooth-01',
+    ]);
+  });
+
+  it('changes nothing when the argument is null or absent', () => {
+    expect(ids(resolvePinCollisions([booth, bar], NOON, null))).toEqual(['daybooth-01']);
+    expect(ids(resolvePinCollisions([booth, bar], NOON))).toEqual(['daybooth-01']);
+  });
+
+  // The ladder matches on `id` rather than on `tap.placeId`, which keeps
+  // `PinCandidate` the minimal shape it is. That is only sound while the two are
+  // the same string for an event marker — the same equivalence
+  // `handleSelectFromList` relies on when it falls back to `place.id`. If a
+  // schema change ever breaks it, it must break HERE and not silently un-pin the
+  // selection on the map.
+  it('matches the id that an event marker also carries as its tap placeId', () => {
+    const marker = {
+      id: 'booth-42',
+      tap: { kind: 'event' as const, placeId: 'booth-42' },
+    };
+    expect(marker.tap.placeId).toBe(marker.id);
+  });
+});

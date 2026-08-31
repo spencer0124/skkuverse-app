@@ -15,10 +15,20 @@
  *
  * ## The ladder, and why openness comes first
  *
+ * 0. **is the selected place** (only when a `selectedId` is passed)
  * 1. **open right now**
  * 2. tie → highest `pinPriority`
  * 3. tie → next opening soonest
  * 4. tie → lowest `order`, then `id`
+ *
+ * Step 0 sits above openness because it answers a different question. Steps 1-4
+ * ask who best represents a spot right now; step 0 asks which spot the user just
+ * asked about. Without it, selecting a suppressed place from the list flies the
+ * camera to a coordinate carrying somebody else's pin while the peek sheet names
+ * the place that is not drawn. It matches on `id` rather than `tap.placeId`, so
+ * `PinCandidate` stays minimal — the two are the same string for an event
+ * marker, which is the equivalence `handleSelectFromList` already relies on, and
+ * only event layers are ever collision peers.
  *
  * Only step 1 knows about the re-striping. With `pinPriority` first the
  * operations desk would spend its entire 11:00–18:00 window hidden behind a bar
@@ -74,7 +84,24 @@ function coordKey(m: PinCandidate): string {
  * is a pin that swaps identity underneath a user who is looking at it. `order`
  * then `id` closes it.
  */
-function beats(a: PinCandidate, b: PinCandidate, now: number): boolean {
+function beats(
+  a: PinCandidate,
+  b: PinCandidate,
+  now: number,
+  selectedId: string | null,
+): boolean {
+  // Step 0. A selected place is one the user is LOOKING at: the peek sheet is
+  // open on it and the camera has flown to its coordinate, so drawing a
+  // different occupant there is the map contradicting the sheet in front of it.
+  // Every step below answers "who best represents this spot right now"; this one
+  // answers "which spot did the user ask about", and the clock gets no vote.
+  //
+  // It cannot produce a tie — at most one marker matches — so it is exempt from
+  // the totality argument that puts `order` and `id` at the bottom.
+  const aSel = selectedId !== null && a.id === selectedId;
+  const bSel = selectedId !== null && b.id === selectedId;
+  if (aSel !== bSel) return aSel;
+
   const aOpen = isOpenNow(a.hours, now);
   const bOpen = isOpenNow(b.hours, now);
   if (aOpen !== bOpen) return aOpen;
@@ -105,12 +132,13 @@ function beats(a: PinCandidate, b: PinCandidate, now: number): boolean {
 export function resolvePinCollisions<T extends PinCandidate>(
   markers: readonly T[],
   now: number,
+  selectedId: string | null = null,
 ): T[] {
   const winners = new Map<string, T>();
   for (const m of markers) {
     const key = coordKey(m);
     const held = winners.get(key);
-    if (held === undefined || beats(m, held, now)) winners.set(key, m);
+    if (held === undefined || beats(m, held, now, selectedId)) winners.set(key, m);
   }
   // Identity, not id: `id` is only unique WITHIN a layer, and this set can span
   // several. Two markers can legitimately share one.

@@ -199,9 +199,10 @@ field existed — so a server sending none of them renders exactly as one that n
 | `color` | string | `placeDot`, `textLabel`, polyline | Six hex digits without a `#`, such as `"2D8C4E"`. The polyline stroke colour, the `placeDot` pin tint, or a caption colour depending on the layer's `markerStyle` |
 | `outlineColor` | string | — | Declared, unread |
 | `width` / `height` | number | `placeDot` | Pin size in points. Sent together: the tintable base icon has natural proportions, and setting one alone distorts the tint |
-| `size` | number | `numberCircle` | Circle diameter in points. The number's glyph is derived from it as a fixed ratio, so the two cannot drift |
+| `size` | number | `numberCircle`, `placeDot` | Circle diameter in points, and always the **visible** disc. On `numberCircle` the number's glyph is derived from it as a fixed ratio; on a `placeDot` drawn as a dot the overlay canvas is derived from it the same way, because the dot asset carries transparent padding that is the marker's tap target. Either way the two cannot drift |
 | `captionTextSize` | number | `placeDot`, `textLabel` | Caption point size |
 | `zIndex` | number | `textLabel` | Draw order against other overlays. The label layer sets it high so a building name is never hidden behind a booth pin |
+| `shape` | string | `placeDot` | How the marker draws unselected, and what it becomes when selected: `dotThenPin`, `dot` or `pin`. See [Marker shape](#marker-shape) |
 
 **The caption's line budget is not on the wire, and is client-owned for now.** How many columns a
 caption may fill and how many lines it may take are constants in `MapMarkerLayer`, not `style`
@@ -211,6 +212,34 @@ seen those labels cannot tune them better. Promote them the way the geometry was
 layer ever needs its own budget. What the client no longer honours at all is the SDK's own
 `requestedWidth`: it is pinned to `0`, because the native wrapper only breaks at whitespace and the
 Korean names that need breaking have none. See eventmap-rendering §6.3.
+
+### Marker shape
+
+A place marker is a small tinted disc by default, and only the marker the peek sheet is open on is
+promoted to a teardrop — Naver Map's own behaviour, and the reason the axis exists. Forty 22×30
+teardrops in the two columns of the 자과캠 대운동장 west strip overlap each other badly enough that <!-- conventions:allow-korean: the campus and place names the app shows -->
+almost no caption survives collision.
+
+| Value | Unselected | Selected |
+| --- | --- | --- |
+| `dotThenPin` | small disc | teardrop, larger, drawn above its neighbours |
+| `dot` | small disc | larger disc |
+| `pin` | teardrop | teardrop, larger |
+
+**An absent `shape` means `dotThenPin`, not `pin`.** The default is the client's, and this field is
+only an override for a layer that wants something else — so a server predating the field gets the
+new behaviour rather than being frozen on the old look.
+
+**It is a `style` member rather than a fourth `markerStyle`, and the failure direction is why.** An
+unrecognised `markerStyle` resolves to `undefined` and falls through to the building-number
+rendering, so shipping a new member would make every older build draw booths as green numbered
+circles with the booth title inside. An unrecognised `shape` also resolves to `undefined`, but there
+that reads as "the server did not say" and the client answers with its own default. Additive and
+fail-safe in both directions.
+
+The selected marker's size comes from `width`/`height`, whatever shape it takes — a selected disc
+uses `width` as its diameter — so one field sizes the selected state and the two cannot disagree
+about what "selected" looks like.
 
 **Colour is deliberately absent from the building layers.** The number circle's fill and the
 `placeDot` tint fall back to a design token that resolves per theme, and a hex from the server

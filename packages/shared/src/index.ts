@@ -138,6 +138,7 @@ export type {
   MapChipCamera,
   MapChipIcon,
   MapLayerStyle,
+  MarkerShape,
   MapLayerDef,
   MapConfig,
   RawMarkerData,
