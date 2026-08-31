@@ -34,6 +34,16 @@ export function pickI18nText(text: I18nText, lang: AppLanguage): string {
 }
 
 /**
+ * Characters that may be broken between: Hangul (syllables and jamo), CJK
+ * ideographs, kana, CJK punctuation and fullwidth forms.
+ *
+ * A test, never a transform — it decides whether the hard pass is allowed to run
+ * on a line, and nothing else. Latin, digits and punctuation are absent on
+ * purpose: those are what must NOT be split mid-token.
+ */
+const WIDE = /[ᄀ-ᇿ　-〿぀-ヿ㄰-㆏㐀-䶿一-鿿가-힣＀-￯]/;
+
+/**
  * Breaking a marker caption onto at most `maxLines` lines of `cols` columns.
  *
  * The caption is the Naver SDK's NATIVE `caption` prop, not a React `<Text>`, so
@@ -62,17 +72,6 @@ export function pickI18nText(text: I18nText, lang: AppLanguage): string {
  * carry a wide character. A pure-Latin line over the cap is left to overflow,
  * which is what CJK line breaking actually prescribes.
  */
-
-/**
- * Characters that may be broken between: Hangul (syllables and jamo), CJK
- * ideographs, kana, CJK punctuation and fullwidth forms.
- *
- * A test, never a transform — it decides whether the hard pass is allowed to run
- * on a line, and nothing else. Latin, digits and punctuation are absent on
- * purpose: those are what must NOT be split mid-token.
- */
-const WIDE = /[ᄀ-ᇿ　-〿぀-ヿ㄰-㆏㐀-䶿一-鿿가-힣＀-￯]/;
-
 export function wrapMarkerLabel(text: string, cols: number, maxLines: number): string {
   // `cols: 0` is reachable from a bad `style` on the wire, and `wrap-ansi` would
   // spin on it. Returning the input mislabels the map; looping hangs it.
