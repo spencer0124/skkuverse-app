@@ -351,9 +351,8 @@ second is the one that closes the door:
 2. Lowering it would still not be enough. The SDK's own documentation on the prop says the caption
    breaks at a suitable position **unless the text is written with no spaces at all**. The native
    wrapper is whitespace-seeking, and the labels that most need breaking are Korean compounds with
-   no whitespace in them: 올림픽기념국민생활관 is 20 columns and zero spaces, 자연과학캠퍼스학생회관
-   is 22 and zero. <!-- conventions:allow-korean: the building names the app draws --> 27 of the 61
-   booth titles likewise carry no space.
+   no whitespace in them. 올림픽기념국민생활관 is 20 columns and zero spaces, and 자연과학캠퍼스학생회관 is 22 and zero. <!-- conventions:allow-korean: the building names the app draws -->
+   27 of the 61 booth titles likewise carry no space.
 
 So the break opportunities have to be in the string. That is the only lever the native side offers,
 because these captions are the SDK's **native** `caption` prop rather than a React `<Text>` —
