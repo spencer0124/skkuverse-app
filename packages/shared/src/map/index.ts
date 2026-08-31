@@ -1,13 +1,17 @@
 export { parseMapConfig, parseMarkerData, parsePolylineData } from './parser';
 export { DEFAULT_MAP_CONFIG, DEFAULT_CAMERA_DEFAULTS } from './defaults';
 export {
-  findNarrowedChip,
-  isChipGroupAtDefaults,
+  defaultVisibleAt,
   isLayerVisible,
-  resolveChipGroupDefaults,
   resolveChipLayerVisibility,
 } from './chips';
-export type { LayerVisibilityStates } from './chips';
+export type { LayerVisibilityState } from './chips';
+export {
+  isDailyWindowOpen,
+  kstMinutesOfDay,
+  nextDailyBoundaryAfter,
+  toMinutesOfDay,
+} from './daily-window';
 export { isFestivalLayer, withoutFestival } from './festival';
 export { resolvePinCollisions, type PinCandidate } from './pins';
 export {

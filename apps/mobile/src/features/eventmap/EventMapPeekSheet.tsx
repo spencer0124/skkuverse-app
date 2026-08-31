@@ -49,10 +49,19 @@ interface EventMapPeekSheetProps {
    */
   bottomGap: number;
   onDismiss: () => void;
+  /**
+   * Fired immediately before an action button dismisses the sheet to navigate.
+   *
+   * The dismiss that follows is indistinguishable from the user's own — same
+   * callback, same everything — so the screen is told in advance which one is
+   * coming. Without it `onDismiss` cannot know whether to throw the selection
+   * away or hold it for the way back.
+   */
+  onNavigateAway?: () => void;
 }
 
 export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
-  function EventMapPeekSheet({ place, now, bottomGap, onDismiss }, ref) {
+  function EventMapPeekSheet({ place, now, bottomGap, onDismiss, onNavigateAway }, ref) {
     const { t } = useT();
 
     return (
@@ -96,14 +105,24 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
             { paddingBottom: CONTENT_BOTTOM_PAD + bottomGap },
           ]}
         >
-          {place ? <PlaceBody place={place} now={now} /> : null}
+          {place ? (
+            <PlaceBody place={place} now={now} onNavigateAway={onNavigateAway} />
+          ) : null}
         </Sheet.ScrollView>
       </Sheet>
     );
   },
 );
 
-function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
+function PlaceBody({
+  place,
+  now,
+  onNavigateAway,
+}: {
+  place: RawMarkerData;
+  now: number;
+  onNavigateAway?: () => void;
+}) {
   const lang = useSettingsStore((s) => s.appLanguage);
 
   // `content` is prose to show in place. The global dispatcher is
@@ -132,8 +151,12 @@ function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
 
       {buttons.length > 0 ? (
         <View style={styles.actionRow}>
-          {buttons.map((action) => (
-            <ActionButton key={action.id} action={action} />
+          {buttons.map((action, i) => (
+            <ActionButton
+              key={action.id}
+              action={i === 0 ? ({ ...action, __probe: true } as typeof action) : action}
+              onNavigateAway={onNavigateAway}
+            />
           ))}
         </View>
       ) : null}
@@ -141,7 +164,13 @@ function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
   );
 }
 
-function ActionButton({ action }: { action: MarkerAction }) {
+function ActionButton({
+  action,
+  onNavigateAway,
+}: {
+  action: MarkerAction;
+  onNavigateAway?: () => void;
+}) {
   const lang = useSettingsStore((s) => s.appLanguage);
   // `dismiss()` with no key closes the top-most modal in the provider's queue,
   // which is this sheet whenever one of its own buttons is being pressed.
@@ -161,10 +190,13 @@ function ActionButton({ action }: { action: MarkerAction }) {
     // the reason NoticeDetailScreen's 원본 공지 보기 hands off to the system
     // browser instead of pushing.
     //
-    // Dismissing (rather than restoring the sheet on the way back) is also the
-    // behaviour we want: onDismiss clears selectedPlaceId, so backing out of
-    // the webview lands on the plain campus map instead of a sheet the user
-    // already navigated away from.
+    // The sheet COMES BACK, though — that is what `onNavigateAway` buys. The
+    // dismiss below is byte-for-byte the user's own, so the screen has to be
+    // told in advance that this one is a round trip: it then keeps
+    // `selectedPlaceId` instead of nulling it, and re-presents on focus. This
+    // used to read "dismissing rather than restoring is also the behaviour we
+    // want"; it was not, and coming back to a map with no sheet was the report.
+    onNavigateAway?.();
     dismiss();
     handleSduiAction({
       actionType: action.actionType,
@@ -173,7 +205,7 @@ function ActionButton({ action }: { action: MarkerAction }) {
       // named after what they tapped.
       webviewTitle: label,
     });
-  }, [action, dismiss, label]);
+  }, [action, dismiss, label, onNavigateAway]);
 
   const primary = action.style === 'primary';
   return (

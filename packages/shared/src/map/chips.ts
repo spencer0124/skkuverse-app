@@ -24,12 +24,72 @@
  */
 
 import type { MapChip, MapLayerDef } from '../types/map';
-
-/** The minimum a caller must know about a layer's current state. */
-export type LayerVisibilityStates = Readonly<Record<string, { visible: boolean }>>;
+import { isDailyWindowOpen, kstMinutesOfDay } from './daily-window';
 
 /**
- * Is this layer drawn right now: the user's toggle, or the layer's own default.
+ * The minimum a caller must know about layer state.
+ *
+ * Two records rather than one, and the split is the whole design. `overrides`
+ * holds ONLY what the user expressed, so an absent id means "no opinion" and the
+ * schedule below answers — which is what lets a default vary with the clock at
+ * all. `chip` is a transient narrowing laid over the top, so dropping it
+ * restores the user's own choices rather than the server's defaults.
+ */
+export interface LayerVisibilityState {
+  overrides: Readonly<Record<string, boolean>>;
+  chip: Readonly<{
+    id: string;
+    visibility: Readonly<Record<string, boolean>>;
+  }> | null;
+}
+
+/**
+ * When this layer is on, absent anything the user or a chip said.
+ *
+ * `null` — an unreadable declaration — is OFF. That is the fail-closed
+ * direction, and it is the opposite of what this parser does for
+ * `userConfigurable`, deliberately: see `parseDefaultVisibleWhen`, which carries
+ * the argument. Short version: this axis exists to put less on screen, so
+ * reading a rule we cannot understand as "on all day" contradicts the intent it
+ * was trying to state.
+ *
+ * `scheduled` is evaluated against the KST minute derived from the epoch, so the
+ * device's timezone setting never enters it.
+ */
+export function defaultVisibleAt(layer: MapLayerDef, now: number): boolean {
+  const when = layer.defaultVisibleWhen;
+  if (when === null) return false;
+  switch (when.kind) {
+    case 'always':
+      return true;
+    case 'never':
+      return false;
+    case 'scheduled': {
+      const minutes = kstMinutesOfDay(now);
+      return when.windows.some((w) => isDailyWindowOpen(w, minutes));
+    }
+  }
+}
+
+/**
+ * Is this layer drawn right now?
+ *
+ * Four tiers, and the layer's own schedule is the last resort:
+ *
+ * ```text
+ * forced ?? chipNarrowing ?? userToggle ?? defaultVisibleAt(layer, now)
+ * ```
+ *
+ * Every tier is a FALLBACK, never an assignment. Writing any of them into the
+ * store would destroy a preference the user cannot re-express — and, now that
+ * the last tier moves with the clock, would freeze a schedule the moment it was
+ * first read. That is exactly the bug this replaced: the store used to be seeded
+ * from the server's default, after which nothing could tell a value the user
+ * chose from one the server suggested.
+ *
+ * `forced` is the `userConfigurable: false` case. It outranks a chip because
+ * such a layer is out of a chip's reach too, not only the filter sheet's. Inert
+ * today, since nothing ships `false`.
  *
  * One function rather than the expression, which used to be written out at
  * three call sites — `CampusScreen`'s render loop, a filter-button badge it no
@@ -40,9 +100,15 @@ export type LayerVisibilityStates = Readonly<Record<string, { visible: boolean }
  */
 export function isLayerVisible(
   layer: MapLayerDef,
-  states: LayerVisibilityStates,
+  state: LayerVisibilityState,
+  now: number,
 ): boolean {
-  return states[layer.id]?.visible ?? layer.defaultVisible;
+  if (layer.userConfigurable === false) return defaultVisibleAt(layer, now);
+  const narrowed = state.chip?.visibility[layer.id];
+  if (narrowed !== undefined) return narrowed;
+  const own = state.overrides[layer.id];
+  if (own !== undefined) return own;
+  return defaultVisibleAt(layer, now);
 }
 
 /**
@@ -106,80 +172,19 @@ export function resolveChipLayerVisibility(
   return next;
 }
 
-/**
- * The chip the map has been NARROWED to, or `null`.
+/*
+ * `findNarrowedChip`, `resolveChipGroupDefaults` and `isChipGroupAtDefaults`
+ * lived here and are gone.
  *
- * Derived rather than stored, so there is no second source of truth to drift:
- * a layer toggled in the filter sheet stops any chip describing the map, and
- * the answer survives a remount because it was never state. Server order
- * decides ties, since the server is what ordered the row.
+ * All three derived the narrowed chip, and the way back out of it, from the
+ * layers' CURRENT visibility. That worked while the way back was "the server's
+ * defaults", and it cannot work now for two independent reasons. The clear
+ * control has to restore what the USER had, and a past is not recoverable from
+ * a present — the chip's own write is what overwrote it. And the reset chip
+ * stopped being recognisable by comparing what it names against the default
+ * view, because with `defaultVisibleWhen` that view depends on the time of day.
  *
- * Two conditions, and the second is easy to mistake for a caller's concern. A
- * chip whose group sits at the visibility the server declared has narrowed
- * nothing — the reset chip matches exactly that on every launch — so it is
- * skipped and the search CONTINUES. Testing it after the loop instead would
- * work while there is one chip group and break the day there is a second: the
- * reset chip of group A would be returned first and suppress the answer for a
- * genuinely narrowed group B, leaving the user no name for the view and no way
- * back.
+ * So the narrowing is stored (`LayerVisibilityState.chip`) and the reset chip is
+ * declared (`MapChip.isReset`). Both facts now come from somewhere that cannot
+ * be wrong about them.
  */
-export function findNarrowedChip(
-  chips: readonly MapChip[],
-  layers: readonly MapLayerDef[],
-  states: LayerVisibilityStates,
-): MapChip | null {
-  for (const chip of chips) {
-    const target = resolveChipLayerVisibility(chip, layers);
-    if (!target) continue;
-    const matches = layers.every(
-      (layer) =>
-        !(layer.id in target) || isLayerVisible(layer, states) === target[layer.id],
-    );
-    if (!matches) continue;
-    if (isChipGroupAtDefaults(chip, layers, states)) continue;
-    return chip;
-  }
-  return null;
-}
-
-/**
- * The chip's group restored to what the server declared, or `null`.
- *
- * What the clear control writes. Derived from each layer's own `defaultVisible`
- * rather than from any chip's `layerIds`, so it stays correct for a group whose
- * reset chip was never served — and so 편의시설, which ships hidden, goes back
- * to hidden rather than to whatever a chip happened to name.
- */
-export function resolveChipGroupDefaults(
-  chip: MapChip,
-  layers: readonly MapLayerDef[],
-): Record<string, boolean> | null {
-  const group = resolveGroup(chip, layers);
-  if (group === null) return null;
-  const next: Record<string, boolean> = {};
-  for (const layer of writableGroupLayers(group, layers)) {
-    next[layer.id] = layer.defaultVisible;
-  }
-  return next;
-}
-
-/**
- * Is this chip's group sitting at the visibility the server declared?
- *
- * Drives whether a clear control is offered at all: there is nothing to clear
- * when nothing has been narrowed. A layer hidden by the server's own default
- * does not count as the user having narrowed anything — 편의시설 ships hidden,
- * and that is the server's choice rather than a filter to clear.
- */
-export function isChipGroupAtDefaults(
-  chip: MapChip,
-  layers: readonly MapLayerDef[],
-  states: LayerVisibilityStates,
-): boolean {
-  const defaults = resolveChipGroupDefaults(chip, layers);
-  if (!defaults) return true;
-  return layers.every(
-    (layer) =>
-      !(layer.id in defaults) || isLayerVisible(layer, states) === defaults[layer.id],
-  );
-}

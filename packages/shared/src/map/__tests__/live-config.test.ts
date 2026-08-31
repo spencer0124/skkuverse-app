@@ -23,11 +23,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import { parseMapConfig } from '../parser';
-import {
-  findNarrowedChip,
-  resolveChipGroupDefaults,
-  resolveChipLayerVisibility,
-} from '../chips';
+import { defaultVisibleAt, resolveChipLayerVisibility } from '../chips';
 import liveConfig from './fixtures/map-config-live.json';
 
 const CONFIG = parseMapConfig(liveConfig as unknown as ApiEnvelope<unknown>);
@@ -95,42 +91,51 @@ describe('the live response, parsed whole', () => {
     for (const layer of CONFIG.layers) expect(layer.label).not.toMatch(/^map\.layer\./);
   });
 
-  it('gives the reset chip a way back that turns nothing extra on', () => {
-    // The reset chip restores the group's DEFAULT set, not literally every
-    // layer: naming an opt-in layer would turn on something the user never
-    // asked for and leave no chip that returns to the ordinary view.
-    // `<layerSetId>_all` is the id the server synthesises for the reset chip.
-    // A hard miss, not a skip: the fixture was captured inside the window, so
-    // a chip not being there means the contract moved.
+  it('reads a usable defaultVisibleWhen for EVERY served layer', () => {
+    // The one that guards the blank map. `null` is this parser's "I could not
+    // read that", and it resolves to OFF — so a schema move that renamed the
+    // field, or changed a `kind`, would hide every layer at once. Asserted per
+    // layer rather than in aggregate so the failure names which one moved.
+    for (const layer of CONFIG.layers) {
+      expect(layer.defaultVisibleWhen, `layer ${layer.id}`).not.toBeNull();
+    }
+  });
+
+  it('marks exactly the synthesised chip as the way back', () => {
+    // `<layerSetId>_all` is the id the server synthesises for the reset chip. A
+    // hard miss, not a skip: the fixture was captured inside the window, so a
+    // chip not being there means the contract moved.
     const reset = CONFIG.chips.find((c) => c.id === 'eskara-2026_all');
     expect(reset).toBeDefined();
-    expect(resolveChipLayerVisibility(reset!, CONFIG.layers)).toEqual(
-      resolveChipGroupDefaults(reset!, CONFIG.layers),
-    );
+    expect(reset!.isReset).toBe(true);
+    for (const chip of CONFIG.chips) {
+      if (chip.id === 'eskara-2026_all') continue;
+      expect(chip.isReset, `chip ${chip.id}`).toBe(false);
+    }
   });
 
-  it('names no chip on a fresh launch, where nothing has been narrowed', () => {
-    // Every layer at its own default, which is the state `initFromConfig` seeds.
-    // The reset chip matches this exactly, and is deliberately not named: the
-    // strip means "you narrowed to this", and the launch state is the server's.
-    const fresh = Object.fromEntries(
-      CONFIG.layers.map((l) => [l.id, { visible: l.defaultVisible }]),
+  it('carries a real day/night split, not just a parseable one', () => {
+    // The feature, read off the bytes the server sent. If the festival's windows
+    // are ever authored so that nothing differs across the day, this fails and
+    // says so — a config that parses but splits nothing is the failure mode a
+    // schema test cannot see.
+    const noon = Date.parse('2026-08-28T12:00:00+09:00');
+    const dusk = Date.parse('2026-08-28T19:00:00+09:00');
+    const scheduled = CONFIG.layers.filter(
+      (l) => l.defaultVisibleWhen?.kind === 'scheduled',
     );
-    expect(findNarrowedChip(CONFIG.chips, CONFIG.layers, fresh)).toBeNull();
+    expect(scheduled.length).toBeGreaterThan(0);
+    expect(
+      scheduled.some((l) => defaultVisibleAt(l, noon) !== defaultVisibleAt(l, dusk)),
+    ).toBe(true);
   });
 
-  it('names the chip a real narrowing lands on', () => {
+  it('resolves a narrowing chip to a write that names its own layer', () => {
     const stage = CONFIG.chips.find((c) => c.id === 'eskara26_view_stage');
     expect(stage).toBeDefined();
-    const target = resolveChipLayerVisibility(stage!, CONFIG.layers) ?? {};
-    const narrowed = Object.fromEntries(
-      CONFIG.layers.map((l) => [
-        l.id,
-        { visible: l.id in target ? target[l.id] : l.defaultVisible },
-      ]),
-    );
-    expect(findNarrowedChip(CONFIG.chips, CONFIG.layers, narrowed)?.id).toBe(
-      'eskara26_view_stage',
-    );
+    const target = resolveChipLayerVisibility(stage!, CONFIG.layers);
+    expect(target?.eskara26_stage).toBe(true);
+    // Its siblings in the group go off — "exactly these", not "these too".
+    expect(target?.eskara26_bar).toBe(false);
   });
 });

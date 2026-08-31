@@ -20,7 +20,7 @@
  * never reaches `large` to gorhom's own `detached` card, with no interpolation.
  */
 
-import { forwardRef, useCallback } from 'react';
+import { forwardRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   isLayerVisible,
@@ -99,14 +99,29 @@ interface FilterSheetProps {
    * the card behind it.
    */
   bottomGap: number;
+  /**
+   * The clock a layer's schedule is read against.
+   *
+   * Passed down rather than taken from a second `useWindowClock` here, so a tile
+   * and the map behind it cannot land on opposite sides of 18:00 and disagree
+   * about whether 주점 is on — which is exactly the drift `isLayerVisible` was
+   * extracted to prevent, arriving through a different door.
+   */
+  now: number;
 }
 
 export const FilterSheet = forwardRef<SheetRef, FilterSheetProps>(
-  function FilterSheet({ mapConfig, bottomGap }, ref) {
+  function FilterSheet({ mapConfig, bottomGap, now }, ref) {
     const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
     const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
-    const layers = useMapLayerStore((s) => s.layers);
-    const toggleLayer = useMapLayerStore((s) => s.toggleLayer);
+    const overrides = useMapLayerStore((s) => s.overrides);
+    const activeChip = useMapLayerStore((s) => s.chip);
+    const setLayerOverride = useMapLayerStore((s) => s.setLayerOverride);
+
+    const layerState = useMemo(
+      () => ({ overrides, chip: activeChip }),
+      [overrides, activeChip],
+    );
 
     const handleCampusPress = useCallback(
       (campusId: Campus) => {
@@ -197,14 +212,18 @@ export const FilterSheet = forwardRef<SheetRef, FilterSheetProps>(
                 // alone and showed 건물번호 ON while the map was hiding it. It is
                 // one function rather than a repeated expression for exactly
                 // that reason.
-                const visible = isLayerVisible(layer, layers);
+                const visible = isLayerVisible(layer, layerState, now);
                 return (
                   <View key={layer.id} style={styles.col}>
                     <MapTile
                       label={layer.label}
                       selected={visible}
                       onPress={() => {
-                        toggleLayer(layer.id);
+                        // The target, not a flip. The store holds only what the
+                        // user expressed, so it cannot resolve the current value
+                        // itself without being handed `now` and the layer list —
+                        // and this tile has already resolved it, one line up.
+                        setLayerOverride(layer.id, !visible);
                         logLayerToggle(layer.id, !visible);
                       }}
                       // Every layer draws on the same base map, so they share a

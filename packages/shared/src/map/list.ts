@@ -15,7 +15,7 @@
 
 import type { AppLanguage } from '../store/settings';
 import type { MapLayerDef, RawMarkerData } from '../types/map';
-import { isLayerVisible, type LayerVisibilityStates } from './chips';
+import { isLayerVisible, type LayerVisibilityState } from './chips';
 import { pickI18nText } from './text';
 import { isOpenNow, nextOpeningAfter } from './window';
 
@@ -23,8 +23,15 @@ export interface VisibleMarkersInput {
   markers: readonly RawMarkerData[];
   /** The `/map/config` layers this build was served. */
   layers: readonly MapLayerDef[];
-  /** The map layer store's `layers` slice — the user's toggles. */
-  states: LayerVisibilityStates;
+  /** The map layer store's user overrides and active chip narrowing. */
+  state: LayerVisibilityState;
+  /**
+   * The clock a layer's schedule is read against. The SAME number the render
+   * loop used, passed rather than taken from `Date.now()` here: a list computed
+   * a millisecond the other side of 18:00 would disagree with the pins beside
+   * it, which is precisely the mismatch this function exists to prevent.
+   */
+  now: number;
 }
 
 /**
@@ -48,11 +55,12 @@ export interface VisibleMarkersInput {
 export function selectVisibleMarkers({
   markers,
   layers,
-  states,
+  state,
+  now,
 }: VisibleMarkersInput): RawMarkerData[] {
   const visible = new Set<string>();
   for (const layer of layers) {
-    if (isLayerVisible(layer, states)) visible.add(layer.id);
+    if (isLayerVisible(layer, state, now)) visible.add(layer.id);
   }
   if (visible.size === 0) return [];
   return markers.filter((m) => visible.has(m.layerId));

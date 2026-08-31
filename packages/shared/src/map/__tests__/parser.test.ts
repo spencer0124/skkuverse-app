@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import { parseMapConfig, parseMarkerData } from '../parser';
-import { DEFAULT_CAMERA_DEFAULTS } from '../defaults';
+import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from '../defaults';
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({
   meta: { code: 200 },
@@ -29,7 +29,7 @@ const layer = (over: Record<string, unknown> = {}) => ({
   id: 'l1',
   type: 'marker',
   label: 'L',
-  defaultVisible: true,
+  defaultVisibleWhen: { kind: 'always' },
   endpoint: '/x',
   ...over,
 });
@@ -348,6 +348,110 @@ describe('parseMapConfig — chipGroupId, the group a chip may swap a layer with
   });
 });
 
+describe('parseMapConfig — defaultVisibleWhen, and which way it fails', () => {
+  /**
+   * Parse one layer's declaration, with a READABLE anchor layer beside it.
+   *
+   * The anchor is load-bearing rather than noise: without it a config whose only
+   * layer is unreadable trips the floor below and comes back as
+   * `DEFAULT_MAP_CONFIG`, so every assertion here would read `building_numbers`
+   * and quietly pass on `{ kind: 'always' }`.
+   */
+  const when = (raw: unknown) =>
+    parseMapConfig(
+      envelope({
+        layers: [layer({ id: 'anchor' }), layer({ id: 'subject', defaultVisibleWhen: raw })],
+      }),
+    ).layers[1]?.defaultVisibleWhen;
+
+  /** A layer literal with no `defaultVisibleWhen` key at all. */
+  const withoutTheKey = () => {
+    const { defaultVisibleWhen: _omitted, ...rest } = layer({ id: 'subject' });
+    return parseMapConfig(envelope({ layers: [layer({ id: 'anchor' }), rest] })).layers[1]
+      ?.defaultVisibleWhen;
+  };
+
+  it('keeps each readable kind verbatim', () => {
+    expect(when({ kind: 'always' })).toEqual({ kind: 'always' });
+    expect(when({ kind: 'never' })).toEqual({ kind: 'never' });
+    expect(when({ kind: 'scheduled', windows: [{ start: '18:00', end: '00:00' }] })).toEqual({
+      kind: 'scheduled',
+      windows: [{ start: '18:00', end: '00:00' }],
+    });
+  });
+
+  it('reads an UNKNOWN kind as unreadable — which is off, not on', () => {
+    // The decision this whole axis turns on. A future server adding a kind this
+    // build has not heard of must not have its layer drawn all day: the feature
+    // exists to put LESS on screen, so reading a rule we cannot understand as
+    // "always" contradicts the intent it was trying to state. `null` is also
+    // deliberately not `{ kind: 'never' }` — that is an authoring choice, this
+    // is "we could not tell" — so the two stay countable apart.
+    expect(when({ kind: 'seasonal', from: '2026-08-27' })).toBeNull();
+    expect(when({ kind: 'always ' })).toBeNull();
+  });
+
+  it('reads an absent or malformed declaration as unreadable', () => {
+    expect(when(undefined)).toBeNull();
+    expect(when(null)).toBeNull();
+    expect(when('always')).toBeNull();
+    expect(when(7)).toBeNull();
+    expect(withoutTheKey()).toBeNull();
+  });
+
+  it('keeps the windows that parse and drops the ones that do not', () => {
+    // Partial data is still a statement of intent, so a bad entry costs its own
+    // window and not the layer's whole schedule.
+    expect(
+      when({
+        kind: 'scheduled',
+        windows: [
+          { start: '11:00', end: '18:00' },
+          { start: '18:00', end: '24:00' },
+          { start: '7:00', end: '9:00' },
+          { start: '10:00', end: '10:00' },
+          'nonsense',
+          null,
+        ],
+      }),
+    ).toEqual({ kind: 'scheduled', windows: [{ start: '11:00', end: '18:00' }] });
+  });
+
+  it('reads a scheduled layer whose every window failed as unreadable, NOT as always', () => {
+    // It said "sometimes" and left no way to know when. Neither `always` nor
+    // `never` honours that, so it joins the unreadable state rather than being
+    // guessed at in the loud direction.
+    expect(when({ kind: 'scheduled', windows: [{ start: '25:00', end: '99:99' }] })).toBeNull();
+    expect(when({ kind: 'scheduled', windows: [] })).toBeNull();
+    expect(when({ kind: 'scheduled' })).toBeNull();
+    expect(when({ kind: 'scheduled', windows: 'evening' })).toBeNull();
+  });
+
+  it('falls back to the bundled config when NO layer is readable', () => {
+    // The floor under fail-closed. One unreadable layer is survivable — it is
+    // off, it keeps its filter-sheet tile, the user can turn it on. Every layer
+    // unreadable would leave an empty campus: no 건물번호, no 건물이름, nothing.
+    const out = parseMapConfig(
+      envelope({ layers: [layer({ defaultVisibleWhen: { kind: 'seasonal' } })] }),
+    );
+    expect(out).toBe(DEFAULT_MAP_CONFIG);
+  });
+
+  it('does not fire the floor while one layer is still readable', () => {
+    const out = parseMapConfig(
+      envelope({
+        layers: [
+          layer({ id: 'ok' }),
+          layer({ id: 'future', defaultVisibleWhen: { kind: 'seasonal' } }),
+        ],
+      }),
+    );
+    expect(out).not.toBe(DEFAULT_MAP_CONFIG);
+    expect(out.layers.map((l) => l.id)).toEqual(['ok', 'future']);
+    expect(out.layers[1]?.defaultVisibleWhen).toBeNull();
+  });
+});
+
 describe('parseMapConfig — the marker geometry that used to be hardcoded', () => {
   it('reads every style member the server sends', () => {
     const style = parseLayers({
@@ -442,7 +546,18 @@ describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
         camera: { lat: 37.295129, lng: 126.971234, zoom: 17.5, tilt: 0, bearing: 0, durationMs: 500 },
         layerIds: ['eskara26_stage'],
       },
+      isReset: false,
     });
+  });
+
+  it('reads isReset, and only an explicit true', () => {
+    // The safe direction. Mistaking a narrowing chip for a reset would silently
+    // drop the view the user asked for, so anything that is not `true` is an
+    // ordinary chip.
+    expect(parseChips([chip({ isReset: true })])[0]?.isReset).toBe(true);
+    expect(parseChips([chip()])[0]?.isReset).toBe(false);
+    expect(parseChips([chip({ isReset: 'true' })])[0]?.isReset).toBe(false);
+    expect(parseChips([chip({ isReset: 1 })])[0]?.isReset).toBe(false);
   });
 
   it('parses a webview chip', () => {

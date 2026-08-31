@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import { CrosshairSimpleIcon } from 'phosphor-react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -35,9 +36,7 @@ import {
   useWindowClock,
   useEventMapStore,
   useT,
-  findNarrowedChip,
   isLayerVisible,
-  resolveChipGroupDefaults,
   resolveChipLayerVisibility,
   selectVisibleMarkers,
   sortPlaces,
@@ -241,10 +240,23 @@ export function CampusScreen() {
 
   // ── Store ──
   const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
-  const layers = useMapLayerStore((s) => s.layers);
-  const initFromConfig = useMapLayerStore((s) => s.initFromConfig);
+  const overrides = useMapLayerStore((s) => s.overrides);
+  const activeChip = useMapLayerStore((s) => s.chip);
   const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
-  const setLayersVisible = useMapLayerStore((s) => s.setLayersVisible);
+  const setChip = useMapLayerStore((s) => s.setChip);
+  const clearChip = useMapLayerStore((s) => s.clearChip);
+
+  /**
+   * The two records `isLayerVisible` reads, as one object.
+   *
+   * Assembled once rather than at each call site, so the render loop, the event
+   * list, the collision peers and the filter sheet cannot be handed different
+   * halves of the same state.
+   */
+  const layerState = useMemo(
+    () => ({ overrides, chip: activeChip }),
+    [overrides, activeChip],
+  );
 
   // ── Building detail state ──
   const [selectedSkkuId, setSelectedSkkuId] = useState<number | null>(null);
@@ -537,12 +549,11 @@ export function CampusScreen() {
     };
   }, [locateAnchorTop]);
 
-  // ── Init layers from config ──
-  useEffect(() => {
-    if (mapConfig) {
-      initFromConfig(mapConfig.layers);
-    }
-  }, [mapConfig, initFromConfig]);
+  // The layer store is no longer seeded from the config. It holds only what the
+  // user expressed, so a layer nobody has touched has no entry at all and
+  // `defaultVisibleAt` answers for it — which is what lets that answer move with
+  // the clock. Seeding was what made a time-varying default unreachable: the
+  // value written at 11:00 was indistinguishable from a choice.
 
   // ── Event map ──
   //
@@ -564,15 +575,35 @@ export function CampusScreen() {
   const eventMarkers = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
 
   /**
-   * A `now` that moves when a booth opens or closes.
+   * Every daily window the served layers declare.
+   *
+   * Flattened for the clock below, and memoised because the hook keys on
+   * argument identity — a fresh array each render would re-arm the timer on
+   * every render instead of once per boundary.
+   */
+  const layerWindows = useMemo(
+    () =>
+      (mapConfig?.layers ?? []).flatMap((l) =>
+        l.defaultVisibleWhen?.kind === 'scheduled' ? l.defaultVisibleWhen.windows : [],
+      ),
+    [mapConfig],
+  );
+
+  /**
+   * A `now` that moves when a booth opens or closes, or when a LAYER is due.
    *
    * The list's pills and the pin ladder both read it, so they change together at
    * a boundary rather than one of them waiting for an unrelated re-render. It is
    * NOT shared with `MapMarkerLayer`, which arms its own on the same data — two
    * timers on one boundary is cheaper than lifting the marker query up here just
    * to pass a number down.
+   *
+   * The layer windows have to be armed HERE and nowhere else. A layer that is
+   * currently hidden is not mounted, so it arms no timer of its own: without
+   * them, 18:00 arrives with nothing in the app waiting for it and 주점 appears
+   * whenever some unrelated re-render next happens.
    */
-  const now = useWindowClock(eventMarkers);
+  const now = useWindowClock(eventMarkers, layerWindows);
 
   const sortId = useEventMapStore((s) => s.sortId);
   const appLanguage = useSettingsStore((s) => s.appLanguage);
@@ -605,12 +636,34 @@ export function CampusScreen() {
 
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
 
+  /**
+   * Whether the marker request has come back at least once.
+   *
+   * `isFetched` rather than "has data": it is the only value that separates "no
+   * event today", which is a decided answer, from "the request has not come
+   * back yet", which is worth waiting for. A disabled query — the festival gate
+   * shut, or no festival layer served — never fetches, so it counts as settled.
+   *
+   * Two consumers: the place deep link abandons on it, and the guard below
+   * waits on it.
+   */
+  const eventSettled = eventEndpoint === null || eventQuery.isFetched;
+
   // A place can leave the set mid-session — ops deletes a cancelled booth, and
   // the marker route is only cached for a minute. An empty sheet is worse than
   // no sheet.
+  //
+  // `eventSettled` is load-bearing, not defensive. `placesById` is empty until
+  // the first fetch returns, so before it this cannot tell "the booth is gone"
+  // from "the booths have not arrived". That used to cost nothing, because a
+  // selection never outlived the screen; now one survives a webview round trip
+  // (see `handlePeekDismiss`), and dismissing here would take `selectedPlaceId`
+  // with it and leave the restore with nothing to find.
   useEffect(() => {
-    if (selectedPlaceId && !selectedPlace) peekSheetRef.current?.dismiss?.();
-  }, [selectedPlaceId, selectedPlace]);
+    if (eventSettled && selectedPlaceId && !selectedPlace) {
+      peekSheetRef.current?.dismiss?.();
+    }
+  }, [eventSettled, selectedPlaceId, selectedPlace]);
 
   /**
    * Is the live event on the campus the toggle is showing?
@@ -814,16 +867,23 @@ export function CampusScreen() {
   /**
    * The chip view the map is narrowed to, or null.
    *
-   * Derived, never stored, so there is no second source of truth to drift: a
-   * layer toggled in the filter sheet stops any chip describing the map, and the
-   * answer survives a remount because it was never state. The "narrowed away
-   * from the server's defaults" rule lives inside `findNarrowedChip` rather than
-   * as a filter here — applied afterwards it would only be correct while there
-   * is a single chip group.
+   * Looked up from the store's own record of the tap, where it used to be
+   * derived by asking which chip described the layers as they stood. That
+   * derivation could not survive this change for two independent reasons: the
+   * clear control has to put back what the USER had, and a past is not
+   * recoverable from a present; and the reset chip stopped being recognisable by
+   * comparison at all, since with `defaultVisibleWhen` the default view depends
+   * on the time of day.
+   *
+   * The lookup is against the served chips, so a stale id — a chip that left the
+   * config while it was active — resolves to null and the strip simply goes
+   * away.
    */
   const narrowedChip = useMemo(
-    () => (mapConfig ? findNarrowedChip(mapConfig.chips, mapConfig.layers, layers) : null),
-    [mapConfig, layers],
+    () => (mapConfig && activeChip
+      ? mapConfig.chips.find((c) => c.id === activeChip.id) ?? null
+      : null),
+    [mapConfig, activeChip],
   );
 
   /**
@@ -835,6 +895,13 @@ export function CampusScreen() {
    * every layer outside the group is left alone. Reading it as "turn these on"
    * would leave 주점 lit beside 공연; reading it as exclusive over everything
    * would turn 건물번호 off underneath.
+   *
+   * A chip carrying `isReset` means the opposite — stop narrowing — and is
+   * dispatched on before any of that. Running the narrowing rule over it would
+   * set every layer it names to on, which at noon lights 주점: exactly the
+   * crowding this whole axis exists to remove. The flag is on the wire because
+   * it stopped being derivable, the reset chip's `layerIds` no longer describing
+   * the default view once that view moves with the clock.
    */
   const handleChipPress = useCallback(
     (chip: MapChip) => {
@@ -848,9 +915,11 @@ export function CampusScreen() {
         return;
       }
 
-      if (mapConfig) {
+      if (chip.isReset) {
+        clearChip();
+      } else if (mapConfig) {
         const next = resolveChipLayerVisibility(chip, mapConfig.layers);
-        if (next) setLayersVisible(next);
+        if (next) setChip(chip.id, next);
       }
 
       // Marked before the move, so the settle it causes is read as the answer to
@@ -859,24 +928,24 @@ export function CampusScreen() {
       awaitingExplicitCameraResult.current = Date.now();
       moveTo(chip.action.camera);
     },
-    [mapConfig, setLayersVisible, moveTo],
+    [mapConfig, setChip, clearChip, moveTo],
   );
 
   /**
    * Leave the narrowed view.
    *
-   * Restores the group to each layer's own `defaultVisible` rather than to any
-   * chip's `layerIds`, so 편의시설 — which ships hidden — goes back to hidden,
-   * and a group whose reset chip was never served still has a way out.
+   * Drops the chip's shadow and writes nothing, so what comes back is what the
+   * USER had — 편의시설 they turned on stays on, and a layer they never touched
+   * returns to its own schedule rather than to a boolean captured earlier. It
+   * used to restore each layer's `defaultVisible` instead, which is why turning
+   * 편의시설 on, tapping 주점 and clearing left it off again.
    *
    * No camera move. The user is already looking where they want to be, and
    * widening a layer set is not a request to be taken somewhere else.
    */
   const handleChipClear = useCallback(() => {
-    if (!narrowedChip || !mapConfig) return;
-    const next = resolveChipGroupDefaults(narrowedChip, mapConfig.layers);
-    if (next) setLayersVisible(next);
-  }, [narrowedChip, mapConfig, setLayersVisible]);
+    clearChip();
+  }, [clearChip]);
 
   // ── The event list in the sheet ──
 
@@ -886,11 +955,11 @@ export function CampusScreen() {
    *
    * Narrowed, not merely "an event is on": the feed is the sheet's resting
    * content, and a chip tap is the moment the user asks what is in the view
-   * they just chose. The reset chip restores the group's defaults, which
-   * `findNarrowedChip` reads as narrowed to nothing — so it flies to the
-   * festival and lights its pins but leaves the feed in place. `eventActive`
-   * keeps the list off a campus the event is not on: the toggle can be flipped
-   * away while the festival layers stay narrowed.
+   * they just chose. The reset chip CLEARS the narrowing, so it flies to the
+   * festival and leaves the feed in place — the same outcome the old derived
+   * form reached by reading the restored defaults as "narrowed to nothing".
+   * `eventActive` keeps the list off a campus the event is not on: the toggle
+   * can be flipped away while the festival layers stay narrowed.
    */
   const showEventList = narrowedChip !== null && eventActive;
 
@@ -909,10 +978,10 @@ export function CampusScreen() {
     () =>
       new Set(
         (mapConfig?.layers ?? [])
-          .filter((l) => isFestivalLayer(l) && isLayerVisible(l, layers))
+          .filter((l) => isFestivalLayer(l) && isLayerVisible(l, layerState, now))
           .map((l) => l.id),
       ),
-    [mapConfig, layers],
+    [mapConfig, layerState, now],
   );
 
   /**
@@ -931,14 +1000,15 @@ export function CampusScreen() {
             selectVisibleMarkers({
               markers: eventMarkers,
               layers: mapConfig.layers,
-              states: layers,
+              state: layerState,
+              now,
             }),
             sortId,
             appLanguage,
             now,
           )
         : [],
-    [mapConfig, eventMarkers, layers, sortId, appLanguage, now],
+    [mapConfig, eventMarkers, layerState, sortId, appLanguage, now],
   );
 
   // When the list appears, bring the sheet up to the middle detent — enough to
@@ -1047,13 +1117,6 @@ export function CampusScreen() {
   }, [pendingBuildingId, mapConfig, presentOverSheet]);
 
   // ── Resolve a place deep link, once the markers have actually settled ──
-  //
-  // `isFetched` rather than "has data": it is the only value that separates "no
-  // event today", which is a decided answer worth abandoning on, from "the
-  // request has not come back yet", which is worth waiting for. A disabled query
-  // — the festival gate shut, or no festival layer served — never fetches, so it
-  // counts as settled and the link is abandoned on the first pass.
-  const eventSettled = eventEndpoint === null || eventQuery.isFetched;
   useEffect(() => {
     if (!pendingPlaceId) return;
 
@@ -1156,10 +1219,80 @@ export function CampusScreen() {
     [moveTo, cameraDefaults, handleSelectPlace],
   );
 
+  /**
+   * Set to mark the next peek-sheet dismiss as a round trip rather than a
+   * goodbye.
+   *
+   * An action button has to close the sheet before it navigates — the portal
+   * host is painted after the navigator, so a pushed screen would arrive under
+   * it (`EventMapPeekSheet`). That dismiss is indistinguishable from the user's
+   * own, so the button announces it in advance and this holds the answer until
+   * `onDismiss` asks.
+   *
+   * A ref, not state: it is written and read within one tick and must not
+   * cause a render. A plain boolean, not a timestamped window like
+   * `awaitingExplicitCameraResult` — that one is bounded because camera idles
+   * are noisy and a stale flag would claim an unrelated one, whereas a focus
+   * event after a deliberate push is unambiguous and a webview visit can last
+   * minutes.
+   */
+  const peekDismissedToNavigate = useRef(false);
+
+  /**
+   * The other half of the same intent, consumed by the focus effect below.
+   *
+   * Two flags rather than one because their lifetimes are: the one above is
+   * answered by `onDismiss` a moment later, this one not until the user comes
+   * back. Both are raised together, up front, rather than chaining the second
+   * off the first — `onDismiss` does not fire until the close animation ends,
+   * which is not guaranteed to be before the return focus on a fast round trip,
+   * and a restore that depends on that ordering would fail rarely and silently.
+   */
+  const restorePeekOnFocus = useRef(false);
+
+  const handlePeekNavigateAway = useCallback(() => {
+    peekDismissedToNavigate.current = true;
+    restorePeekOnFocus.current = true;
+  }, []);
+
   const handlePeekDismiss = useCallback(() => {
+    // A round trip: keep the selection, because it is what comes back, and skip
+    // the hand-off release, because the campus sheet has to stay down or the
+    // restored peek sheet lands on top of it. `restoreTo` survives untouched,
+    // so the eventual real dismiss still returns the campus sheet where the
+    // user left it.
+    if (peekDismissedToNavigate.current) {
+      peekDismissedToNavigate.current = false;
+      return;
+    }
     setSelectedPlaceId(null);
     releaseSheet();
   }, [setSelectedPlaceId, releaseSheet]);
+
+  /**
+   * Bring the sheet back after the trip.
+   *
+   * `useFocusEffect` fires after the focused screen mounts and SETTLES rather
+   * than at navigation-state commit (see `useTabFocusTracking`), so the sheet
+   * rises once the webview has finished sliding away instead of racing it.
+   * `useTabFocusTracking` itself cannot be reused — it early-returns off iOS 26.
+   *
+   * It fires on every focus, the first mount and an unrelated tab switch
+   * included, which is why the ref is armed by the navigation and disarmed
+   * here. The same armed-flag-consumed-on-focus shape as the shuttle prompt in
+   * `app/(tabs)/transit/index.tsx`.
+   *
+   * `presentOverSheet`, never a bare `present()`: the campus sheet is still
+   * down, and `requestHandoff` answers a request made while it is closed by
+   * presenting at once AND preserving `restoreTo`.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      if (!restorePeekOnFocus.current) return;
+      restorePeekOnFocus.current = false;
+      presentOverSheet(peekSheetRef);
+    }, [presentOverSheet]),
+  );
 
   // ── Connection tap (from building detail) ──
   const handleConnectionTap = useCallback((targetSkkuId: number) => {
@@ -1185,12 +1318,13 @@ export function CampusScreen() {
             camera={cameraCommand}
           >
             {mapConfig.layers.map((layer) => {
-              // The user's toggle, or the layer's own default. Nothing else gets
-              // a say: an event used to be able to force a base-map layer to a
-              // visibility from its snapshot, which made this a three-tier chain
-              // every reader had to reproduce exactly. Event layers are ordinary
-              // layers now.
-              if (!isLayerVisible(layer, layers)) return null;
+              // The chip's narrowing, the user's toggle, or the layer's own
+              // schedule — resolved in `isLayerVisible` and nowhere else. An
+              // event used to be able to force a base-map layer to a visibility
+              // from its snapshot, which made this a chain every reader had to
+              // reproduce exactly; it is one function call now, and `now` is the
+              // same one the list beside it reads.
+              if (!isLayerVisible(layer, layerState, now)) return null;
 
               if (layer.type === 'polyline') {
                 return <MapPolylineLayer key={layer.id} layer={layer} />;
@@ -1397,6 +1531,7 @@ export function CampusScreen() {
               ref={filterSheetRef}
               mapConfig={mapConfig}
               bottomGap={modalCardBottomGap}
+              now={now}
             />
           </>
         )}
@@ -1409,6 +1544,7 @@ export function CampusScreen() {
           now={now}
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
+          onNavigateAway={handlePeekNavigateAway}
         />
       </View>
   );

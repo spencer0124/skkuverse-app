@@ -1,5 +1,14 @@
 /**
- * Map chips — the two contract rules a chip tap must obey.
+ * Layer visibility resolution, and the two contract rules a chip tap obeys.
+ *
+ * The resolution is four tiers and the layer's own schedule is the LAST of them:
+ *
+ *     forced ?? chipNarrowing ?? userToggle ?? defaultVisibleAt(layer, now)
+ *
+ * Every tier is a fallback rather than an assignment, which is the property that
+ * lets the last one move with the clock: the moment a resolved value is written
+ * down, the schedule underneath it is frozen and the user's own choice becomes
+ * indistinguishable from the server's suggestion.
  *
  * R1: `layerIds` means "within this group, set exactly these", NOT "turn these
  *     on". Named → on, unnamed sibling in the same group → off, everything
@@ -14,17 +23,17 @@
  *     quadrant gets its first occupant.
  *
  * The fixture mirrors the live `/map/config`: two building layers outside every
- * group, five default-visible festival layers and one opt-in (편의시설).
+ * group, 주점 scheduled to the evening, 부스 to the day, 편의시설 opt-in, the
+ * rest always on.
  */
 
 import { describe, it, expect } from 'vitest';
 import type { MapChip, MapChipCamera, MapLayerDef } from '../../types/map';
 import {
-  findNarrowedChip,
-  isChipGroupAtDefaults,
+  defaultVisibleAt,
   isLayerVisible,
-  resolveChipGroupDefaults,
   resolveChipLayerVisibility,
+  type LayerVisibilityState,
 } from '../chips';
 
 const CAMERA: MapChipCamera = {
@@ -39,7 +48,7 @@ const CAMERA: MapChipCamera = {
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   type: 'marker',
   label: over.id,
-  defaultVisible: true,
+  defaultVisibleWhen: { kind: 'always' },
   endpoint: '/map/markers/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
@@ -50,14 +59,22 @@ const LAYERS: MapLayerDef[] = [
   layer({ id: 'building_numbers', chipGroupId: null, endpoint: '/map/markers/campus' }),
   layer({ id: 'building_labels', chipGroupId: null, endpoint: '/map/markers/campus' }),
   layer({ id: 'eskara26_stage' }),
-  layer({ id: 'eskara26_bar' }),
+  layer({
+    id: 'eskara26_bar',
+    defaultVisibleWhen: { kind: 'scheduled', windows: [{ start: '18:00', end: '00:00' }] },
+  }),
   layer({ id: 'eskara26_food' }),
-  layer({ id: 'eskara26_booth' }),
-  layer({ id: 'eskara26_facility', defaultVisible: false }),
+  layer({
+    id: 'eskara26_booth',
+    defaultVisibleWhen: { kind: 'scheduled', windows: [{ start: '11:00', end: '18:00' }] },
+  }),
+  layer({ id: 'eskara26_facility', defaultVisibleWhen: { kind: 'never' } }),
   layer({ id: 'eskara26_etc' }),
 ];
 
-/** The five default-visible festival layers — what the reset chip (26ESKARA) restores. */
+const byId = (id: string) => LAYERS.find((l) => l.id === id)!;
+
+/** The five layers a reset chip is scoped to — everything not `never`. */
 const DEFAULT_FESTIVAL_IDS = [
   'eskara26_stage',
   'eskara26_bar',
@@ -66,11 +83,12 @@ const DEFAULT_FESTIVAL_IDS = [
   'eskara26_etc',
 ];
 
-const focusChip = (id: string, layerIds: string[]): MapChip => ({
+const focusChip = (id: string, layerIds: string[], isReset = false): MapChip => ({
   id,
   label: id,
   icon: { kind: 'emoji', emoji: '\u{1F3AA}' },
   action: { kind: 'focus', camera: CAMERA, layerIds },
+  isReset,
 });
 
 const WEBVIEW_CHIP: MapChip = {
@@ -78,35 +96,108 @@ const WEBVIEW_CHIP: MapChip = {
   label: 'Lost & Found',
   icon: { kind: 'emoji', emoji: '\u{1F9F3}' },
   action: { kind: 'webview', url: 'https://webview.skkuverse.com/skku/lostandfound' },
+  isReset: false,
 };
 
 const STAGE_CHIP = focusChip('eskara26_view_stage', ['eskara26_stage']);
-const ALL_CHIP = focusChip('eskara-2026_all', DEFAULT_FESTIVAL_IDS);
+const ALL_CHIP = focusChip('eskara-2026_all', DEFAULT_FESTIVAL_IDS, true);
 
 /**
- * Store shape: an entry per layer the config seeded.
- *
- * Takes the layer list rather than closing over `LAYERS`, because a test adding
- * a second chip group has to seed its layers too — otherwise they fall back to
- * their own `defaultVisible` and the group silently reads as untouched.
+ * Written with an explicit `+09:00` offset rather than a bare local string, so
+ * the fixture means one instant whatever machine runs the suite.
  */
-const statesOf = (
-  defs: readonly MapLayerDef[],
-  visibleIds: string[],
-): Record<string, { visible: boolean }> =>
-  Object.fromEntries(defs.map((l) => [l.id, { visible: visibleIds.includes(l.id) }]));
+const NOON = Date.parse('2026-08-28T12:00:00+09:00');
+const DUSK = Date.parse('2026-08-28T19:00:00+09:00');
 
-const states = (visibleIds: string[]) => statesOf(LAYERS, visibleIds);
+const state = (
+  overrides: Record<string, boolean> = {},
+  chip: LayerVisibilityState['chip'] = null,
+): LayerVisibilityState => ({ overrides, chip });
 
-describe('isLayerVisible — the one resolution expression', () => {
-  it('prefers a tracked state over the default', () => {
-    const l = layer({ id: 'x', defaultVisible: true });
-    expect(isLayerVisible(l, { x: { visible: false } })).toBe(false);
+describe('defaultVisibleAt — the last tier, and the only one that moves', () => {
+  it('reads always and never as themselves, at any hour', () => {
+    expect(defaultVisibleAt(byId('eskara26_stage'), NOON)).toBe(true);
+    expect(defaultVisibleAt(byId('eskara26_stage'), DUSK)).toBe(true);
+    expect(defaultVisibleAt(byId('eskara26_facility'), NOON)).toBe(false);
+    expect(defaultVisibleAt(byId('eskara26_facility'), DUSK)).toBe(false);
   });
 
-  it('falls back to defaultVisible for an untracked layer', () => {
-    expect(isLayerVisible(layer({ id: 'x', defaultVisible: true }), {})).toBe(true);
-    expect(isLayerVisible(layer({ id: 'x', defaultVisible: false }), {})).toBe(false);
+  it('splits 주점 and 부스 across the day — the whole point of the feature', () => {
+    expect(defaultVisibleAt(byId('eskara26_booth'), NOON)).toBe(true);
+    expect(defaultVisibleAt(byId('eskara26_bar'), NOON)).toBe(false);
+
+    expect(defaultVisibleAt(byId('eskara26_booth'), DUSK)).toBe(false);
+    expect(defaultVisibleAt(byId('eskara26_bar'), DUSK)).toBe(true);
+  });
+
+  it('reads an UNREADABLE declaration as off, not as on all day', () => {
+    // The direction that matters. `null` is what the parser produces for a kind
+    // this build cannot resolve, and reading it as "always" would draw 주점 at
+    // noon the first time the server adds a kind — the exact crowding this axis
+    // exists to remove. It is deliberately NOT the same as `{ kind: 'never' }`,
+    // which is an authoring choice; this is "we could not tell".
+    const unreadable = layer({ id: 'future', defaultVisibleWhen: null });
+    expect(defaultVisibleAt(unreadable, NOON)).toBe(false);
+    expect(defaultVisibleAt(unreadable, DUSK)).toBe(false);
+  });
+
+  it('reads a scheduled layer with no windows as off', () => {
+    // Unreachable through the parser, which turns it into `null`. Asserted so
+    // the belt holds if one is ever constructed by hand: `[].some()` is false,
+    // and false is the direction that cannot light a layer nobody scheduled.
+    const empty = layer({ id: 'x', defaultVisibleWhen: { kind: 'scheduled', windows: [] } });
+    expect(defaultVisibleAt(empty, NOON)).toBe(false);
+  });
+});
+
+describe('isLayerVisible — four tiers, in order', () => {
+  it('falls through to the schedule when the user has said nothing', () => {
+    expect(isLayerVisible(byId('eskara26_bar'), state(), NOON)).toBe(false);
+    expect(isLayerVisible(byId('eskara26_bar'), state(), DUSK)).toBe(true);
+  });
+
+  it('lets the user override the schedule', () => {
+    const on = state({ eskara26_bar: true });
+    expect(isLayerVisible(byId('eskara26_bar'), on, NOON)).toBe(true);
+
+    const off = state({ eskara26_booth: false });
+    expect(isLayerVisible(byId('eskara26_booth'), off, NOON)).toBe(false);
+  });
+
+  it('lets a chip narrowing shadow the user override', () => {
+    const narrowed = state(
+      { eskara26_bar: true },
+      { id: 'eskara26_view_stage', visibility: { eskara26_bar: false } },
+    );
+    expect(isLayerVisible(byId('eskara26_bar'), narrowed, NOON)).toBe(false);
+  });
+
+  it('leaves the override intact underneath, so dropping the chip restores it', () => {
+    // The reported bug, at the resolution level: the chip SHADOWS, it does not
+    // assign. `overrides` is byte-identical either side of the narrowing.
+    const overrides = { eskara26_facility: true };
+    const narrowed = state(overrides, {
+      id: 'eskara26_view_bar',
+      visibility: { eskara26_facility: false },
+    });
+    expect(isLayerVisible(byId('eskara26_facility'), narrowed, DUSK)).toBe(false);
+    expect(isLayerVisible(byId('eskara26_facility'), state(overrides), DUSK)).toBe(true);
+  });
+
+  it('lets a forced layer outrank even a chip', () => {
+    // `userConfigurable: false` puts a layer out of a chip's reach, not only the
+    // filter sheet's. Inert today; asserted so it holds when it stops being.
+    const locked = layer({ id: 'eskara26_stage', userConfigurable: false });
+    const narrowed = state(
+      { eskara26_stage: false },
+      { id: 'c', visibility: { eskara26_stage: false } },
+    );
+    expect(isLayerVisible(locked, narrowed, NOON)).toBe(true);
+  });
+
+  it('ignores a chip entry for a different layer', () => {
+    const narrowed = state({}, { id: 'c', visibility: { eskara26_stage: false } });
+    expect(isLayerVisible(byId('eskara26_booth'), narrowed, NOON)).toBe(true);
   });
 });
 
@@ -128,12 +219,6 @@ describe('resolveChipLayerVisibility — R1, exactly these within the group', ()
     // Absent, not `false`: the write must not so much as mention 건물번호.
     expect(next).not.toHaveProperty('building_numbers');
     expect(next).not.toHaveProperty('building_labels');
-  });
-
-  it('restores the five default-visible layers for the reset chip, not all six', () => {
-    const next = resolveChipLayerVisibility(ALL_CHIP, LAYERS);
-    expect(next?.eskara26_facility).toBe(false);
-    for (const id of DEFAULT_FESTIVAL_IDS) expect(next?.[id]).toBe(true);
   });
 
   it('turns the opt-in layer on when a chip names it', () => {
@@ -185,79 +270,23 @@ describe('resolveChipLayerVisibility — R2, a locked layer is never written', (
   });
 });
 
-describe('findNarrowedChip — the view the map has been narrowed to', () => {
-  const CHIPS = [WEBVIEW_CHIP, ALL_CHIP, STAGE_CHIP];
+describe('the reset chip is declared, not derived', () => {
+  it('carries isReset while an authored narrowing chip does not', () => {
+    // What replaced `findNarrowedChip`'s comparison. The reset chip's layerIds
+    // used to be recognisable as "the default view"; with a schedule that view
+    // depends on the hour, so at 19:00 the comparison stopped answering.
+    expect(ALL_CHIP.isReset).toBe(true);
+    expect(STAGE_CHIP.isReset).toBe(false);
+    expect(WEBVIEW_CHIP.isReset).toBe(false);
+  });
 
-  it('names the chip whose group state matches exactly', () => {
-    expect(findNarrowedChip(CHIPS, LAYERS, states(['eskara26_stage']))?.id).toBe(
-      'eskara26_view_stage',
+  it('names a set that is NOT the default view at every hour', () => {
+    // The concrete reason the flag exists. 부스 is in the reset chip's layerIds
+    // and is off by default at 19:00, so applying the narrowing rule to a reset
+    // tap would turn it on — and 주점 off — which is backwards.
+    expect(ALL_CHIP.action.kind === 'focus' && ALL_CHIP.action.layerIds).toContain(
+      'eskara26_booth',
     );
-  });
-
-  it('names nothing when the group sits at its defaults', () => {
-    // The reset chip DOES match here, and matching is not the question: sitting
-    // at what the server ships is not something the user did, so there is
-    // nothing to name and nothing to clear.
-    expect(findNarrowedChip(CHIPS, LAYERS, states(DEFAULT_FESTIVAL_IDS))).toBeNull();
-  });
-
-  it('names nothing once a layer is toggled outside any chip view', () => {
-    const drifted = states(['eskara26_stage', 'eskara26_bar']);
-    expect(findNarrowedChip(CHIPS, LAYERS, drifted)).toBeNull();
-  });
-
-  it('never names a webview chip', () => {
-    expect(findNarrowedChip([WEBVIEW_CHIP], LAYERS, states([]))).toBeNull();
-  });
-
-  it('ignores a layer outside the group when matching', () => {
-    // 건물번호 off is the user's business and must not stop 공연 being named.
-    const withBuildingsOff = states(['eskara26_stage']);
-    withBuildingsOff.building_numbers = { visible: false };
-    expect(findNarrowedChip(CHIPS, LAYERS, withBuildingsOff)?.id).toBe('eskara26_view_stage');
-  });
-
-  it('keeps searching past an at-defaults match in another group', () => {
-    // The failure this rule exists for. With a second chip group, the reset
-    // chip of group A matches on every launch — returning it and testing
-    // at-defaults afterwards would suppress the strip for a genuinely narrowed
-    // group B, leaving the user no name for the view and no way back.
-    const poiLayers: MapLayerDef[] = [
-      ...LAYERS,
-      layer({ id: 'poi_cafe', chipGroupId: 'poi', endpoint: '/map/markers/poi' }),
-      layer({ id: 'poi_atm', chipGroupId: 'poi', endpoint: '/map/markers/poi' }),
-    ];
-    const poiChip = focusChip('poi_view_cafe', ['poi_cafe']);
-    // The festival group at its defaults, the POI group narrowed to one chip.
-    const poiStates = statesOf(poiLayers, [...DEFAULT_FESTIVAL_IDS, 'poi_cafe']);
-
-    expect(findNarrowedChip([ALL_CHIP, poiChip], poiLayers, poiStates)?.id).toBe(
-      'poi_view_cafe',
-    );
-  });
-});
-
-describe('chip group defaults — what the clear control restores', () => {
-  it('restores each layer in the group to its own defaultVisible', () => {
-    expect(resolveChipGroupDefaults(STAGE_CHIP, LAYERS)).toEqual({
-      eskara26_stage: true,
-      eskara26_bar: true,
-      eskara26_food: true,
-      eskara26_booth: true,
-      eskara26_facility: false,
-      eskara26_etc: true,
-    });
-  });
-
-  it('reports a narrowed group as not at its defaults', () => {
-    expect(isChipGroupAtDefaults(STAGE_CHIP, LAYERS, states(['eskara26_stage']))).toBe(false);
-  });
-
-  it('reports the default view as at its defaults', () => {
-    expect(isChipGroupAtDefaults(ALL_CHIP, LAYERS, states(DEFAULT_FESTIVAL_IDS))).toBe(true);
-  });
-
-  it('returns null for a chip that resolves no group', () => {
-    expect(resolveChipGroupDefaults(WEBVIEW_CHIP, LAYERS)).toBeNull();
+    expect(defaultVisibleAt(byId('eskara26_booth'), DUSK)).toBe(false);
   });
 });

@@ -24,7 +24,7 @@ import liveConfig from './fixtures/map-config-live.json';
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   type: 'marker',
   label: over.id,
-  defaultVisible: true,
+  defaultVisibleWhen: { kind: 'always' },
   endpoint: '/map/markers/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
@@ -36,6 +36,7 @@ const chip = (id: string, action: MapChip['action']): MapChip => ({
   label: id,
   icon: null,
   action,
+  isReset: false,
 });
 
 const config = (over: Partial<MapConfig> = {}): MapConfig => ({
