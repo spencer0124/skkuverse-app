@@ -34,7 +34,7 @@ ListHeader, ListFooter, Radio, Rating, Shadow, Agreement, StepperRow
 구조는 보이지만 일부 핵심 로직이 암호화. .d.ts가 완벽하므로 API 계약서로 재구현.
 
 ```text
-Dialog, Toast, BottomSheet, BottomCTA, FixedBottomCTA,
+Dialog, Toast, Sheet, BottomCTA, FixedBottomCTA,
 Tab, SegmentedControl, Dropdown, Top, SearchField,
 NumericSpinner, Tooltip, FullTooltip, Highlight, Gradient
 ```
@@ -139,7 +139,7 @@ packages/sds/                       # @skkuverse/sds
 │   │   ├── stepper-row/StepperRow.tsx   # ✅ Tier 3
 │   │   ├── bottom-cta/BottomCTA.tsx     # ✅ Tier 3
 │   │   ├── fixed-bottom-cta/           # ✅ Tier 3
-│   │   ├── bottom-sheet/BottomSheet.tsx # ✅ Tier 3
+│   │   ├── sheet/Sheet.tsx              # ✅ Tier 3 (+ glass/)
 │   │   ├── navbar/Navbar.tsx            # ✅ Tier 3
 │   │   ├── gradient/Gradient.tsx        # ✅ Tier 3
 │   │   ├── error-page/ErrorPage.tsx    # ✅ Tier 4
@@ -236,7 +236,7 @@ TDS 문서와 비교 검증 완료. 모든 기본값/props가 TDS 원본과 일�
 | **StepperRow** | .d.ts 재구현 | NumberIcon + Texts(A/B/C) + RightArrow + RightButton, connector line | ✅ 완료 |
 | **BottomCTA** | .d.ts 재구현 | safe area bottom, shadow, absolute positioning | ✅ 완료 |
 | **FixedBottomCTA** | .d.ts 재구현 | BottomCTA + KeyboardAvoidingView (iOS: padding, Android: height) | ✅ 완료 |
-| **BottomSheet** | .d.ts 재구현 | @gorhom/bottom-sheet wrapper, SDS handle/backdrop, Header compound | ✅ 완료 |
+| **Sheet** | 자체 설계 | @gorhom/bottom-sheet wrapper. small/medium/large detent, expandable·stuck·fit, Liquid Glass 카드 ⇄ 불투명 시트 크로스페이드 | ✅ 완료 |
 | **Navbar** | .d.ts 재구현 | BackButton/CloseButton/Title/TextButton compounds, 56px height | ✅ 완료 |
 | **Gradient** | .d.ts 재구현 | Linear + Radial via react-native-svg, degree/position support | ✅ 완료 |
 

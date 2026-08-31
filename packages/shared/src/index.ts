@@ -29,13 +29,11 @@ export { ApiConfig } from './api/config';
 // ── Safe request wrappers ──
 export {
   safeGet,
-  safeGetTimed,
   safePost,
   safeGetRaw,
   safeGetConditional,
   firePost,
 } from './api/safe-request';
-export type { TimedPayload } from './api/safe-request';
 
 // ── Auth ──
 export { setAuthTokenProvider } from './api/interceptors/auth';
@@ -133,12 +131,28 @@ export { hexToColor, isBusGroupVisible } from './types/bus';
 export type {
   NaverConfig,
   CampusDef,
+  MapCameraDefaults,
+  MapCameraMotion,
+  MapChip,
+  MapChipAction,
+  MapChipCamera,
+  MapChipIcon,
   MapLayerStyle,
+  MarkerShape,
   MapLayerDef,
   MapConfig,
-  RawMarkerData,
-  PolylineCoord,
+  MapOverlay,
+  MarkerOverlay,
+  LatLng,
+  MarkerTap,
+  MarkerAction,
+  MarkerField,
+  I18nText,
+  DailyWindow,
+  LayerDefaultVisibility,
+  TimeWindow,
 } from './types/map';
+
 
 // ── Building types ──
 export type {
@@ -196,68 +210,43 @@ export {
 // ── Map parsers + defaults ──
 export {
   parseMapConfig,
-  parseMarkerData,
-  parsePolylineData,
+  parseOverlayData,
+  toLatLng,
+  overlayAnchor,
   DEFAULT_MAP_CONFIG,
+  DEFAULT_CAMERA_DEFAULTS,
+  defaultVisibleAt,
+  isLayerVisible,
+  resolveChipLayerVisibility,
+  isDailyWindowOpen,
+  kstMinutesOfDay,
+  nextDailyBoundaryAfter,
+  toMinutesOfDay,
+  isFestivalLayer,
+  withoutFestival,
+  resolvePinCollisions,
+  isOpenNow,
+  nextOpeningAfter,
+  nextWindowBoundaryAfter,
+  toEpochMs,
+  MAX_TIMEOUT_MS,
 } from './map';
+export type { LayerVisibilityState, PinCandidate } from './map';
 
 // ── Event map ──
-export type {
-  EventMapAction,
-  EventMapCardSlot,
-  EventMapCardTemplate,
-  EventMapChip,
-  EventMapChipGroup,
-  EventMapItem,
-  EventMapLayer,
-  EventMapManifest,
-  EventMapSnapshot,
-  EventMapSort,
-  IconSpec,
-  ItemStatus,
-  LayerRender,
-  Predicate,
-  SortKey,
-} from './types/eventmap';
+//
+// The snapshot tier is gone. `/eventmap/manifest` and `/eventmap/snapshot` were
+// deleted server-side and the place documents they carried now ride on the
+// ordinary marker wire, so what used to be a module of its own is the list and
+// sort rules in `./map` plus the two UI choices below.
 export {
-  EVENTMAP_SCHEMA_VERSION,
-  ITEM_STATUSES,
-  LAYER_RENDERS,
-  PREDICATE_KINDS,
-  SORT_KEYS,
-} from './types/eventmap';
-export {
-  buildStacks,
-  computeOffset,
-  deriveItemStatus,
-  deriveItems,
-  evaluatePredicate,
-  eventMapSnapshotKey,
-  isValidPredicate,
-  nextBoundaryAfter,
-  parseEventMapManifest,
-  parseEventMapSnapshot,
-  parseInstant,
-  readCachedEventMapBundle,
-  readUsableOffset,
-  selectVisibleStacks,
-  serverNow,
-  useEventMap,
-  useEventMapManifest,
-  useEventMapSnapshot,
-  EVENTMAP_MANIFEST_KEY,
-} from './eventmap';
-export type {
-  BuiltStacks,
-  ClockOffset,
-  DerivedItem,
-  DroppedCounts,
-  EventMapBundle,
-  EventMapStack,
-  ParsedSnapshot,
-  PredicateSubject,
-  UseEventMapResult,
-} from './eventmap';
+  selectVisibleOverlays,
+  sortPlaces,
+  pickI18nText,
+  wrapMarkerLabel,
+  PLACE_SORTS,
+} from './map';
+export type { PlaceSortKey, VisibleOverlaysInput } from './map';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';
 
@@ -332,8 +321,9 @@ export {
   BUILDINGS_KEY,
   useBuildingDetail,
   BUILDING_DETAIL_KEY,
-  useLayerMarkers,
-  useLayerPolyline,
+  useLayerOverlays,
+  MAP_LAYER_OVERLAYS_KEY,
+  useWindowClock,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,

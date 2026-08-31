@@ -383,7 +383,13 @@ export type CampusContentType =
   | 'quick_action_building_code'
   | 'quick_action_lost_found'
   | 'filter_sheet_campus_pill'
-  | 'building_desc_expand';
+  | 'building_desc_expand'
+  // One event per tap, carrying the chip id. Deliberately NOT accompanied by a
+  // `logLayerToggle` per layer the chip switched: one tap would emit five layer
+  // events and drown the signal the user actually gave.
+  | 'map_chip'
+  | 'eventmap_sort'
+  | 'eventmap_list_row';
 export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
 }
@@ -456,6 +462,32 @@ export function logOnboardingStep(params: {
   detail?: string;
 }) {
   logEvent('onboarding_step', {
+    step: params.step,
+    action: params.action,
+    ...(params.detail && { detail: truncate(params.detail) }),
+  });
+}
+
+/**
+ * First-launch intro funnel. A separate event from `onboarding_step` on
+ * purpose: the intro is a marketing tour every anonymous user sees, while the
+ * 7-step wizard is a configuration flow only notices-tab users reach. Merging
+ * them would make wizard drop-off unreadable.
+ */
+export type IntroStepKey = 'shuttle' | 'map' | 'notices' | 'login';
+export type IntroAction =
+  | 'enter'
+  | 'advance'
+  | 'skip'
+  | 'signin_attempt'
+  | 'signin_success'
+  | 'signin_error';
+export function logIntroStep(params: {
+  step: IntroStepKey;
+  action: IntroAction;
+  detail?: string;
+}) {
+  logEvent('intro_step', {
     step: params.step,
     action: params.action,
     ...(params.detail && { detail: truncate(params.detail) }),

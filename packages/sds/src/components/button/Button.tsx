@@ -132,6 +132,13 @@ const containerDisplayStyles = StyleSheet.create({
   full: { borderRadius: 0 },
 });
 
+const styles = StyleSheet.create({
+  // Every caller pairs the accessory with a label (Google G, trash icon), and
+  // the row had no spacing at all — the glyph sat flush against the first
+  // character.
+  leftAccessory: { marginRight: 6 },
+});
+
 // ── Inner Button (uses theme context) ──
 
 const ButtonInner = forwardRef<View, ButtonProps & PointerEvents>(function ButtonInner(
@@ -299,7 +306,12 @@ const ButtonInner = forwardRef<View, ButtonProps & PointerEvents>(function Butto
         <Animated.View
           style={[{ flexDirection: 'row', alignItems: 'center' }, animatedText]}
         >
-          {leftAccessory}
+          {/* Wrapper, not a `gap` on the row: children may render as several
+              nodes (Children.map over a fragment), and a row gap would then
+              also space those apart. This spaces the accessory alone. */}
+          {leftAccessory ? (
+            <View style={styles.leftAccessory}>{leftAccessory}</View>
+          ) : null}
           {renderedChildren}
         </Animated.View>
 

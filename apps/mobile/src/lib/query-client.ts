@@ -3,10 +3,13 @@ import { QueryClient } from '@tanstack/react-query';
 /**
  * The app's single QueryClient.
  *
- * Extracted from QueryProvider so non-React callers can reach it. The FCM
- * background message handler is registered at module scope in `index.ts`, runs
- * outside the React tree, and needs to invalidate the event-map manifest when a
- * silent `eventmap-refresh` push arrives — it has no provider to read from.
+ * Extracted from QueryProvider so non-React callers can reach it. The reason
+ * was the FCM background message handler, which is registered at module scope
+ * in `index.ts`, runs outside the React tree, and used to invalidate the event
+ * map's queries on a silent `eventmap-refresh` push — it has no provider to
+ * read from. That push and its handler are gone with the snapshot tier, so
+ * nothing headless invalidates today; the export stays because the next such
+ * caller would need exactly this and would otherwise re-derive it wrongly.
  *
  * Keeping the definition in a plain .ts (rather than exporting it from the
  * .tsx provider) also keeps React and react-native's AppState off the headless

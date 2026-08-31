@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import {
+  Platform,
   View,
   ScrollView,
   // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
@@ -33,7 +34,14 @@ export function HomeScreen() {
   // starts below the bar and only slides under it on scroll (where the
   // scroll-edge blur kicks in). useHeaderHeight reflects the live header
   // height so it tracks safe-area changes and large-title states.
+  //
+  // iOS ONLY. `headerTransparent` is set inside the `Platform.OS === 'ios'`
+  // branch of the home tab's Stack.Screen options, so Android keeps an opaque
+  // Toolbar that already offsets the content below itself. Adding headerHeight
+  // there too counted the bar twice and left a header-sized dead space at the
+  // top of the screen.
   const headerHeight = useHeaderHeight();
+  const scrollTopInset = Platform.OS === 'ios' ? headerHeight + 16 : 16;
 
   const mainGridItems = useMemo<readonly TossfaceGridItem[]>(
     () => [
@@ -47,10 +55,8 @@ export function HomeScreen() {
           router.navigate('/(tabs)/notices' as never);
         },
       },
-      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 영상 화면/라우트(/video-gallery)는
-      // 네이티브 의존(expo-screen-orientation, expo-linear-gradient) 때문에 feat/native로
-      // 옮겨졌고 dev에는 존재하지 않는다 — 복구는 3.6.0 네이티브 빌드와 함께. 번역 키
-      // (home.tile.originalSeries)만 여기 남겨둔다.
+      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 라우트(/video-gallery)와
+      // 번역 키(home.tile.originalSeries)는 그대로 살아있으니 이 블록만 되살리면 복구된다.
       // {
       //   id: 'original_series',
       //   title: t('home.tile.originalSeries'),
@@ -88,14 +94,22 @@ export function HomeScreen() {
           });
         },
       },
-      // 오리지널 시리즈가 빠지며 생긴 4번째 칸 — 이동 탭 바로가기.
+      // 오리지널 시리즈가 빠지며 생긴 4번째 칸. 이동 탭 바로가기였다가 분실물로
+      // 교체 — 이동은 탭바에 이미 있어서 타일이 한 번 더 말하는 것뿐이었고,
+      // 분실물은 캠퍼스 탭 하단 시트에만 있어 탭을 옮겨야 닿는 항목이었다.
+      // 액션은 서버 `/ui/home/campus`의 lost_found 항목과 같은 값을 쓴다.
       {
-        id: 'transit',
-        title: t('nav.transit'),
-        emoji: '\u{1F68C}',
+        id: 'lost_found',
+        title: t('lostAndFound.title'),
+        emoji: '\u{1F9F3}',
         onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'transit' });
-          router.navigate('/(tabs)/transit' as never);
+          logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
+          handleSduiAction({
+            actionType: 'webview',
+            actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
+            webviewTitle: t('lostAndFound.title'),
+            webviewColor: '003626',
+          });
         },
       },
     ],
@@ -128,7 +142,7 @@ export function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 16 },
+          { paddingTop: scrollTopInset },
         ]}
         showsVerticalScrollIndicator={false}
       >

@@ -1,5 +1,11 @@
 /**
- * Floating search bar — tappable (not input), navigates to search screen.
+ * Search bar — tappable (not input), navigates to search screen.
+ *
+ * Lives inside the campus bottom sheet, not floating over the map. It sizes
+ * itself to `MAP_CONTROL_HEIGHT` even so: the campus toggle took its place in
+ * the floating row and has to match it, and pinning both to one constant is
+ * what makes "the same size" a fact rather than two paddings that happen to
+ * agree today.
  *
  * iOS 26+: native UIGlassEffect via expo-glass-effect (`GlassView`).
  * iOS<26 / Android: existing solid white capsule (no visual change).
@@ -12,6 +18,8 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
+import { glassFloatShadow } from '@skkuverse/sds';
+import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 import { logCampusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();
@@ -27,7 +35,7 @@ export function SearchBar() {
 
   if (GLASS_AVAILABLE) {
     return (
-      <View style={[styles.outer, glassStyles.shadow]} pointerEvents="box-none">
+      <View style={[styles.outer, glassFloatShadow]} pointerEvents="box-none">
         <GlassView style={styles.glassSurface} glassEffectStyle="regular" isInteractive>
           <Pressable
             style={({ pressed }) => [
@@ -57,29 +65,36 @@ export function SearchBar() {
 }
 
 const styles = StyleSheet.create({
+  // `alignSelf: 'stretch'` rather than `flex: 1`: this now sits in a column
+  // (the sheet), where `flex: 1` would stretch it to the sheet's full height
+  // instead of its full width.
   outer: {
-    flex: 1,
+    alignSelf: 'stretch',
+    height: MAP_CONTROL_HEIGHT,
     borderRadius: 999,
   },
   glassSurface: {
+    flex: 1,
     borderRadius: 999,
     overflow: 'hidden',
   },
+  // Fills the fixed height instead of defining it with vertical padding, so the
+  // capsule measures exactly `MAP_CONTROL_HEIGHT` whatever the font metrics do.
   content: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 10,
     gap: 8,
   },
   fallbackContainer: {
-    flex: 1,
+    alignSelf: 'stretch',
+    height: MAP_CONTROL_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 10,
     gap: 8,
     ...SdsShadows.elevated.legacy,
   },
@@ -87,19 +102,5 @@ const styles = StyleSheet.create({
     ...SdsTypo.t6,
     color: SdsColors.grey400,
     flex: 1,
-  },
-});
-
-// Same intermediate shadow as RefreshFab Glass branch — Apple HIG floating
-// element guidance, dialed below SdsShadows.elevated to avoid clashing with
-// Glass specular. Promote to a `glassFloat` token if a third callsite shows up.
-const glassStyles = StyleSheet.create({
-  shadow: {
-    boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
   },
 });

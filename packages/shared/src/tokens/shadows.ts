@@ -56,6 +56,26 @@ const bottomSheet: SdsShadowToken = {
   },
 };
 
+/**
+ * Floating element over Liquid Glass — 0 2px 8px rgba(0,0,0,0.06).
+ *
+ * Sits between `card` (too subtle to lift a floating control off a map) and
+ * `elevated` (too strong — it clashes with the Glass specular highlight). Apple
+ * HIG floating-element guidance. Used by the search bar, the realtime FAB and
+ * the event map's floating controls, all of which have a Glass branch on iOS 26
+ * and a solid-white fallback below it.
+ */
+const glassFloat: SdsShadowToken = {
+  boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.06)',
+  legacy: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+};
+
 /** Segmented control indicator — 0 1px 2px rgba(0,0,0,0.09) */
 const segmentedIndicator: SdsShadowToken = {
   boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.09)',
@@ -72,5 +92,6 @@ export const SdsShadows = {
   card,
   elevated,
   bottomSheet,
+  glassFloat,
   segmentedIndicator,
 } as const;

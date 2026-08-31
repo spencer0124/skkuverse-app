@@ -30,9 +30,14 @@ export * from './numeric-spinner';
 export * from './stepper-row';
 export * from './bottom-cta';
 export * from './fixed-bottom-cta';
-export * from './bottom-sheet';
 export * from './navbar';
 export * from './gradient';
+
+// Liquid Glass primitives (iOS 26; opaque fallback elsewhere)
+export * from './glass';
+
+// The one bottom sheet
+export * from './sheet';
 
 // Tier 4
 export * from './error-page';

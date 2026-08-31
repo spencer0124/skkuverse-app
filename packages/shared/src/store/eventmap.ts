@@ -1,140 +1,101 @@
 /**
- * Event map client state.
+ * Event map client state — the two choices the marker payload cannot carry.
  *
- * Separate from `useMapLayerStore` on purpose — two lifetimes. The campus layer
- * store holds permanent assets; everything here belongs to one event and is
- * meant to be forgotten when the next one arrives. Folding event layer ids into
- * the permanent store would leave dead `eskara-2026` keys in persisted state
- * forever.
+ * Separate from `useMapLayerStore` on purpose: that one is ephemeral, seeded
+ * from `/map/config` on every launch, and it is where an event layer's
+ * visibility lives — festival layers are ordinary served layers. What is left
+ * here is the list's sort and which place has a sheet open.
  *
- * Note what is NOT here: `basemapOverride`. The snapshot's instruction to hide
- * building numbers during the festival is applied as a DERIVED overlay at render
- * time, never written into this store. A force-then-restore design loses the
- * user's real toggle whenever the app is killed or the activation flips between
- * the write and the restore — leaving 건물번호 off with nothing to point at, and
- * nobody able to find why. Derived, the override simply stops existing when the
- * event does.
+ * The sort used to be chosen from a `sorts` array the snapshot declared, and was
+ * keyed to the layer set that declared it. There is no snapshot and no such
+ * array now — the orders are the client's own (`map/list.ts`) — so the key is
+ * the chip group, which is the layer set id by another name and is the one thing
+ * on `/map/config` that changes when next year's festival replaces this one.
  */
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { EventMapSnapshot } from '../types/eventmap';
-import type { ClockOffset } from '../eventmap/clock';
+import { PLACE_SORTS, type PlaceSortKey } from '../map/list';
 import { mmkvStateStorage } from './mmkv-storage';
 
+const DEFAULT_SORT: PlaceSortKey = PLACE_SORTS[0];
+
 interface EventMapState {
-  /** Which layer set the persisted toggles belong to. */
+  /** The chip group the persisted sort was chosen for. */
   activeLayerSetId: string | null;
-  /** Layer id → user's explicit choice. Absent means "use the layer's default". */
-  layerVisibility: Record<string, boolean>;
+  sortId: PlaceSortKey;
   /**
-   * Chip selections and sort are declared now and unused until Phase 6, so the
-   * persisted shape does not change again when that lands.
+   * Which place's peek sheet is open. Never persisted.
+   *
+   * A place id, not a stack key. Stacks existed because several sessions
+   * collapsed onto one plot and a tap could not say which was meant; a place is
+   * one document now and `tap.placeId` is its own id, so two booths sharing a
+   * spot are two taps rather than one sheet listing both.
    */
-  selectedChips: Record<string, string[]>;
-  sortId: string | null;
-  /** Which stack's peek sheet is open. Never persisted. */
-  selectedStackKey: string | null;
-  /**
-   * Last measured server-clock offset. Re-measured on every successful manifest
-   * fetch, so this only matters on a fully-offline cold start.
-   */
-  clockOffset: ClockOffset | null;
+  selectedPlaceId: string | null;
 }
 
 interface EventMapActions {
-  initFromSnapshot: (snapshot: EventMapSnapshot) => void;
-  toggleLayer: (layerId: string) => void;
-  setSelectedStackKey: (stackKey: string | null) => void;
-  setClockOffset: (offset: ClockOffset) => void;
+  /** Reset the sort when the live layer set changes. Same seeding rule as useMapLayerStore. */
+  syncLayerSet: (layerSetId: string | null) => void;
+  setSortId: (sortId: PlaceSortKey) => void;
+  setSelectedPlaceId: (placeId: string | null) => void;
 }
 
 export type EventMapStore = EventMapState & EventMapActions;
 
 const initialState: EventMapState = {
   activeLayerSetId: null,
-  layerVisibility: {},
-  selectedChips: {},
-  sortId: null,
-  selectedStackKey: null,
-  clockOffset: null,
+  sortId: DEFAULT_SORT,
+  selectedPlaceId: null,
 };
-
-function seedDefaults(snapshot: EventMapSnapshot): {
-  layerVisibility: Record<string, boolean>;
-  selectedChips: Record<string, string[]>;
-  sortId: string | null;
-} {
-  const layerVisibility: Record<string, boolean> = {};
-  for (const layer of snapshot.layers) layerVisibility[layer.id] = layer.defaultVisible;
-
-  const selectedChips: Record<string, string[]> = {};
-  for (const group of snapshot.chipGroups) {
-    selectedChips[group.id] = group.chips.filter((c) => c.defaultSelected).map((c) => c.id);
-  }
-
-  return { layerVisibility, selectedChips, sortId: snapshot.sorts[0]?.id ?? null };
-}
 
 export const useEventMapStore = create<EventMapStore>()(
   persist(
     (set) => ({
       ...initialState,
 
-      initFromSnapshot: (snapshot) =>
+      syncLayerSet: (layerSetId) =>
         set((state) => {
+          if (layerSetId === null || state.activeLayerSetId === layerSetId) return state;
           // A different layer set is a different event. Start clean rather than
-          // inheriting last year's toggles — and this reset is what bounds the
-          // persisted blob to one event's worth of keys.
-          if (state.activeLayerSetId !== snapshot.id) {
-            return { activeLayerSetId: snapshot.id, ...seedDefaults(snapshot) };
-          }
-
-          // Same event: seed only ids not already tracked, so a refetch cannot
-          // undo a toggle the user just made. Mirrors useMapLayerStore.
-          const layerVisibility = { ...state.layerVisibility };
-          for (const layer of snapshot.layers) {
-            if (!(layer.id in layerVisibility)) layerVisibility[layer.id] = layer.defaultVisible;
-          }
-          const selectedChips = { ...state.selectedChips };
-          for (const group of snapshot.chipGroups) {
-            if (!(group.id in selectedChips)) {
-              selectedChips[group.id] = group.chips
-                .filter((c) => c.defaultSelected)
-                .map((c) => c.id);
-            }
-          }
-          return {
-            layerVisibility,
-            selectedChips,
-            sortId: state.sortId ?? snapshot.sorts[0]?.id ?? null,
-          };
+          // inheriting last year's sort.
+          return { activeLayerSetId: layerSetId, sortId: DEFAULT_SORT };
         }),
 
-      toggleLayer: (layerId) =>
-        set((state) => ({
-          layerVisibility: {
-            ...state.layerVisibility,
-            [layerId]: !(state.layerVisibility[layerId] ?? true),
-          },
-        })),
+      setSortId: (sortId) => set({ sortId }),
 
-      setSelectedStackKey: (stackKey) => set({ selectedStackKey: stackKey }),
-
-      setClockOffset: (offset) => set({ clockOffset: offset }),
+      setSelectedPlaceId: (placeId) => set({ selectedPlaceId: placeId }),
     }),
     {
       name: 'eventmap',
-      version: 1,
+      // Every bump has left a key behind: v2 dropped `clockOffset`, v3 dropped
+      // `layerVisibility` and `selectedChips`, and v4 drops `selectedStackKey`
+      // along with the whole snapshot tier that produced stacks. persist
+      // shallow-merges the stored blob over the initial state, so without a
+      // migration an existing install would reintroduce each as a stray property
+      // the types no longer describe.
+      version: 4,
+      migrate: (persisted) => {
+        if (persisted && typeof persisted === 'object') {
+          const blob = persisted as Record<string, unknown>;
+          delete blob.clockOffset;
+          delete blob.layerVisibility;
+          delete blob.selectedChips;
+          delete blob.selectedStackKey;
+          // A v3 `sortId` is a SERVER sort id ('manual', 'distance', …), not one
+          // of this build's keys. Dropping it lets the default apply rather than
+          // leaving the list on an order nothing can render.
+          if (!PLACE_SORTS.includes(blob.sortId as PlaceSortKey)) delete blob.sortId;
+        }
+        return persisted as EventMapStore;
+      },
       storage: createJSONStorage(() => mmkvStateStorage),
-      // selectedStackKey is excluded deliberately: a peek sheet reopening on
-      // cold start, for a booth the user tapped yesterday, is never right.
+      // selectedPlaceId is excluded deliberately: a peek sheet reopening on cold
+      // start, for a booth the user tapped yesterday, is never right.
       partialize: (state) => ({
         activeLayerSetId: state.activeLayerSetId,
-        layerVisibility: state.layerVisibility,
-        selectedChips: state.selectedChips,
         sortId: state.sortId,
-        clockOffset: state.clockOffset,
       }),
     },
   ),

@@ -122,6 +122,7 @@ const ko = {
   // ── Common ──
   'common.ok': '확인',
   'common.close': '닫기',
+  'common.cancel': '취소',
   'common.retry': '다시 시도',
   'common.total': '전체',
 
@@ -197,6 +198,30 @@ const ko = {
   // ── Filter ──
   'filter.campus': '캠퍼스',
   'filter.layer': '레이어',
+
+  // ── Map controls ──
+  'map.locate': '내 위치',
+  'map.locate.face': '내 위치 및 방향',
+  'map.compass': '정북으로 회전',
+  // The accessibility label on the active-chip strip's clear control. Says what
+  // it does to the map, not what it does to the strip: the strip disappearing
+  // is the effect, restoring the layer group is the action.
+  'map.chip.clear': '전체 보기로 돌아가기',
+  // 캠퍼스 제안 카드. {0}은 서버가 주는 캠퍼스 이름(CampusDef.label)이라 여기 적지 않는다.
+  // 조사는 두 캠퍼스가 모두 '캠'으로 끝나 '을'/'이에요'로 고정된다. 이름이
+  // 받침 없는 값으로 바뀌면 조사도 같이 봐야 한다.
+  // 메시지는 사실 서술이고 동사는 버튼이 맡는다.
+  'map.campus.suggest.switch': '지금 {0}을 보고 있어요',
+  'map.campus.suggest.show': '가까운 캠퍼스는 {0}이에요',
+  'map.campus.suggest.actionSwitch': '전환',
+  'map.campus.suggest.actionShow': '이동',
+  'map.campus.suggest.dismiss': '닫기',
+  // 권한 카드. 없는 기능을 설명하지 않고, 켰을 때 얻는 것만 말한다.
+  'map.campus.permission.message': '위치 권한을 켜면 현위치가 보여요',
+  'map.campus.permission.action': '켜기',
+  'map.permission.deniedTitle': '위치 권한이 필요해요',
+  'map.permission.deniedBody': '설정에서 위치 권한을 켜면 지도에 현위치를 표시할 수 있어요.',
+  'map.permission.openSettings': '설정 열기',
 
   // ── ETA formatting ──
   'eta.imminent': '곧 출발',
@@ -421,6 +446,22 @@ const ko = {
   'onboarding.interestDept.recommendedSection': '같은 단과대학',
   'onboarding.interestDept.othersSection': '기타 학과',
 
+  // ── First-launch intro ──
+  // The 4-page value tour shown once to every user who is not signed in with a
+  // Google account. Distinct from the `onboarding.*` block above, which is the
+  // 7-step notices wizard behind the notices tab.
+  'intro.shuttleTitle': '셔틀, 언제 오는지\n바로 확인해요',
+  'intro.shuttleBody': '실시간 위치와 시간표를 한 화면에서 봐요',
+  'intro.mapTitle': '강의실 찾다가\n헤매지 마세요',
+  'intro.mapBody': '건물부터 호실까지 지도에서 찾아드려요',
+  'intro.noticesTitle': '성균관대 공지,\n찾지 말고 받아보세요',
+  'intro.noticesBody': 'AI가 중요한 내용만 알려드려요',
+  'intro.loginTitle': '성대생이라면\n모든 기능을 누려보세요',
+  'intro.loginBody': 'AI공지 요약, 공지 알림, 셔틀정보, 캠퍼스맵',
+  'intro.next': '다음',
+  'intro.loginCta': '1초만에 구글 계정으로 로그인하기',
+  'intro.loginSkip': '나중에 할게요',
+
   // ── Settings ──
   'settings.title': '설정',
   'settings.account': '계정 설정',
@@ -511,8 +552,12 @@ const ko = {
   'eventmap.status.open': '운영중',
   'eventmap.status.upcoming': '준비중',
   'eventmap.status.closed': '종료',
-  'eventmap.status.unknown': '정보 없음',
-  'eventmap.stack.othersHere': '같은 자리의 다른 부스',
+  'eventmap.hours.always': '상시 운영',
+  'eventmap.sort.order': '추천순',
+  'eventmap.sort.opening': '오픈 임박순',
+  'eventmap.sort.title': '이름순',
+  'eventmap.list.count': '{0}곳',
+  'eventmap.list.empty': '조건에 맞는 곳이 없어요',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -569,6 +614,7 @@ const en: TranslationMap = {
   // ── Common ���─
   'common.ok': 'ok',
   'common.close': 'Close',
+  'common.cancel': 'Cancel',
   'common.retry': 'Retry',
   'common.total': 'Total',
 
@@ -644,6 +690,22 @@ const en: TranslationMap = {
   // ── Filter ──
   'filter.campus': 'Campus',
   'filter.layer': 'Layers',
+
+  // ── Map controls ──
+  'map.locate': 'My location',
+  'map.locate.face': 'My location and heading',
+  'map.compass': 'Rotate to north',
+  'map.chip.clear': 'Back to the full view',
+  'map.campus.suggest.switch': "You're looking at {0}",
+  'map.campus.suggest.show': 'Nearest campus is {0}',
+  'map.campus.suggest.actionSwitch': 'Switch',
+  'map.campus.suggest.actionShow': 'Go',
+  'map.campus.suggest.dismiss': 'Dismiss',
+  'map.campus.permission.message': 'Turn on location to see where you are',
+  'map.campus.permission.action': 'Turn on',
+  'map.permission.deniedTitle': 'Location permission needed',
+  'map.permission.deniedBody': 'Turn on location access in Settings to show your position on the map.',
+  'map.permission.openSettings': 'Open Settings',
 
   // ── ETA formatting ──
   'eta.imminent': 'Departing soon',
@@ -866,6 +928,19 @@ const en: TranslationMap = {
   'onboarding.interestDept.recommendedSection': 'Same college',
   'onboarding.interestDept.othersSection': 'Other departments',
 
+  // ── First-launch intro ──
+  'intro.shuttleTitle': 'See when the next\nshuttle arrives',
+  'intro.shuttleBody': 'Live positions and timetables on one screen',
+  'intro.mapTitle': 'Never wander looking\nfor a lecture room',
+  'intro.mapBody': 'Find any building and room on the campus map',
+  'intro.noticesTitle': 'Get SKKU notices\ninstead of hunting for them',
+  'intro.noticesBody': 'AI tells you only what matters',
+  'intro.loginTitle': 'At SKKU?\nUnlock every feature',
+  'intro.loginBody': 'AI notice summaries, alerts, shuttle times, campus map',
+  'intro.next': 'Next',
+  'intro.loginCta': 'Sign in with Google in a second',
+  'intro.loginSkip': 'Maybe later',
+
   // ── Settings ──
   'settings.title': 'Settings',
   'settings.account': 'Account',
@@ -961,8 +1036,12 @@ const en: TranslationMap = {
   'eventmap.status.open': 'Open',
   'eventmap.status.upcoming': 'Opening soon',
   'eventmap.status.closed': 'Closed',
-  'eventmap.status.unknown': 'No info',
-  'eventmap.stack.othersHere': 'Also at this spot',
+  'eventmap.hours.always': 'Always open',
+  'eventmap.sort.order': 'Recommended',
+  'eventmap.sort.opening': 'Opening soon',
+  'eventmap.sort.title': 'Name',
+  'eventmap.list.count': '{0}',
+  'eventmap.list.empty': 'Nothing matches these filters',
 };
 
 const zh: TranslationMap = {
@@ -1016,6 +1095,7 @@ const zh: TranslationMap = {
   // ── Common ──
   'common.ok': '查看',
   'common.close': '关闭',
+  'common.cancel': '取消',
   'common.retry': '重试',
   'common.total': '全部的',
 
@@ -1091,6 +1171,22 @@ const zh: TranslationMap = {
   // ── Filter ──
   'filter.campus': '校区',
   'filter.layer': '图层',
+
+  // ── Map controls ──
+  'map.locate': '我的位置',
+  'map.locate.face': '我的位置和方向',
+  'map.compass': '转向正北',
+  'map.chip.clear': '返回完整视图',
+  'map.campus.suggest.switch': '正在查看{0}',
+  'map.campus.suggest.show': '最近的校区是{0}',
+  'map.campus.suggest.actionSwitch': '切换',
+  'map.campus.suggest.actionShow': '前往',
+  'map.campus.suggest.dismiss': '关闭',
+  'map.campus.permission.message': '开启定位权限即可显示当前位置',
+  'map.campus.permission.action': '开启',
+  'map.permission.deniedTitle': '需要位置权限',
+  'map.permission.deniedBody': '在设置中开启位置权限后，即可在地图上显示当前位置。',
+  'map.permission.openSettings': '打开设置',
 
   // ── ETA formatting ──
   'eta.imminent': '即将出发',
@@ -1311,6 +1407,19 @@ const zh: TranslationMap = {
   'onboarding.interestDept.recommendedSection': '同学院',
   'onboarding.interestDept.othersSection': '其他学科',
 
+  // ── First-launch intro ──
+  'intro.shuttleTitle': '校车什么时候到，\n一眼就知道',
+  'intro.shuttleBody': '实时位置和时刻表都在同一个页面',
+  'intro.mapTitle': '再也不用为找教室\n绕圈子',
+  'intro.mapBody': '从楼栋到房间号，地图上都能找到',
+  'intro.noticesTitle': '成均馆大学的通知，\n不用找，直接收',
+  'intro.noticesBody': 'AI 只告诉你重要的内容',
+  'intro.loginTitle': '成大学生的话，\n所有功能都能用',
+  'intro.loginBody': 'AI 通知摘要、通知提醒、校车信息、校园地图',
+  'intro.next': '下一步',
+  'intro.loginCta': '一秒用谷歌账号登录',
+  'intro.loginSkip': '以后再说',
+
   // ── Settings ──
   'settings.title': '设置',
   'settings.account': '账户',
@@ -1400,8 +1509,12 @@ const zh: TranslationMap = {
   'eventmap.status.open': '营业中',
   'eventmap.status.upcoming': '准备中',
   'eventmap.status.closed': '已结束',
-  'eventmap.status.unknown': '暂无信息',
-  'eventmap.stack.othersHere': '同一位置的其他摊位',
+  'eventmap.hours.always': '全天开放',
+  'eventmap.sort.order': '推荐顺序',
+  'eventmap.sort.opening': '即将开放',
+  'eventmap.sort.title': '名称顺序',
+  'eventmap.list.count': '{0}处',
+  'eventmap.list.empty': '没有符合条件的地点',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

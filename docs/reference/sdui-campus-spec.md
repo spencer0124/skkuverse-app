@@ -3,7 +3,7 @@ title: SDUI Campus Tab Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-16
+last-updated: 2026-08-28
 audience: public
 ---
 
@@ -24,6 +24,22 @@ HomeDST, simplified to SKKUBUS's scale.
 - The `type` field is the key that maps a section to a component.
 - An unknown `type` renders as `null`, so an older app does not crash.
 - A widget can be reused directly, outside any SDUI context.
+- A widget carries no horizontal gutter. Its caller owns one, because the caller is the only
+  side that knows how far its container is inset.
+
+## Where it renders
+
+The campus tab's bottom sheet, in `apps/mobile/src/features/map/CampusScreen.tsx`. The sheet
+holds a promotional feed (notices, banners, event entries), and nothing else on the screen
+consumes this endpoint. That surface shapes the contract, not only the styling:
+
+- **Blocks sit on liquid glass for most of the sheet's travel.** The opaque fill only
+  dissolves in over the final drag, so a section that paints no fill of its own is drawn over
+  a live map. See
+  [bottom-sheet-system.md](../explanation/bottom-sheet-system.md).
+- **Long-form content does not belong in a section.** It belongs behind a `webview` or
+  `miniapp` action, which opens a full screen. The sheet is a place to hand off from rather
+  than a place to read in.
 
 ## API
 
@@ -192,7 +208,18 @@ The dispatcher returns `null` for an unknown `type`, so nothing renders.
 
 ## Fallback
 
-When the API call fails, React Query's cache or the default data is used.
+A failed call falls back to React Query's cache, and past that to
+`DEFAULT_CAMPUS_SECTIONS` (`packages/shared/src/sdui/defaults.ts`), which is **empty**.
+`useCampusSections` never throws, so `isError` is never true.
+
+Empty is deliberate for this surface. A stale promo is worse than no promo, and an empty
+card over the map is a legitimate resting state. It also makes a whole bug class
+unrepresentable: the fallback used to be a hardcoded button grid whose targets drifted from
+the server's twice, and a fallback that disagrees with the server only ever surfaces when
+nobody is looking.
+
+The trade is that a caller cannot distinguish a dead API from a server with nothing to show.
+Both render the same empty card, which is the right answer here.
 
 ## i18n
 
@@ -205,11 +232,21 @@ When the API call fails, React Query's cache or the default data is used.
 
 ## Adding a section type
 
+Before adding one, check that it is warranted. A new *arrangement* of existing material is
+a template, not a widget; only a genuinely new *interaction* earns a section type. An
+unbounded widget catalogue is the documented way this pattern dies, and the repo already has
+a bounded alternative in the event map's card slots
+(`packages/shared/src/types/eventmap.ts`), where a template names which slots appear in what
+order and the item supplies the values.
+
 1. **Server:** add the new object to the sections array.
 2. **Client**, which needs an app update:
-   - add the type to `types.ts`
-   - create the component file under `widgets/`
-   - add the case to the dispatcher in `widgets/index.ts`
+   - add the type to the union in `packages/shared/src/types/sdui.ts`
+   - handle it in `parseSection` (`packages/shared/src/sdui/parser.ts`), or it arrives as
+     `unknown`
+   - create the component file under `apps/mobile/src/sdui/widgets/`
+   - add the case to the dispatcher in `apps/mobile/src/sdui/renderer.tsx`, whose `never`
+     guard fails the build until you do
 3. **Backward compatibility:** an older app ignores the unknown type, so nothing crashes.
 
 ### Candidates for later
@@ -217,7 +254,7 @@ When the API call fails, React Query's cache or the default data is used.
 | type | Description |
 | --- | --- |
 | `list` | A vertical list |
-| `card` | A card-shaped UI |
+| `card` | A card-shaped UI. Build it as a slot template rather than a widget per shape, copying `resolveSlots` in `packages/shared/src/eventmap/card.ts` |
 | `countdown` | A D-day countdown |
 | `carousel` | A sliding banner |
 

@@ -10,7 +10,11 @@ export { useMainNotice, MAIN_NOTICE_KEY, type NoticePlacement } from './useMainN
 export { useMapConfig, MAP_CONFIG_KEY } from './useMapConfig';
 export { useBuildings, BUILDINGS_KEY } from './useBuildings';
 export { useBuildingDetail, BUILDING_DETAIL_KEY } from './useBuildingDetail';
-export { useLayerMarkers, useLayerPolyline } from './useMapLayers';
+export {
+  useLayerOverlays,
+  MAP_LAYER_OVERLAYS_KEY,
+} from './useMapLayers';
+export { useWindowClock } from './useWindowClock';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 
 // ── Notice hooks ──

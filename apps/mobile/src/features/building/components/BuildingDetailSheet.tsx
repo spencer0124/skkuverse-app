@@ -9,10 +9,6 @@
 
 import { forwardRef, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-} from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapTrifoldIcon } from 'phosphor-react-native';
 import {
@@ -25,7 +21,18 @@ import {
   useT,
   type FloorSpace,
 } from '@skkuverse/shared';
-import { AccordionList, Badge, Gradient, ListHeader, ListRow, Txt, type AccordionSection } from '@skkuverse/sds';
+import {
+  AccordionList,
+  Badge,
+  Gradient,
+  ListHeader,
+  ListRow,
+  Sheet,
+  SheetCloseButton,
+  Txt,
+  type AccordionSection,
+  type SheetRef,
+} from '@skkuverse/sds';
 import { BuildingHeader } from './BuildingHeader';
 import { ConnectionsSection } from './ConnectionsSection';
 import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMapping';
@@ -42,7 +49,15 @@ interface BuildingDetailSheetProps {
   skkuId: number | null;
   highlightSpaceCd?: string;
   source?: BuildingDetailSource;
+  /**
+   * Gap between the card's bottom edge and the screen's, in the modal's own
+   * (window) coordinates — the campus card's edge restated, so the two cards
+   * sit on one line. Computed by `CampusScreen`, which measures both.
+   */
+  bottomGap: number;
   onConnectionTap: (targetSkkuId: number) => void;
+  /** Fired by gorhom once the sheet is fully gone; the campus sheet returns on it. */
+  onDismiss?: () => void;
 }
 
 /** 8px grey50 section divider */
@@ -51,9 +66,12 @@ function SectionDivider() {
 }
 
 export const BuildingDetailSheet = forwardRef<
-  BottomSheetModal,
+  SheetRef,
   BuildingDetailSheetProps
->(function BuildingDetailSheet({ skkuId, highlightSpaceCd, source, onConnectionTap }, ref) {
+>(function BuildingDetailSheet(
+  { skkuId, highlightSpaceCd, source, bottomGap, onConnectionTap, onDismiss },
+  ref,
+) {
   const { data, isLoading } = useBuildingDetail(skkuId);
   const lang = useSettingsStore((s) => s.appLanguage);
   const { t, tpl } = useT();
@@ -165,20 +183,37 @@ export const BuildingDetailSheet = forwardRef<
     if (!hsscMapName) return;
     logConnectionMapOpen('hssc');
     // Dismiss sheet before navigating
+    // `dismiss` is optional on a SheetRef because an inline sheet has none.
+    // This one is always a modal, so the call always lands.
     if (ref && typeof ref === 'object' && ref.current) {
-      ref.current.dismiss();
+      ref.current.dismiss?.();
     }
     router.push(`/map/hssc?building=${encodeURIComponent(hsscMapName)}` as never);
   }, [hsscMapName, ref, router]);
 
   return (
-    <BottomSheetModal
+    <Sheet
       ref={ref}
-      snapPoints={['85%']}
-      enableDynamicSizing={false}
-      handleIndicatorStyle={styles.handleIndicator}
+      // `large` and nothing else. A building's detail is the destination rather
+      // than a peek at one, so it arrives filling the screen — and a `large`
+      // sheet ATTACHES, which is what turns it into an ordinary opaque sheet
+      // instead of the floating card it used to be. `surface="glass"` still
+      // states which family it belongs to, so adding a lower detent later would
+      // give it the card back with no other change.
+      position={{ kind: 'stuck', detent: 'large' }}
+      surface="glass"
+      bottomGap={bottomGap}
+      // The campus sheet closes before this rises (`sheetHandoff.ts`), so the
+      // sheet never stacks on another.
+      onDismiss={onDismiss}
     >
-      <BottomSheetScrollView style={styles.container}>
+      {/* The X is a sibling of the scroll view, pinned: inside it, it would
+          scroll away with the photo header, and closing has to stay one tap
+          away at every scroll position. */}
+      <View style={styles.header}>
+        <SheetCloseButton label={t('common.close')} />
+      </View>
+      <Sheet.ScrollView style={styles.container}>
         {isLoading && (
           <View style={styles.loading}>
             <ActivityIndicator color={SdsColors.brand} />
@@ -405,8 +440,8 @@ export const BuildingDetailSheet = forwardRef<
             <View style={styles.bottomPad} />
           </>
         )}
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+      </Sheet.ScrollView>
+    </Sheet>
   );
 });
 
@@ -414,17 +449,20 @@ const DESC_LINE_HEIGHT = 22.5; // t6 lineHeight (packages/sds/src/foundation/typ
 const FADE_WIDTH = 48; // gradient fade region width
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: SdsSpacing.base,
+    paddingBottom: SdsSpacing.sm,
+  },
   container: {
     flex: 1,
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
-  },
-  handleIndicator: {
-    backgroundColor: SdsColors.grey300,
-    width: 36,
-    height: 4,
-    borderRadius: 2,
   },
   loading: {
     padding: 40,

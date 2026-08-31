@@ -102,13 +102,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "스꾸버스",
   slug: "skkubus",
   owner: "seungyongcho",
-  version: "3.5.1",
-  orientation: "portrait",
+  version: "3.6.0",
+  orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
   userInterfaceStyle: "light",
   newArchEnabled: true,
-  runtimeVersion: "3.5.4",
+  runtimeVersion: "3.6.0",
   updates: {
     url: "https://ota.skkuverse.com/manifest",
     enabled: true,
@@ -178,6 +178,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "aps-environment":
         process.env.APP_ENV === "development" ? "development" : "production",
     },
+    requireFullScreen: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       UIBackgroundModes: ["remote-notification"],
@@ -211,6 +212,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   },
   plugins: [
+    ["expo-screen-orientation", { initialOrientation: "DEFAULT" }],
     "@react-native-firebase/app",
     "@react-native-firebase/auth",
     "@react-native-firebase/crashlytics",
@@ -224,6 +226,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           useFrameworks: "static",
+          deploymentTarget: "15.1",
           extraPods: [
             { name: "GoogleMobileAdsMediationFacebook" },
           ],
@@ -266,6 +269,25 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      // Location permission is declared HERE, not through the Naver Map plugin
+      // below. That plugin accepts an `ios.NSLocationWhenInUseUsageDescription`
+      // option and then writes the value to `NSLocationAlwaysUsageDescription`
+      // instead (expo-config-plugin/build/index.js:15-17) — a different key,
+      // deprecated since iOS 10. On iOS 11+ that leaves
+      // `requestWhenInUseAuthorization` with no usage string, so the permission
+      // prompt never appears and nothing errors. This plugin writes the correct
+      // key and adds ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION on Android.
+      "expo-location",
+      {
+        // Product copy, Korean: shown verbatim in the iOS permission dialog.
+        // Single-language for now — this repo has no InfoPlist.strings
+        // localisation (`withLocalizedAppName` covers the app name alone).
+        // conventions:allow-korean
+        locationWhenInUsePermission:
+          "현위치를 지도에 표시하고 캠퍼스 내 위치를 안내하는 데 사용합니다.",
+      },
+    ],
+    [
       "@mj-studio/react-native-naver-map",
       {
         // Committed constant, not an env var. It never varied between dev and
@@ -282,6 +304,26 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         androidAppId: "ca-app-pub-5619947536545679~7806829793",
         iosAppId: "ca-app-pub-5619947536545679~7068085893",
+        // Apple SKAdNetwork attribution IDs, written into ios/Info.plist by this
+        // plugin. The plugin ships NO default list — it writes exactly what is
+        // here — so this array is the whole configuration.
+        //
+        // **It must live here, not in ios/Info.plist.** `apps/mobile/ios` is
+        // gitignored under CNG, so a hand-edit there is erased by the next
+        // `expo prebuild --clean` with nothing tracking that it ever existed.
+        //
+        // Verified 2026-08-30 against
+        // https://developers.google.com/ad-manager/mobile-ads-sdk/ios/3p-skadnetworks
+        // (list last updated 2026-01-30): an exact 50/50 match, no additions and
+        // no strays. Google adds buyers over time, so re-diff it against that
+        // page whenever a store build goes out.
+        //
+        // AdMob's home page keeps recommending "configure Apple SKAdNetwork"
+        // anyway. That card is a generic checklist item rather than a check on this
+        // app: it offers only "view docs" and "hide", AdMob cannot read the
+        // binary's Info.plist, and publishers who ship the full list report the
+        // same card persisting (support.google.com/admob/thread/252552941).
+        // Dismiss it; do not "fix" this list in response to it.
         skAdNetworkItems: [
           "cstr6suwn9.skadnetwork",
           "22mmun2rn5.skadnetwork",

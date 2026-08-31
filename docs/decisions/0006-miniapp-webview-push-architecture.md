@@ -3,7 +3,7 @@ title: Mini App Webview & Push Architecture
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-08-28
 audience: internal
 ---
 
@@ -14,8 +14,14 @@ audience: internal
 ## Status
 
 Accepted — 2026-07-22. **Decisions 1 and 2 are implemented** (2026-08-01,
-`feat/webview-shell-split` plus the server's `feat/webview-ssot-miniapps`). The rest,
-sections 3 to 8 covering the SDK and push, has not been started.
+`feat/webview-shell-split` plus the server's `feat/webview-ssot-miniapps`). The push half of
+sections 6 to 8 was built and deployed on 2026-08-21; the SDK in sections 3 to 5 has not been
+started.
+
+> [!NOTE]
+> **Push is deferred.** The deployed push path is left in place and is inert — `sendNotification` is
+> HTTP-only behind an `x-api-key` gate, no schedule or trigger reaches it, and the app-side
+> subscription toggle has been removed. Nothing further is built on it for now. Tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
 
 Building it surfaced one decision outside this ADR's original scope: an origin gate on
 the general-purpose `/webview` shell. It is the same trust-boundary problem as the mini app
@@ -176,9 +182,11 @@ a precondition of that change rather than a follow-up to it.
   `BRIDGE_ORIGINS` in the server's `src/infra/origins.ts`. A capability prop passed by the
   caller would become a second, and staler, source of truth.
 - **Fail closed.** No config, a failed fetch, unparseable data, or an origin mismatch all
-  yield `[]`. This is **deliberately the opposite** of how the rest of this package fails,
-  where `useCampusSections` hands back defaults. A stale tab beats an empty one, but failing
-  open here would hand `Linking.openURL` to an unvetted page.
+  yield `[]`. This inverts how the rest of this package fails, where `useMapConfig` hands
+  back defaults because a map with no campuses is broken while a stale one is merely old.
+  Failing open here would instead hand `Linking.openURL` to an unvetted page. (This clause
+  named `useCampusSections` when it was written; that hook's defaults were later emptied on
+  purpose, so it is no longer an example of failing open.)
 - **`web:navigate` is excluded from the grant set.** `apps/webview` has never sent it, yet
   the handler sat there unguarded. Do not revive it without a path allowlist.
 

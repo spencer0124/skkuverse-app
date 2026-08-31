@@ -40,7 +40,6 @@ export function Banner({ section }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 18,
     paddingVertical: 8,
   },
   image: {

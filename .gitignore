@@ -12,9 +12,16 @@ android/
 !**/fastlane/metadata/ios/
 
 # Environment
+# `.env.*` catches every sidecar — .env.local, .env.ota.local, and the ad-hoc
+# backups that turn up mid-session. The old rules listed variants by name, so a
+# file like `.env.claude-bak` was untracked but NOT ignored, and one `git add -A`
+# away from committing the App Check debug tokens it holds. A registered token
+# mints valid App Check tokens and bypasses App Attest and Play Integrity, so
+# this is a real secret, not a config.
+# `.env.example` is the schema, carries no values, and is tracked on purpose.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 .envrc
 
 # Firebase credentials

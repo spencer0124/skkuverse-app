@@ -6,11 +6,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-} from '@gorhom/bottom-sheet';
-import { Button, TextField, Txt } from '@skkuverse/sds';
+import { Button, Sheet, TextField, Txt, type SheetRef } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 
 const FEEDBACK_TEXT_MAX = 1500;
@@ -28,12 +24,12 @@ type Props = {
   onDismiss: () => void;
 };
 
-export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
+export const NegativeFeedbackSheet = forwardRef<SheetRef, Props>(
   function NegativeFeedbackSheet({ isSubmitting, onSubmit, onDismiss }, parentRef) {
     const { t } = useT();
-    const sheetRef = useRef<BottomSheetModal>(null);
+    const sheetRef = useRef<SheetRef>(null);
     const setRefs = useCallback(
-      (node: BottomSheetModal | null) => {
+      (node: SheetRef | null) => {
         sheetRef.current = node;
         if (typeof parentRef === 'function') parentRef(node);
         else if (parentRef) parentRef.current = node;
@@ -49,12 +45,12 @@ export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
     };
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={setRefs}
-        snapPoints={['72%']}
-        enableDynamicSizing={false}
-        keyboardBehavior="interactive"
-        android_keyboardInputMode="adjustResize"
+        position={{ kind: 'stuck', detent: 'medium' }}
+        // A text input wants the content to shrink around the keyboard rather
+        // than slide under it.
+        androidKeyboardInputMode="adjustResize"
         onDismiss={() => {
           // Reset for next session — parent may reopen with the same uid.
           setText('');
@@ -62,7 +58,7 @@ export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
         }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <BottomSheetScrollView
+          <Sheet.ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
@@ -99,9 +95,9 @@ export const NegativeFeedbackSheet = forwardRef<BottomSheetModal, Props>(
                 )}
               </Button>
             </View>
-          </BottomSheetScrollView>
+          </Sheet.ScrollView>
         </TouchableWithoutFeedback>
-      </BottomSheetModal>
+      </Sheet>
     );
   },
 );

@@ -1,0 +1,141 @@
+/**
+ * The parser against a real `GET /map/config` response.
+ *
+ * The unit suites next door feed the parser shapes chosen to exercise one rule
+ * each. This one feeds it the bytes production actually served, captured during
+ * an open festival activation so the fixture carries both halves of the
+ * response — the permanent building layers and the festival's, plus the reset
+ * chip the server synthesises and the chips the festival config authors.
+ *
+ * What it guards is the seam the unit tests cannot see: that the field names,
+ * nesting and value shapes the server ships are the ones the parser reaches
+ * for. Every one of these fields was additive, and a parser reading for a key
+ * the server does not send answers `undefined` with no error on either side —
+ * which is exactly how `campuses[].radiusM` came to be served, declared and
+ * consumed while every campus silently used the hardcoded fallback.
+ *
+ * The fixture is a snapshot, not a contract. A festival closing changes what
+ * the live endpoint returns; it does not change what this file asserts, and a
+ * failure here means the SCHEMA moved. The contract is
+ * `skkuverse-server/docs/reference/map-markers-api.md`.
+ */
+
+import { describe, it, expect } from 'vitest';
+import type { ApiEnvelope } from '../../api/types';
+import { parseMapConfig } from '../parser';
+import { defaultVisibleAt, resolveChipLayerVisibility } from '../chips';
+import liveConfig from './fixtures/map-config-live.json';
+
+const CONFIG = parseMapConfig(liveConfig as unknown as ApiEnvelope<unknown>);
+const layerIds = CONFIG.layers.map((l) => l.id);
+
+describe('the live response, parsed whole', () => {
+  it('keeps every layer and every chip', () => {
+    // Nothing dropped. A drop here is the parser rejecting something real.
+    expect(CONFIG.layers).toHaveLength(liveConfig.data.layers.length);
+    expect(CONFIG.chips).toHaveLength(liveConfig.data.chips.length);
+  });
+
+  it('reads the camera defaults rather than falling back to them', () => {
+    // Equal to the fallback today, which is why this asserts against the
+    // fixture's own numbers: a test against the constant would pass even if the
+    // field were never read.
+    expect(CONFIG.cameraDefaults.markerFocus.zoom).toBe(
+      liveConfig.data.cameraDefaults.markerFocus.zoom,
+    );
+    expect(CONFIG.cameraDefaults.campusFocus.durationMs).toBe(
+      liveConfig.data.cameraDefaults.campusFocus.durationMs,
+    );
+  });
+
+  it('puts the building layers outside every chip group', () => {
+    const buildings = CONFIG.layers.filter((l) => l.endpoint === '/map/overlays/campus');
+    expect(buildings.length).toBeGreaterThan(0);
+    for (const layer of buildings) expect(layer.chipGroupId).toBeNull();
+  });
+
+  it('reads the geometry that used to be hardcoded', () => {
+    const numbers = CONFIG.layers.find((l) => l.markerStyle === 'numberCircle');
+    const labels = CONFIG.layers.find((l) => l.markerStyle === 'textLabel');
+    const pin = CONFIG.layers.find((l) => l.markerStyle === 'placeDot');
+    expect(numbers?.style?.size).toBeGreaterThan(0);
+    expect(labels?.style?.zIndex).toBeGreaterThan(0);
+    expect(pin?.style?.width).toBeGreaterThan(0);
+    expect(pin?.style?.height).toBeGreaterThan(0);
+  });
+
+  it('leaves no chip pointing at a layer that is not served', () => {
+    for (const chip of CONFIG.chips) {
+      if (chip.action.kind !== 'focus') continue;
+      for (const id of chip.action.layerIds) expect(layerIds).toContain(id);
+    }
+  });
+
+  it('resolves every focus chip to a real visibility write', () => {
+    const focusChips = CONFIG.chips.filter((c) => c.action.kind === 'focus');
+    expect(focusChips.length).toBeGreaterThan(0);
+    for (const chip of focusChips) {
+      const next = resolveChipLayerVisibility(chip, CONFIG.layers);
+      expect(next, `chip ${chip.id} resolves no group`).not.toBeNull();
+      // Rule 1: a chip must never so much as mention a building layer.
+      for (const id of Object.keys(next ?? {})) {
+        expect(CONFIG.layers.find((l) => l.id === id)?.chipGroupId).not.toBeNull();
+      }
+    }
+  });
+
+  it('leaves no chip label unresolved by the server i18n table', () => {
+    // `t()` returns the key on a miss, silently, so a chip with no translation
+    // would render `map.chip.<id>` as its visible label.
+    for (const chip of CONFIG.chips) expect(chip.label).not.toMatch(/^map\.chip\./);
+    for (const layer of CONFIG.layers) expect(layer.label).not.toMatch(/^map\.layer\./);
+  });
+
+  it('reads a usable defaultVisibleWhen for EVERY served layer', () => {
+    // The one that guards the blank map. `null` is this parser's "I could not
+    // read that", and it resolves to OFF — so a schema move that renamed the
+    // field, or changed a `kind`, would hide every layer at once. Asserted per
+    // layer rather than in aggregate so the failure names which one moved.
+    for (const layer of CONFIG.layers) {
+      expect(layer.defaultVisibleWhen, `layer ${layer.id}`).not.toBeNull();
+    }
+  });
+
+  it('marks exactly the synthesised chip as the way back', () => {
+    // `<layerSetId>_all` is the id the server synthesises for the reset chip. A
+    // hard miss, not a skip: the fixture was captured inside the window, so a
+    // chip not being there means the contract moved.
+    const reset = CONFIG.chips.find((c) => c.id === 'eskara-2026_all');
+    expect(reset).toBeDefined();
+    expect(reset!.isReset).toBe(true);
+    for (const chip of CONFIG.chips) {
+      if (chip.id === 'eskara-2026_all') continue;
+      expect(chip.isReset, `chip ${chip.id}`).toBe(false);
+    }
+  });
+
+  it('carries a real day/night split, not just a parseable one', () => {
+    // The feature, read off the bytes the server sent. If the festival's windows
+    // are ever authored so that nothing differs across the day, this fails and
+    // says so — a config that parses but splits nothing is the failure mode a
+    // schema test cannot see.
+    const noon = Date.parse('2026-08-28T12:00:00+09:00');
+    const dusk = Date.parse('2026-08-28T19:00:00+09:00');
+    const scheduled = CONFIG.layers.filter(
+      (l) => l.defaultVisibleWhen?.kind === 'scheduled',
+    );
+    expect(scheduled.length).toBeGreaterThan(0);
+    expect(
+      scheduled.some((l) => defaultVisibleAt(l, noon) !== defaultVisibleAt(l, dusk)),
+    ).toBe(true);
+  });
+
+  it('resolves a narrowing chip to a write that names its own layer', () => {
+    const stage = CONFIG.chips.find((c) => c.id === 'eskara26_view_stage');
+    expect(stage).toBeDefined();
+    const target = resolveChipLayerVisibility(stage!, CONFIG.layers);
+    expect(target?.eskara26_stage).toBe(true);
+    // Its siblings in the group go off — "exactly these", not "these too".
+    expect(target?.eskara26_bar).toBe(false);
+  });
+});

@@ -29,13 +29,10 @@ export const ApiEndpoints = {
 
   // ── Map ──
   mapConfig: () => '/map/config',
-  aroundPlace: () => '/map/v1/getaroundplacedata',
 
-  // ── Event map ──
-  // Only the manifest is listed. The snapshot URL is formed server-side and
-  // already carries `/:layerSetId/:version?lang=`; the client joins the
-  // manifest's `snapshotUrl` to the base URL and never builds one itself.
-  eventMapManifest: () => '/eventmap/manifest',
+  // The event map has no endpoint of its own. Booths reach the app as ordinary
+  // markers on whatever `/map/config` lists as a festival layer's `endpoint`,
+  // which is why no `/eventmap/*` route appears here — there is none to call.
 
   // ── App config ──
   appConfig: () => '/app/config',

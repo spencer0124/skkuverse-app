@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-08-30
 audience: internal
 ---
 
@@ -68,12 +68,15 @@ crosses package boundaries.
 | [architecture.md](explanation/architecture.md) | The whole system, from monorepo boundaries and data flow through to the provider stack and its diagrams |
 | [fcm-architecture.md](explanation/fcm-architecture.md) | Current FCM architecture: v5 SSOT, tabsContract, delivery, auth transition |
 | [notices-feature.md](explanation/notices-feature.md) | Notices: server-driven tabs, markdown rendering, the onboarding gate and auto-restore |
+| [first-launch-intro.md](explanation/first-launch-intro.md) | The four-page value tour: why it gates inside InitGate, and how it lets the notices wizard skip its login step |
 | [app-check.md](explanation/app-check.md) | App Check: debug token injection paths, Play Integrity throttling and cache priming |
 | [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
 | [ios-modal-safe-area-provider.md](explanation/ios-modal-safe-area-provider.md) | Why every modal route needs its own SafeAreaProvider |
 | [android-naver-map-markers.md](explanation/android-naver-map-markers.md) | The custom view marker bitmap snapshot race, and the fix |
-| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering the server clock offset, predicate evaluation and stackKey pin rendering |
+| [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, the `layerId` join to `/map/config`, the list in the campus sheet and the client festival gate |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
+| [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
+| [bottom-sheet-system.md](explanation/bottom-sheet-system.md) | The one sheet component. Its detents, the float-vs-attach rule behind glass or opaque, and the native constraints the card works within |
 
 ### decisions (ADR)
 
@@ -88,6 +91,8 @@ copied to a second place is a value that will disagree with the first.
 | [0004-self-hosted-ota-fixed-runtime-version.md](decisions/0004-self-hosted-ota-fixed-runtime-version.md) | Self-hosted OTA with a fixed runtimeVersion instead of fingerprinting |
 | [0005-user-firebase-public-mongodb.md](decisions/0005-user-firebase-public-mongodb.md) | User data in Firebase, public data in MongoDB behind the backend |
 | [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | Mini app shell, web view bridge, and how push reaches it |
+| [0007-device-clock-event-map-status.md](decisions/0007-device-clock-event-map-status.md) | Event map booth status derives against the device clock, uncorrected |
+| [0008-campus-camera-reconciliation.md](decisions/0008-campus-camera-reconciliation.md) | The campus toggle never moves itself; disagreement with the camera is offered in a card |
 
 ### internal (postmortems and debugging)
 

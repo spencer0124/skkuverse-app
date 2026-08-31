@@ -1,15 +1,9 @@
-import { forwardRef, useCallback } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  BottomSheetFooter,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  type BottomSheetFooterProps,
-} from '@gorhom/bottom-sheet';
 import { ArrowSquareOutIcon } from 'phosphor-react-native';
 import { SdsColors, useT } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { Sheet, Txt, type SheetRef } from '@skkuverse/sds';
 import { NoticeMarkdownView } from '../NoticeMarkdownView';
 
 interface Props {
@@ -38,7 +32,7 @@ interface Props {
  * ScrollView의 좌우 20 패딩을 전제한 상수). 다른 패딩을 쓰면 이미지가
  * 컨테이너 밖으로 삐져나간다.
  */
-export const NoticeSourceSheet = forwardRef<BottomSheetModal, Props>(
+export const NoticeSourceSheet = forwardRef<SheetRef, Props>(
   function NoticeSourceSheet(
     { markdown, sourceUrl, onCopyText, onOpenOriginal, onClose },
     ref,
@@ -46,70 +40,66 @@ export const NoticeSourceSheet = forwardRef<BottomSheetModal, Props>(
     const { t } = useT();
     const insets = useSafeAreaInsets();
 
-    const renderFooter = useCallback(
-      (props: BottomSheetFooterProps) => (
-        <BottomSheetFooter {...props} bottomInset={0}>
-          <View
-            style={[
-              styles.footer,
-              // 홈 인디케이터를 피한다. 기기에 인디케이터가 없으면(insets
-              // .bottom === 0) 최소 여백을 직접 준다.
-              { paddingBottom: Math.max(insets.bottom, 12) },
-            ]}
-          >
-            {sourceUrl && onOpenOriginal ? (
-              <Pressable
-                onPress={onOpenOriginal}
-                accessibilityRole="button"
-                accessibilityLabel={t('notices.openInBrowser')}
-                style={({ pressed }) => [
-                  styles.button,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Txt
-                  typography="t6"
-                  fontWeight="semibold"
-                  color={SdsColors.grey800}
-                >
-                  {t('notices.openInBrowser')}
-                </Txt>
-                <ArrowSquareOutIcon size={14} color={SdsColors.grey600} />
-              </Pressable>
-            ) : null}
-            {/* 닫기. 시트는 아래로 쓸어내려도 닫히지만, 본문이 긴 공지에서
-                끝까지 읽고 나면 손가락이 하단에 있다 — 거기서 바로 닫을 수
-                있어야 위로 다시 올라갈 일이 없다. 스크림 탭도 마찬가지로
-                살아 있다. */}
+    const footer = useMemo(
+      () => (
+        <View
+          style={[
+            styles.footer,
+            // 홈 인디케이터를 피한다. 기기에 인디케이터가 없으면(insets
+            // .bottom === 0) 최소 여백을 직접 준다.
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
+          {sourceUrl && onOpenOriginal ? (
             <Pressable
-              onPress={onClose}
+              onPress={onOpenOriginal}
               accessibilityRole="button"
-              accessibilityLabel={t('common.close')}
+              accessibilityLabel={t('notices.openInBrowser')}
               style={({ pressed }) => [
                 styles.button,
-                styles.closeButton,
                 pressed && styles.pressed,
               ]}
             >
-              <Txt typography="t6" fontWeight="semibold" color={SdsColors.grey600}>
-                {t('common.close')}
+              <Txt
+                typography="t6"
+                fontWeight="semibold"
+                color={SdsColors.grey800}
+              >
+                {t('notices.openInBrowser')}
               </Txt>
+              <ArrowSquareOutIcon size={14} color={SdsColors.grey600} />
             </Pressable>
-          </View>
-        </BottomSheetFooter>
+          ) : null}
+          {/* 닫기. 시트는 아래로 쓸어내려도 닫히지만, 본문이 긴 공지에서
+              끝까지 읽고 나면 손가락이 하단에 있다 — 거기서 바로 닫을 수
+              있어야 위로 다시 올라갈 일이 없다. 스크림 탭도 마찬가지로
+              살아 있다. */}
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            style={({ pressed }) => [
+              styles.button,
+              styles.closeButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Txt typography="t6" fontWeight="semibold" color={SdsColors.grey600}>
+              {t('common.close')}
+            </Txt>
+          </Pressable>
+        </View>
       ),
       [sourceUrl, onOpenOriginal, onClose, insets.bottom, t],
     );
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={ref}
-        snapPoints={['90%']}
-        enableDynamicSizing={false}
-        handleIndicatorStyle={styles.handleIndicator}
-        footerComponent={renderFooter}
+        position={{ kind: 'stuck', detent: 'large' }}
+        footer={footer}
       >
-        <BottomSheetScrollView
+        <Sheet.ScrollView
           contentContainerStyle={[
             styles.content,
             // 고정 푸터가 마지막 본문을 가리지 않도록 그만큼 비워 둔다.
@@ -121,8 +111,8 @@ export const NoticeSourceSheet = forwardRef<BottomSheetModal, Props>(
             sourceUrl={sourceUrl}
             onCopyText={onCopyText}
           />
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+        </Sheet.ScrollView>
+      </Sheet>
     );
   },
 );

@@ -5,6 +5,14 @@
  * the default case, ensuring compile-time errors when new section types
  * are added to the union but not handled here.
  *
+ * **A widget owns no horizontal gutter.** The caller does, and the caller is
+ * the only one that can: the campus sheet's card is inset from the screen by an
+ * amount that animates as the sheet rises, so a gutter baked into a widget is
+ * measured from the wrong edge, and from a different wrong edge at each detent.
+ * The widgets disagreed with each other anyway — 20, 20 and 18 — which put
+ * three different left edges in one column. Vertical spacing stays with the
+ * widget, since nothing outside it knows how much air a block wants.
+ *
  * Flutter source: lib/core/widgets/sdui/sdui_section_builder.dart
  */
 

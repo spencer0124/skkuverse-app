@@ -32,9 +32,8 @@ import {
   logScreenView,
   type OnboardingStepKey,
 } from '@/services/analytics';
-import type { OnboardingAction, OnboardingState, OnboardingStep } from './types';
-import { MAX_INTEREST_DEPTS } from './types';
 import { UNSUPPORTED_DEPT_SURVEY_URL } from './constants';
+import { initialState, reducer } from './reducer';
 import { OnboardingLayout } from './components/OnboardingLayout';
 import { CampusStep } from './components/CampusStep';
 import { PrimaryDeptStep } from './components/PrimaryDeptStep';
@@ -56,97 +55,25 @@ const STEP_KEYS: Record<number, OnboardingStepKey> = {
   7: 'completion',
 };
 
-// ── Reducer ──
-
-const initialState: OnboardingState = {
-  step: 1,
-  campus: null,
-  primaryDeptId: null,
-  interestDeptIds: [],
-  userName: null,
-  notificationsAccepted: null,
-  seededPickerSelections: null,
-};
-
-function reducer(state: OnboardingState, action: OnboardingAction): OnboardingState {
-  switch (action.type) {
-    case 'SET_CAMPUS':
-      return { ...state, campus: action.campus };
-
-    case 'SET_PRIMARY_DEPT':
-      return {
-        ...state,
-        primaryDeptId: action.deptId,
-        // Remove new primary from interest list if present
-        interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
-        // Invalidate cached picker (J1) — user edited dept after ACCEPT, finalize
-        // must reassemble from fresh state to avoid Firestore↔local drift.
-        seededPickerSelections: null,
-      };
-
-    case 'SKIP_PRIMARY_DEPT':
-      // User tapped "내 학과가 없어요" → opened survey webview → dismissed.
-      // primary null로 마킹. interest는 보존 (이후 step에서 picking 가능).
-      return { ...state, primaryDeptId: null, seededPickerSelections: null };
-
-    case 'TOGGLE_INTEREST_DEPT': {
-      const exists = state.interestDeptIds.includes(action.deptId);
-      if (exists) {
-        return {
-          ...state,
-          interestDeptIds: state.interestDeptIds.filter((id) => id !== action.deptId),
-          seededPickerSelections: null,
-        };
-      }
-      if (state.interestDeptIds.length >= MAX_INTEREST_DEPTS) return state;
-      return {
-        ...state,
-        interestDeptIds: [...state.interestDeptIds, action.deptId],
-        seededPickerSelections: null,
-      };
-    }
-
-    case 'CLEAR_INTEREST_DEPTS':
-      return { ...state, interestDeptIds: [], seededPickerSelections: null };
-
-    case 'SET_USER':
-      return { ...state, userName: action.name };
-
-    case 'ACCEPT_NOTIFICATIONS':
-      return {
-        ...state,
-        notificationsAccepted: true,
-        seededPickerSelections: action.pickerSelections,
-      };
-
-    case 'DECLINE_NOTIFICATIONS':
-      return { ...state, notificationsAccepted: false };
-
-    case 'NEXT':
-      if (state.step >= 7) return state;
-      return { ...state, step: (state.step + 1) as OnboardingStep };
-
-    case 'PREV':
-      if (state.step <= 1) return state;
-      // Declined 경로는 step 7에서 PREV 시 step 6를 스킵하고 step 5로 점프.
-      // 카테고리 페이지(step 6)는 ACCEPT 경로에서만 의미가 있고, declined 상태로
-      // 진입하면 seed가 안 됐으므로 토글이 silent fail.
-      if (state.step === 7 && state.notificationsAccepted === false) {
-        return { ...state, step: 5 };
-      }
-      return { ...state, step: (state.step - 1) as OnboardingStep };
-
-    default:
-      return state;
-  }
-}
-
 // ── Screen ──
 
 export function OnboardingScreen() {
   const router = useRouter();
   const { t } = useT();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  // Lazy initializer so the login-skip decision is made once, at mount, from a
+  // uid that is already established. Reading `isAnonymous` live would flip the
+  // ladder mid-wizard the moment step 4 succeeds.
+  const [state, dispatch] = useReducer(reducer, undefined, () => {
+    const auth = authStore.getState();
+    const signedIn = !auth.isAnonymous && !!auth.uid;
+    return {
+      ...initialState,
+      skipLogin: signedIn,
+      // Step 7 greets the user by name, which normally arrives from step 4's
+      // SET_USER. Seed it here so a skipped login does not fall back to '사용자'.
+      userName: signedIn ? (auth.displayName ?? '') : null,
+    };
+  });
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -214,6 +141,13 @@ export function OnboardingScreen() {
   // 새 시드를 쓰고, 이미 onboarded된 사용자가 wizard로 들어와도 동일하게 시드를
   // 덮어쓴다 (의도적). 자동복원이 필요한 returning user는 다른 진입점
   // (notices landing의 "이미 가입한 적 있어요" 또는 login.tsx)을 사용.
+  //
+  // 2026-08-28: `skipLogin`이 true면 이 핸들러는 아예 도달하지 않는다 (step 3의
+  // NEXT가 5로 점프). 로그인을 먼저 시킨 뒤 wizard를 push하는 세 진입점 —
+  // 인트로 마지막 페이지, notices landing의 'new' 분기, login.tsx의 'new' 분기 —
+  // 모두 여기서 두 번째 signInWithDeviceMigration을 돌리던 중복 요청이 사라진다.
+  // 시드 덮어쓰기 정책 자체는 그대로다: 스킵되는 건 로그인뿐이고 step 7의
+  // finalize는 동일하게 실행된다.
   //
   // 2026-05-25: step 5 auto-skip 제거. 권한 상태와 무관하게 항상 "받을까요?"
   // 페이지를 노출하여 명시적 선택을 유도. checkPermission 호출도 불필요.

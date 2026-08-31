@@ -53,11 +53,15 @@ function parsePlatform(raw: unknown): PlatformConfig {
  *
  * FAILS CLOSED — a missing, malformed, or non-array `bridgeOrigins` yields `[]`,
  * which grants the bridge to nobody. This deliberately inverts the fallback
- * direction used elsewhere in this package (`useCampusSections` serves
- * DEFAULT_CAMPUS_SECTIONS when the API dies, because an empty tab is worse than
- * a stale one). Here the failure mode is not a worse UI — it is handing
- * `Linking.openURL` to a page nobody vetted — so degrading has to mean granting
- * less, never defaulting to a baked-in list.
+ * direction used elsewhere in this package (`useMapConfig` serves
+ * DEFAULT_MAP_CONFIG when the API dies, because a map with no campuses is
+ * broken while a stale one is merely old). Here the failure mode is not a worse
+ * UI — it is handing `Linking.openURL` to a page nobody vetted — so degrading
+ * has to mean granting less, never defaulting to a baked-in list.
+ *
+ * Note that `useCampusSections` is no longer the example to reach for: its
+ * defaults were emptied when the campus sheet became a promo feed, so it now
+ * degrades to nothing for a reason of its own. See `sdui/defaults.ts`.
  *
  * Entries are normalized through `new URL().origin` so a server that ever ships
  * a path or a trailing slash still produces something the per-message origin

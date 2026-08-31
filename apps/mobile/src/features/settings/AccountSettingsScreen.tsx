@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { UserIcon } from 'phosphor-react-native';
-import { Button, Dialog, TextButton, Txt } from '@skkuverse/sds';
+import { Button, Dialog, TextButton, Txt, type SheetRef } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useAuthStore, useT } from '@skkuverse/shared';
 import { signOutFromGoogle } from '@/services/google-auth';
 import { logSettingsAction, logSettingsContentSelect } from '@/services/analytics';
@@ -29,7 +28,7 @@ export function AccountSettingsScreen() {
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const feedbackSheetRef = useRef<BottomSheetModal>(null);
+  const feedbackSheetRef = useRef<SheetRef>(null);
 
   const handleSignOut = async () => {
     setShowSignOutDialog(false);
@@ -42,7 +41,7 @@ export function AccountSettingsScreen() {
     // frame is enough because Dialog.Confirm unmounts synchronously when
     // `open` flips false.
     requestAnimationFrame(() => {
-      feedbackSheetRef.current?.present();
+      feedbackSheetRef.current?.present?.();
     });
   }, []);
 
@@ -51,7 +50,7 @@ export function AccountSettingsScreen() {
       setIsDeleting(true);
       try {
         await deleteAccount(feedback);
-        feedbackSheetRef.current?.dismiss();
+        feedbackSheetRef.current?.dismiss?.();
         // Send the user to the notices tab; the onboarding gate at
         // notices/index will render because the anon re-sign-in flipped
         // isAnonymous back to true and resetUserScopedState() cleared
