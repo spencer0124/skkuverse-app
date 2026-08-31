@@ -22,7 +22,7 @@ const LATER = { startAt: '2026-09-16T22:00:00.000Z', endAt: '2026-09-17T02:00:00
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   type: 'marker',
   label: over.id,
-  defaultVisible: true,
+  defaultVisibleWhen: { kind: 'always' },
   endpoint: '/map/markers/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
@@ -53,29 +53,66 @@ describe('selectVisibleMarkers', () => {
     place({ id: 'b1', layerId: 'eskara26_booth' }),
     place({ id: 'r1', layerId: 'eskara26_bar' }),
   ];
+  /** Any instant works for `always` layers; the scheduled case names its own. */
+  const NOW = Date.parse('2026-09-16T12:00:00+09:00');
+  const state = (overrides: Record<string, boolean> = {}) => ({ overrides, chip: null });
 
   it('lists a place exactly when its layer is drawn', () => {
-    const states = { eskara26_booth: { visible: true }, eskara26_bar: { visible: false } };
-    expect(ids(selectVisibleMarkers({ markers, layers, states }))).toEqual(['b1']);
+    const only = state({ eskara26_booth: true, eskara26_bar: false });
+    expect(ids(selectVisibleMarkers({ markers, layers, state: only, now: NOW }))).toEqual(['b1']);
   });
 
-  it('falls back to the layer\'s own defaultVisible when the user has not touched it', () => {
-    const hidden = [layer({ id: 'eskara26_booth' }), layer({ id: 'eskara26_bar', defaultVisible: false })];
-    expect(ids(selectVisibleMarkers({ markers, layers: hidden, states: {} }))).toEqual(['b1']);
+  it("falls back to the layer's own schedule when the user has not touched it", () => {
+    const hidden = [
+      layer({ id: 'eskara26_booth' }),
+      layer({ id: 'eskara26_bar', defaultVisibleWhen: { kind: 'never' } }),
+    ];
+    expect(
+      ids(selectVisibleMarkers({ markers, layers: hidden, state: state(), now: NOW })),
+    ).toEqual(['b1']);
+  });
+
+  it('follows a scheduled layer across its boundary', () => {
+    // The list and the map read the same `isLayerVisible`, so a 주점 row appears
+    // exactly when its pin does — which is the whole reason `now` is threaded in
+    // rather than read from the clock here.
+    const scheduled = [
+      layer({
+        id: 'eskara26_booth',
+        defaultVisibleWhen: { kind: 'scheduled', windows: [{ start: '11:00', end: '18:00' }] },
+      }),
+      layer({
+        id: 'eskara26_bar',
+        defaultVisibleWhen: { kind: 'scheduled', windows: [{ start: '18:00', end: '00:00' }] },
+      }),
+    ];
+    const noon = Date.parse('2026-09-16T12:00:00+09:00');
+    const dusk = Date.parse('2026-09-16T19:00:00+09:00');
+    expect(
+      ids(selectVisibleMarkers({ markers, layers: scheduled, state: state(), now: noon })),
+    ).toEqual(['b1']);
+    expect(
+      ids(selectVisibleMarkers({ markers, layers: scheduled, state: state(), now: dusk })),
+    ).toEqual(['r1']);
   });
 
   it('drops a marker naming a layer this build was not served', () => {
     const orphan = [place({ id: 'ghost', layerId: 'eskara26_stage' })];
-    expect(selectVisibleMarkers({ markers: orphan, layers, states: {} })).toEqual([]);
+    expect(
+      selectVisibleMarkers({ markers: orphan, layers, state: state(), now: NOW }),
+    ).toEqual([]);
   });
 
   it('returns nothing when every layer is hidden', () => {
-    const states = { eskara26_booth: { visible: false }, eskara26_bar: { visible: false } };
-    expect(selectVisibleMarkers({ markers, layers, states })).toEqual([]);
+    const off = state({ eskara26_booth: false, eskara26_bar: false });
+    expect(selectVisibleMarkers({ markers, layers, state: off, now: NOW })).toEqual([]);
   });
 
   it('preserves input order, so a sort applied upstream survives', () => {
-    expect(ids(selectVisibleMarkers({ markers, layers, states: {} }))).toEqual(['b1', 'r1']);
+    expect(ids(selectVisibleMarkers({ markers, layers, state: state(), now: NOW }))).toEqual([
+      'b1',
+      'r1',
+    ]);
   });
 });
 

@@ -1,7 +1,6 @@
 import { type ReactNode, forwardRef, useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
-import { Button, Txt } from '@skkuverse/sds';
+import { Button, Sheet, Txt, type SheetRef } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 
 /**
@@ -25,12 +24,12 @@ type Props = {
   onDismiss: () => void;
 };
 
-export const ReviewPromptSheet = forwardRef<BottomSheetModal, Props>(
+export const ReviewPromptSheet = forwardRef<SheetRef, Props>(
   function ReviewPromptSheet({ icon, title, onPositive, onNegative, onDismiss }, parentRef) {
     const { t } = useT();
-    const sheetRef = useRef<BottomSheetModal>(null);
+    const sheetRef = useRef<SheetRef>(null);
     const setRefs = useCallback(
-      (node: BottomSheetModal | null) => {
+      (node: SheetRef | null) => {
         sheetRef.current = node;
         if (typeof parentRef === 'function') parentRef(node);
         else if (parentRef) parentRef.current = node;
@@ -39,23 +38,25 @@ export const ReviewPromptSheet = forwardRef<BottomSheetModal, Props>(
     );
 
     const handlePositive = () => {
-      sheetRef.current?.dismiss();
+      sheetRef.current?.dismiss?.();
       onPositive();
     };
 
     const handleNegative = () => {
-      sheetRef.current?.dismiss();
+      sheetRef.current?.dismiss?.();
       onNegative();
     };
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={setRefs}
-        snapPoints={['38%']}
-        enableDynamicSizing={false}
+        // Sized to the prompt rather than to a percentage. The 38% this used to
+        // carry was a stand-in for "as tall as an icon, a line of text and two
+        // buttons", which is what `fit` says outright.
+        position={{ kind: 'fit' }}
         onDismiss={onDismiss}
       >
-        <BottomSheetView style={styles.content}>
+        <Sheet.View style={styles.content}>
           <View style={styles.iconCircle}>
             {icon}
           </View>
@@ -90,8 +91,8 @@ export const ReviewPromptSheet = forwardRef<BottomSheetModal, Props>(
               </Button>
             </View>
           </View>
-        </BottomSheetView>
-      </BottomSheetModal>
+        </Sheet.View>
+      </Sheet>
     );
   },
 );

@@ -32,9 +32,8 @@
 import { useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SegmentedControl as SDSSegmentedControl } from '@skkuverse/sds';
+import { GlassSurface, SegmentedControl as SDSSegmentedControl } from '@skkuverse/sds';
 import { useMapLayerStore, type Campus, type CampusDef } from '@skkuverse/shared';
-import { GlassSurface } from '@/components/glass';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();

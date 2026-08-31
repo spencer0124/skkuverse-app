@@ -30,7 +30,7 @@
 
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import type { MapChip } from '@skkuverse/shared';
-import { GlassChip } from '@/components/glass';
+import { GlassChip } from '@skkuverse/sds';
 
 interface CampusChipRowProps {
   chips: MapChip[];

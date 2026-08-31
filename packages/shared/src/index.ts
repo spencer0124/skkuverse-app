@@ -145,6 +145,8 @@ export type {
   MarkerAction,
   MarkerField,
   I18nText,
+  DailyWindow,
+  LayerDefaultVisibility,
   TimeWindow,
   PolylineCoord,
 } from './types/map';
@@ -210,11 +212,13 @@ export {
   parsePolylineData,
   DEFAULT_MAP_CONFIG,
   DEFAULT_CAMERA_DEFAULTS,
-  findNarrowedChip,
-  isChipGroupAtDefaults,
+  defaultVisibleAt,
   isLayerVisible,
-  resolveChipGroupDefaults,
   resolveChipLayerVisibility,
+  isDailyWindowOpen,
+  kstMinutesOfDay,
+  nextDailyBoundaryAfter,
+  toMinutesOfDay,
   isFestivalLayer,
   withoutFestival,
   resolvePinCollisions,
@@ -224,7 +228,7 @@ export {
   toEpochMs,
   MAX_TIMEOUT_MS,
 } from './map';
-export type { LayerVisibilityStates, PinCandidate } from './map';
+export type { LayerVisibilityState, PinCandidate } from './map';
 
 // ── Event map ──
 //

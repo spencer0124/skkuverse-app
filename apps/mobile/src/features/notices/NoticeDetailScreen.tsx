@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Share, View, ScrollView, StyleSheet } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { BookmarkIcon, BookmarkSimpleIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
@@ -12,7 +11,7 @@ import {
   useT,
 } from '@skkuverse/shared';
 import type { NoticeAttachment } from '@skkuverse/shared';
-import { Toast, Txt } from '@skkuverse/sds';
+import { Toast, Txt, type SheetRef } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { InlineBanner } from '@/features/ads/InlineBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
@@ -160,7 +159,7 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
   );
 
   // 공지 본문(GFM)은 더 이상 상세 화면 인라인이 아니라 이 시트 안에 산다.
-  const sourceSheetRef = useRef<BottomSheetModal>(null);
+  const sourceSheetRef = useRef<SheetRef>(null);
   const openSourceSheet = useCallback(() => {
     const current = dataRef.current;
     if (current) {
@@ -169,11 +168,11 @@ export function NoticeDetailScreen({ sourceId, articleNo }: Props) {
         item_id: `${current.sourceId}/${current.articleNo}`,
       });
     }
-    sourceSheetRef.current?.present();
+    sourceSheetRef.current?.present?.();
   }, []);
 
   const closeSourceSheet = useCallback(() => {
-    sourceSheetRef.current?.dismiss();
+    sourceSheetRef.current?.dismiss?.();
   }, []);
 
   // 인앱 webview 셸이 아니라 외부 브라우저로 연다. 이 액션의 진입점이

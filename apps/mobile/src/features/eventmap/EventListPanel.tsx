@@ -21,14 +21,13 @@
  *
  * The sheet's whole body, not a sibling of the feed: a gorhom scrollable cannot
  * nest inside another, so `CampusScreen` mounts this INSTEAD of the feed's
- * `BottomSheetScrollView`. Both register with the sheet's draggable context on
+ * `Sheet.ScrollView`. Both register with the sheet's draggable context on
  * mount, so the swap keeps the content pan gesture and a drag on the header
  * still moves the sheet.
  */
 
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import {
   PLACE_SORTS,
   SdsColors,
@@ -38,7 +37,7 @@ import {
   type RawMarkerData,
   type TranslationKey,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { Sheet, Txt } from '@skkuverse/sds';
 import { FilterPill } from '@/features/map/components/FilterPill';
 import { logCampusContentSelect } from '@/services/analytics';
 import { PlaceCard } from './PlaceCard';
@@ -100,7 +99,7 @@ export function EventListPanel({ places, now, onSelectPlace }: EventListPanelPro
         ))}
       </View>
 
-      <BottomSheetFlatList
+      <Sheet.FlatList
         data={places as RawMarkerData[]}
         keyExtractor={(item: RawMarkerData) => item.id}
         renderItem={renderItem}

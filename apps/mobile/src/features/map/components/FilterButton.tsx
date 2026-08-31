@@ -20,7 +20,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { StackSimpleIcon } from 'phosphor-react-native';
 import { SdsColors, SdsShadows } from '@skkuverse/shared';
-import { GlassSurface, GLASS_AVAILABLE, glassFloatShadow } from '@/components/glass';
+import { GlassSurface, GLASS_AVAILABLE, glassFloatShadow } from '@skkuverse/sds';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 import { logCampusContentSelect } from '@/services/analytics';
 

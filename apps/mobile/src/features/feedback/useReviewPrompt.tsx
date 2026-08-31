@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Dialog, Toast } from '@skkuverse/sds';
+import { Dialog, Toast, type SheetRef } from '@skkuverse/sds';
 import { useEngagementStore, useT } from '@skkuverse/shared';
 import { ReviewPromptSheet } from './ReviewPromptSheet';
 import { NegativeFeedbackSheet } from './NegativeFeedbackSheet';
@@ -88,8 +87,8 @@ export function useReviewPrompt({
   resolveContext,
 }: UseReviewPromptOptions): UseReviewPromptReturn {
   const { t } = useT();
-  const helpfulSheetRef = useRef<BottomSheetModal>(null);
-  const feedbackSheetRef = useRef<BottomSheetModal>(null);
+  const helpfulSheetRef = useRef<SheetRef>(null);
+  const feedbackSheetRef = useRef<SheetRef>(null);
 
   // Tracks whether the user made an explicit choice (👍 or 👎) on the stage-1
   // sheet. BottomSheetModal fires `onDismiss` for BOTH swipe-close AND
@@ -115,7 +114,7 @@ export function useReviewPrompt({
       markPromptShown(reason);
       logReviewPromptShown({ reason, count });
       explicitOutcomeRef.current = null;
-      helpfulSheetRef.current?.present();
+      helpfulSheetRef.current?.present?.();
     },
     [reason, minInstallAgeMs, markPromptShown],
   );
@@ -133,7 +132,7 @@ export function useReviewPrompt({
     explicitOutcomeRef.current = 'negative';
     // Do NOT record 'negative' outcome yet — wait for stage-2 submit/dismiss
     // so the funnel can distinguish "👎 then submitted text" from "👎 then bailed".
-    feedbackSheetRef.current?.present();
+    feedbackSheetRef.current?.present?.();
   }, []);
 
   const handleDismiss = useCallback(() => {
@@ -164,7 +163,7 @@ export function useReviewPrompt({
           }
           setOutcome(reason, 'negative');
           logReviewPromptNegative({ reason, hasText: text.length > 0 });
-          feedbackSheetRef.current?.dismiss();
+          feedbackSheetRef.current?.dismiss?.();
           setShowThanks(true);
         })
         .finally(() => setIsFeedbackSubmitting(false));

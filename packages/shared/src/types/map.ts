@@ -51,19 +51,69 @@ export interface MapLayerStyle {
   zIndex?: number;
 }
 
+/**
+ * One daily recurring window, in KST wall-clock `"HH:MM"`, half-open
+ * `[start, end)`.
+ *
+ * Wall-clock rather than the absolute instants `TimeWindow` carries, and the two
+ * are not interchangeable. A place's `hours` describe one booth on one festival
+ * day; a layer's default says "주점 belongs to the evening", which is the same
+ * sentence on every day of every festival. Written as instants that sentence
+ * would restate the festival's dates in a second file, and a date slip touching
+ * only one of them is silent.
+ *
+ * **`start > end` wraps past midnight**, which is what 주점 needs: `18:00`
+ * → `00:00`. Midnight is `"00:00"` and the server rejects `"24:00"`, so there is
+ * one spelling of it.
+ */
+export interface DailyWindow {
+  start: string;
+  end: string;
+}
+
+/**
+ * WHEN a layer is on to begin with — the axis that replaced a plain
+ * `defaultVisible: boolean`.
+ *
+ * A tagged union rather than a boolean beside a window list, because that pair
+ * can hold combinations that mean nothing: `false` with windows is a flat
+ * contradiction, `true` with windows makes the boolean dead data, and an empty
+ * list is a second spelling of "no schedule". A layer on all day is
+ * `{ kind: 'always' }`, which is the one spelling of that.
+ *
+ * The server never evaluates it. Windows ride in the payload and the device does
+ * the arithmetic against its own clock, which is what keeps `/map/config` a
+ * deterministic response.
+ */
+export type LayerDefaultVisibility =
+  | { kind: 'always' }
+  | { kind: 'never' }
+  | { kind: 'scheduled'; windows: DailyWindow[] };
+
 export interface MapLayerDef {
   id: string;
   type: 'marker' | 'polyline';
   label: string;
-  defaultVisible: boolean;
+  /**
+   * When this layer is on, absent anything the user said.
+   *
+   * **`null` means the declaration was unreadable**, and it is deliberately a
+   * third state rather than a coercion to `{ kind: 'never' }`. `never` is an
+   * authoring choice — 편의시설 ships that way — while `null` is "this build
+   * could not understand what the server said", and collapsing the two would
+   * lose the ability to count the second. It resolves to OFF: see
+   * `defaultVisibleAt` in `map/chips.ts` for why an unreadable rule must not
+   * read as "on all day".
+   */
+  defaultVisibleWhen: LayerDefaultVisibility | null;
   endpoint: string;
   markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel' | 'placeDot';
   style?: MapLayerStyle;
   /**
    * May the user change this layer's visibility.
    *
-   * A separate axis from `defaultVisible`, which says what the value *is*:
-   * this says *who may change it*. The four combinations give an always-on
+   * A separate axis from `defaultVisibleWhen`, which says *when* the layer is
+   * on: this says *who may change it*. The four combinations give an always-on
    * background layer, an ordinary toggle, an opt-in, and a defined-but-inert
    * kill switch.
    *
@@ -168,6 +218,21 @@ export interface MapChip {
    */
   icon: MapChipIcon | null;
   action: MapChipAction;
+  /**
+   * Does this chip mean STOP NARROWING, rather than "show these layers".
+   *
+   * On the wire because it stopped being derivable. The reset chip used to be
+   * recognisable by comparing what it names against the layers that are on by
+   * default — and with `defaultVisibleWhen` that comparison depends on the time
+   * of day, so at 19:00 the reset chip no longer describes the default view.
+   * Reading a reset tap through the ordinary narrowing rule would set every
+   * layer it names to on, turning 주점 on at noon, which is the crowding this
+   * whole axis exists to remove.
+   *
+   * `action.layerIds` still says which GROUP the tap is scoped to, the way it
+   * does for every chip; this says what the tap MEANS within it.
+   */
+  isReset: boolean;
 }
 
 /**

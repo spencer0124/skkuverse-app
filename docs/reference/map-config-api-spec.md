@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-29
+last-updated: 2026-08-31
 audience: public
 ---
 
@@ -90,7 +90,7 @@ them, and the camera settings the app applies to moves it makes on its own.
         "type": "marker",
         "markerStyle": "numberCircle",
         "label": "건물번호", // conventions:allow-korean: live server payload
-        "defaultVisible": true,
+        "defaultVisibleWhen": { "kind": "always" },
         "userConfigurable": true,
         "endpoint": "/map/markers/campus",
         "chipGroupId": null,
@@ -101,7 +101,10 @@ them, and the camera settings the app applies to moves it makes on its own.
         "type": "marker",
         "markerStyle": "placeDot",
         "label": "주점", // conventions:allow-korean: live server payload
-        "defaultVisible": true,
+        "defaultVisibleWhen": {
+          "kind": "scheduled",
+          "windows": [{ "start": "18:00", "end": "00:00" }]
+        },
         "userConfigurable": true,
         "endpoint": "/map/markers/event",
         "chipGroupId": "eskara-2026",
@@ -180,8 +183,8 @@ An empty body. The client keeps its cached config.
 | `type` | string | Yes | `"marker"` or `"polyline"`. The client ignores a type it does not know |
 | `label` | string | Yes | Localised text for the filter UI |
 | `markerStyle` | string | No | How a `marker` layer draws: `numberCircle`, `numberDot`, `textLabel` or `placeDot`. An unrecognised value falls back to the number-dot rendering |
-| `defaultVisible` | boolean | No | The layer's starting visibility, defaulting to `false` |
-| `userConfigurable` | boolean | No | Whether the user may change that visibility — a separate axis from `defaultVisible`. An **absent value means `true`** — never fail closed, or a server predating the field would silently strip every toggle off the filter sheet. It governs the affordance, not the capability: a locked layer still renders, still fetches and is still deep-linkable, only its control disappears |
+| `defaultVisibleWhen` | object | Yes | **When** the layer is on to begin with — see [Default visibility](#default-visibility). Replaced a plain `defaultVisible: boolean`, which could not say that a bar layer belongs to the evening of every festival day |
+| `userConfigurable` | boolean | No | **Who** may change that visibility — a separate axis from `defaultVisibleWhen`. An **absent value means `true`** — never fail closed, or a server predating the field would silently strip every toggle off the filter sheet. It governs the affordance, not the capability: a locked layer still renders, still fetches and is still deep-linkable, only its control disappears. Note this fails in the OPPOSITE direction from `defaultVisibleWhen`, and both are right: this one governs an affordance, where failing closed removes the user's only way to act |
 | `endpoint` | string | Yes | Where to fetch this layer's markers or coordinates. **Not unique** — see the note in the summary |
 | `chipGroupId` | string \| null | Yes | Which exclusivity group a chip may swap this layer within, or `null` for a layer no chip may ever change. See [Chips](#chips) |
 | `style` | object | No | Rendering hints — colour and geometry |
@@ -206,6 +209,77 @@ cannot. Geometry is theme-independent and belongs on the wire; a colour that com
 does not. The festival layers do send `color`, because a category colour is content rather than
 theme.
 
+## Default visibility
+
+`defaultVisibleWhen` is a tagged union, not a boolean beside a schedule:
+
+```ts
+interface DailyWindow { start: string; end: string }   // "HH:MM" KST, half-open [start, end)
+
+type LayerDefaultVisibility =
+  | { kind: "always" }
+  | { kind: "never" }
+  | { kind: "scheduled"; windows: DailyWindow[] };     // the server guarantees at least one
+```
+
+A pair of `boolean` + window list can hold combinations that mean nothing — `false` with windows is a
+contradiction, `true` with windows makes the boolean dead data, and an empty list is a second
+spelling of "no schedule". A layer on all day is `{ "kind": "always" }`, which is the one spelling
+of that.
+
+**`start > end` wraps past midnight.** 주점 is `{ "start": "18:00", "end": "00:00" }`. <!-- conventions:allow-korean: the layer label the app shows -->
+Midnight is `"00:00"` and the server rejects `"24:00"`, so there is one spelling of it.
+
+### Wall-clock here, instants on a marker
+
+A place's `hours` are absolute `TimeWindow` instants describing one booth on one festival day. A
+layer's schedule says "주점 belongs to the evening", which is the same sentence every day — <!-- conventions:allow-korean: the layer label the app shows -->
+written as instants it would restate the festival's dates in a second file, and a date slip touching
+only one of them is silent.
+
+The timezone guarantee is not given up. **The client derives the current minute from the epoch** —
+`(Date.now() + 9h) % 86_400_000`, never `Date.getHours()` — so a phone set to New York still flips
+주점 on at 18:00 KST. <!-- conventions:allow-korean: the layer label the app shows -->
+`Date.now()` is UTC epoch milliseconds and a zone setting only changes how a time is *formatted*.
+The fixed +09:00 is exact: Korea has had no DST since 1988. The zone never crosses the wire.
+
+**The server never evaluates it.** Windows ride in the payload and the device does the arithmetic,
+which is what keeps this a deterministic response.
+
+### Resolution order on the client
+
+Four tiers, and the schedule is the last resort:
+
+```text
+forced ?? chipNarrowing ?? userToggle ?? defaultVisibleAt(layer, now)
+```
+
+`forced` is the `userConfigurable: false` case, and it outranks a chip because such a layer is out of
+a chip's reach too. Every tier is a **fallback, never an assignment**: writing a resolved value into
+storage destroys a preference the user cannot re-express, and — since the last tier moves with the
+clock — freezes a schedule the moment it is first read.
+
+### An unreadable declaration is OFF
+
+A `kind` this build cannot resolve, a malformed object, or a `scheduled` whose every window fails to
+parse, all become `null` client-side and resolve to hidden. That is the opposite direction from
+`userConfigurable`, and both are right: this axis exists to put *less* on screen, so reading a rule
+the client cannot understand as "on all day" would draw 주점 at noon the first time a new `kind` <!-- conventions:allow-korean: the layer label the app shows -->
+ships. `null` is kept distinct from `{ "kind": "never" }`, which is an authoring choice rather than a
+failure.
+
+| Wire | Client answer |
+| --- | --- |
+| `{ "kind": "always" }` | on |
+| `{ "kind": "never" }` | off |
+| `scheduled`, at least one window parses | in-window, over the surviving windows |
+| `scheduled`, every window fails | off (unreadable) |
+| unknown `kind`, malformed, or absent | off (unreadable) |
+
+Two guards stop that becoming a silent failure of its own: an unreadable layer **keeps its
+filter-sheet tile**, so a user can still turn it on; and a response in which *no* layer is readable
+falls back to the client's bundled `DEFAULT_MAP_CONFIG` rather than drawing an empty campus.
+
 ## Chips
 
 A layer answers *what is drawn*. A chip answers *where should I be looking, and what should be on
@@ -225,6 +299,7 @@ interface MapChip {
   label: string;                                  // already localised
   icon: { kind: "emoji"; emoji: string } | null;
   action: MapChipAction;
+  isReset: boolean;                               // true on exactly the synthesised reset chip
 }
 ```
 
@@ -234,6 +309,15 @@ interface MapChip {
 | `label` | string | Yes | Localised text, and also the header title of a page a `webview` chip opens — there is deliberately no separate `title` |
 | `icon` | object \| null | Yes | `null` is declared before it is reachable, so a text-only chip can arrive without a coordinated release. An unrecognised icon kind degrades to `null` rather than dropping the chip |
 | `action` | object | Yes | Discriminated on `kind`. A kind the client cannot route **drops the whole chip** |
+| `isReset` | boolean | Yes | Does a tap mean **stop narrowing** rather than "show these layers". `false` on every authored chip rather than absent, since an optional field is a second thing to branch on. The client reads only an explicit `true` |
+
+> [!IMPORTANT]
+> **`isReset` is on the wire because it stopped being derivable.** The reset chip used to be
+> recognisable by comparing what it names against the layers on by default — and with
+> `defaultVisibleWhen` that comparison depends on the time of day, so at 19:00 the reset chip no
+> longer describes the default view. Reading a reset tap through rule 1 below would set every layer
+> it names to on, turning 주점 on at noon: the exact crowding the schedule exists to remove. <!-- conventions:allow-korean: the layer label the app shows -->
+> `action.layerIds` still says which GROUP the tap is scoped to; this says what it MEANS within it.
 
 > [!IMPORTANT]
 > The drop is deliberate, and is the opposite call from `tap` on a marker. A marker is a *place*
@@ -276,13 +360,20 @@ predating it cannot have its base layers swapped out from under the user.
 | Action | Client behaviour |
 | --- | --- |
 | `webview` | Opens the in-app web view shell at `url`, titled by the chip's `label` |
-| `focus` | Writes the group's visibility, then moves the camera. The tap is treated as an **explicit request**, so a camera arriving on a different campus switches the campus toggle silently instead of offering the reconciliation card — the same handling a locate press gets ([ADR 0008](../decisions/0008-campus-camera-reconciliation.md)) |
+| `focus`, `isReset: false` | Records the group's narrowing, then moves the camera. The tap is treated as an **explicit request**, so a camera arriving on a different campus switches the campus toggle silently instead of offering the reconciliation card — the same handling a locate press gets ([ADR 0008](../decisions/0008-campus-camera-reconciliation.md)) |
+| `focus`, `isReset: true` | Drops the narrowing and moves the camera, changing no layer directly. Every layer in the group falls back to `userToggle ?? defaultVisibleAt` |
 
-Which chip the map is currently showing is **derived** from layer visibility, never stored, so
-toggling a layer in the filter sheet stops any chip describing the map. Once narrowed, the app
-replaces the chip row with a strip naming that chip and offering to clear it — but only once the
-group has been narrowed away from the server's own defaults, since what the server ships by default
-is not something the user did.
+Which chip the map is showing is **stored**, as the tap that put it there. It used to be derived by
+asking which chip described the layers as they stood, and that could not survive `defaultVisibleWhen`
+for two independent reasons: the clear control has to restore what the *user* had, and a past is not
+recoverable from a present; and the reset chip stopped being recognisable by comparison at all, since
+the default view now depends on the time of day.
+
+Once narrowed, the app replaces the chip row with a strip naming that chip and offering to clear it.
+Clearing writes nothing — it drops the shadow — so a layer the user had turned on comes back on, and
+a layer they never touched returns to its own schedule rather than to a boolean captured on the way
+in. Toggling a tile in the filter sheet also ends the narrowing, committing the visible state first
+so nothing else on screen jumps.
 
 ## `cameraDefaults`
 
@@ -455,8 +546,12 @@ nothing in the quit state.
   later phase. The festival layers are the proof this works: they arrived as data, with no
   client release.
 - **Grouping arrived, as `chipGroupId`.** A second group needs no client change: the resolution
-  is generic over the group string, and the clear control reads each layer's own
-  `defaultVisible` rather than any chip's `layerIds`.
+  is generic over the group string, and the clear control writes nothing at all — it drops the
+  stored narrowing, so what re-emerges is whatever the user had underneath it.
+- **A date-scoped override** on top of the recurring schedule would arrive as a new optional
+  sibling field, never as a `date` key added to `DailyWindow`. A sibling cannot change how existing
+  data reads, whereas widening the window type would change the meaning of every window already
+  authored. A client predating it ignores it and keeps the recurring answer.
 - A third chip kind is reserved and not built — markers within N metres of a position. It needs
   its own client query hook rather than the layer one, because that keys its cache on the
   endpoint **string** and a URL carrying a camera position would mint a fresh entry per pan. The

@@ -9,11 +9,6 @@
 
 import { forwardRef, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-  type BottomSheetBackgroundProps,
-} from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapTrifoldIcon } from 'phosphor-react-native';
 import {
@@ -26,15 +21,21 @@ import {
   useT,
   type FloorSpace,
 } from '@skkuverse/shared';
-import { AccordionList, Badge, Gradient, ListHeader, ListRow, Txt, type AccordionSection } from '@skkuverse/sds';
+import {
+  AccordionList,
+  Badge,
+  Gradient,
+  ListHeader,
+  ListRow,
+  Sheet,
+  SheetCloseButton,
+  Txt,
+  type AccordionSection,
+  type SheetRef,
+} from '@skkuverse/sds';
 import { BuildingHeader } from './BuildingHeader';
 import { ConnectionsSection } from './ConnectionsSection';
 import { getHsscBuildingName } from '@/features/map/hssc/data/BuildingNameMapping';
-import { GLASS_AVAILABLE } from '@/components/glass';
-import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
-import { SheetHandle } from '@/features/map/components/SheetHandle';
-import { SheetCloseButton } from '@/features/map/components/SheetCloseButton';
-import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
 import {
   logBuildingView,
   type BuildingDetailSource,
@@ -65,7 +66,7 @@ function SectionDivider() {
 }
 
 export const BuildingDetailSheet = forwardRef<
-  BottomSheetModal,
+  SheetRef,
   BuildingDetailSheetProps
 >(function BuildingDetailSheet(
   { skkuId, highlightSpaceCd, source, bottomGap, onConnectionTap, onDismiss },
@@ -182,41 +183,28 @@ export const BuildingDetailSheet = forwardRef<
     if (!hsscMapName) return;
     logConnectionMapOpen('hssc');
     // Dismiss sheet before navigating
+    // `dismiss` is optional on a SheetRef because an inline sheet has none.
+    // This one is always a modal, so the call always lands.
     if (ref && typeof ref === 'object' && ref.current) {
-      ref.current.dismiss();
+      ref.current.dismiss?.();
     }
     router.push(`/map/hssc?building=${encodeURIComponent(hsscMapName)}` as never);
   }, [hsscMapName, ref, router]);
 
-  // A closure rather than the component itself, because the card's bottom gap
-  // is a prop here and gorhom passes a background component only its own
-  // animated values.
-  const renderBackground = useCallback(
-    (props: BottomSheetBackgroundProps) => (
-      <GlassCardBackground {...props} bottomGap={bottomGap} />
-    ),
-    [bottomGap],
-  );
-
   return (
-    <BottomSheetModal
+    <Sheet
       ref={ref}
-      snapPoints={['85%']}
-      enableDynamicSizing={false}
-      // The grabber bar alone; a handle painting its own fill would be a white
-      // lid across the top of the glass.
-      handleComponent={SheetHandle}
-      backgroundComponent={renderBackground}
-      // The same floating Liquid Glass card the campus and filter sheets are,
-      // by the filter sheet's route: `detached` with a `bottomInset` makes the
-      // sheet body's box the visible card and stops the clipping that would
-      // cut the shadow and the glass edge; the margin rides on the body so the
-      // background, the handle and the content inset together. All off below
-      // iOS 26. The campus sheet closes before this rises (`sheetHandoff.ts`),
-      // so the card never stacks on another.
-      detached={GLASS_AVAILABLE}
-      bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
-      style={GLASS_AVAILABLE ? styles.card : undefined}
+      // `large` and nothing else. A building's detail is the destination rather
+      // than a peek at one, so it arrives filling the screen — and a `large`
+      // sheet ATTACHES, which is what turns it into an ordinary opaque sheet
+      // instead of the floating card it used to be. `surface="glass"` still
+      // states which family it belongs to, so adding a lower detent later would
+      // give it the card back with no other change.
+      position={{ kind: 'stuck', detent: 'large' }}
+      surface="glass"
+      bottomGap={bottomGap}
+      // The campus sheet closes before this rises (`sheetHandoff.ts`), so the
+      // sheet never stacks on another.
       onDismiss={onDismiss}
     >
       {/* The X is a sibling of the scroll view, pinned: inside it, it would
@@ -225,7 +213,7 @@ export const BuildingDetailSheet = forwardRef<
       <View style={styles.header}>
         <SheetCloseButton label={t('common.close')} />
       </View>
-      <BottomSheetScrollView style={styles.container}>
+      <Sheet.ScrollView style={styles.container}>
         {isLoading && (
           <View style={styles.loading}>
             <ActivityIndicator color={SdsColors.brand} />
@@ -452,8 +440,8 @@ export const BuildingDetailSheet = forwardRef<
             <View style={styles.bottomPad} />
           </>
         )}
-      </BottomSheetScrollView>
-    </BottomSheetModal>
+      </Sheet.ScrollView>
+    </Sheet>
   );
 });
 
@@ -476,7 +464,6 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
   },
-  card: { marginHorizontal: SHEET_FLOAT_INSET },
   loading: {
     padding: 40,
     alignItems: 'center',

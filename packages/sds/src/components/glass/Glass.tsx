@@ -5,9 +5,12 @@
  * solid white box with a shadow. The capability check runs once at module load —
  * it is a static OS/device property, not something that changes at runtime.
  *
- * Lives in `components/` rather than under a feature because two features now
- * consume it: the in-app browser's bottom bar and the event map's floating chip
- * row. Prop-driven and string-free, so neither owns it.
+ * Lives in the design system rather than under a feature because the consumers
+ * are spread across the app — the in-app browser's bottom bar, the event map's
+ * floating chip row and control set, and the sheet backgrounds next door in
+ * `../sheet/`. Prop-driven and string-free, so no feature owns it.
+ *
+ * `expo-glass-effect` is a peer dependency of this package for this file alone.
  */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';

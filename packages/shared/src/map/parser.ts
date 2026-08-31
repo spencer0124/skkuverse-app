@@ -8,7 +8,9 @@
 
 import type { ApiEnvelope } from '../api/types';
 import type {
+  DailyWindow,
   I18nText,
+  LayerDefaultVisibility,
   MapConfig,
   NaverConfig,
   CampusDef,
@@ -30,7 +32,8 @@ import type {
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
-import { DEFAULT_CAMERA_DEFAULTS } from './defaults';
+import { toMinutesOfDay } from './daily-window';
+import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from './defaults';
 
 const LAYER_TYPES = ['marker', 'polyline'] as const;
 const MARKER_STYLES = [
@@ -49,6 +52,11 @@ const TAP_KINDS = ['skku_building', 'event'] as const;
  * whole chip — see parseChip.
  */
 const CHIP_ACTION_KINDS = ['webview', 'focus'] as const;
+/**
+ * The `defaultVisibleWhen` kinds this build can resolve. A kind outside the set
+ * makes the declaration UNREADABLE — see parseDefaultVisibleWhen.
+ */
+const LAYER_VISIBILITY_KINDS = ['always', 'never', 'scheduled'] as const;
 /** A button's emphasis. An unrecognised value falls back to the default look. */
 const ACTION_STYLES = ['primary', 'secondary'] as const;
 
@@ -103,6 +111,67 @@ function parseLayerStyle(raw: Record<string, unknown>): MapLayerStyle {
   };
 }
 
+/**
+ * One daily window, or `null`.
+ *
+ * The bounds are kept as the strings they arrived as rather than as minutes: the
+ * wire shape is what `isDailyWindowOpen` reads, and storing a parsed number
+ * beside them would be a second representation to keep in step. `toMinutesOfDay`
+ * is borrowed only to VALIDATE, which is what keeps the two spellings of an hour
+ * from diverging between this file and the evaluator.
+ */
+function parseDailyWindow(raw: unknown): DailyWindow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const w = raw as Record<string, unknown>;
+  const { start, end } = w;
+  if (typeof start !== 'string' || typeof end !== 'string') return null;
+  const startMin = toMinutesOfDay(start);
+  const endMin = toMinutesOfDay(end);
+  if (startMin === null || endMin === null) return null;
+  // Equal bounds are ambiguous between "zero minutes" and "all day", so they are
+  // not a window at all. A layer on all day says `{ kind: 'always' }`.
+  if (startMin === endMin) return null;
+  return { start, end };
+}
+
+/**
+ * When a layer is on by default, or `null` for a declaration this build cannot
+ * read.
+ *
+ * **`null` resolves to OFF, and that direction is deliberate.** The instinct is
+ * to fail open — a layer wrongly hidden is invisible, a layer wrongly shown is
+ * merely noise — and it is the wrong instinct here, because this whole axis
+ * exists to put LESS on screen. A future server adding a `kind` this build has
+ * not heard of would, under a fail-open reading, draw 주점 at noon: the exact
+ * crowding the feature removes. ArcGIS makes the same call with a layer type it
+ * cannot support, keeping it in the model and declining to render it rather than
+ * coercing it to some default type, and protobuf's rule for an unrecognised enum
+ * is the same shape — read it as unspecified, never as a known value.
+ *
+ * Two things stop that becoming a silent failure of its own. The layer keeps its
+ * filter-sheet tile, so a user can still turn it on; and if NO layer in a
+ * response is readable, `parseMapConfig` falls back to the bundled config rather
+ * than serving an empty map.
+ */
+function parseDefaultVisibleWhen(raw: unknown): LayerDefaultVisibility | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const when = raw as Record<string, unknown>;
+  const kind = asMember(when.kind, LAYER_VISIBILITY_KINDS);
+  if (!kind) return null;
+  if (kind !== 'scheduled') return { kind };
+
+  if (!Array.isArray(when.windows)) return null;
+  const windows = when.windows
+    .map(parseDailyWindow)
+    .filter((w): w is DailyWindow => w !== null);
+  // A `scheduled` layer whose every window failed to parse has said "sometimes"
+  // and left no way to know when. Neither `always` nor `never` honours that, so
+  // it joins the unreadable state rather than being guessed at. Surviving
+  // windows are kept: partial data is still a statement of intent.
+  if (windows.length === 0) return null;
+  return { kind, windows };
+}
+
 function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
   return {
     id: raw.id as string,
@@ -112,12 +181,16 @@ function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
     // a binary else that already draws anything non-'polyline' as a marker layer.
     type: asMember(raw.type, LAYER_TYPES) ?? 'marker',
     label: raw.label as string,
-    defaultVisible: (raw.defaultVisible as boolean) ?? false,
+    defaultVisibleWhen: parseDefaultVisibleWhen(raw.defaultVisibleWhen),
     endpoint: raw.endpoint as string,
     markerStyle: asMember(raw.markerStyle, MARKER_STYLES),
     // Absent means `true`. Never fail closed: a server predating the field must
     // not silently strip every toggle off the filter sheet. Only an explicit
-    // `false` locks the control.
+    // `false` locks the control. Note this is the OPPOSITE direction from
+    // `defaultVisibleWhen` above, and both are right: this one governs an
+    // affordance, where failing closed removes the user's only way to act, while
+    // that one governs what is drawn, where failing open contradicts the rule
+    // the server was trying to state.
     userConfigurable: raw.userConfigurable === false ? false : true,
     // Absent means `null`, which is the server's own meaningful value: a layer
     // no chip may ever change. Fails in the safe direction, so a server
@@ -265,7 +338,11 @@ function parseChip(
   if (typeof label !== 'string' || label === '') return null;
   const action = parseChipAction(raw.action, cameraFallback);
   if (!action) return null;
-  return { id, label, icon: parseChipIcon(raw.icon), action };
+  // Only an explicit `true` is a reset. Absent means an ordinary narrowing chip,
+  // which is what every authored chip is — and it is the safe direction, since
+  // mistaking a narrowing chip for a reset would silently drop the user's view
+  // instead of applying the one they asked for.
+  return { id, label, icon: parseChipIcon(raw.icon), action, isReset: raw.isReset === true };
 }
 
 // ── Public parsers ──
@@ -275,6 +352,25 @@ export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
   // Parsed before the chips, because a chip's own camera fills its missing
   // members from `markerFocus` — the two must not be able to disagree.
   const cameraDefaults = parseCameraDefaults(data.cameraDefaults);
+  const layers = ((data.layers as unknown[]) ?? []).map((l) =>
+    parseLayerDef(l as Record<string, unknown>),
+  );
+
+  // The floor under `defaultVisibleWhen`'s fail-closed reading.
+  //
+  // One unreadable layer is survivable — it is off, it still has a tile, and the
+  // user can turn it on. EVERY layer unreadable is a response this build cannot
+  // draw a map from, and resolving each one to OFF would leave an empty campus:
+  // no 건물번호, no 건물이름, nothing. The bundled config is a real map, so it is
+  // a better answer than an honest blank one. The chips go with it, since a chip
+  // naming layers we could not read means nothing either.
+  //
+  // This mirrors the server's own load-time rule that a config must carry at
+  // least one layer that is not `never`.
+  if (layers.length > 0 && layers.every((l) => l.defaultVisibleWhen === null)) {
+    return DEFAULT_MAP_CONFIG;
+  }
+
   return {
     naver: parseNaverConfig(
       (data.naver as Record<string, unknown>) ?? {},
@@ -282,9 +378,7 @@ export function parseMapConfig(envelope: ApiEnvelope<unknown>): MapConfig {
     campuses: ((data.campuses as unknown[]) ?? [])
       .map((c) => parseCampusDef(c as Record<string, unknown>))
       .filter((c): c is CampusDef => c !== null),
-    layers: ((data.layers as unknown[]) ?? []).map((l) =>
-      parseLayerDef(l as Record<string, unknown>),
-    ),
+    layers,
     chips: ((data.chips as unknown[]) ?? [])
       .map((c) =>
         parseChip((c ?? {}) as Record<string, unknown>, cameraDefaults.markerFocus),

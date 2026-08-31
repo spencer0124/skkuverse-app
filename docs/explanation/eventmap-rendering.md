@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-30
+last-updated: 2026-08-31
 audience: internal
 ---
 
@@ -19,7 +19,7 @@ audience: internal
 | | |
 | --- | --- |
 | Requests | `GET /map/markers/event` — the same marker query the pins already make. There is no `/eventmap` route |
-| Shared code | `packages/shared/src/map/`: `parser.ts`, `window.ts`, `pins.ts`, `list.ts`, `text.ts`, plus `store/eventmap.ts` |
+| Shared code | `packages/shared/src/map/`: `parser.ts`, `window.ts`, `daily-window.ts`, `chips.ts`, `pins.ts`, `list.ts`, `text.ts`, plus `store/map.ts` and `store/eventmap.ts` |
 | App code | `apps/mobile/src/features/eventmap/` — peek sheet, list panel, place card |
 | Touched | `CampusScreen`, `MapMarkerLayer`, `FilterSheet`, `+native-intent.tsx` |
 | Pins | Ordinary `/map/config` marker layers, drawn by `MapMarkerLayer` (§6) |
@@ -112,7 +112,7 @@ gone rather than merely guaranteed. There is no second projection to disagree wi
 ### 4.1 The list shows the places of the visible layers
 
 `selectVisibleMarkers` (`packages/shared/src/map/list.ts`) keeps the markers whose layer is drawn: the
-layer exists in the served config, plus `isLayerVisible(layer, states)` — the same function the
+layer exists in the served config, plus `isLayerVisible(layer, state, now)` — the same function the
 render loop, the filter sheet's tiles and the chips read. It is a fourth reader of that function,
 deliberately not a fourth copy: the one time a reader carried its own expression, the filter sheet
 showed 건물번호 ON while the map hid it. <!-- conventions:allow-korean: the layer label the app shows -->
@@ -127,20 +127,20 @@ nothing about whether the place exists. This is the one place the two views deli
 it is why selection and collision live in separate modules.
 
 The list lives **in the campus sheet**, in place of the server's campus feed, while a chip has
-narrowed the map (`findNarrowedChip` in `packages/shared/src/map/chips.ts` returns one). The sheet's
+narrowed the map (`useMapLayerStore`'s `chip`, looked up in the served chip list). The sheet's
 body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to
 its middle detent when the list appears — enough to read a few rows with the pins still showing —
 and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
 campus sheet closes first and the peek sheet rises once that animation finishes. It comes back to
 the same detent, list and all, when the peek sheet is dismissed — the hand-off is described in
-[campus-sheet-liquid-glass.md](campus-sheet-liquid-glass.md). Both of these follow from it:
+[bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
 
 - Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
   on the derived flag, not a call inside the chip handler.
-- The reset chip restores the group's defaults, which `findNarrowedChip` reads as "narrowed to
-  nothing", so it lights the festival pins and flies there but leaves the feed in the sheet. If that
-  reads wrong on device, the alternative — showing the list whenever any event layer is visible —
-  would replace the feed for the whole festival, which is a product call rather than a code one.
+- The reset chip (`isReset` on the wire) CLEARS the narrowing rather than applying one, so it lights
+  the festival pins and flies there but leaves the feed in the sheet. If that reads wrong on device,
+  the alternative — showing the list whenever any event layer is visible — would replace the feed for
+  the whole festival, which is a product call rather than a code one.
 
 Every place stays reachable by a pin tap, a deep link and an already-open peek sheet regardless of
 the filter (`placesById` is built from **all** event markers): a shared link must reach a booth whose
@@ -199,7 +199,7 @@ still derives correctly — a phone set to Bangkok agrees with one set to Seoul.
 earlier design reconciled against a response `Date` header and was removed as more machinery than the
 rare case justified.
 
-### 5.3 Hours do not decide what is drawn
+### 5.3 A marker's hours do not decide what is drawn
 
 The client never hides a marker outside its windows. That filtering was how the old map coped
 with a crowded field, which was a workaround for the day-split rather than a feature; layers and
@@ -211,6 +211,53 @@ and how a row is labelled.
 `setTimeout` stores its delay in a signed 32-bit int, so a boundary more than ~24.8 days out
 overflows and fires **immediately**, turning a far-future window into a re-render hot loop on
 festival day.
+
+> [!IMPORTANT]
+> **The rule holds on the marker axis and is excepted on the layer axis.** A LAYER's
+> `defaultVisibleWhen` does decide what is drawn — see §5.4. The two are different fields with
+> different shapes and different jobs, and the distinction is the point: a marker's `hours`
+> describe one booth on one festival day, while a layer's schedule says "주점 belongs to the <!-- conventions:allow-korean: the layer label the app shows -->
+> evening", which is the same sentence every day.
+
+### 5.4 A layer's schedule does, and it is wall-clock
+
+`/map/config` gives each layer a `defaultVisibleWhen`, a tagged union of `always`, `never` and
+`scheduled` — the last carrying `DailyWindow[]`, recurring `"HH:MM"` KST windows where
+`start > end` wraps past midnight. It replaced a plain boolean, which could not say that 주점 <!-- conventions:allow-korean: the layer label the app shows -->
+belongs to the evening of every festival day. The server ships the windows and never evaluates
+them, so `/map/config` stays a deterministic response.
+
+`packages/shared/src/map/daily-window.ts` is the only implementation, kept apart from `window.ts`
+because that module's bounds are absolute instants and these are not. **The KST minute comes from
+the epoch** — `(Date.now() + 9h) % 86_400_000`, never `Date.getHours()` — so a device in the wrong
+timezone still flips 주점 on at 18:00 KST, which is the guarantee ADR 0007 makes and this axis <!-- conventions:allow-korean: the layer label the app shows -->
+keeps. The fixed +09:00 is exact: Korea has had no DST since 1988.
+
+Resolution is four tiers, and the schedule is the last resort:
+
+```text
+forced ?? chipNarrowing ?? userToggle ?? defaultVisibleAt(layer, now)
+```
+
+Every tier is a fallback rather than an assignment, which is what lets the last one keep moving.
+Writing a resolved value into the store is exactly what used to happen — the store was seeded from
+`defaultVisible` — and it froze the schedule at first read while making a user's choice
+indistinguishable from the server's suggestion. `useMapLayerStore` now holds only `overrides` (what
+the user expressed) and a transient `chip`, so clearing a chip drops a shadow and gives back what
+the user had rather than what the server ships.
+
+**An unreadable declaration is OFF, not on.** The parser produces `null` for a `kind` this build
+cannot resolve, and `defaultVisibleAt` reads it as hidden. That is the opposite direction from
+`userConfigurable`, deliberately: this axis exists to put *less* on screen, so reading a rule we
+cannot understand as "on all day" would draw 주점 at noon the first time the server adds a kind. <!-- conventions:allow-korean: the layer label the app shows -->
+`null` is also kept distinct from `{ kind: 'never' }`, which is an authoring choice. Two guards stop
+that becoming a silent failure of its own — the layer keeps its filter-sheet tile so a user can turn
+it on, and a response in which *no* layer is readable falls back to `DEFAULT_MAP_CONFIG` rather than
+drawing an empty campus.
+
+The layers' windows are armed on `CampusScreen`'s clock alongside the markers', and that is not
+optional: a layer that is currently hidden is not mounted, so it arms no timer of its own and 18:00
+would otherwise arrive with nothing in the app waiting for it.
 
 ## 6. Rendering: pins, not clusters
 
@@ -330,6 +377,24 @@ the root `<Stack>` in `app/_layout.tsx`. The sheet is therefore outside the navi
 after it, so a pushed `/webview` slides in **underneath** and lands with its lower half covered.
 Nothing on the pushing side can correct that; the sheet has to go first.
 
+**It comes back, though.** Going and not returning was the first version and it read as losing your
+place: back from the webview landed on a bare map. The dismiss is byte-for-byte the user's own, so
+the button announces the round trip in advance — `onNavigateAway`, which raises two refs in
+`CampusScreen`. One tells `handlePeekDismiss` to keep `selectedPlaceId` and skip `releaseSheet()`,
+so the campus sheet stays down and the restored sheet is not stacked on it; the other is consumed by
+a `useFocusEffect` that re-presents through `presentOverSheet`. Three things make that cheap:
+`/webview` is a card push on the ROOT stack, so `CampusScreen` blurs rather than unmounts;
+`selectedPlaceId` is in-memory-only store state that survives a push but not a cold start; and
+`requestHandoff` already answers a request made while the campus sheet is closed by presenting at
+once and preserving `restoreTo`.
+
+Both refs are raised together at the button rather than chained, because `onDismiss` does not fire
+until the close animation ends and that is not guaranteed to precede the return focus. The sheet
+returns at its low detent — restoring the exact one needs gorhom's private `minimize()`/`restore()`,
+which is a separate question. And an action whose URL is not web (`mailto:`, `tel:`) goes to
+`Linking.openURL` instead of pushing, so no focus event arrives and the arm survives until some
+later unrelated focus; the fix for that is for `openWebView` to report whether it navigated.
+
 The same constraint is why `BuildingDetailSheet` dismisses before pushing `/map/hssc`, and why
 `NoticeDetailScreen`'s original-notice link hands off to the system browser rather than pushing.
 
@@ -434,24 +499,23 @@ a polling cadence belongs in this store. The clock offset used to be written on 
 which re-rendered `CampusScreen` for the whole of an event without changing a single derived value.
 
 **Layer visibility is not here.** Festival layers are ordinary `/map/config` layers, so their
-visibility lives in `useMapLayerStore` with every other layer's — ephemeral, seeded from each layer's
-`defaultVisible` on launch, written by chips and by the filter sheet's tiles. Two stores, two
+visibility lives in `useMapLayerStore` with every other layer's — ephemeral, seeded by nothing at
+all, holding only the user's own `overrides` and a transient `chip` (§5.4). Two stores, two
 lifetimes: that one is the map's, this one is the event's, and keeping event keys out of the map's is
 what stops a persisted blob accumulating a festival's worth of dead ids.
 
 ### 8.1 `basemapOverride` is gone
 
 The snapshot used to name base-map layers the event forced to a visibility — in practice one boolean,
-hiding the building numbers while the festival ran. It is gone on both sides. Visibility is
-`userToggle[id] ?? layer.defaultVisible` everywhere it is read, and an event layer is an ordinary
-layer with no way to reach across and change another's.
+hiding the building numbers while the festival ran. It is gone on both sides, and an event layer is
+an ordinary layer with no way to reach across and change another's.
 
 The removal is worth recording rather than just doing, because the cost was not the field. It was
 that a cross-cutting override is a **resolution rule** every reader has to implement identically:
 `FilterSheet` implemented two tiers of the three and so reported the building-number layer ON while
-the map drew nothing. Two tiers cannot drift that way, because `defaultVisible` travels on the layer
-the caller is already holding. If a festival wants the building numbers off, that is now a
-`/map/config` `defaultVisible` question.
+the map drew nothing. The chain is four tiers again today (§5.4) and that is survivable for the same
+reason it was not then: it lives in `isLayerVisible` and no caller reproduces it. If a festival wants
+the building numbers off, that is a `/map/config` `defaultVisibleWhen` question.
 
 ## 9. The client festival gate
 
@@ -510,15 +574,17 @@ server opens the window**.
 
 | File | What |
 | --- | --- |
-| `packages/shared/src/types/map.ts` | the unified marker schema — `I18nText`, `TimeWindow`, `MarkerField`, `MarkerAction`, `RawMarkerData` |
-| `packages/shared/src/map/parser.ts` | tolerant parse of the marker wire (§3) |
-| `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` (§5) |
+| `packages/shared/src/types/map.ts` | the unified marker schema — `I18nText`, `TimeWindow`, `MarkerField`, `MarkerAction`, `RawMarkerData` — plus `DailyWindow` and `LayerDefaultVisibility` (§5.4) |
+| `packages/shared/src/map/parser.ts` | tolerant parse of the marker wire (§3), and the unreadable-declaration policy (§5.4) |
+| `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` — absolute instants (§5) |
+| `packages/shared/src/map/daily-window.ts` | `kstMinutesOfDay`, `isDailyWindowOpen`, `nextDailyBoundaryAfter` — recurring KST wall-clock (§5.4) |
 | `packages/shared/src/map/pins.ts` | `resolvePinCollisions` — the coordinate ladder (§6.2) |
 | `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` and `PLACE_SORTS` (§4.2) |
 | `packages/shared/src/map/text.ts` | `pickI18nText` — the one place a language is chosen |
-| `packages/shared/src/map/chips.ts` | `isLayerVisible` and the chip rules the list borrows (§4.1) |
+| `packages/shared/src/map/chips.ts` | `isLayerVisible` (the four tiers, §5.4), `defaultVisibleAt`, and the chip rules the list borrows (§4.1) |
+| `packages/shared/src/store/map.ts` | `overrides` and the transient `chip` — what the user expressed, and nothing else (§5.4) |
 | `packages/shared/src/map/festival.ts` | `withoutFestival` — the client festival gate's pure half (§9) |
-| `packages/shared/src/hooks/useWindowClock.ts` | the boundary timer that makes 18:00 observable (§5.3) |
+| `packages/shared/src/hooks/useWindowClock.ts` | the boundary timer that makes 18:00 observable, for both axes (§5.3, §5.4) |
 | `packages/shared/src/hooks/useLayerMarkers.ts` | the one marker query, keyed on the endpoint (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/map/festivalGate.ts` | `isFestivalUnlocked()` — what decides whether the gate is open (§9) |

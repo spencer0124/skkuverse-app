@@ -76,7 +76,7 @@ crosses package boundaries.
 | [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, the `layerId` join to `/map/config`, the list in the campus sheet and the client festival gate |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 | [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
-| [campus-sheet-liquid-glass.md](explanation/campus-sheet-liquid-glass.md) | Why the campus tab's sheets are floating glass cards, and the two different routes they take to get there |
+| [bottom-sheet-system.md](explanation/bottom-sheet-system.md) | The one sheet component. Its detents, the float-vs-attach rule behind glass or opaque, and the native constraints the card works within |
 
 ### decisions (ADR)
 

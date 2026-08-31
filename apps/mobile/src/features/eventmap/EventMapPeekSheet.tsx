@@ -17,14 +17,9 @@
  * ordering constraint rather than a styling choice.
  */
 
-import React, { forwardRef, useCallback, useMemo } from 'react';
+import React, { forwardRef, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-  useBottomSheetModal,
-  type BottomSheetBackgroundProps,
-} from '@gorhom/bottom-sheet';
+import { useBottomSheetModal } from '@gorhom/bottom-sheet';
 import {
   pickI18nText,
   SdsColors,
@@ -33,22 +28,15 @@ import {
   type MarkerAction,
   type RawMarkerData,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
-import { GLASS_AVAILABLE } from '@/components/glass';
-import { GlassCardBackground } from '@/features/map/components/GlassCardBackground';
-import { SheetHandle } from '@/features/map/components/SheetHandle';
-import { SheetCloseButton } from '@/features/map/components/SheetCloseButton';
-import { SHEET_FLOAT_INSET } from '@/features/map/utils/sheetChrome';
+import { Sheet, SheetCloseButton, Txt, type SheetRef } from '@skkuverse/sds';
 import { handleSduiAction } from '@/sdui/action-handler';
 import { PlaceCard } from './PlaceCard';
 
 /**
- * The low detent: one card's worth, with the map still showing the pin it
- * describes. It no longer has to clear the campus sheet's own detents — that
- * sheet steps aside (closes) before this one rises and returns when it goes,
- * so the two are never on screen together. See `sheetHandoff.ts`.
+ * The scroll content's own bottom padding, before the card's bottom gap is
+ * added to it.
  */
-const PEEK_MIN_SNAP = '45%';
+const CONTENT_BOTTOM_PAD = 32;
 
 interface EventMapPeekSheetProps {
   place: RawMarkerData | null;
@@ -61,43 +49,37 @@ interface EventMapPeekSheetProps {
    */
   bottomGap: number;
   onDismiss: () => void;
+  /**
+   * Fired immediately before an action button dismisses the sheet to navigate.
+   *
+   * The dismiss that follows is indistinguishable from the user's own — same
+   * callback, same everything — so the screen is told in advance which one is
+   * coming. Without it `onDismiss` cannot know whether to throw the selection
+   * away or hold it for the way back.
+   */
+  onNavigateAway?: () => void;
 }
 
-export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetProps>(
-  function EventMapPeekSheet({ place, now, bottomGap, onDismiss }, ref) {
-    const snapPoints = useMemo(() => [PEEK_MIN_SNAP, '85%'], []);
+export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
+  function EventMapPeekSheet({ place, now, bottomGap, onDismiss, onNavigateAway }, ref) {
     const { t } = useT();
 
-    // A closure rather than the component itself, because the card's bottom
-    // gap is a prop here and gorhom passes a background component only its own
-    // animated values.
-    const renderBackground = useCallback(
-      (props: BottomSheetBackgroundProps) => (
-        <GlassCardBackground {...props} bottomGap={bottomGap} />
-      ),
-      [bottomGap],
-    );
-
     return (
-      <BottomSheetModal
+      <Sheet
         ref={ref}
-        snapPoints={snapPoints}
-        enableDynamicSizing={false}
-        // The grabber bar alone: a handle that painted its own fill would be a
-        // white lid across the top of the glass.
-        handleComponent={SheetHandle}
-        backgroundComponent={renderBackground}
-        // The same route the filter sheet takes to its card — `detached` puts
-        // the inset on the hosting container and stops clipping, so the shadow
-        // and the glass edge survive; the margin rides on the body so the
-        // background, the handle and the content inset as one. All off below
-        // iOS 26, where this stays the attached panel it shipped as. Unlike the
-        // filter sheet this one still moves between two detents, and that is
-        // fine: the card keeps one shape at both, and only the campus sheet
-        // needs a crossfade because only it attaches at the top.
-        detached={GLASS_AVAILABLE}
-        bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
-        style={GLASS_AVAILABLE ? styles.card : undefined}
+        // `small` shows one card's worth with the map still showing the pin it
+        // describes; `large` is the whole place. It no longer has to clear the
+        // campus sheet's own detents — that sheet steps aside (closes) before
+        // this one rises and returns when it goes, so the two are never on
+        // screen together. See `sheetHandoff.ts`.
+        position={{ kind: 'expandable', detents: ['small', 'large'] }}
+        // Because the top detent is `large`, this is the one modal that
+        // CROSSFADES: a floating card down low, an ordinary opaque sheet once
+        // it attaches, matching the campus sheet it rose in place of. The
+        // filter sheet, which stops at `medium`, keeps one shape and gets
+        // gorhom's cheaper `detached` card instead.
+        surface="glass"
+        bottomGap={bottomGap}
         // The default 'switch' MINIMIZES BuildingDetailSheet and restores it when
         // this closes, resurfacing a sheet the user never asked for.
         stackBehavior="replace"
@@ -109,15 +91,38 @@ export const EventMapPeekSheet = forwardRef<BottomSheetModal, EventMapPeekSheetP
         <View style={styles.header}>
           <SheetCloseButton label={t('common.close')} />
         </View>
-        <BottomSheetScrollView style={styles.container} contentContainerStyle={styles.content}>
-          {place ? <PlaceBody place={place} now={now} /> : null}
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+        {/* The card's bottom gap has to be paid for here. A crossfading sheet
+            is not `detached`, so gorhom sizes the content box to the container
+            rather than to the visible card — without this, a long field list
+            would keep drawing below the card's bottom edge, over the map, at
+            the low detent. Constant rather than animated: the extra padding is
+            invisible once the sheet attaches and the floating tab bar sits
+            over that band anyway. */}
+        <Sheet.ScrollView
+          style={styles.container}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: CONTENT_BOTTOM_PAD + bottomGap },
+          ]}
+        >
+          {place ? (
+            <PlaceBody place={place} now={now} onNavigateAway={onNavigateAway} />
+          ) : null}
+        </Sheet.ScrollView>
+      </Sheet>
     );
   },
 );
 
-function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
+function PlaceBody({
+  place,
+  now,
+  onNavigateAway,
+}: {
+  place: RawMarkerData;
+  now: number;
+  onNavigateAway?: () => void;
+}) {
   const lang = useSettingsStore((s) => s.appLanguage);
 
   // `content` is prose to show in place. The global dispatcher is
@@ -146,8 +151,12 @@ function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
 
       {buttons.length > 0 ? (
         <View style={styles.actionRow}>
-          {buttons.map((action) => (
-            <ActionButton key={action.id} action={action} />
+          {buttons.map((action, i) => (
+            <ActionButton
+              key={action.id}
+              action={i === 0 ? ({ ...action, __probe: true } as typeof action) : action}
+              onNavigateAway={onNavigateAway}
+            />
           ))}
         </View>
       ) : null}
@@ -155,7 +164,13 @@ function PlaceBody({ place, now }: { place: RawMarkerData; now: number }) {
   );
 }
 
-function ActionButton({ action }: { action: MarkerAction }) {
+function ActionButton({
+  action,
+  onNavigateAway,
+}: {
+  action: MarkerAction;
+  onNavigateAway?: () => void;
+}) {
   const lang = useSettingsStore((s) => s.appLanguage);
   // `dismiss()` with no key closes the top-most modal in the provider's queue,
   // which is this sheet whenever one of its own buttons is being pressed.
@@ -175,10 +190,13 @@ function ActionButton({ action }: { action: MarkerAction }) {
     // the reason NoticeDetailScreen's 원본 공지 보기 hands off to the system
     // browser instead of pushing.
     //
-    // Dismissing (rather than restoring the sheet on the way back) is also the
-    // behaviour we want: onDismiss clears selectedPlaceId, so backing out of
-    // the webview lands on the plain campus map instead of a sheet the user
-    // already navigated away from.
+    // The sheet COMES BACK, though — that is what `onNavigateAway` buys. The
+    // dismiss below is byte-for-byte the user's own, so the screen has to be
+    // told in advance that this one is a round trip: it then keeps
+    // `selectedPlaceId` instead of nulling it, and re-presents on focus. This
+    // used to read "dismissing rather than restoring is also the behaviour we
+    // want"; it was not, and coming back to a map with no sheet was the report.
+    onNavigateAway?.();
     dismiss();
     handleSduiAction({
       actionType: action.actionType,
@@ -187,7 +205,7 @@ function ActionButton({ action }: { action: MarkerAction }) {
       // named after what they tapped.
       webviewTitle: label,
     });
-  }, [action, dismiss, label]);
+  }, [action, dismiss, label, onNavigateAway]);
 
   const primary = action.style === 'primary';
   return (
@@ -219,8 +237,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
-  content: { paddingHorizontal: 20, paddingBottom: 32 },
-  card: { marginHorizontal: SHEET_FLOAT_INSET },
+  content: { paddingHorizontal: 20 },
   inlineBlock: { marginTop: 12, gap: 2 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   actionButton: {
