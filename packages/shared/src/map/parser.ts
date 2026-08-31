@@ -43,6 +43,13 @@ const MARKER_STYLES = [
   'placeDot',
 ] as const;
 /**
+ * The marker shapes this build can draw. An unrecognised value resolves to
+ * `undefined`, which the client reads as "the server did not say" and answers
+ * with its own default — see `MapLayerStyle.shape` for why that direction is
+ * the opposite of `MARKER_STYLES`'.
+ */
+const MARKER_SHAPES = ['pin', 'dot', 'dotThenPin'] as const;
+/**
  * The tap kinds this build knows how to route. A kind outside the set leaves the
  * marker drawn but inert — see parseMarkerTap.
  */
@@ -108,6 +115,7 @@ function parseLayerStyle(raw: Record<string, unknown>): MapLayerStyle {
     size: toFiniteNumber(raw.size) ?? undefined,
     captionTextSize: toFiniteNumber(raw.captionTextSize) ?? undefined,
     zIndex: toFiniteNumber(raw.zIndex) ?? undefined,
+    shape: asMember(raw.shape, MARKER_SHAPES),
   };
 }
 
