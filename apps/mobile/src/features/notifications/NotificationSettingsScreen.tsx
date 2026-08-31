@@ -17,8 +17,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { BadgeNavRow, Txt } from '@skkuverse/sds';
+import { BadgeNavRow, Txt, type SheetRef } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -74,12 +73,12 @@ export default function NotificationSettingsScreen() {
   // Re-runs when permissionStatus refreshes (via useFocusEffect's checkPermission)
   // so externally-revoked permissions surface the sheet on the next status pull.
   // BottomSheetModal.present() is idempotent if already shown.
-  const enableSheetRef = useRef<BottomSheetModal>(null);
+  const enableSheetRef = useRef<SheetRef>(null);
   useEffect(() => {
     const notGranted =
       permissionStatus === 'denied' || permissionStatus === 'notDetermined';
     if (notGranted && !enableSheetDismissed) {
-      enableSheetRef.current?.present();
+      enableSheetRef.current?.present?.();
     }
   }, [permissionStatus, enableSheetDismissed]);
 

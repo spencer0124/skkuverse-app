@@ -133,7 +133,7 @@ its middle detent when the list appears — enough to read a few rows with the p
 and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
 campus sheet closes first and the peek sheet rises once that animation finishes. It comes back to
 the same detent, list and all, when the peek sheet is dismissed — the hand-off is described in
-[campus-sheet-liquid-glass.md](campus-sheet-liquid-glass.md). Both of these follow from it:
+[bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
 
 - Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
   on the derived flag, not a call inside the chip handler.

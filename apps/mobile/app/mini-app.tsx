@@ -53,11 +53,10 @@ import {
   useMiniAppDetail,
   useMiniAppIndex,
 } from '@skkuverse/shared';
-import { BottomSheet, Txt } from '@skkuverse/sds';
+import { GlassSurface, Sheet, Txt } from '@skkuverse/sds';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
-import { GlassSurface } from '@/components/glass';
 import { faviconUrl } from '@/features/mini-app/protocol';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
@@ -593,7 +592,13 @@ export default function MiniAppScreen() {
       </View>
 
       {/* 페이지 정보 시트 — [로고(우하단 인증 배지) · 서비스명] + (서비스별 소개 문구). */}
-      <BottomSheet open={infoOpen} onClose={() => setInfoOpen(false)} snapPoints={['50%']}>
+      <Sheet
+        open={infoOpen}
+        onDismiss={() => setInfoOpen(false)}
+        position={{ kind: 'stuck', detent: 'medium' }}
+        backdrop
+      >
+        <Sheet.View style={styles.infoSheet}>
         <View style={styles.infoRow}>
           {/* 로고 + (인증 미니앱이면) 우하단 인증 체크 배지(흰 링으로 분리). */}
           <View style={styles.infoLogoWrap}>
@@ -633,10 +638,17 @@ export default function MiniAppScreen() {
             ))}
           </View>
         ) : null}
-      </BottomSheet>
+        </Sheet.View>
+      </Sheet>
 
       {/* 더보기(⋯) 액션 시트 — Safari 스타일 액션 목록. 콘텐츠 높이에 맞춰 hug. */}
-      <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} enableDynamicSizing>
+      <Sheet
+        open={moreOpen}
+        onDismiss={() => setMoreOpen(false)}
+        position={{ kind: 'fit' }}
+        backdrop
+      >
+        <Sheet.View style={styles.infoSheet}>
         <View style={styles.menuList}>
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
           <MenuRow icon={ShareNetworkIcon} label="공유하기" onPress={handleShare} />
@@ -646,7 +658,8 @@ export default function MiniAppScreen() {
           <MenuRow icon={GearSixIcon} label="설정" onPress={handleSettings} />
           <MenuRow icon={HeadsetIcon} label="고객센터" onPress={handleSupport} />
         </View>
-      </BottomSheet>
+        </Sheet.View>
+      </Sheet>
     </View>
   );
 }
@@ -768,6 +781,16 @@ const styles = StyleSheet.create({
     color: SdsColors.grey800,
   },
   // 페이지 정보 시트 행 — [로고(+인증 배지) · 서비스명].
+  /**
+   * The gutter the old SDS BottomSheet used to bake into its own content
+   * wrapper. `Sheet` leaves the content alone, so a sheet that wants a gutter
+   * says so — which is what lets the campus sheet's own content sit flush to a
+   * card edge that moves.
+   */
+  infoSheet: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',

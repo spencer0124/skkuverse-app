@@ -15,7 +15,7 @@ import { StyleSheet, Text, Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import Svg, { Polygon } from 'react-native-svg';
 import { SdsColors } from '@skkuverse/shared';
-import { GlassSurface } from '@/components/glass';
+import { GlassSurface } from '@skkuverse/sds';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 
 interface MapCompassProps {

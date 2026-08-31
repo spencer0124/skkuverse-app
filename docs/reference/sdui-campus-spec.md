@@ -36,7 +36,7 @@ consumes this endpoint. That surface shapes the contract, not only the styling:
 - **Blocks sit on liquid glass for most of the sheet's travel.** The opaque fill only
   dissolves in over the final drag, so a section that paints no fill of its own is drawn over
   a live map. See
-  [campus-sheet-liquid-glass.md](../explanation/campus-sheet-liquid-glass.md).
+  [bottom-sheet-system.md](../explanation/bottom-sheet-system.md).
 - **Long-form content does not belong in a section.** It belongs behind a `webview` or
   `miniapp` action, which opens a full screen. The sheet is a place to hand off from rather
   than a place to read in.

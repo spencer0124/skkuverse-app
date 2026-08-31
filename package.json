@@ -13,7 +13,7 @@
     "lint": "expo lint --max-warnings 0 && yarn lint:md",
     "lint:md": "markdownlint-cli2",
     "typecheck": "tsc --noEmit -p apps/mobile && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/sds && tsc --noEmit -p packages/bridge",
-    "test": "yarn workspace @skkuverse/shared test && yarn workspace mobile test",
+    "test": "yarn workspace @skkuverse/shared test && yarn workspace @skkuverse/sds test && yarn workspace mobile test",
     "test:rules": "bash scripts/test-rules.sh",
     "postinstall": "patch-package"
   },

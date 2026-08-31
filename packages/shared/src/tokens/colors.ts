@@ -61,6 +61,16 @@ export const SdsColors = {
   // ── Utility ──
   highlight: '#FFE08C',
 
+  // ── Scrim (the dim behind a modal overlay) ──
+  // The alpha lives in the token rather than beside it, so one value answers
+  // "how dark is a scrim" for a plain `View` and for gorhom's backdrop alike.
+  //
+  // `scrimGlass` is far lighter on purpose. A Liquid Glass surface samples
+  // whatever is behind it, so the standard dim turns a translucent card into a
+  // flat grey panel rather than dimming what is under it.
+  scrim: 'rgba(0, 0, 0, 0.5)',
+  scrimGlass: 'rgba(0, 0, 0, 0.2)',
+
   // ── Background ──
   background: '#FFFFFF',
   greyBackground: '#F2F4F6', // = grey100

@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon } from 'phosphor-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsColors, SdsTypo, SdsShadows, useT } from '@skkuverse/shared';
-import { glassFloatShadow } from '@/components/glass';
+import { glassFloatShadow } from '@skkuverse/sds';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 import { logCampusContentSelect } from '@/services/analytics';
 

@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LottieView from 'lottie-react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SdsShadows } from '@skkuverse/shared';
-import { glassFloatShadow } from '@/components/glass';
+import { glassFloatShadow } from '@skkuverse/sds';
 import { logBusContentSelect } from '@/services/analytics';
 
 const GLASS_AVAILABLE = isLiquidGlassAvailable();

@@ -25,7 +25,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { XIcon } from 'phosphor-react-native';
 import { SdsColors, type MapChip } from '@skkuverse/shared';
-import { GlassSurface } from '@/components/glass';
+import { GlassSurface } from '@skkuverse/sds';
 
 interface ActiveChipStripProps {
   chip: MapChip;

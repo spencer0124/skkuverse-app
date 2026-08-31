@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
+import { Sheet, type SheetRef } from '@skkuverse/sds';
 import { BellRingingIcon } from 'phosphor-react-native';
 import { Button, Txt } from '@skkuverse/sds';
 import {
@@ -22,7 +22,7 @@ import { useEnableNotificationsFlow } from '../hooks/useEnableNotificationsFlow'
  * Granting here also flips master intent ON (`setMasterEnabled(uid, true)`)
  * — tapping "알림 켜기" is the explicit signal that the user wants notifications.
  */
-export const EnableNotificationsSheet = forwardRef<BottomSheetModal>(
+export const EnableNotificationsSheet = forwardRef<SheetRef>(
   function EnableNotificationsSheet(_, parentRef) {
     const { t } = useT();
     const uid = useAuthStore((s) => s.uid);
@@ -32,9 +32,9 @@ export const EnableNotificationsSheet = forwardRef<BottomSheetModal>(
 
     // Local ref so we can call dismiss() from inside (post-grant), while
     // still forwarding all BottomSheetModal methods to the parent.
-    const sheetRef = useRef<BottomSheetModal>(null);
+    const sheetRef = useRef<SheetRef>(null);
     const setRefs = useCallback(
-      (node: BottomSheetModal | null) => {
+      (node: SheetRef | null) => {
         sheetRef.current = node;
         if (typeof parentRef === 'function') parentRef(node);
         else if (parentRef) parentRef.current = node;
@@ -43,18 +43,17 @@ export const EnableNotificationsSheet = forwardRef<BottomSheetModal>(
     );
 
     const { handleEnable } = useEnableNotificationsFlow({
-      onResolved: () => sheetRef.current?.dismiss(),
+      onResolved: () => sheetRef.current?.dismiss?.(),
       additionalOnGranted: uid ? () => setMasterEnabled(uid, true) : undefined,
     });
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={setRefs}
-        snapPoints={['45%']}
-        enableDynamicSizing={false}
+        position={{ kind: 'stuck', detent: 'small' }}
         onDismiss={() => setDismissed(true)}
       >
-        <BottomSheetView style={styles.content}>
+        <Sheet.View style={styles.content}>
           <View style={styles.iconCircle}>
             <BellRingingIcon size={40} color={SdsColors.green500} weight="fill" />
           </View>
@@ -83,8 +82,8 @@ export const EnableNotificationsSheet = forwardRef<BottomSheetModal>(
               {t('notifications.enableSheetCta')}
             </Button>
           </View>
-        </BottomSheetView>
-      </BottomSheetModal>
+        </Sheet.View>
+      </Sheet>
     );
   },
 );

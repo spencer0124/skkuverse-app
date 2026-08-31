@@ -6,11 +6,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import {
-  BottomSheetModal,
-  BottomSheetScrollView,
-} from '@gorhom/bottom-sheet';
-import { Button, Checkbox, TextField, Txt } from '@skkuverse/sds';
+import { Button, Checkbox, Sheet, TextField, Txt, type SheetRef } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
 import type { DeleteAccountFeedback } from '@/services/delete-account';
 
@@ -39,12 +35,12 @@ type Props = {
  * input validator silently drops empty `reasons` + missing `otherText`, so
  * passing `undefined` here is the canonical "no feedback" path.
  */
-export const DeleteAccountFeedbackSheet = forwardRef<BottomSheetModal, Props>(
+export const DeleteAccountFeedbackSheet = forwardRef<SheetRef, Props>(
   function DeleteAccountFeedbackSheet({ isSubmitting, onSubmit }, parentRef) {
     const { t } = useT();
-    const sheetRef = useRef<BottomSheetModal>(null);
+    const sheetRef = useRef<SheetRef>(null);
     const setRefs = useCallback(
-      (node: BottomSheetModal | null) => {
+      (node: SheetRef | null) => {
         sheetRef.current = node;
         if (typeof parentRef === 'function') parentRef(node);
         else if (parentRef) parentRef.current = node;
@@ -77,15 +73,15 @@ export const DeleteAccountFeedbackSheet = forwardRef<BottomSheetModal, Props>(
     };
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={setRefs}
-        snapPoints={['82%']}
-        enableDynamicSizing={false}
-        keyboardBehavior="interactive"
-        android_keyboardInputMode="adjustResize"
+        position={{ kind: 'stuck', detent: 'large' }}
+        // A text input wants the content to shrink around the keyboard rather
+        // than slide under it.
+        androidKeyboardInputMode="adjustResize"
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <BottomSheetScrollView
+          <Sheet.ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
           >
@@ -161,9 +157,9 @@ export const DeleteAccountFeedbackSheet = forwardRef<BottomSheetModal, Props>(
                 )}
               </Button>
             </View>
-          </BottomSheetScrollView>
+          </Sheet.ScrollView>
         </TouchableWithoutFeedback>
-      </BottomSheetModal>
+      </Sheet>
     );
   },
 );

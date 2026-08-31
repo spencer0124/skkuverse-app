@@ -7,10 +7,10 @@
  *     └─ MapPolylineLayer (per visible polyline layer)
  *   CampusToggle (absolute, top — the row the search bar used to hold)
  *   FilterButton (absolute, right of the toggle)
- *   BottomSheet (snap: SHEET_SNAP_PERCENTS)
+ *   Sheet (detents: small / medium / large, small+medium overridden)
  *     ├─ backgroundComponent={SheetBackground}  (glass card ⇄ opaque sheet)
  *     ├─ handleComponent={SheetHandle}          (the grabber alone; no fill)
- *     └─ BottomSheetScrollView → SduiSectionList (the server's campus feed)
+ *     └─ Sheet.ScrollView → SduiSectionList (the server's campus feed)
  *        ⇄ EventListPanel, while a chip has narrowed the map (the event list)
  *   BuildingDetailSheet (modal, on marker tap) ┐ the campus sheet steps aside
  *   EventMapPeekSheet (modal, booth tap / row) ┘ for these — `sheetHandoff.ts`
@@ -23,11 +23,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomSheet, {
-  BottomSheetScrollView,
-  BottomSheetModal,
-} from '@gorhom/bottom-sheet';
-import type { BottomSheetBackgroundProps } from '@gorhom/bottom-sheet';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import { CrosshairSimpleIcon } from 'phosphor-react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -59,7 +54,7 @@ import {
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventListPanel } from '@/features/eventmap/EventListPanel';
-import { GlassIconButton, GLASS_AVAILABLE } from '@/components/glass';
+import { GlassIconButton, Sheet, SHEET_FLOAT_INSET, type SheetRef } from '@skkuverse/sds';
 import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapMarkerLayer } from './components/MapMarkerLayer';
@@ -69,9 +64,6 @@ import { CampusChipRow } from './components/CampusChipRow';
 import { ActiveChipStrip } from './components/ActiveChipStrip';
 import { FilterSheet } from './components/FilterSheet';
 import { FilterButton } from './components/FilterButton';
-import { SheetHandle } from './components/SheetHandle';
-import { SheetBackground } from './components/SheetBackground';
-import { sheetChromeAt, SHEET_FLOAT_INSET } from './utils/sheetChrome';
 import {
   IDLE_HANDOFF,
   releaseHandoff,
@@ -157,21 +149,11 @@ const EXPLICIT_CAMERA_RESULT_WINDOW_MS = 6000;
  * floating point, which would reach the sheet as a snap point string of that
  * literal width.)
  *
- * The TOP detent is not here, because it is not a percentage — see
- * `snapPoints` below.
+ * The TOP detent is not here, because it is not a percentage at all: it is
+ * `large`, which `Sheet` resolves as the container's height less the top safe
+ * area. See `sheetPosition` below.
  */
 const SHEET_SNAP_PERCENTS = [24, 42] as const;
-
-/**
- * The top detent before the container has been measured.
- *
- * A percentage, unlike the real one, because there is nothing yet to subtract
- * a safe area from. Close enough that the one frame it survives is not a jump.
- */
-const SHEET_TOP_PERCENT_FALLBACK = 92;
-
-/** Index of the top detent — the one at which the card is fully attached. */
-const SHEET_LAST_INDEX = SHEET_SNAP_PERCENTS.length;
 
 /** Gap between the top safe area and the campus toggle. */
 const MAP_TOP_INSET_GAP = 6;
@@ -207,10 +189,10 @@ const EVENT_LIST_SNAP_INDEX = 1;
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<NaverMapViewRef>(null);
-  const sheetRef = useRef<BottomSheet>(null);
-  const detailSheetRef = useRef<BottomSheetModal>(null);
-  const filterSheetRef = useRef<BottomSheetModal>(null);
-  const peekSheetRef = useRef<BottomSheetModal>(null);
+  const sheetRef = useRef<SheetRef>(null);
+  const detailSheetRef = useRef<SheetRef>(null);
+  const filterSheetRef = useRef<SheetRef>(null);
+  const peekSheetRef = useRef<SheetRef>(null);
 
   // ── Data ──
 
@@ -273,7 +255,7 @@ export function CampusScreen() {
   const [pendingBuildingId, setPendingBuildingId] = useState<number | null>(null);
 
   /**
-   * The sheet's live top edge, in px from the top of this screen. `BottomSheet`
+   * The sheet's live top edge, in px from the top of this screen. `Sheet`
    * writes it every frame of a drag, which is what lets the locate button ride
    * the sheet instead of jumping between snap points — an `onChange`/index
    * listener would only fire at the ends and the button would lag the finger.
@@ -342,23 +324,33 @@ export function CampusScreen() {
     [windowHeight, sheetContainerHeight],
   );
 
-  // ── Sheet snap points ──
+  // ── Sheet detents ──
   /**
-   * The two lower detents stay percentages; the top one is a measured height.
+   * `small / medium / large` with this screen's own numbers for the low two.
    *
-   * "Just below the safe area" is not a fixed fraction of the screen — the top
-   * inset is 62 on this device and nearer 20 on a device with no Dynamic
-   * Island — so expressing it as a percentage would put the sheet in a
-   * different place on every phone. gorhom takes a raw number as points, which
-   * says exactly what is meant. Until `onLayout` lands there is nothing to
-   * subtract from, hence the percentage fallback.
+   * The names are kept rather than replaced by raw percentages, because they
+   * are what earns the sheet its surface: `large` is the detent that ATTACHES,
+   * which is what turns the floating glass card into an opaque sheet. `Sheet`
+   * resolves `large` itself as the container's height less the top safe area —
+   * "just below the safe area" is not a fixed fraction of the screen, since the
+   * top inset is 62 on this device and nearer 20 on one with no Dynamic Island.
+   *
+   * The low two are overridden because they are load bearing elsewhere:
+   * `locateAnchorTop` below is computed from the same constant, so the sheet
+   * reads it rather than owning it.
    */
-  const snapPoints = useMemo(() => {
-    const lower = SHEET_SNAP_PERCENTS.map((p) => `${p}%`);
-    return sheetContainerHeight > 0
-      ? [...lower, sheetContainerHeight - insets.top]
-      : [...lower, `${SHEET_TOP_PERCENT_FALLBACK}%`];
-  }, [sheetContainerHeight, insets.top]);
+  const sheetPosition = useMemo(
+    () =>
+      ({
+        kind: 'expandable',
+        detents: ['small', 'medium', 'large'],
+        heights: {
+          small: `${SHEET_SNAP_PERCENTS[0]}%`,
+          medium: `${SHEET_SNAP_PERCENTS[1]}%`,
+        },
+      }) as const,
+    [],
+  );
 
   /**
    * Where the button stops. A snap percentage is the sheet's HEIGHT, so its top
@@ -369,41 +361,12 @@ export function CampusScreen() {
     sheetContainerHeight * (1 - SHEET_SNAP_PERCENTS[LOCATE_ANCHOR_SNAP_INDEX] / 100);
 
   /**
-   * The sheet's background: a floating glass card low down, an ordinary opaque
-   * sheet at the top detent.
-   *
-   * A closure rather than the component itself, because `containerHeight` is
-   * measured here and gorhom passes a background component only its own
-   * `animatedIndex`/`animatedPosition`. Memoised on the measurement so a drag,
-   * which changes neither, never rebuilds the element type and remounts the
-   * GlassView underneath the user's finger.
+   * The sheet's chrome is `Sheet`'s business now: `surface="glass"` plus a
+   * `large` top detent is what asks for the crossfading card, and the side
+   * inset, the grabber and the computed bottom edge all come with it. What
+   * stays here is the measurement, because an inline sheet's container is this
+   * screen's root view and only this screen can measure it.
    */
-  /**
-   * The card's side gap, applied to the sheet body so the background, the
-   * handle and the content all inset together.
-   *
-   * A margin is legal here where `left`/`right` would not be: gorhom composes
-   * `[style, styles.container, containerAnimatedStyle]`, so its own absolute
-   * positioning wins any collision, and a margin on a box pinned to both edges
-   * simply narrows it. The alternative — insetting the background alone — puts
-   * the sheet's touch area outside its visible card, which is worse than the
-   * per-frame layout this costs.
-   */
-  const sheetBodyStyle = useAnimatedStyle(
-    () => ({ marginHorizontal: sheetChromeAt(sheetIndex.get(), SHEET_LAST_INDEX).inset }),
-    [],
-  );
-
-  const renderSheetBackground = useCallback(
-    (props: BottomSheetBackgroundProps) => (
-      <SheetBackground
-        {...props}
-        containerHeight={sheetContainerHeight}
-        lastIndex={SHEET_LAST_INDEX}
-      />
-    ),
-    [sheetContainerHeight],
-  );
 
   // ── Handing the screen to a detail modal ──
 
@@ -420,16 +383,18 @@ export function CampusScreen() {
    * card by design, on the same bottom line.
    */
   const handoff = useRef<SheetHandoff>(IDLE_HANDOFF);
-  const waitingModal = useRef<RefObject<BottomSheetModal | null> | null>(null);
+  const waitingModal = useRef<RefObject<SheetRef | null> | null>(null);
 
-  const presentOverSheet = useCallback((modal: RefObject<BottomSheetModal | null>) => {
+  const presentOverSheet = useCallback((modal: RefObject<SheetRef | null>) => {
     const { state, close, present } = requestHandoff(handoff.current);
     handoff.current = state;
     if (close) {
       waitingModal.current = modal;
       sheetRef.current?.close();
     }
-    if (present) modal.current?.present();
+    // `present` is optional on a SheetRef — an inline sheet has none — and
+    // every modal this hands off to is a modal, so the call always lands.
+    if (present) modal.current?.present?.();
   }, []);
 
   const handleSheetSettled = useCallback((index: number) => {
@@ -438,7 +403,7 @@ export function CampusScreen() {
     if (present) {
       const modal = waitingModal.current;
       waitingModal.current = null;
-      modal?.current?.present();
+      modal?.current?.present?.();
     }
   }, []);
 
@@ -644,7 +609,7 @@ export function CampusScreen() {
   // the marker route is only cached for a minute. An empty sheet is worse than
   // no sheet.
   useEffect(() => {
-    if (selectedPlaceId && !selectedPlace) peekSheetRef.current?.dismiss();
+    if (selectedPlaceId && !selectedPlace) peekSheetRef.current?.dismiss?.();
   }, [selectedPlaceId, selectedPlace]);
 
   /**
@@ -1262,7 +1227,7 @@ export function CampusScreen() {
               <CampusToggle campuses={mapConfig.campuses} onPick={handleCampusPick} />
             )}
             {mapConfig && (
-              <FilterButton onPress={() => filterSheetRef.current?.present()} />
+              <FilterButton onPress={() => filterSheetRef.current?.present?.()} />
             )}
           </View>
           {/* The event map's chip row stood here and was removed: its chips
@@ -1373,19 +1338,20 @@ export function CampusScreen() {
             chip has narrowed the map. One body or the other, never both — a
             gorhom scrollable cannot nest inside another, and each registers
             itself with the sheet on mount, so the swap keeps the pan gesture. */}
-        <BottomSheet
+        <Sheet
           ref={sheetRef}
-          snapPoints={snapPoints}
-          enableDynamicSizing={false}
-          handleComponent={SheetHandle}
-          backgroundComponent={renderSheetBackground}
-          index={0}
+          presentation="inline"
+          position={sheetPosition}
+          surface="glass"
+          // Measured here rather than taken from the window: an inline sheet's
+          // percentage detents resolve against ITS container, which is this
+          // screen's root view, and that is not the window once the tab bar is
+          // accounted for.
+          containerHeight={sheetContainerHeight}
           animatedPosition={sheetTop}
           animatedIndex={sheetIndex}
           onChange={handleSheetChange}
           onClose={handleSheetClose}
-          // Off iOS 26 the sheet stays attached, so it must not inset at all.
-          style={GLASS_AVAILABLE ? sheetBodyStyle : undefined}
         >
           {showEventList ? (
             <EventListPanel
@@ -1397,7 +1363,7 @@ export function CampusScreen() {
             /* The scroll view is what gives the sheet's body a content pane and
                keeps the content pan gesture, so a drag anywhere on the card
                still moves it. It stays mounted even when the feed is empty. */
-            <BottomSheetScrollView
+            <Sheet.ScrollView
               style={styles.sheetContent}
               contentContainerStyle={styles.sheetFeed}
             >
@@ -1411,9 +1377,9 @@ export function CampusScreen() {
               <SduiSectionList
                 sections={festivalUnlocked ? (campusFeed?.sections ?? []) : []}
               />
-            </BottomSheetScrollView>
+            </Sheet.ScrollView>
           )}
-        </BottomSheet>
+        </Sheet>
 
         {/* Modal sheets */}
         {mapConfig && (

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { BottomSheetModal } from '@gorhom/bottom-sheet';
-import { Button, ListRow, Txt } from '@skkuverse/sds';
+import { Button, ListRow, Txt, type SheetRef } from '@skkuverse/sds';
 import {
   SdsColors,
   useAuthStore,
@@ -51,12 +50,12 @@ export default function NoticesSettingsScreen() {
   // 으로 들어온 사용자도 NotificationSettingsScreen과 동일하게 권한 유도 받음.
   // enableSheetDismissedThisSession은 store에서 session-scoped라 두 screen 간
   // dismissal intent 공유 (한 번 닫으면 같은 세션엔 다른 screen에서도 안 뜸).
-  const enableSheetRef = useRef<BottomSheetModal>(null);
+  const enableSheetRef = useRef<SheetRef>(null);
   useEffect(() => {
     const notGranted =
       permissionStatus === 'denied' || permissionStatus === 'notDetermined';
     if (notGranted && !enableSheetDismissed) {
-      enableSheetRef.current?.present();
+      enableSheetRef.current?.present?.();
     }
   }, [permissionStatus, enableSheetDismissed]);
 

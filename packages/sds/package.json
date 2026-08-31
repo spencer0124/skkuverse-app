@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "main": "src/index.ts",
+  "scripts": {
+    "test": "node --experimental-strip-types --test 'src/**/*.test.mts'"
+  },
   "dependencies": {
     "@skkuverse/shared": "*",
     "culori": "^4.0.1",
@@ -15,6 +18,8 @@
     "react-native-gesture-handler": ">=2",
     "react-native-safe-area-context": ">=5",
     "react-native-svg": ">=15",
-    "@gorhom/bottom-sheet": ">=5"
+    "@gorhom/bottom-sheet": ">=5",
+    "phosphor-react-native": ">=3",
+    "expo-glass-effect": ">=0.1"
   }
 }

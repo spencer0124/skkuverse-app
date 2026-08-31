@@ -37,7 +37,7 @@
 import { StyleSheet, Text, Pressable, View } from 'react-native';
 import { XIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
-import { GlassSurface } from '@/components/glass';
+import { GlassSurface } from '@skkuverse/sds';
 import { MAP_CONTROL_HEIGHT } from './controlMetrics';
 
 interface CampusSuggestionCardProps {

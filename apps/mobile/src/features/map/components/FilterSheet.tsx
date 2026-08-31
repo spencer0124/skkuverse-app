@@ -15,19 +15,13 @@
  * is the actual question.
  *
  * On iOS 26 the sheet is a floating Liquid Glass card rather than a panel
- * welded to the screen edges, matching the campus sheet behind it. It gets
- * there by a different route, though — see `GlassCardBackground`.
+ * welded to the screen edges, matching the campus sheet behind it. That is all
+ * `surface="glass"` plus a `medium` detent — `Sheet` resolves a glass sheet that
+ * never reaches `large` to gorhom's own `detached` card, with no interpolation.
  */
 
 import { forwardRef, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  type BottomSheetBackdropProps,
-  type BottomSheetBackgroundProps,
-} from '@gorhom/bottom-sheet';
 import {
   isLayerVisible,
   useMapLayerStore,
@@ -41,11 +35,8 @@ import {
 } from '@skkuverse/shared';
 import { MapTile } from './MapTile';
 import type { MapThumbPalette } from './MapThumb';
-import { GlassCardBackground } from './GlassCardBackground';
-import { SheetCloseButton } from './SheetCloseButton';
 import { toCssColor } from '../utils/toCssColor';
-import { SHEET_FLOAT_INSET } from '../utils/sheetChrome';
-import { GLASS_AVAILABLE } from '@/components/glass';
+import { Sheet, SheetCloseButton, type SheetRef } from '@skkuverse/sds';
 import { logLayerToggle } from '@/services/analytics';
 
 /**
@@ -110,52 +101,12 @@ interface FilterSheetProps {
   bottomGap: number;
 }
 
-export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
+export const FilterSheet = forwardRef<SheetRef, FilterSheetProps>(
   function FilterSheet({ mapConfig, bottomGap }, ref) {
     const selectedCampus = useMapLayerStore((s) => s.selectedCampus);
     const setSelectedCampus = useMapLayerStore((s) => s.setSelectedCampus);
     const layers = useMapLayerStore((s) => s.layers);
     const toggleLayer = useMapLayerStore((s) => s.toggleLayer);
-
-    /**
-     * Tap-outside-to-close.
-     *
-     * The index props are not decoration: `BottomSheetBackdrop` defaults to
-     * appearing at index 1 and disappearing at index 0, which on a
-     * single-snap-point sheet means it is hidden for the entire time the sheet
-     * is open. Index 0 IS the open state here, so it has to appear there and
-     * only leave at -1 (dismissed).
-     *
-     * `opacity` is well below the 0.5 default because glass samples whatever is
-     * behind it: a half-black scrim over the map turns the card into a grey
-     * panel rather than a translucent one. Dimming less costs nothing here —
-     * the backdrop's touchability is driven by `animatedIndex`, not by how
-     * opaque it is, so tapping out still closes the sheet.
-     */
-    const renderBackdrop = useCallback(
-      (props: BottomSheetBackdropProps) => (
-        <BottomSheetBackdrop
-          {...props}
-          appearsOnIndex={0}
-          disappearsOnIndex={-1}
-          opacity={BACKDROP_OPACITY}
-          pressBehavior="close"
-        />
-      ),
-      [],
-    );
-
-    /**
-     * A closure rather than the component itself, because the card's bottom gap
-     * is measured here and gorhom passes a background component only its own
-     * animated values.
-     */
-    const renderBackground = useCallback(
-      (props: BottomSheetBackgroundProps) => (
-        <GlassCardBackground {...props} bottomGap={bottomGap} />
-      ),
-      [bottomGap],
-    );
 
     const handleCampusPress = useCallback(
       (campusId: Campus) => {
@@ -167,37 +118,24 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
     const { t } = useT();
 
     return (
-      <BottomSheetModal
+      <Sheet
         ref={ref}
-        // One snap point, because the sheet no longer moves: with both panning
-        // gestures off there is no way to reach a second one, so listing it
-        // would be dead config that reads as a feature.
-        snapPoints={['62%']}
-        enableDynamicSizing={false}
-        // No handle, and no dragging by handle or by content. Dragging the
+        // `medium` rather than a percentage: the sheet no longer moves, so a
+        // second detent would be dead config that reads as a feature.
+        position={{ kind: 'stuck', detent: 'medium' }}
+        surface="glass"
+        // No dragging by handle or by content, and so no grabber. Dragging the
         // content is what would otherwise fight the grid: a downward swipe
-        // meant to scroll to the layers would instead pull the sheet shut.
-        handleComponent={null}
-        enableHandlePanningGesture={false}
-        enableContentPanningGesture={false}
-        backdropComponent={renderBackdrop}
-        backgroundComponent={renderBackground}
-        // `detached` is what turns the sheet body's box into the visible card:
-        // it stops the container `bottomInset` short of the screen and switches
-        // the clipping off, so the shadow and the glass edge survive. It is a
-        // static mode, which is why the campus sheet cannot use it and why this
-        // one can. All three go off together below iOS 26, where the sheet stays
-        // the attached full-width panel it shipped as.
-        detached={GLASS_AVAILABLE}
-        bottomInset={GLASS_AVAILABLE ? bottomGap : 0}
-        // A margin, not `left`/`right`: gorhom composes `[style, styles.container,
-        // animated]` and its own `left: 0`/`right: 0` would win. It has to ride
-        // on the body so the background, the content and its padding all inset
-        // as one unit — insetting the background alone would leave the strips
-        // either side of the card belonging to the sheet while looking like map.
-        style={GLASS_AVAILABLE ? styles.card : undefined}
-        // It can now be opened while the peek sheet is up, and the default
-        // 'switch' would minimise that sheet and resurface it on close.
+        // meant to scroll to the layers would instead pull the sheet shut. The
+        // X and the backdrop are how it closes.
+        dismissible={false}
+        // Tap-outside-to-close. `Sheet` dims a glass card far less than a solid
+        // one, because glass samples whatever is behind it and a half-black
+        // scrim over the map would turn the card into a grey panel.
+        backdrop
+        bottomGap={bottomGap}
+        // It can be opened while the peek sheet is up, and the default 'switch'
+        // would minimise that sheet and resurface it on close.
         stackBehavior="replace"
       >
         {/* A sibling of the scroll view, not its first row. Inside it, the X
@@ -217,7 +155,7 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
             content moves only as far as it actually extends, and once it does
             outgrow the sheet it still scrolls normally, just without the
             overscroll at either end. `overScrollMode` is the Android half. */}
-        <BottomSheetScrollView
+        <Sheet.ScrollView
           contentContainerStyle={styles.content}
           bounces={false}
           overScrollMode="never"
@@ -278,22 +216,15 @@ export const FilterSheet = forwardRef<BottomSheetModal, FilterSheetProps>(
                 );
               })}
           </View>
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+        </Sheet.ScrollView>
+      </Sheet>
     );
   },
 );
 
 const BADGE_DOT_SIZE = 14;
 
-/** Light enough that the map still reads as a map through the glass. */
-const BACKDROP_OPACITY = 0.2;
-
 const styles = StyleSheet.create({
-  /** The card's side gap. Shared with the campus sheet's floating detents. */
-  card: {
-    marginHorizontal: SHEET_FLOAT_INSET,
-  },
   badgeDot: {
     width: BADGE_DOT_SIZE,
     height: BADGE_DOT_SIZE,
