@@ -9,7 +9,7 @@ audience: internal
 
 # The bottom sheet system
 
-> One sheet component for the whole app: the three named positions, the rule
+> One sheet component for the whole app: the three detents, the rule
 > that decides whether a sheet is glass or opaque, and the non-obvious native
 > constraints that shape how the card is drawn. The campus tab is where all of
 > it is exercised at once, so most of the hard-won detail below is about that
@@ -38,17 +38,17 @@ A position is one of four shapes:
 | --- | --- |
 | `{ kind: 'expandable', detents: [...], initial? }` | Draggable between two or three detents |
 | `{ kind: 'stuck', detent }` | One fixed height, nowhere to travel |
-| `{ kind: 'stuck', height }` | One fixed height that is not a named detent |
+| `{ kind: 'stuck', height }` | One fixed height that is not a detent |
 | `{ kind: 'fit' }` | Height follows the content |
 
 `expandable` takes a tuple typed `[SheetDetent, SheetDetent, ...SheetDetent[]]`,
 so "expandable needs at least two detents" is a compile error rather than a
 sheet that silently cannot move. The custom `height` is deliberately one variant
-deeper than `detent`, so the named form is what autocomplete offers first — and
-a custom height is **never** treated as `large`, whatever its value, because
+deeper than `detent`, so `detent` is what autocomplete offers first — and
+a custom height is not treated as `large`, whatever its value, because
 `large` means "attached" rather than a number.
 
-A sheet whose low detents are load bearing somewhere else can override them and
+A sheet whose low detents matter somewhere else can override them and
 keep the names, with `heights`. The campus sheet is the only case: its two lower
 detents also anchor the locate button, so it supplies its own percentages and
 still says `small / medium / large`. Keeping the names is the point — they are
@@ -60,12 +60,12 @@ what earns the sheet its surface.
 detent that attaches.
 
 Whether the sheet can be dragged decides only whether that change is animated or
-static; it is not what decides the surface. That is worth stating plainly
+static. It does not decide the surface. That is worth stating plainly
 because the obvious alternative — "glass on draggable sheets" — makes two sheets
 of identical height look different for a reason the user cannot see.
 
-`surface="glass"` is opt-in and off by default. Glass earns its place over a
-live map, where the point is that the map stays visible through the card. Over a
+`surface="glass"` is opt-in and off by default. Glass is worth its cost over a
+live map, where the map stays visible through the card. Over a
 settings list it is noise, and it costs something real: every content block has
 to paint its own fill to stay legible (see [What may sit on the card](#what-may-sit-on-the-card)).
 
@@ -123,14 +123,14 @@ and **every `dismiss()` in the app becomes a silent no-op**. The sheet renders,
 its close button does nothing, and nothing throws. `restore()` on a stacked
 sheet goes the same way.
 
-This shipped once and was found only from a bug report. What made it hard to see
+This reached a release once and was found only from a bug report. What made it hard to see
 is that the provider's `dismiss()` still returns `true` — it found the queue
 entry, it just could not call through it — so the return value says success
 while nothing happens.
 
-`Sheet` therefore keeps its own ref object for gorhom and gives the caller an
-explicit `useImperativeHandle` that delegates to it. The two are not the same
-object on purpose.
+So `Sheet` keeps its own ref object for gorhom and gives the caller an
+explicit `useImperativeHandle` that delegates to it. Those are deliberately not
+the same object.
 
 ## Why the surface is a `backgroundComponent`
 
@@ -243,9 +243,9 @@ the modal's coordinates and passes it down as one `bottomGap` prop to all three
 modals. Every card then shares one line and one bottom corner radius, whatever
 the tab bar does or does not take out of the root view's height.
 
-`sheetChromeAt` therefore returns `progress` rather than one gap: the caller
-scales its own float-state gap by `1 - progress` and lands on the same schedule
-as the side inset.
+So `sheetChromeAt` returns `progress` rather than one gap: the caller
+scales its own float-state gap by `1 - progress` and arrives at the same
+schedule as the side inset.
 
 > [!NOTE]
 > `bottomInset` also shrinks the container that a percentage snap point resolves
@@ -255,7 +255,7 @@ as the side inset.
 ### A crossfading modal has to pay for its own gap
 
 A `detached` sheet gets its content box shrunk to the visible card for free. A
-crossfading one does not: gorhom sizes the content to the container, so a long
+crossfading one does not. Gorhom sizes the content to the container, so a long
 list keeps drawing below the card's bottom edge, over the map, at the low
 detent. `EventMapPeekSheet` is the only sheet in this position, and it adds
 `bottomGap` to its scroll content's bottom padding — constant rather than
@@ -336,7 +336,7 @@ while the top two keep the design value. Each corner carries its own animated
 radius rather than sharing one `borderRadius`. `expo-glass-effect` registers
 every per-corner radius as a native prop, so the glass takes the same shape as
 the fill above it. Both backgrounds call the same function, which is what makes
-the stuck card and the crossfading one land on the same answer at the same gap.
+the stuck card and the crossfading one agree at the same gap.
 
 `DISPLAY_CORNER_RADIUS` is the value for the screen this was built against, and
 the largest in the iOS 26 device set. Largest on purpose. Overshooting on a
@@ -352,7 +352,7 @@ corner.
 ## The backdrop had to be dimmed less
 
 Glass samples whatever is behind it, so a standard scrim turns the card into a
-grey panel rather than a translucent one. `Sheet` therefore picks its scrim from
+grey panel rather than a translucent one. So `Sheet` picks its scrim from
 `surface`: `SdsColors.scrim` behind a solid sheet, `SdsColors.scrimGlass` — far
 lighter — behind a glass one. Lowering it costs nothing: `BottomSheetBackdrop`
 drives its touchability off `animatedIndex` rather than off its own opacity, so
