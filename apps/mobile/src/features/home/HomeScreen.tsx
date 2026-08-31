@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import {
+  Platform,
   View,
   ScrollView,
   // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
@@ -33,7 +34,14 @@ export function HomeScreen() {
   // starts below the bar and only slides under it on scroll (where the
   // scroll-edge blur kicks in). useHeaderHeight reflects the live header
   // height so it tracks safe-area changes and large-title states.
+  //
+  // iOS ONLY. `headerTransparent` is set inside the `Platform.OS === 'ios'`
+  // branch of the home tab's Stack.Screen options, so Android keeps an opaque
+  // Toolbar that already offsets the content below itself. Adding headerHeight
+  // there too counted the bar twice and left a header-sized dead space at the
+  // top of the screen.
   const headerHeight = useHeaderHeight();
+  const scrollTopInset = Platform.OS === 'ios' ? headerHeight + 16 : 16;
 
   const mainGridItems = useMemo<readonly TossfaceGridItem[]>(
     () => [
@@ -134,7 +142,7 @@ export function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: headerHeight + 16 },
+          { paddingTop: scrollTopInset },
         ]}
         showsVerticalScrollIndicator={false}
       >

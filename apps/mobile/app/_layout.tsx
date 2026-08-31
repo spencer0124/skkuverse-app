@@ -305,6 +305,15 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
         <SDSProvider>
+          {/* OUTSIDE <InitGate> on purpose. InitGate's gate branches (the
+              first-launch intro, ForceUpdateScreen) REPLACE `children` rather
+              than render alongside them, so a StatusBar mounted inside the gate
+              is absent for exactly those screens. Android then falls back to
+              light status-bar icons, which are invisible on the intro's white
+              background; iOS is unaffected because its default is already
+              dark-on-light, which is why this only ever reproduced on Android.
+              Kept above the gate so every branch — gated or not — gets it. */}
+          <StatusBar style="dark" />
           <QueryProvider>
             <InitGate>
               <BottomSheetModalProvider>
@@ -454,7 +463,6 @@ export default function RootLayout() {
                   What is lost while it is off: a dev session writing to
                   PRODUCTION Firestore from a laptop has no standing signal that
                   it is doing so. `apps/mobile/.env` is the switch. */}
-              <StatusBar style="dark" />
               </BottomSheetModalProvider>
             </InitGate>
           </QueryProvider>
