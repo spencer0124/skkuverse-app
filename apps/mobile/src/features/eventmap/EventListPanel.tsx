@@ -1,7 +1,7 @@
 /**
  * The event list, living in the campus sheet while a chip has narrowed the map.
  *
- * Rows are the places of the layers the map is drawing — `selectVisibleMarkers`
+ * Rows are the places of the layers the map is drawing — `selectVisibleOverlays`
  * decides that, on the same `isLayerVisible` the render loop uses, so the list
  * and the pins cannot disagree about a layer. **A place the pin ladder
  * suppressed still gets a row**: losing a shared coordinate to whoever is open
@@ -34,7 +34,7 @@ import {
   useEventMapStore,
   useT,
   type PlaceSortKey,
-  type RawMarkerData,
+  type MapOverlay,
   type TranslationKey,
 } from '@skkuverse/shared';
 import { Sheet, Txt } from '@skkuverse/sds';
@@ -50,10 +50,10 @@ const SORT_LABEL: Record<PlaceSortKey, TranslationKey> = {
 
 interface EventListPanelProps {
   /** Already narrowed to the visible layers and in the active sort. */
-  places: readonly RawMarkerData[];
+  places: readonly MapOverlay[];
   /** From `useWindowClock`, so every row's pill re-derives at a boundary together. */
   now: number;
-  onSelectPlace: (place: RawMarkerData) => void;
+  onSelectPlace: (place: MapOverlay) => void;
 }
 
 export function EventListPanel({ places, now, onSelectPlace }: EventListPanelProps) {
@@ -62,7 +62,7 @@ export function EventListPanel({ places, now, onSelectPlace }: EventListPanelPro
   const setSortId = useEventMapStore((s) => s.setSortId);
 
   const renderItem = useCallback(
-    ({ item }: { item: RawMarkerData }) => (
+    ({ item }: { item: MapOverlay }) => (
       <Pressable
         style={styles.row}
         accessibilityRole="button"
@@ -100,8 +100,8 @@ export function EventListPanel({ places, now, onSelectPlace }: EventListPanelPro
       </View>
 
       <Sheet.FlatList
-        data={places as RawMarkerData[]}
-        keyExtractor={(item: RawMarkerData) => item.id}
+        data={places as MapOverlay[]}
+        keyExtractor={(item: MapOverlay) => item.id}
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}

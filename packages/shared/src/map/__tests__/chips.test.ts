@@ -46,18 +46,17 @@ const CAMERA: MapChipCamera = {
 };
 
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
-  type: 'marker',
   label: over.id,
   defaultVisibleWhen: { kind: 'always' },
-  endpoint: '/map/markers/event',
+  endpoint: '/map/overlays/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
   ...over,
 });
 
 const LAYERS: MapLayerDef[] = [
-  layer({ id: 'building_numbers', chipGroupId: null, endpoint: '/map/markers/campus' }),
-  layer({ id: 'building_labels', chipGroupId: null, endpoint: '/map/markers/campus' }),
+  layer({ id: 'building_numbers', chipGroupId: null, endpoint: '/map/overlays/campus' }),
+  layer({ id: 'building_labels', chipGroupId: null, endpoint: '/map/overlays/campus' }),
   layer({ id: 'eskara26_stage' }),
   layer({
     id: 'eskara26_bar',

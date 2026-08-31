@@ -9,7 +9,7 @@
  * The fixture case pins the rule against the bytes production actually served
  * during an open activation, which is the only place the rule can be shown to
  * separate the right layers. Its load-bearing assertion is the endpoint one: a
- * surviving `/map/markers/event` layer would mean the app still fetches booth
+ * surviving `/map/overlays/event` layer would mean the app still fetches booth
  * data with the gate shut, and no amount of UI absence would make that safe.
  */
 
@@ -22,10 +22,9 @@ import { isFestivalLayer, withoutFestival } from '../festival';
 import liveConfig from './fixtures/map-config-live.json';
 
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
-  type: 'marker',
   label: over.id,
   defaultVisibleWhen: { kind: 'always' },
-  endpoint: '/map/markers/event',
+  endpoint: '/map/overlays/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
   ...over,
@@ -66,7 +65,7 @@ describe('withoutFestival — what survives the gate', () => {
     const out = withoutFestival(
       config({
         layers: [
-          layer({ id: 'building_numbers', chipGroupId: null, endpoint: '/map/markers/campus' }),
+          layer({ id: 'building_numbers', chipGroupId: null, endpoint: '/map/overlays/campus' }),
           layer({ id: 'eskara26_stage' }),
         ],
       }),
@@ -137,14 +136,24 @@ describe('withoutFestival — against the live open-festival response', () => {
     expect(CONFIG.chips.length).toBeGreaterThan(0);
   });
 
-  it('leaves exactly the two permanent building layers', () => {
-    expect(gated.layers.map((l) => l.id)).toEqual(['building_numbers', 'building_labels']);
+  it('leaves every permanent layer and only those', () => {
+    // Asserted as a PROPERTY rather than as a list of ids, and the reason is
+    // that this test already failed once for being right about the wrong thing:
+    // the base set grew a third layer (`campus_geometry`) server-side and a
+    // hardcoded pair reported a gate regression that had not happened. What the
+    // gate promises is that nothing festival-shaped survives — which is
+    // `chipGroupId`, the discriminator itself.
+    expect(gated.layers.length).toBeGreaterThan(0);
+    for (const l of gated.layers) expect(l.chipGroupId).toBeNull();
+    // And that it strips rather than rebuilds: every survivor is the same
+    // object the ungated config held.
+    expect(gated.layers).toEqual(CONFIG.layers.filter((l) => l.chipGroupId === null));
   });
 
   it('leaves no layer pointing at the event marker endpoint', () => {
     // The load-bearing one. A marker layer only fetches while it is rendered, so
     // this is what proves the gate stops the network and not merely the UI.
-    for (const l of gated.layers) expect(l.endpoint).toBe('/map/markers/campus');
+    for (const l of gated.layers) expect(l.endpoint).toBe('/map/overlays/campus');
   });
 
   it('leaves no chip row to render', () => {

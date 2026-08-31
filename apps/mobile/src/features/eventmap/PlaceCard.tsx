@@ -28,7 +28,7 @@ import {
   SdsColors,
   useSettingsStore,
   useT,
-  type RawMarkerData,
+  type MapOverlay,
   type TimeWindow,
   type TranslationKey,
   type AppLanguage,
@@ -95,7 +95,7 @@ function formatHours(hours: readonly TimeWindow[], lang: AppLanguage, always: st
 }
 
 interface PlaceCardProps {
-  place: RawMarkerData;
+  place: MapOverlay;
   /** From `useWindowClock`. Changes at each opening or closing boundary. */
   now: number;
   /** `compact` drops the field rows — the list needs scannable rows. */

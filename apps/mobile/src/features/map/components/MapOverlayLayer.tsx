@@ -1,9 +1,16 @@
 /**
- * Renders one map layer's markers.
+ * Renders one map layer's overlays — pins, zones and route lines alike.
+ *
+ * **A layer no longer names a renderer.** It selects overlays by `layerId`, and
+ * each overlay's own `kind` chooses the component that draws it, so one layer
+ * can hold a booth pin, the zone around it and the route to it at once. The
+ * layer `type` this replaced decided the renderer a second time — once on the
+ * layer and once by the geometry — and the two could disagree with nothing to
+ * blame.
  *
  * **Layers share endpoints.** Both building layers come from
- * `/map/markers/campus`, every event layer from `/map/markers/event`, and
- * the marker cache is keyed on the endpoint string — so layers sharing a URL
+ * `/map/overlays/campus`, every event layer from `/map/overlays/event`, and
+ * the overlay cache is keyed on the endpoint string — so layers sharing a URL
  * share one fetch and one cache entry, and each renders only the subset carrying
  * its own `layerId`. Without that filter every layer draws the whole response:
  * two building layers drew all 137 buildings each, so every building appeared
@@ -15,7 +22,8 @@
  * were not merely off-screen but absent from the tree entirely, so the map went
  * blank where it should have been most useful (ADR 0008 §4).
  *
- * Marker styles from MapLayerDef.markerStyle:
+ * Marker styles from MapLayerDef.markerStyle, which applies to `kind: "marker"`
+ * and is ignored by every other kind:
  * - textLabel:   localized text as a caption on a 1x1 transparent icon, with
  *                collision hiding. Building names.
  * - placeDot:    the SDK's tintable base icon in the layer's colour, captioned.
@@ -37,12 +45,13 @@ import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import {
-  useLayerMarkers,
+  useLayerOverlays,
   useWindowClock,
   resolvePinCollisions,
   type MapLayerDef,
+  type MapOverlay,
+  type MarkerOverlay,
   type MarkerTap,
-  type RawMarkerData,
   useSettingsStore,
   wrapMarkerLabel,
   SdsColors,
@@ -50,6 +59,8 @@ import {
 
 import { toCssColor } from '../utils/toCssColor';
 import { resolveMarkerGeometry } from '../utils/markerShape';
+import { MapZoneOverlay } from './MapZoneOverlay';
+import { MapRouteOverlay } from './MapRouteOverlay';
 
 const MARKER_ICON = require('../../../../assets/images/transparent_1x1.png');
 
@@ -147,7 +158,7 @@ const NO_NATIVE_WRAP = 0;
  * layer labels are Chinese and whose booths are Korean would be the one thing
  * worse than either.
  */
-function pickText(text: RawMarkerData['text'], lang: string): string {
+function pickText(text: MapOverlay['text'], lang: string): string {
   if (lang === 'en') return text.en || text.ko;
   if (lang === 'zh') return text.zh || text.ko;
   return text.ko;
@@ -184,7 +195,7 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
  * event marker — the equivalence `handleSelectFromList` already leans on when it
  * falls back to `place.id`, and the one `resolvePinCollisions` matches on.
  */
-function placeIdOf(marker: RawMarkerData): string {
+function placeIdOf(marker: MarkerOverlay): string {
   return marker.tap?.placeId ?? marker.id;
 }
 
@@ -258,7 +269,7 @@ const PlaceMarker = React.memo(function PlaceMarker({
   );
 });
 
-interface MapMarkerLayerProps {
+interface MapOverlayLayerProps {
   layer: MapLayerDef;
   /**
    * The layer ids whose markers compete with this one for a coordinate — the
@@ -290,16 +301,16 @@ interface MapMarkerLayerProps {
   onMarkerTap: (tap: MarkerTap) => void;
 }
 
-export function MapMarkerLayer({
+export function MapOverlayLayer({
   layer,
   collisionPeers,
   selectedPlaceId,
   onMarkerTap,
-}: MapMarkerLayerProps) {
-  const { data: markers } = useLayerMarkers(layer.endpoint, true);
+}: MapOverlayLayerProps) {
+  const { data: overlays } = useLayerOverlays(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  const all = useMemo(() => markers ?? [], [markers]);
+  const all = useMemo(() => overlays ?? [], [overlays]);
 
   // A booth changes state on the device's clock rather than on a refetch: the
   // payload is identical either side of a boundary, so this hook owns the timer
@@ -311,25 +322,67 @@ export function MapMarkerLayer({
 
   const visible = useMemo(() => {
     // Layers share endpoints, so this is what separates one layer from another.
-    const own = all.filter((m) => m.layerId === layer.id);
+    const own = all.filter((o) => o.layerId === layer.id);
     if (!collisionPeers.has(layer.id)) return own;
     // Resolve across every drawn peer FIRST, then take this layer's share. The
     // other order would let each layer keep its own winner and put two pins back
     // on the one coordinate the ladder exists to clear.
-    const peers = all.filter((m) => collisionPeers.has(m.layerId));
-    const drawn = new Set(resolvePinCollisions(peers, now, selectedPlaceId));
-    return own.filter((m) => drawn.has(m));
+    //
+    // MARKERS ONLY, and `tsc` enforces it: `resolvePinCollisions` needs a
+    // coordinate, which the marker arm alone carries. That is the type system
+    // stating a design rule — two overlapping zones are an authoring choice, not
+    // a collision to resolve, so a zone must never suppress the pin beside it.
+    const peers = all.filter(
+      (o): o is MarkerOverlay => o.kind === 'marker' && collisionPeers.has(o.layerId),
+    );
+    const drawn: ReadonlySet<MapOverlay> = new Set(
+      resolvePinCollisions(peers, now, selectedPlaceId),
+    );
+    return own.filter((o) => o.kind !== 'marker' || drawn.has(o));
   }, [all, layer.id, collisionPeers, now, selectedPlaceId]);
 
   if (!visible.length) return null;
 
   return (
     <>
-      {visible.map((marker) => {
+      {visible.map((overlay) => {
         // `id` is unique within a layer but NOT across layers — one building is
-        // drawn once per building layer and both markers carry the same id — so
+        // drawn once per building layer and both overlays carry the same id — so
         // the layer id is part of the key rather than decoration.
-        const key = `${layer.id}-${marker.id}`;
+        const key = `${layer.id}-${overlay.id}`;
+
+        // The dispatch. An overlay picks its own renderer, which is what lets
+        // this one layer draw all three at once.
+        //
+        // There is no `default` arm here and that is correct: an unrecognised
+        // `kind` never reaches this component, because `parseOverlayData` drops
+        // it at the wire. What this shape buys instead is the opposite
+        // guarantee — adding an arm to `MapOverlay` without writing its case
+        // here is a COMPILE ERROR at the narrowing below, so a new overlay type
+        // cannot ship half-rendered.
+        if (overlay.kind === 'polygon') {
+          return (
+            <MapZoneOverlay
+              key={key}
+              overlay={overlay}
+              layerStyle={layer.style}
+              onOverlayTap={onMarkerTap}
+            />
+          );
+        }
+        if (overlay.kind === 'path') {
+          return (
+            <MapRouteOverlay
+              key={key}
+              overlay={overlay}
+              layerStyle={layer.style}
+              onOverlayTap={onMarkerTap}
+            />
+          );
+        }
+
+        // Narrowed to the marker arm. `markerStyle` decides the rest.
+        const marker: MarkerOverlay = overlay;
         const label = pickText(marker.text, lang);
         const onTap = marker.tap ? () => onMarkerTap(marker.tap!) : undefined;
 

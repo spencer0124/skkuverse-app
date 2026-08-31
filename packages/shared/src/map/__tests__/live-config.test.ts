@@ -49,7 +49,7 @@ describe('the live response, parsed whole', () => {
   });
 
   it('puts the building layers outside every chip group', () => {
-    const buildings = CONFIG.layers.filter((l) => l.endpoint === '/map/markers/campus');
+    const buildings = CONFIG.layers.filter((l) => l.endpoint === '/map/overlays/campus');
     expect(buildings.length).toBeGreaterThan(0);
     for (const layer of buildings) expect(layer.chipGroupId).toBeNull();
   });

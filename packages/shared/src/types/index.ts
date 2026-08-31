@@ -47,8 +47,9 @@ export type {
   MapLayerStyle,
   MapLayerDef,
   MapConfig,
-  RawMarkerData,
-  PolylineCoord,
+  MapOverlay,
+  MarkerOverlay,
+  LatLng,
 } from './map';
 
 // ── Building types ──

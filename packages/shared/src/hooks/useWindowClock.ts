@@ -31,7 +31,7 @@ import { nextDailyBoundaryAfter } from '../map/daily-window';
 import { MAX_TIMEOUT_MS, nextWindowBoundaryAfter } from '../map/window';
 import type { DailyWindow, TimeWindow } from '../types/map';
 
-/** Anything carrying opening hours. `RawMarkerData` fits. */
+/** Anything carrying opening hours. Every `MapOverlay` fits. */
 interface HasHours {
   hours: TimeWindow[];
 }

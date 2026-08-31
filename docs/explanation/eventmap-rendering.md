@@ -18,11 +18,11 @@ audience: internal
 
 | | |
 | --- | --- |
-| Requests | `GET /map/markers/event` — the same marker query the pins already make. There is no `/eventmap` route |
+| Requests | `GET /map/overlays/event` — the same overlay query the pins already make. There is no `/eventmap` route |
 | Shared code | `packages/shared/src/map/`: `parser.ts`, `window.ts`, `daily-window.ts`, `chips.ts`, `pins.ts`, `list.ts`, `text.ts`, plus `store/map.ts` and `store/eventmap.ts` |
 | App code | `apps/mobile/src/features/eventmap/` — peek sheet, list panel, place card |
-| Touched | `CampusScreen`, `MapMarkerLayer`, `FilterSheet`, `+native-intent.tsx` |
-| Pins | Ordinary `/map/config` marker layers, drawn by `MapMarkerLayer` (§6) |
+| Touched | `CampusScreen`, `MapOverlayLayer`, `FilterSheet`, `+native-intent.tsx` |
+| Pins | Ordinary `/map/config` layers, drawn by `MapOverlayLayer` (§6). A layer no longer names a renderer — each overlay's `kind` does, so the same layer may also carry a zone or a route line |
 
 The app computes exactly two things, and neither is a business rule: **openness**, against the device
 clock (§5), and **which pin wins a shared coordinate** (§6.3). Everything else arrives resolved.
@@ -36,7 +36,7 @@ user only through the action union (§7).
 
 The festival used to reach the app twice: once as a versioned, hashed, per-language snapshot
 (`/eventmap/manifest` + `/eventmap/snapshot`, materialized by a 60 s poller) and once as ordinary
-markers on `/map/markers/event`. That was one set of documents projected twice, with two
+markers on `/map/overlays/event`. That was one set of documents projected twice, with two
 vocabularies and a publish pipeline existing only to keep the first cacheable.
 
 The server deleted the first. A place is now one document carrying its own `subtitle`, `hours`,
@@ -45,7 +45,7 @@ fetches are the data the list and the peek sheet render.** What left the client 
 
 | Gone | Replaced by |
 | --- | --- |
-| `useEventMap`, the manifest and snapshot queries, the MMKV last-known-good cache | `useLayerMarkers` on the festival layer's own `endpoint` |
+| `useEventMap`, the manifest and snapshot queries, the MMKV last-known-good cache | `useLayerOverlays` on the festival layer's own `endpoint` |
 | `schemaVersion` and its exact-match gate | nothing — there is no envelope left to version |
 | `cardTemplates`, `EventMapCardSlot`, `resolveSlots`, `CardRenderer` | `PlaceCard`, a fixed layout over `subtitle` / `hours` / `fields` |
 | `sorts` declared by the server | `PLACE_SORTS` in `map/list.ts`, labelled by translation |
@@ -55,14 +55,14 @@ fetches are the data the list and the peek sheet render.** What left the client 
 
 ## 2. Fetch path
 
-One request, and it is not this feature's own. `MapMarkerLayer` fetches `layer.endpoint` for every
+One request, and it is not this feature's own. `MapOverlayLayer` fetches `layer.endpoint` for every
 drawn layer, the marker cache is keyed on that endpoint string, and every festival layer shares
-`/map/markers/event` — so the list, the peek sheet and six layers of pins are one fetch and one cache
+`/map/overlays/event` — so the list, the peek sheet and six layers of pins are one fetch and one cache
 entry. `CampusScreen` reads the same query key rather than issuing a second.
 
 | Hook | Endpoint | staleTime | On failure |
 | --- | --- | --- | --- |
-| `useLayerMarkers(endpoint, enabled)` | the layer's own `endpoint` | 10 min | throws → the query is in error and the layer draws nothing |
+| `useLayerOverlays(endpoint, enabled)` | the layer's own `endpoint` | 10 min | throws → the query is in error and the layer draws nothing |
 
 The endpoint is read off the served layers (`layers.find(isFestivalLayer)?.endpoint`), never
 hardcoded: the route is named for the mechanism rather than the festival, so next year's event
@@ -83,16 +83,18 @@ The server fails loud on config it can fix. The client fails soft on a payload i
 
 | Unknown | Enforced in | Behaviour |
 | --- | --- | --- |
-| any field | `parseMarkerData` | ignored — the wire is additive-only |
-| missing `id`, `layerId`, `text.ko` | `parseMarkerData` | drop the marker |
-| coordinate absent, unparseable, or `\|lat\| > 90` | `parseMarkerData` | drop the marker — a swapped pair puts it in the ocean and never throws |
-| unknown `campus` | `parseMarkerData` | drop the marker, rather than put it on the wrong map |
+| any field | `parseOverlayData` | ignored — the wire is additive-only |
+| unknown `kind` | `parseOverlayData` | drop that ONE overlay, keep its layer and every sibling — which is what makes a new renderer a non-breaking server change |
+| geometry absent, malformed, or wrong for the `kind` | `parseOverlayData` | drop the overlay — a ring missing a corner is a different shape, and drawing the wrong outline over a campus beats nothing only in the sense that it is worse |
+| missing `id`, `layerId`, `text.ko` | `parseOverlayData` | drop the marker |
+| coordinate absent, unparseable, or `\|lat\| > 90` | `parseOverlayData` | drop the marker — a swapped pair puts it in the ocean and never throws |
+| unknown `campus` | `parseOverlayData` | drop the marker, rather than put it on the wrong map |
 | unknown `tap.kind` | `parseMarkerTap` | `tap: null` — still a place worth drawing, just inert |
 | half-bounded or unparseable window | `parseHours` | drop that window (§5) |
 | field row missing a label or a value | `parseFields` | drop the row |
 | action missing an id, label or value | `parseActions` | drop the button, serve the place |
 | unknown `actionType` | `parseActionType` | `'unknown'`; `handleSduiAction` no-ops it |
-| `order` / `pinPriority` not a number | `parseMarkerData` | `0`, never `NaN` — see below |
+| `order` / `pinPriority` not a number | `parseOverlayData` | `0`, never `NaN` — see below |
 
 **`NaN` is the failure mode worth naming.** Every comparison against it is false, so a `NaN` sort key
 makes the collision ladder non-total and a `NaN` window bound makes a place permanently closed — both
@@ -261,7 +263,7 @@ would otherwise arrive with nothing in the app waiting for it.
 
 ## 6. Rendering: shapes, not clusters
 
-Booth markers are drawn by `MapMarkerLayer`, one `<NaverMapMarkerOverlay>` per marker the server
+Booth markers are drawn by `MapOverlayLayer`, one `<NaverMapMarkerOverlay>` per marker the server
 serves, exactly as the building layers are. The choice of overlays over the SDK's clusterer predates
 that and still holds. Verified against the current release, not assumed: we run 2.7.0, latest is
 2.9.0, and `src/types/ClusterMarkerProp.ts` is **byte-identical** between them.
@@ -318,14 +320,14 @@ neighbours instead of under them. It is `zIndex` rather than `globalZIndex` deli
 moves a marker between the SDK's overlay layers, and the `textLabel` branch already sets
 `100000` there.
 
-Selection reaches `MapMarkerLayer` as a **prop from `CampusScreen`**, not a store subscription of
+Selection reaches `MapOverlayLayer` as a **prop from `CampusScreen`**, not a store subscription of
 its own — one subscription instead of eight — and the `placeDot` branch is a memoised `PlaceMarker`
 so a tap re-renders the two markers whose selection changed rather than all ~100.
 
 ### 6.2 Density levers, in order
 
 1. **the dot** (§6.1) — roughly 60% less screen area per marker than a teardrop
-2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapMarkerLayer`
+2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapOverlayLayer`
 3. **the caption line budget** (§6.4) — a narrower caption collides with fewer neighbours, and a
    collision here hides the whole label rather than shortening it, so wrapping puts *more* names on
    screen rather than fewer
@@ -378,9 +380,9 @@ whether a place exists — which is why selection (§4) and collision live in di
 > [!IMPORTANT]
 > **Scope it to the festival layers, never to a whole endpoint response.** The two building layers
 > draw one building twice on purpose — a number and a name at one coordinate, from records carrying
-> the same `id` — and they arrive in one `/map/markers/campus` response. Run the ladder over them and
+> the same `id` — and they arrive in one `/map/overlays/campus` response. Run the ladder over them and
 > every tie falls through to an identical `id`, suppressing one of the two at random. `CampusScreen`
-> passes `MapMarkerLayer` a `collisionPeers` set built from `isFestivalLayer` plus current
+> passes `MapOverlayLayer` a `collisionPeers` set built from `isFestivalLayer` plus current
 > visibility. The second half matters too: a hidden 주점 must not suppress a visible 부스 and leave a <!-- conventions:allow-korean: the layer labels the app shows -->
 > hole where the booth should be.
 
@@ -625,10 +627,10 @@ matters, because a chip group is a festival-shaped idea to begin with:
 
 | layer | `chipGroupId` | endpoint |
 | --- | --- | --- |
-| `building_numbers`, `building_labels` | `null` | `/map/markers/campus` |
-| `eskara26_*` | `'eskara-2026'` | `/map/markers/event` |
+| `building_numbers`, `building_labels` | `null` | `/map/overlays/campus` |
+| `eskara26_*` | `'eskara-2026'` | `/map/overlays/event` |
 
-Keyed on `chipGroupId` rather than on `endpoint === '/map/markers/event'`, for the reason `MapLayerDef.chipGroupId`
+Keyed on `chipGroupId` rather than on `endpoint === '/map/overlays/event'`, for the reason `MapLayerDef.chipGroupId`
 gives where it is declared: `endpoint` is a cache key, so merging or splitting a route for network
 reasons would silently move the gate's boundary, and the symptom would have no line of code to
 blame.
@@ -641,8 +643,8 @@ from that one edit:
 | Removed | Because |
 | --- | --- |
 | The filter tiles and the chip row | Both render straight off `mapConfig.layers` / `.chips` |
-| The pins | `MapMarkerLayer` mounts per visible layer, and there is no festival layer to mount |
-| The `/map/markers/event` request | `CampusScreen` reads the endpoint off `layers.find(isFestivalLayer)`, which is now `undefined`, so the query is disabled |
+| The pins | `MapOverlayLayer` mounts per visible layer, and there is no festival layer to mount |
+| The `/map/overlays/event` request | `CampusScreen` reads the endpoint off `layers.find(isFestivalLayer)`, which is now `undefined`, so the query is disabled |
 | The list, the peek sheet, the `?place=` deep link | All three read that same query. No markers, no places, nothing to open |
 
 This used to take two gates, because the event map was a second request with a manifest of its own
@@ -667,7 +669,9 @@ server opens the window**.
 
 | File | What |
 | --- | --- |
-| `packages/shared/src/types/map.ts` | the unified marker schema — `I18nText`, `TimeWindow`, `MarkerField`, `MarkerAction`, `RawMarkerData` — plus `DailyWindow` and `LayerDefaultVisibility` (§5.4) |
+| `packages/shared/src/types/map.ts` | the unified overlay schema — `MapOverlay` (the `kind`-tagged union), `LatLng`, `I18nText`, `TimeWindow`, `MarkerField`, `MarkerAction` — plus `DailyWindow` and `LayerDefaultVisibility` (§5.4) |
+| `packages/shared/src/map/geometry.ts` | `toLatLng`, the one `[lng, lat]` read, and `overlayAnchor`, the single point a camera flies to for any kind |
+| `apps/mobile/src/features/map/utils/overlayGeometry.ts` | the SDK's spelling and its ring winding, kept out of shared because both are one library's convention |
 | `packages/shared/src/map/parser.ts` | tolerant parse of the marker wire (§3), and the unreadable-declaration policy (§5.4) |
 | `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` — absolute instants (§5) |
 | `packages/shared/src/map/daily-window.ts` | `kstMinutesOfDay`, `isDailyWindowOpen`, `nextDailyBoundaryAfter` — recurring KST wall-clock (§5.4) |
@@ -678,7 +682,7 @@ server opens the window**.
 | `packages/shared/src/store/map.ts` | `overrides` and the transient `chip` — what the user expressed, and nothing else (§5.4) |
 | `packages/shared/src/map/festival.ts` | `withoutFestival` — the client festival gate's pure half (§9) |
 | `packages/shared/src/hooks/useWindowClock.ts` | the boundary timer that makes 18:00 observable, for both axes (§5.3, §5.4) |
-| `packages/shared/src/hooks/useLayerMarkers.ts` | the one marker query, keyed on the endpoint (§2) |
+| `packages/shared/src/hooks/useMapLayers.ts` | the one marker query, keyed on the endpoint (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/map/festivalGate.ts` | `isFestivalUnlocked()` — what decides whether the gate is open (§9) |
 | `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the fixed card layout; `compact` for list rows |
@@ -686,12 +690,14 @@ server opens the window**.
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet + action buttons |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
 | `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
-| `apps/mobile/src/features/map/components/MapMarkerLayer.tsx` | draws every `/map/config` layer, booth pins included; applies the ladder |
+| `apps/mobile/src/features/map/components/MapOverlayLayer.tsx` | draws every `/map/config` layer, booth pins included; dispatches on each overlay's `kind`; applies the ladder to markers alone |
+| `apps/mobile/src/features/map/components/MapZoneOverlay.tsx` | one `kind: "polygon"` overlay |
+| `apps/mobile/src/features/map/components/MapRouteOverlay.tsx` | one `kind: "path"` overlay |
 
 > [!IMPORTANT]
 > **Everything the festival shows comes from `/map/config` and its layers' `endpoint`.** The server
-> serves booths as ordinary `placeDot` marker layers on `/map/markers/event`, each carrying its own
-> `subtitle`, `hours`, `fields`, `actions` and `tap: { kind: 'event', placeId }` — so `MapMarkerLayer`
+> serves booths as ordinary `placeDot` marker layers on `/map/overlays/event`, each carrying its own
+> `subtitle`, `hours`, `fields`, `actions` and `tap: { kind: 'event', placeId }` — so `MapOverlayLayer`
 > draws them like any other layer and the list and peek sheet render the same objects. The chips over
 > the map are `/map/config`'s too, carrying an action and a layer set rather than a predicate. See
 > [map-config-api-spec.md](../reference/map-config-api-spec.md). The marker contract is
@@ -707,9 +713,17 @@ constraint (§7.1) rather than a styling choice.
 
 ## 11. Gotchas
 
-- **Coordinate order.** The wire carries named `lat`/`lng` and no positional tuples, because
-  `PolylineCoord` is `[lat, lng]` while Mongo/GeoJSON is `[lng, lat]`. Swapped Seoul coordinates land
-  in the ocean and **never throw**. Do not introduce a positional pair here.
+- **Coordinate order — one conversion, and only one.** The wire is GeoJSON: `geometry.coordinates`
+  is `[lng, lat]`, positional, and the server converts nothing. `toLatLng`
+  (`packages/shared/src/map/geometry.ts`) is the single place that reads the tuple, and everything
+  downstream sees a named `{ lat, lng }`. Swapped Seoul coordinates land in the ocean and **never
+  throw**, so a second conversion anywhere is a second chance to introduce a bug that reports
+  success. The `PolylineCoord` this replaced was `[lat, lng]` — the same shape as a GeoJSON position
+  with the opposite meaning, which is why the replacement is a named object rather than a tuple.
+- **Polygon rings are reversed unconditionally, and the proof is a tap.** The wire is wound per RFC
+  7946 (exterior CCW) and Naver wants the opposite. A wrongly wound ring frequently still *draws* and
+  merely refuses events, so a screenshot cannot tell the two apart — pressing the zone can. See
+  `apps/mobile/src/features/map/utils/overlayGeometry.ts`.
 - **Never run the collision ladder over a whole endpoint response.** The two building layers draw one
   building twice on purpose, from records sharing an `id`, so every tie-break falls through to an
   identical value and one of the pair is suppressed at random. Scope it with `collisionPeers` (§6.3).
@@ -744,7 +758,7 @@ constraint (§7.1) rather than a styling choice.
 - [Server marker contract](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/map-markers-api.md) — the shared marker schema and the `/map/*` routes
 - [Server event places](https://github.com/spencer0124/skkuverse-server/blob/main/docs/reference/event-places.md) — how a place is stored, authored and switched on
 - [Implementation plan — skkuverse#11](https://github.com/spencer0124/skkuverse/issues/11)
-- [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race `MapMarkerLayer` avoids
+- [Android Naver map markers](android-naver-map-markers.md) — the bitmap-snapshot race `MapOverlayLayer` avoids
 - [App ADR 0006 — mini-app webview & push architecture](../decisions/0006-miniapp-webview-push-architecture.md)
 - [App ADR 0007 — status derives against the device clock](../decisions/0007-device-clock-event-map-status.md) — the reasoning behind §5.2
 - [App ADR 0002 — no notification inbox](../decisions/0002-no-notification-inbox.md) — amended by the event map inbox. *(Distinct from umbrella ADR 0002, pull-based config contracts.)*

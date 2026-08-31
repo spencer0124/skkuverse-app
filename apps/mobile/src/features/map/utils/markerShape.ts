@@ -32,7 +32,7 @@ const DEFAULT_SHAPE: MarkerShape = 'dotThenPin';
  * Geometry fallbacks, for a server that does not send `style` geometry.
  *
  * `PIN_WIDTH`/`PIN_HEIGHT` are the tintable base icon's natural proportions, so
- * the tint is not distorted. They were `MapMarkerLayer`'s constants before the
+ * the tint is not distorted. They were `MapOverlayLayer`'s constants before the
  * wire carried them, and the live config sends exactly these.
  */
 export const PIN_WIDTH = 22;

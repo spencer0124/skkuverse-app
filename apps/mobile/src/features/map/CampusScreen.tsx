@@ -3,8 +3,8 @@
  *
  * Composition:
  *   CampusNaverMap (absoluteFill, behind sheet)
- *     ├─ MapMarkerLayer (per visible layer)
- *     └─ MapPolylineLayer (per visible polyline layer)
+ *     └─ MapOverlayLayer (per visible layer; draws that layer's pins, zones
+ *        and route lines, each by its own `kind`)
  *   CampusToggle (absolute, top — the row the search bar used to hold)
  *   FilterButton (absolute, right of the toggle)
  *   Sheet (detents: small / medium / large, small+medium overridden)
@@ -32,13 +32,13 @@ import {
   useMapConfig,
   useMapLayerStore,
   useSettingsStore,
-  useLayerMarkers,
+  useLayerOverlays,
   useWindowClock,
   useEventMapStore,
   useT,
   isLayerVisible,
   resolveChipLayerVisibility,
-  selectVisibleMarkers,
+  selectVisibleOverlays,
   sortPlaces,
   isFestivalLayer,
   withoutFestival,
@@ -48,7 +48,8 @@ import {
   type MapChip,
   type MapChipCamera,
   type MarkerTap,
-  type RawMarkerData,
+  type MapOverlay,
+  overlayAnchor,
 } from '@skkuverse/shared';
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
@@ -56,8 +57,7 @@ import { EventListPanel } from '@/features/eventmap/EventListPanel';
 import { GlassIconButton, Sheet, SHEET_FLOAT_INSET, type SheetRef } from '@skkuverse/sds';
 import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
-import { MapMarkerLayer } from './components/MapMarkerLayer';
-import { MapPolylineLayer } from './components/MapPolylineLayer';
+import { MapOverlayLayer } from './components/MapOverlayLayer';
 import { CampusToggle } from './components/CampusToggle';
 import { CampusChipRow } from './components/CampusChipRow';
 import { ActiveChipStrip } from './components/ActiveChipStrip';
@@ -199,7 +199,7 @@ export function CampusScreen() {
    * The client festival gate, applied ONCE, here.
    *
    * Everything festival-shaped is downstream of these two: the filter tiles, the
-   * chip row, the pins, the `/map/markers/event` fetch each pin layer would
+   * chip row, the pins, the `/map/overlays/event` fetch each pin layer would
    * start, the event list that replaces the sheet's feed, and the peek sheet a
    * booth tap or a `?place=` link opens. Stripping the config at the point it
    * enters the screen is what removes all of them without a single
@@ -571,8 +571,8 @@ export function CampusScreen() {
     () => mapConfig?.layers.find(isFestivalLayer)?.endpoint ?? null,
     [mapConfig],
   );
-  const eventQuery = useLayerMarkers(eventEndpoint ?? '', eventEndpoint !== null);
-  const eventMarkers = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
+  const eventQuery = useLayerOverlays(eventEndpoint ?? '', eventEndpoint !== null);
+  const eventOverlays = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
 
   /**
    * Every daily window the served layers declare.
@@ -594,7 +594,7 @@ export function CampusScreen() {
    *
    * The list's pills and the pin ladder both read it, so they change together at
    * a boundary rather than one of them waiting for an unrelated re-render. It is
-   * NOT shared with `MapMarkerLayer`, which arms its own on the same data — two
+   * NOT shared with `MapOverlayLayer`, which arms its own on the same data — two
    * timers on one boundary is cheaper than lifting the marker query up here just
    * to pass a number down.
    *
@@ -603,7 +603,7 @@ export function CampusScreen() {
    * them, 18:00 arrives with nothing in the app waiting for it and 주점 appears
    * whenever some unrelated re-render next happens.
    */
-  const now = useWindowClock(eventMarkers, layerWindows);
+  const now = useWindowClock(eventOverlays, layerWindows);
 
   const sortId = useEventMapStore((s) => s.sortId);
   const appLanguage = useSettingsStore((s) => s.appLanguage);
@@ -621,18 +621,23 @@ export function CampusScreen() {
   }, [activeLayerSetId, syncLayerSet]);
 
   /**
-   * placeId → place. Built from EVERY event marker rather than the listed ones,
+   * placeId → place. Built from EVERY event overlay rather than the listed ones,
    * so an open peek sheet survives a layer toggle that hides the booth being
    * read, and a `skkuverse://map?place=` link reaches a booth the current layers
    * hide.
+   *
+   * Every overlay, not every marker: a zone carries `tap: { kind: 'event' }`
+   * exactly as a booth does and opens the same sheet, which is the whole reason
+   * zones ride this endpoint rather than one of their own. Filtering to markers
+   * here would leave a tappable zone whose tap resolves to nothing.
    */
   const placesById = useMemo(() => {
-    const map = new Map<string, RawMarkerData>();
-    for (const m of eventMarkers) {
-      if (m.tap?.kind === 'event') map.set(m.tap.placeId, m);
+    const map = new Map<string, MapOverlay>();
+    for (const o of eventOverlays) {
+      if (o.tap?.kind === 'event') map.set(o.tap.placeId, o);
     }
     return map;
-  }, [eventMarkers]);
+  }, [eventOverlays]);
 
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
 
@@ -670,10 +675,10 @@ export function CampusScreen() {
    *
    * Read off the markers themselves now rather than a snapshot's `campus` field.
    * An activation is single-campus, so the first marker answers for all of them,
-   * and an empty set answers "no event" — which is what `/map/markers/event`
+   * and an empty set answers "no event" — which is what `/map/overlays/event`
    * returns outside the window.
    */
-  const eventActive = eventMarkers.length > 0 && eventMarkers[0]!.campus === selectedCampus;
+  const eventActive = eventOverlays.length > 0 && eventOverlays[0]!.campus === selectedCampus;
 
   // ── Camera move on campus switch ──
 
@@ -967,7 +972,7 @@ export function CampusScreen() {
    * The layer ids whose markers compete for a coordinate: the FESTIVAL layers
    * currently drawn.
    *
-   * Computed here rather than inside `MapMarkerLayer` because only this screen
+   * Computed here rather than inside `MapOverlayLayer` because only this screen
    * holds both halves — which layers exist, and which the user has left on. The
    * building layers are excluded by `isFestivalLayer` for a reason worth
    * restating: they draw one building twice on purpose, a number and a name at
@@ -987,7 +992,7 @@ export function CampusScreen() {
   /**
    * The list's rows: the places whose layer is drawn, in the active sort.
    *
-   * `selectVisibleMarkers` reads the same `isLayerVisible` the render loop below
+   * `selectVisibleOverlays` reads the same `isLayerVisible` the render loop below
    * does — deliberately not a second copy — so a row is listed exactly when its
    * layer is drawn. A place the pin ladder suppressed for a shared coordinate
    * still gets a row: that ladder answers which pin is drawn there, not whether
@@ -997,8 +1002,8 @@ export function CampusScreen() {
     () =>
       mapConfig
         ? sortPlaces(
-            selectVisibleMarkers({
-              markers: eventMarkers,
+            selectVisibleOverlays({
+              markers: eventOverlays,
               layers: mapConfig.layers,
               state: layerState,
               now,
@@ -1008,7 +1013,7 @@ export function CampusScreen() {
             now,
           )
         : [],
-    [mapConfig, eventMarkers, layerState, sortId, appLanguage, now],
+    [mapConfig, eventOverlays, layerState, sortId, appLanguage, now],
   );
 
   // When the list appears, bring the sheet up to the middle detent — enough to
@@ -1138,7 +1143,9 @@ export function CampusScreen() {
     // Same 100ms → camera(500ms) → 400ms → present choreography as the search
     // handoff, so this screen has one such sequence rather than two.
     setTimeout(() => {
-      moveTo({ lat: place.lat, lng: place.lng, ...cameraDefaults.markerFocus });
+      // `overlayAnchor`, not `place.lat` — a zone has no single coordinate, and
+      // this is the one point that represents any overlay.
+      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
     }, 100);
     setSelectedPlaceId(pendingPlaceId);
     setTimeout(() => {
@@ -1209,8 +1216,8 @@ export function CampusScreen() {
   // peek sheet's low detent sits above the campus sheet's, so it covers the
   // list rather than stacking a second grab handle on it.
   const handleSelectFromList = useCallback(
-    (place: RawMarkerData) => {
-      moveTo({ lat: place.lat, lng: place.lng, ...cameraDefaults.markerFocus });
+    (place: MapOverlay) => {
+      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
       // Every listed place is an event marker, so `tap` is non-null and carries
       // the place's own id. Falling back to `id` keeps this total anyway: the two
       // are the same string for an event marker.
@@ -1326,11 +1333,13 @@ export function CampusScreen() {
               // same one the list beside it reads.
               if (!isLayerVisible(layer, layerState, now)) return null;
 
-              if (layer.type === 'polyline') {
-                return <MapPolylineLayer key={layer.id} layer={layer} />;
-              }
+              // ONE component per layer, whatever that layer draws. The
+              // `layer.type === 'polyline'` branch that used to stand here is
+              // gone with the field: a layer no longer names a renderer, so a
+              // single layer can hold pins, a zone and a route line, and the
+              // dispatch moved inside to each overlay's own `kind`.
               return (
-                <MapMarkerLayer
+                <MapOverlayLayer
                   key={layer.id}
                   layer={layer}
                   collisionPeers={collisionPeers}
@@ -1367,7 +1376,7 @@ export function CampusScreen() {
           </View>
           {/* The event map's chip row stood here and was removed: its chips
               filtered snapshot ITEMS, and the pins now come from
-              /map/markers/event layers that such a chip cannot reach. This is
+              /map/overlays/event layers that such a chip cannot reach. This is
               its replacement, and it is a different contract — a map chip
               carries an ACTION and has no predicate at all.
 

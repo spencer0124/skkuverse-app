@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { MapLayerDef, RawMarkerData } from '../../types/map';
-import { PLACE_SORTS, selectVisibleMarkers, sortPlaces } from '../list';
+import type { MapLayerDef, MapOverlay, MarkerOverlay } from '../../types/map';
+import { PLACE_SORTS, selectVisibleOverlays, sortPlaces } from '../list';
 
 const NOON = Date.parse('2026-09-16T12:00:00.000Z');
 const DAY = { startAt: '2026-09-16T11:00:00.000Z', endAt: '2026-09-16T15:00:00.000Z' };
@@ -20,16 +20,18 @@ const NIGHT = { startAt: '2026-09-16T18:00:00.000Z', endAt: '2026-09-17T00:00:00
 const LATER = { startAt: '2026-09-16T22:00:00.000Z', endAt: '2026-09-17T02:00:00.000Z' };
 
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
-  type: 'marker',
   label: over.id,
   defaultVisibleWhen: { kind: 'always' },
-  endpoint: '/map/markers/event',
+  endpoint: '/map/overlays/event',
   chipGroupId: 'eskara-2026',
   userConfigurable: true,
   ...over,
 });
 
-const place = (over: Partial<RawMarkerData> & { id: string }): RawMarkerData => ({
+// Typed on the MARKER arm rather than on `MapOverlay`: every place here has a
+// coordinate, and `Partial` over a union cannot express "the marker one".
+const place = (over: Partial<MarkerOverlay> & { id: string }): MarkerOverlay => ({
+  kind: 'marker',
   layerId: 'eskara26_booth',
   lat: 37.29,
   lng: 126.97,
@@ -45,9 +47,9 @@ const place = (over: Partial<RawMarkerData> & { id: string }): RawMarkerData => 
   ...over,
 });
 
-const ids = (out: readonly RawMarkerData[]) => out.map((m) => m.id);
+const ids = (out: readonly MapOverlay[]) => out.map((m) => m.id);
 
-describe('selectVisibleMarkers', () => {
+describe('selectVisibleOverlays', () => {
   const layers = [layer({ id: 'eskara26_booth' }), layer({ id: 'eskara26_bar' })];
   const markers = [
     place({ id: 'b1', layerId: 'eskara26_booth' }),
@@ -59,7 +61,7 @@ describe('selectVisibleMarkers', () => {
 
   it('lists a place exactly when its layer is drawn', () => {
     const only = state({ eskara26_booth: true, eskara26_bar: false });
-    expect(ids(selectVisibleMarkers({ markers, layers, state: only, now: NOW }))).toEqual(['b1']);
+    expect(ids(selectVisibleOverlays({ markers, layers, state: only, now: NOW }))).toEqual(['b1']);
   });
 
   it("falls back to the layer's own schedule when the user has not touched it", () => {
@@ -68,7 +70,7 @@ describe('selectVisibleMarkers', () => {
       layer({ id: 'eskara26_bar', defaultVisibleWhen: { kind: 'never' } }),
     ];
     expect(
-      ids(selectVisibleMarkers({ markers, layers: hidden, state: state(), now: NOW })),
+      ids(selectVisibleOverlays({ markers, layers: hidden, state: state(), now: NOW })),
     ).toEqual(['b1']);
   });
 
@@ -89,27 +91,27 @@ describe('selectVisibleMarkers', () => {
     const noon = Date.parse('2026-09-16T12:00:00+09:00');
     const dusk = Date.parse('2026-09-16T19:00:00+09:00');
     expect(
-      ids(selectVisibleMarkers({ markers, layers: scheduled, state: state(), now: noon })),
+      ids(selectVisibleOverlays({ markers, layers: scheduled, state: state(), now: noon })),
     ).toEqual(['b1']);
     expect(
-      ids(selectVisibleMarkers({ markers, layers: scheduled, state: state(), now: dusk })),
+      ids(selectVisibleOverlays({ markers, layers: scheduled, state: state(), now: dusk })),
     ).toEqual(['r1']);
   });
 
   it('drops a marker naming a layer this build was not served', () => {
     const orphan = [place({ id: 'ghost', layerId: 'eskara26_stage' })];
     expect(
-      selectVisibleMarkers({ markers: orphan, layers, state: state(), now: NOW }),
+      selectVisibleOverlays({ markers: orphan, layers, state: state(), now: NOW }),
     ).toEqual([]);
   });
 
   it('returns nothing when every layer is hidden', () => {
     const off = state({ eskara26_booth: false, eskara26_bar: false });
-    expect(selectVisibleMarkers({ markers, layers, state: off, now: NOW })).toEqual([]);
+    expect(selectVisibleOverlays({ markers, layers, state: off, now: NOW })).toEqual([]);
   });
 
   it('preserves input order, so a sort applied upstream survives', () => {
-    expect(ids(selectVisibleMarkers({ markers, layers, state: state(), now: NOW }))).toEqual([
+    expect(ids(selectVisibleOverlays({ markers, layers, state: state(), now: NOW }))).toEqual([
       'b1',
       'r1',
     ]);

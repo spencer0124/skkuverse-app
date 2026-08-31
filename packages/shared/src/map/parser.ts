@@ -22,20 +22,30 @@ import type {
   MapChipIcon,
   MapLayerDef,
   MapLayerStyle,
+  MapOverlay,
   MarkerAction,
   MarkerField,
-  RawMarkerData,
   MarkerTap,
-  PolylineCoord,
+  LatLng,
   TimeWindow,
 } from '../types/map';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
 import { toMinutesOfDay } from './daily-window';
+import { toLatLng } from './geometry';
 import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from './defaults';
 
-const LAYER_TYPES = ['marker', 'polyline'] as const;
+/**
+ * The renderers this build has. A `kind` outside the set drops that ONE
+ * overlay — see parseOverlayData.
+ *
+ * This allowlist is where the open enum is absorbed, which is why the switch
+ * downstream can be exhaustive without asserting `never`: an unknown wire value
+ * never reaches it, and adding a member here without a case is a compile error
+ * that forces the renderer to be written.
+ */
+const OVERLAY_KINDS = ['marker', 'polygon', 'path'] as const;
 const MARKER_STYLES = [
   'numberCircle',
   'numberDot',
@@ -110,6 +120,13 @@ function parseLayerStyle(raw: Record<string, unknown>): MapLayerStyle {
   return {
     color: (raw.color as string) ?? undefined,
     outlineColor: (raw.outlineColor as string) ?? undefined,
+    // The two the SDK's own defaults make mandatory in practice: its polygon
+    // `color` defaults to opaque black and its `outlineWidth` to 0, so a zone
+    // served without these is a borderless dark blob over the booths it groups.
+    outlineWidth: toFiniteNumber(raw.outlineWidth) ?? undefined,
+    fillOpacity: toFiniteNumber(raw.fillOpacity) ?? undefined,
+    minZoom: toFiniteNumber(raw.minZoom) ?? undefined,
+    maxZoom: toFiniteNumber(raw.maxZoom) ?? undefined,
     width: toFiniteNumber(raw.width) ?? undefined,
     height: toFiniteNumber(raw.height) ?? undefined,
     size: toFiniteNumber(raw.size) ?? undefined,
@@ -183,14 +200,14 @@ function parseDefaultVisibleWhen(raw: unknown): LayerDefaultVisibility | null {
 function parseLayerDef(raw: Record<string, unknown>): MapLayerDef {
   return {
     id: raw.id as string,
-    // Both fields used to be blind `as` casts. An unknown value was then typed as
-    // a member of the union while matching no branch, so the layer vanished with
-    // no error. 'marker' is the honest default here: CampusScreen's render loop is
-    // a binary else that already draws anything non-'polyline' as a marker layer.
-    type: asMember(raw.type, LAYER_TYPES) ?? 'marker',
     label: raw.label as string,
     defaultVisibleWhen: parseDefaultVisibleWhen(raw.defaultVisibleWhen),
     endpoint: raw.endpoint as string,
+    // A blind `as` cast here used to type an unknown value as a union member it
+    // was not; it then matched no render branch, so the thing vanished with no
+    // error and nothing to grep for. `asMember` checks rather than asserts.
+    // There is deliberately no layer `type` beside this — an overlay's own
+    // `kind` names its renderer now.
     markerStyle: asMember(raw.markerStyle, MARKER_STYLES),
     // Absent means `true`. Never fail closed: a server predating the field must
     // not silently strip every toggle off the filter sheet. Only an explicit
@@ -277,7 +294,7 @@ function parseChipIcon(raw: unknown): MapChipIcon | null {
  * very disagreement `cameraDefaults` exists to remove. The coordinate does not
  * fall back at all: there is
  * no sensible default position for a thing whose whole purpose is to name one,
- * and the |lat| <= 90 guard is the same swap check parseMarkerData applies —
+ * and the |lat| <= 90 guard is the same swap check parseOverlayData applies —
  * Seoul's longitude is 126.97, so a swapped pair fails it.
  */
 function parseChipCamera(
@@ -504,82 +521,171 @@ function parseActions(raw: unknown): MarkerAction[] {
   });
 }
 
-export function parseMarkerData(
-  envelope: ApiEnvelope<unknown>,
-): RawMarkerData[] {
+/**
+ * A GeoJSON geometry object of the expected type, or `null`.
+ *
+ * The type is checked against the overlay's `kind` rather than trusted, because
+ * the two can disagree — a `kind: "marker"` carrying a Polygon is a document
+ * nobody can draw, and guessing which half the author meant is how a renderer
+ * crashes two calls later on a shape it was never handed.
+ */
+function geometryOfType(raw: unknown, type: string): { coordinates: unknown } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const g = raw as Record<string, unknown>;
+  if (g.type !== type) return null;
+  return { coordinates: g.coordinates };
+}
+
+/**
+ * A coordinate sequence, or `null` if ANY position in it is unreadable.
+ *
+ * All-or-nothing on purpose. A line missing one vertex is a different route and
+ * a ring missing one corner is a different shape, so a partial conversion draws
+ * something confidently wrong over a campus — worse than drawing nothing, and
+ * much harder to notice. `min` is the shortest sequence the geometry can mean.
+ */
+function toLatLngs(raw: unknown, min: number): LatLng[] | null {
+  if (!Array.isArray(raw) || raw.length < min) return null;
+  const out: LatLng[] = [];
+  for (const position of raw) {
+    const point = toLatLng(position);
+    if (point === null) return null;
+    out.push(point);
+  }
+  return out;
+}
+
+/**
+ * A Polygon's rings — `[0]` exterior, the rest holes — or `null`.
+ *
+ * Four positions minimum per ring, not three: a triangle is three corners plus
+ * the repeat that closes it. The repeat is KEPT rather than trimmed, because
+ * the SDK wants a closed ring and re-closing it downstream would put the same
+ * knowledge in two places. Matches the server's own `isDrawableGeometry`.
+ */
+function toRings(raw: unknown): LatLng[][] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const rings: LatLng[][] = [];
+  for (const ring of raw) {
+    const points = toLatLngs(ring, 4);
+    if (points === null) return null;
+    rings.push(points);
+  }
+  return rings;
+}
+
+/**
+ * The overlay collection for one data source — pins, zones and route lines
+ * together, each tagged by the renderer that draws it.
+ *
+ * This replaced a parser reading `data.markers`. When the server moved to
+ * `data.overlays` the shipped app kept fetching happily and coalescing the
+ * absent key to `[]`, so the campus map went blank against a 200 response with
+ * nothing in any log — the failure mode a server-driven `endpoint` makes
+ * possible, since there was no 404 to notice.
+ *
+ * ## Every drop is one overlay
+ *
+ * A malformed document, an unknown `kind`, a coordinate that will not read: all
+ * of them `return []` for that entry and leave its layer and its siblings
+ * alone. A layer with forty booths and one unusable ground image draws forty
+ * booths. That granularity is what makes `kind` genuinely open — the server
+ * ships a new renderer without a client release, and old builds skip it.
+ *
+ * The `switch` below is exhaustive and carries no `never` assertion, which
+ * looks like a contradiction and is not: `OVERLAY_KINDS` absorbs the openness
+ * first, so an unrecognised wire value is already gone by the time the switch
+ * runs. What exhaustiveness buys is the other direction — adding a member to
+ * that allowlist without writing its case is a compile error.
+ */
+export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
   const data = envelope.data as Record<string, unknown>;
-  const markers = (data.markers as unknown[]) ?? [];
-  return markers.flatMap((m) => {
-    const raw = m as Record<string, unknown>;
+  const overlays = (data.overlays as unknown[]) ?? [];
+  // The callback is annotated rather than inferred: without it TypeScript
+  // widens the switch's arms to a union OF ARRAYS, which `flatMap` cannot
+  // reconcile against a single element type.
+  return overlays.flatMap((entry): MapOverlay[] => {
+    const raw = entry as Record<string, unknown>;
 
-    // This was `Number(raw.lat ?? 0)`, and the `?? 0` was not even the whole bug:
-    // `Number(null)` is 0 too, so a nulled coordinate produced a marker at Null
-    // Island rather than no marker at all. Dropping is the only honest option —
-    // there is no sensible default position for a thing whose position is missing.
-    const lat = toFiniteNumber(raw.lat);
-    const lng = toFiniteNumber(raw.lng);
-    if (lat === null || lng === null) return [];
-    // A [lng, lat] swap raises no error and lands in the ocean (ADR 0004 invariant
-    // 3). Seoul's longitude is 126.97, so a swapped pair fails |lat| <= 90 here.
-    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
+    const kind = asMember(raw.kind, OVERLAY_KINDS);
+    if (!kind) return [];
 
-    // Same reasoning as the coordinates: a marker we cannot place on a known
-    // campus is not drawn. Defaulting to 'hssc' would put it on the wrong map,
-    // which is worse than the old behaviour — an unrecognised string used to
-    // fail the `m.campus === selectedCampus` filter and simply never render.
+    // A place we cannot put on a known campus is not drawn. Defaulting to
+    // 'hssc' would put it on the wrong map, which is worse than the old
+    // behaviour — an unrecognised string used to fail the campus filter and
+    // simply never render.
     const campus = asMember(raw.campus, CAMPUSES);
     if (!campus) return [];
 
     // Layers share endpoints — both building layers come from
-    // /map/markers/campus, every event layer from /map/markers/event — so
-    // `layerId` is what separates one layer's markers from another's. A marker
-    // without it belongs to no layer, and keeping it would mean either drawing it
-    // on every layer sharing the response or on none.
+    // /map/overlays/campus, every event layer from /map/overlays/event — so
+    // `layerId` is what separates one layer's overlays from another's. An
+    // overlay without it belongs to no layer, and keeping it would mean drawing
+    // it on every layer reading that response, or on none.
     const id = raw.id;
     const layerId = raw.layerId;
     if (typeof id !== 'string' || id === '') return [];
     if (typeof layerId !== 'string' || layerId === '') return [];
 
     // `ko` is the source language and always present upstream. Without it there
-    // is nothing to draw, and a blank marker still occupies a tap target and a
+    // is nothing to draw, and a blank overlay still occupies a tap target and a
     // caption-collision slot — which is why the server drops these too.
     const text = parseI18nText(raw.text);
     if (text === null) return [];
 
-    return [
-      {
-        id,
-        layerId,
-        lat,
-        lng,
-        campus,
-        text,
-        // `null` for every building, and stated emptiness rather than an absent
-        // key for the booth-shaped half of the schema — an absent field is a
-        // second thing for this parser to branch on.
-        subtitle: parseI18nText(raw.subtitle),
-        // `[]` reads as ALWAYS OPEN downstream, which is also what a building
-        // wants, so the absent-field fallback and the building's real answer are
-        // the same value rather than two.
-        hours: parseHours(raw.hours),
-        fields: parseFields(raw.fields),
-        actions: parseActions(raw.actions),
-        // `?? 0` on both, and they mean opposite things at 0 by design: `order`
-        // is the LAST tiebreak so an equal one falls through to `id`, while
-        // `pinPriority` 0 is the building's real value and the floor a booth
-        // never sits at. Neither can make the collision ladder non-total.
-        order: toFiniteNumber(raw.order) ?? 0,
-        pinPriority: toFiniteNumber(raw.pinPriority) ?? 0,
-        tap: parseMarkerTap(raw.tap),
-      },
-    ];
-  });
-}
+    const base = {
+      id,
+      layerId,
+      campus,
+      text,
+      // `null` for every building, and stated emptiness rather than an absent
+      // key for the booth-shaped half of the schema — an absent field is a
+      // second thing for this parser to branch on.
+      subtitle: parseI18nText(raw.subtitle),
+      // `[]` reads as ALWAYS OPEN downstream, which is also what a building
+      // wants, so the absent-field fallback and the building's real answer are
+      // the same value rather than two.
+      hours: parseHours(raw.hours),
+      fields: parseFields(raw.fields),
+      actions: parseActions(raw.actions),
+      // The LAST tiebreak in a collision, so an equal one falls through to
+      // `id`. `?? 0` rather than NaN, which would make every comparison in the
+      // ladder false and the ladder non-total.
+      order: toFiniteNumber(raw.order) ?? 0,
+      // `null` is meaningful: a backdrop that is drawn and not pressable.
+      tap: parseMarkerTap(raw.tap),
+    };
 
-export function parsePolylineData(
-  envelope: ApiEnvelope<unknown>,
-): PolylineCoord[] {
-  const data = envelope.data as Record<string, unknown>;
-  const coords = (data.coords as number[][]) ?? [];
-  return coords.map(([lat, lng]) => [lat, lng] as PolylineCoord);
+    switch (kind) {
+      case 'marker': {
+        const at = geometryOfType(raw.geometry, 'Point');
+        const point = at && toLatLng(at.coordinates);
+        if (!point) return [];
+        return [
+          {
+            ...base,
+            kind,
+            lat: point.lat,
+            lng: point.lng,
+            // 0 is the building's real value and the floor a booth never sits
+            // at, so unlike `order` this default is a fact rather than a
+            // fallback.
+            pinPriority: toFiniteNumber(raw.pinPriority) ?? 0,
+          },
+        ];
+      }
+      case 'polygon': {
+        const g = geometryOfType(raw.geometry, 'Polygon');
+        const rings = g && toRings(g.coordinates);
+        if (!rings) return [];
+        return [{ ...base, kind, rings }];
+      }
+      case 'path': {
+        const g = geometryOfType(raw.geometry, 'LineString');
+        const line = g && toLatLngs(g.coordinates, 2);
+        if (!line) return [];
+        return [{ ...base, kind, line }];
+      }
+    }
+  });
 }

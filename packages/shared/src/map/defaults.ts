@@ -3,8 +3,8 @@
  *
  * `layers` must mirror the server's `src/map/map-config.data.ts`. It had drifted
  * badly: a single `campus_buildings` layer pointing at `/building/list`, which no
- * longer exists server-side and returns `{ buildings: [] }` where parseMarkerData
- * reads `data.markers[]` — so the fallback rendered zero markers, which is worse
+ * longer exists server-side and returns `{ buildings: [] }` where the overlay
+ * parser reads `data.overlays[]` — so the fallback rendered nothing, which is worse
  * than having no fallback at all because it looks like an empty campus rather
  * than a failure. The server has shipped two layers for a while: building numbers
  * and building names, separately toggleable.
@@ -15,6 +15,12 @@
  * marker cache is keyed on the endpoint string, so two toggles cost one fetch.
  * The old `?overlay=number|label` is gone — a server still receiving it ignores
  * it, but keeping it here would split one cache entry into two.
+ *
+ * These two strings are the ONLY map URLs the app hardcodes; every other one
+ * arrives as `layers[].endpoint` from `/map/config`. That is exactly what makes
+ * them easy to leave behind on a route change and hard to notice — the app
+ * keeps working until the config call fails, and then lands on a 404 in the one
+ * situation where it has no other way to draw a map.
  *
  * Labels are raw Korean strings, not i18n keys, matching the server: layer labels
  * are server-driven display text that FilterSheet renders as-is.
@@ -62,20 +68,18 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   layers: [
     {
       id: 'building_numbers',
-      type: 'marker',
       label: '건물번호',
       defaultVisibleWhen: { kind: 'always' },
-      endpoint: '/map/markers/campus',
+      endpoint: '/map/overlays/campus',
       markerStyle: 'numberCircle',
       userConfigurable: true,
       chipGroupId: null,
     },
     {
       id: 'building_labels',
-      type: 'marker',
       label: '건물이름',
       defaultVisibleWhen: { kind: 'always' },
-      endpoint: '/map/markers/campus',
+      endpoint: '/map/overlays/campus',
       markerStyle: 'textLabel',
       userConfigurable: true,
       chipGroupId: null,

@@ -14,13 +14,13 @@
  */
 
 import type { AppLanguage } from '../store/settings';
-import type { MapLayerDef, RawMarkerData } from '../types/map';
+import type { MapLayerDef, MapOverlay } from '../types/map';
 import { isLayerVisible, type LayerVisibilityState } from './chips';
 import { pickI18nText } from './text';
 import { isOpenNow, nextOpeningAfter } from './window';
 
-export interface VisibleMarkersInput {
-  markers: readonly RawMarkerData[];
+export interface VisibleOverlaysInput {
+  markers: readonly MapOverlay[];
   /** The `/map/config` layers this build was served. */
   layers: readonly MapLayerDef[];
   /** The map layer store's user overrides and active chip narrowing. */
@@ -52,12 +52,12 @@ export interface VisibleMarkersInput {
  * pin for it either — the marker route serves per served layer — so the two stay
  * in step for an id outside the activation window too.
  */
-export function selectVisibleMarkers({
+export function selectVisibleOverlays({
   markers,
   layers,
   state,
   now,
-}: VisibleMarkersInput): RawMarkerData[] {
+}: VisibleOverlaysInput): MapOverlay[] {
   const visible = new Set<string>();
   for (const layer of layers) {
     if (isLayerVisible(layer, state, now)) visible.add(layer.id);
@@ -84,7 +84,7 @@ export type PlaceSortKey = (typeof PLACE_SORTS)[number];
  * "infinitely soon" — it is done, and done belongs at the bottom of a 시작 임박순
  * list rather than the top.
  */
-function openingRank(m: RawMarkerData, now: number): number {
+function openingRank(m: MapOverlay, now: number): number {
   if (isOpenNow(m.hours, now)) return Number.NEGATIVE_INFINITY;
   return nextOpeningAfter(m.hours, now) ?? Number.POSITIVE_INFINITY;
 }
@@ -99,17 +99,17 @@ function openingRank(m: RawMarkerData, now: number): number {
  * it.
  */
 export function sortPlaces(
-  markers: readonly RawMarkerData[],
+  markers: readonly MapOverlay[],
   by: PlaceSortKey,
   lang: AppLanguage,
   now: number,
-): RawMarkerData[] {
+): MapOverlay[] {
   const primary =
     by === 'title'
-      ? (a: RawMarkerData, b: RawMarkerData) =>
+      ? (a: MapOverlay, b: MapOverlay) =>
           pickI18nText(a.text, lang).localeCompare(pickI18nText(b.text, lang))
       : by === 'opening'
-        ? (a: RawMarkerData, b: RawMarkerData) => {
+        ? (a: MapOverlay, b: MapOverlay) => {
             // Compared, not subtracted. Both ranks can be infinite — two open
             // places are both -Infinity, two finished ones both +Infinity — and
             // `Infinity - Infinity` is NaN, which is neither 0 nor a sign, so a
@@ -119,7 +119,7 @@ export function sortPlaces(
             const rb = openingRank(b, now);
             return ra === rb ? 0 : ra < rb ? -1 : 1;
           }
-        : (a: RawMarkerData, b: RawMarkerData) => a.order - b.order;
+        : (a: MapOverlay, b: MapOverlay) => a.order - b.order;
 
   return [...markers].sort((a, b) => {
     const rank = primary(a, b);

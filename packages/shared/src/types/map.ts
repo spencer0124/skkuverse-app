@@ -38,9 +38,44 @@ export interface CampusDef {
 // ── Map layer definitions (server-driven) ──
 
 export interface MapLayerStyle {
-  color?: string; // hex without #
+  /**
+   * The layer's PRIMARY paint, bare hex with no `#` — the convention
+   * `toCssColor` expects.
+   *
+   * What it paints depends on the overlay it is drawing: a marker's tint, a
+   * path's stroke, a polygon's fill. One field rather than a `fillColor`
+   * beside it, because a layer carrying both would leave one of them dead on
+   * every overlay it draws.
+   */
+  color?: string;
+  /** A polygon's or path's outline. Ignored where there is no outline to draw. */
   outlineColor?: string;
-  /** Pin width in points. Was MapMarkerLayer's PIN_WIDTH. */
+  /**
+   * Outline thickness in points.
+   *
+   * Not a nicety: `NaverMapPolygonOverlay` defaults it to ZERO, so an unstyled
+   * zone has no border at all.
+   */
+  outlineWidth?: number;
+  /**
+   * Fill alpha, 0–1, composed into `color` as `#RRGGBBAA`.
+   *
+   * Also not a nicety, and in the same direction: the SDK's polygon `color`
+   * defaults to OPAQUE BLACK, so a zone shipped without this is a dark blob
+   * hiding the booths it exists to group. Kept separate from `color` rather
+   * than widening the hex to eight digits, because an opacity is not a colour
+   * and `color` is shared with the marker and path layers.
+   */
+  fillOpacity?: number;
+  /**
+   * Zoom bounds, passed to the SDK's `BaseOverlayProps` directly.
+   *
+   * A property of the LAYER rather than of any one overlay: building footprints
+   * are noise at campus-wide zoom, and boundary lines are noise up close.
+   */
+  minZoom?: number;
+  maxZoom?: number;
+  /** Pin width in points. Was MapOverlayLayer's PIN_WIDTH. */
   width?: number;
   /** Pin height in points. Was PIN_HEIGHT. */
   height?: number;
@@ -122,7 +157,6 @@ export type LayerDefaultVisibility =
 
 export interface MapLayerDef {
   id: string;
-  type: 'marker' | 'polyline';
   label: string;
   /**
    * When this layer is on, absent anything the user said.
@@ -137,6 +171,15 @@ export interface MapLayerDef {
    */
   defaultVisibleWhen: LayerDefaultVisibility | null;
   endpoint: string;
+  /**
+   * How a MARKER on this layer is drawn. Ignored by every other overlay kind.
+   *
+   * There is deliberately no `type` beside it. A layer used to name its
+   * renderer, which meant the renderer was chosen twice — once here and once by
+   * the geometry — and the two could disagree with nothing to blame. An
+   * overlay's own `kind` is now the single discriminant, which is also what
+   * lets ONE layer draw pins, a zone and a route line together.
+   */
   markerStyle?: 'numberCircle' | 'numberDot' | 'textLabel' | 'placeDot';
   style?: MapLayerStyle;
   /**
@@ -366,29 +409,51 @@ export interface MarkerAction {
   style?: 'primary' | 'secondary';
 }
 
-export interface RawMarkerData {
-  /**
-   * Unique within its layer, NOT across layers: one building is drawn once per
-   * building layer and both markers carry this same value. The React key is
-   * therefore `layerId` plus this — see MapMarkerLayer.
-   */
-  id: string;
-  /** Which layer draws this marker. Layers share endpoints, so this is the filter. */
-  layerId: string;
+/**
+ * One position, axis-named.
+ *
+ * The wire carries GeoJSON positions, `[longitude, latitude]` — RFC 7946
+ * §3.1.1, "precisely in that order". That tuple is renamed to this object in
+ * exactly ONE place, `map/geometry.ts`, and nothing downstream ever sees the
+ * array form. An axis swap raises no error — swapped Seoul coordinates land in
+ * the Yellow Sea and the map lies quietly — so the defence is to have a single
+ * conversion rather than to guard many. It is also why this is a named object
+ * and not a tuple: `[number, number]` can be transposed by accident, and the
+ * `PolylineCoord` this replaced was `[lat, lng]`, the reverse of the wire's.
+ */
+export interface LatLng {
   lat: number;
   lng: number;
+}
+
+/**
+ * Everything an overlay carries regardless of how it is drawn.
+ *
+ * Geometry is deliberately absent — it lives on the arms of `MapOverlay`,
+ * because it is the one thing that differs between them. Everything here is the
+ * same sentence about a place whether that place is a pin, a zone or a line.
+ */
+interface OverlayBase {
+  /**
+   * Unique within its layer, NOT across layers: one building is drawn once per
+   * building layer and both overlays carry this same value. The React key is
+   * therefore `layerId` plus this — see MapOverlayLayer.
+   */
+  id: string;
+  /** Which layer draws this overlay. Layers share endpoints, so this is the filter. */
+  layerId: string;
   campus: Campus;
   /**
-   * The string this marker displays — a building number, a building name, a
-   * booth title. The layer's `markerStyle` decides how it is drawn, which is
-   * why a separate `displayNo` no longer exists.
+   * The string this overlay displays — a building number, a building name, a
+   * booth title, a zone name. The layer's `markerStyle` decides how a marker
+   * draws it, which is why a separate `displayNo` no longer exists.
    *
    * Every language the server holds, not the one matching `Accept-Language`:
    * a building carries `{ko, en}` while an ops-authored booth title may also
    * carry `zh`, and resolving server-side would mean discarding the rest.
    */
   text: I18nText;
-  /** What this marker is, under its name — a tenant, a department. `null` for every building. */
+  /** What this is, under its name — a tenant, a department. `null` for every building. */
   subtitle: I18nText | null;
   /**
    * Every interval this place is open, in authored order. **Empty means always
@@ -397,7 +462,7 @@ export interface RawMarkerData {
    * There is deliberately no `status` on the wire. It was only ever a cache of
    * `isOpenNow`, and caching it forced a single both-bounds-null pair to mean
    * two opposite things depending on a sibling field. A cancellation is
-   * expressed by the marker not being served at all — a cancelled place is
+   * expressed by the overlay not being served at all — a cancelled place is
    * deleted, not flagged — which is what frees `[]` to mean one thing.
    *
    * This replaced a scalar `startAt`/`endAt` pair. With one window per document
@@ -411,11 +476,80 @@ export interface RawMarkerData {
   actions: MarkerAction[];
   /** Author's sort position, and the last tiebreak in a coordinate collision. Lower wins. */
   order: number;
-  /** First step of the collision ladder, from the layer set's category table. Higher wins. `0` for a building. */
-  pinPriority: number;
+  /**
+   * What a tap opens, or `null` for an overlay that is inert.
+   *
+   * `null` is how background geometry is expressed — a 통제 구간 outline that is
+   * drawn and not pressable. A renderer must not wire `onTap` for it.
+   */
   tap: MarkerTap | null;
 }
 
-// ── Polyline data ──
+/**
+ * One drawable thing, tagged by HOW it is drawn.
+ *
+ * `kind` names the renderer rather than the geometry. That is what lets one
+ * layer hold pins, a zone and a route line at once: a layer selects overlays by
+ * `layerId`, and each overlay chooses its own component.
+ *
+ * **`kind` is an OPEN enum.** The server reserves `polyline`, `arrowheadPath`,
+ * `circle`, `multiPath` and `groundImage`, and adding one is a non-breaking
+ * server change *only while an unrecognised value is skipped*. So
+ * `parseOverlayData` drops the single unknown overlay — never its layer, never
+ * its siblings — and never asserts `never` over this union. That assertion is
+ * precisely what would turn an additive server change into a blank layer on an
+ * already-shipped build.
+ *
+ * Contract: skkuverse-server `docs/reference/map-overlays-api.md` §2.3.
+ */
+export type MapOverlay =
+  | (OverlayBase & {
+      kind: 'marker';
+      /**
+       * Flat scalars rather than a `LatLng`, and that is load-bearing.
+       * `PinCandidate` destructures these two names, so the collision ladder in
+       * `map/pins.ts` needs no change — and `tsc` then REFUSES to hand a
+       * polygon to `resolvePinCollisions`, which makes scoping the ladder to
+       * markers a compile error rather than a rule someone has to remember.
+       */
+      lat: number;
+      lng: number;
+      /**
+       * A step of the collision ladder, resolved from the layer set's category
+       * table. Higher wins. `0` for a building. Where it sits among the other
+       * steps is `map/pins.ts`'s to state, not this file's.
+       *
+       * On this arm alone: two overlapping zones are a design choice, not a
+       * collision to resolve, so the union makes the field unrepresentable on
+       * the others rather than merely unused.
+       */
+      pinPriority: number;
+    })
+  | (OverlayBase & {
+      kind: 'polygon';
+      /**
+       * `rings[0]` is the exterior ring; the rest are holes. Every ring is
+       * closed — the last position repeats the first.
+       *
+       * Wound per RFC 7946 as it arrives: exterior counter-clockwise, holes
+       * clockwise. The SDK wants the OPPOSITE, and that reversal belongs to the
+       * renderer rather than here — see
+       * `apps/mobile/src/features/map/utils/overlayGeometry.ts`.
+       */
+      rings: LatLng[][];
+    })
+  | (OverlayBase & {
+      kind: 'path';
+      /** The route's positions in order. At least two. */
+      line: LatLng[];
+    });
 
-export type PolylineCoord = [number, number]; // [lat, lng]
+/**
+ * The marker arm, for the code that genuinely only draws pins — the collision
+ * ladder, the marker branches of the renderer.
+ *
+ * `Extract` rather than a restated interface, so widening `OverlayBase` cannot
+ * leave the two out of step.
+ */
+export type MarkerOverlay = Extract<MapOverlay, { kind: 'marker' }>;
+

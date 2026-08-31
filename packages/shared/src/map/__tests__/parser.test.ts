@@ -1,23 +1,35 @@
 /**
- * Map parser — the two defects this suite exists to keep fixed.
+ * Map parser — the defects this suite exists to keep fixed.
  *
- * D1: `raw.type as 'marker' | 'polyline'` typed an unknown value as a union member
- *     it was not. It then matched no render branch, so the layer disappeared with
- *     no error, no warning and nothing to grep for.
+ * D1: a closed union read with a blind `as` typed an unknown value as a member
+ *     it was not. It then matched no render branch, so the thing disappeared
+ *     with no error, no warning and nothing to grep for. The layer `type` that
+ *     first showed this is gone — an overlay's own `kind` names its renderer
+ *     now — but `markerStyle`, `shape` and every tap kind are read the same way
+ *     and the rule is unchanged: check membership, never assert it.
  *
- * D2: `Number(raw.lat ?? 0)` turned a missing coordinate into (0, 0). Null Island
- *     is in the Gulf of Guinea, and a marker drawn there looks like a data problem
- *     on the map rather than a parser problem in the code. `Number(null)` is also
- *     0, so the `??` was never the only thing doing the damage.
+ * D2: `Number(raw.lat ?? 0)` turned a missing coordinate into (0, 0). Null
+ *     Island is in the Gulf of Guinea, and a marker drawn there looks like a
+ *     data problem on the map rather than a parser problem in the code.
+ *     `Number(null)` is also 0, so the `??` was never the only thing doing the
+ *     damage. Coordinates arrive as GeoJSON `[lng, lat]` now, which moves the
+ *     trap without removing it — see `geometry.test.ts` for the axis order
+ *     itself.
  *
- * D3: layers share endpoints, so a marker without `layerId` would be drawn by
+ * D3: layers share endpoints, so an overlay without `layerId` would be drawn by
  *     every layer reading that response — which is how two building layers came
  *     to draw all 137 buildings each.
+ *
+ * D4: `kind` is an OPEN enum. The server reserves five more renderers and adds
+ *     them without a client release, so an unrecognised one must cost exactly
+ *     one overlay. An exhaustive switch asserting `never` — the instinct a
+ *     closed union earns — is what would turn that additive change into a blank
+ *     layer on every shipped build.
  */
 
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
-import { parseMapConfig, parseMarkerData } from '../parser';
+import { parseMapConfig, parseOverlayData } from '../parser';
 import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from '../defaults';
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({
@@ -27,18 +39,32 @@ const envelope = (data: unknown): ApiEnvelope<unknown> => ({
 
 const layer = (over: Record<string, unknown> = {}) => ({
   id: 'l1',
-  type: 'marker',
   label: 'L',
   defaultVisibleWhen: { kind: 'always' },
   endpoint: '/x',
   ...over,
 });
 
-const marker = (over: Record<string, unknown> = {}) => ({
+/**
+ * A GeoJSON position, written in the WIRE's order.
+ *
+ * Longitude first — RFC 7946 §3.1.1, "precisely in that order". Spelled out at
+ * every call site rather than hidden behind a `{ lat, lng }` helper, because a
+ * parser test that writes the tuple the readable way round is exactly how a
+ * suite comes to certify the swap it exists to catch.
+ */
+const pos = (lng: unknown, lat: unknown) => [lng, lat];
+
+const point = (lng: unknown, lat: unknown) => ({ type: 'Point', coordinates: pos(lng, lat) });
+
+/** 자과캠, and the coordinate every overlay below sits on unless it says otherwise. */
+const NSC = { lng: 126.97, lat: 37.29 };
+
+const overlay = (over: Record<string, unknown> = {}) => ({
+  kind: 'marker',
   id: '1',
   layerId: 'building_numbers',
-  lat: 37.29,
-  lng: 126.97,
+  geometry: point(NSC.lng, NSC.lat),
   campus: 'nsc',
   text: { ko: '수선관', en: 'Suseon Hall' },
   subtitle: null,
@@ -51,24 +77,16 @@ const marker = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** A closed square ring, wound as RFC 7946 wants it. Positions are `[lng, lat]`. */
+const RING = [pos(0, 0), pos(10, 0), pos(10, 10), pos(0, 10), pos(0, 0)];
+
 const parseLayers = (raw: Record<string, unknown>) =>
   parseMapConfig(envelope({ layers: [layer(raw)] })).layers[0];
 
+const parseOne = (over: Record<string, unknown> = {}) =>
+  parseOverlayData(envelope({ overlays: [overlay(over)] }));
+
 describe('parseMapConfig — D1, closed unions are checked not asserted', () => {
-  it('passes a known layer type through', () => {
-    expect(parseLayers({ type: 'polyline' }).type).toBe('polyline');
-  });
-
-  it('falls an unknown layer type back to marker rather than a lying union', () => {
-    // 'marker' because CampusScreen's loop is a binary else — anything that is not
-    // 'polyline' already renders as a marker layer, so this is what actually happens.
-    expect(parseLayers({ type: 'heatmap' }).type).toBe('marker');
-  });
-
-  it('falls a missing layer type back to marker', () => {
-    expect(parseLayers({ type: undefined }).type).toBe('marker');
-  });
-
   it('passes a known markerStyle through', () => {
     expect(parseLayers({ markerStyle: 'textLabel' }).markerStyle).toBe('textLabel');
   });
@@ -81,6 +99,10 @@ describe('parseMapConfig — D1, closed unions are checked not asserted', () => 
     expect(parseLayers({ markerStyle: 'placeDot' }).markerStyle).toBe('placeDot');
   });
 
+  it('rejects a non-string markerStyle instead of coercing it', () => {
+    expect(parseLayers({ markerStyle: 7 }).markerStyle).toBeUndefined();
+  });
+
   it('reads an absent userConfigurable as true — never fail closed', () => {
     // A server predating the field must not silently lock every control on the
     // map. Only an explicit `false` hides a toggle.
@@ -89,146 +111,263 @@ describe('parseMapConfig — D1, closed unions are checked not asserted', () => 
     expect(parseLayers({ userConfigurable: true }).userConfigurable).toBe(true);
   });
 
-  it('rejects a non-string type instead of coercing it', () => {
-    expect(parseLayers({ type: 7 }).type).toBe('marker');
+  it('carries no renderer on a layer — an overlay names its own', () => {
+    // The `type` field this once asserted is gone. A layer that named a renderer
+    // decided it twice, once here and once by the geometry, and the two could
+    // disagree with nothing to blame. Its absence is what lets one layer hold
+    // pins, a zone and a route line at once.
+    expect(parseLayers({ type: 'polyline' })).not.toHaveProperty('type');
   });
 });
 
-describe('parseMarkerData — D2, a missing coordinate is not (0, 0)', () => {
-  it('keeps a well-formed marker', () => {
-    const out = parseMarkerData(envelope({ markers: [marker()] }));
+describe('parseOverlayData — D4, kind is an open enum', () => {
+  it('reads each renderer this build has', () => {
+    const out = parseOverlayData(
+      envelope({
+        overlays: [
+          overlay({ id: 'm', kind: 'marker' }),
+          overlay({ id: 'z', kind: 'polygon', geometry: { type: 'Polygon', coordinates: [RING] } }),
+          overlay({ id: 'r', kind: 'path', geometry: { type: 'LineString', coordinates: [pos(0, 0), pos(1, 1)] } }),
+        ],
+      }),
+    );
+    expect(out.map((o) => o.kind)).toEqual(['marker', 'polygon', 'path']);
+  });
+
+  it('drops ONE unknown kind and keeps every sibling', () => {
+    // The contract in a single assertion. The server reserves `circle`,
+    // `groundImage` and three more, and ships them without a client release —
+    // so the cost of one has to be one overlay, never its layer and never the
+    // forty markers beside it.
+    const out = parseOverlayData(
+      envelope({
+        overlays: [
+          overlay({ id: 'before' }),
+          overlay({ id: 'future', kind: 'groundImage' }),
+          overlay({ id: 'after' }),
+        ],
+      }),
+    );
+    expect(out.map((o) => o.id)).toEqual(['before', 'after']);
+  });
+
+  it('drops an absent or non-string kind the same way', () => {
+    expect(parseOne({ kind: undefined })).toEqual([]);
+    expect(parseOne({ kind: 7 })).toEqual([]);
+  });
+
+  it('returns [] for a payload with no overlays key at all', () => {
+    // The shape the marker routes left behind: this parser reading `data.markers`
+    // off an overlay body is precisely how the campus map went blank in
+    // production with a 200 on the wire.
+    expect(parseOverlayData(envelope({}))).toEqual([]);
+    expect(parseOverlayData(envelope({ markers: [overlay()] }))).toEqual([]);
+  });
+});
+
+describe('parseOverlayData — D2, geometry is [lng, lat] and a missing one is not (0, 0)', () => {
+  it('keeps a well-formed marker, longitude first', () => {
+    const out = parseOne();
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ lat: 37.29, lng: 126.97 });
+    expect(out[0]).toMatchObject({ kind: 'marker', lat: NSC.lat, lng: NSC.lng });
   });
 
-  it('drops a null latitude — the Number(null) === 0 trap', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ lat: null })] }))).toEqual([]);
+  it('drops a null coordinate — the Number(null) === 0 trap', () => {
+    expect(parseOne({ geometry: point(NSC.lng, null) })).toEqual([]);
+    expect(parseOne({ geometry: point(null, NSC.lat) })).toEqual([]);
   });
 
-  it('drops a missing longitude', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ lng: undefined })] }))).toEqual([]);
-  });
-
-  it('drops an unparseable coordinate instead of emitting NaN', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ lat: 'abc' })] }))).toEqual([]);
-  });
-
-  it('drops an empty-string coordinate, which Number() would call 0', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ lat: '' })] }))).toEqual([]);
-  });
-
-  it('accepts a numeric string, which the API has been known to send', () => {
-    const out = parseMarkerData(envelope({ markers: [marker({ lat: '37.29' })] }));
-    expect(out[0]?.lat).toBe(37.29);
+  it('drops a numeric STRING rather than coercing it', () => {
+    // A deliberate tightening. The old flat wire came through a layer that
+    // stringified numbers, so tolerating '37.29' was right there. GeoJSON
+    // positions are numbers — Mongo's 2dsphere index refuses anything else, and
+    // the server checks them with `Number.isFinite` — so a string here is
+    // corruption rather than a formatting quirk, and matching the server's
+    // strictness is what keeps the two ends from disagreeing about one document.
+    expect(parseOne({ geometry: point('126.97', '37.29') })).toEqual([]);
   });
 
   it('drops an out-of-range latitude', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ lat: 200 })] }))).toEqual([]);
+    expect(parseOne({ geometry: point(NSC.lng, 200) })).toEqual([]);
   });
 
-  it('drops a [lng, lat]-swapped Seoul pair, which never throws on its own', () => {
-    // Seoul is lat 37.29 / lng 126.97. Swapped, the latitude reads 126.97 — out of
-    // range, so the range check catches for free what would otherwise silently
-    // render a marker in the ocean.
-    expect(
-      parseMarkerData(envelope({ markers: [marker({ lat: 126.97, lng: 37.29 })] })),
-    ).toEqual([]);
+  it('drops a [lat, lng]-swapped Seoul pair, which never throws on its own', () => {
+    // Written the wrong way round: latitude reads 126.97, out of range, so the
+    // bound catches for free what would otherwise render 성균관대 in the sea.
+    expect(parseOne({ geometry: point(NSC.lat, NSC.lng) })).toEqual([]);
   });
 
-  it('drops only the bad marker, keeping its neighbours', () => {
-    const out = parseMarkerData(
-      envelope({ markers: [marker({ id: '1' }), marker({ id: '2', lat: null }), marker({ id: '3' })] }),
+  it('drops geometry that is absent, malformed, or the wrong type for its kind', () => {
+    expect(parseOne({ geometry: undefined })).toEqual([]);
+    expect(parseOne({ geometry: { type: 'Point' } })).toEqual([]);
+    expect(parseOne({ geometry: { type: 'Point', coordinates: [126.97] } })).toEqual([]);
+    // A marker whose geometry is a Polygon: the kind and the geometry disagree,
+    // and guessing which one the author meant is how a renderer crashes later.
+    expect(parseOne({ geometry: { type: 'Polygon', coordinates: [RING] } })).toEqual([]);
+  });
+
+  it('drops only the bad overlay, keeping its neighbours', () => {
+    const out = parseOverlayData(
+      envelope({
+        overlays: [
+          overlay({ id: '1' }),
+          overlay({ id: '2', geometry: point(NSC.lng, null) }),
+          overlay({ id: '3' }),
+        ],
+      }),
     );
-    expect(out.map((m) => m.id)).toEqual(['1', '3']);
+    expect(out.map((o) => o.id)).toEqual(['1', '3']);
   });
 
-  it('returns [] for a payload with no markers key at all', () => {
-    expect(parseMarkerData(envelope({}))).toEqual([]);
+  it('drops a marker on an unknown campus rather than putting it on the wrong map', () => {
+    expect(parseOne({ campus: 'moon' })).toEqual([]);
   });
 });
 
-describe('parseMarkerData — D3, a marker belongs to exactly one layer', () => {
-  it('drops a marker with no layerId rather than drawing it on every layer', () => {
-    expect(
-      parseMarkerData(envelope({ markers: [marker({ layerId: undefined })] })),
-    ).toEqual([]);
+describe('parseOverlayData — polygon, where a zone gets its rings', () => {
+  const zone = (coordinates: unknown) =>
+    parseOne({ kind: 'polygon', geometry: { type: 'Polygon', coordinates } });
+
+  it('reads the exterior ring in wire order, converting every position', () => {
+    const out = zone([RING]);
+    expect(out).toHaveLength(1);
+    const o = out[0]!;
+    expect(o.kind).toBe('polygon');
+    if (o.kind !== 'polygon') return;
+    expect(o.rings).toHaveLength(1);
+    expect(o.rings[0]?.[1]).toEqual({ lat: 0, lng: 10 });
   });
 
-  it('drops a marker with no id — the React key is layerId plus id', () => {
-    expect(parseMarkerData(envelope({ markers: [marker({ id: undefined })] }))).toEqual([]);
+  it('keeps the repeated position that closes the ring', () => {
+    // The SDK needs a closed ring, and trimming the duplicate here would push
+    // the job of re-closing it onto the renderer.
+    const o = zone([RING])[0]!;
+    if (o.kind !== 'polygon') return;
+    expect(o.rings[0]).toHaveLength(RING.length);
+    expect(o.rings[0]?.[0]).toEqual(o.rings[0]?.[RING.length - 1]);
+  });
+
+  it('keeps holes as the rings after the first', () => {
+    const hole = [pos(2, 2), pos(4, 2), pos(4, 4), pos(2, 2)];
+    const o = zone([RING, hole])[0]!;
+    if (o.kind !== 'polygon') return;
+    expect(o.rings).toHaveLength(2);
+    expect(o.rings[1]).toHaveLength(4);
+  });
+
+  it('drops the whole zone when any ring holds a bad position', () => {
+    // Not a partial ring: a polygon missing one corner is a different shape, and
+    // drawing the wrong outline over a campus is worse than drawing none.
+    expect(zone([[pos(0, 0), pos(10, 0), pos(10, null), pos(0, 0)]])).toEqual([]);
+  });
+
+  it('drops a ring too short to bound an area', () => {
+    // Four, not three: a triangle is three corners plus the repeat that closes
+    // it. The server's `isDrawableGeometry` refuses the same shapes.
+    expect(zone([[pos(0, 0), pos(10, 0), pos(0, 0)]])).toEqual([]);
+    expect(zone([])).toEqual([]);
+  });
+
+  it('carries no pinPriority — a zone has no collision to resolve', () => {
+    // Two overlapping zones are a design choice, not a conflict. The union makes
+    // the field unrepresentable here rather than merely unused.
+    expect(zone([RING])[0]).not.toHaveProperty('pinPriority');
+  });
+});
+
+describe('parseOverlayData — path, where a route gets its line', () => {
+  const route = (coordinates: unknown) =>
+    parseOne({ kind: 'path', geometry: { type: 'LineString', coordinates } });
+
+  it('reads the line in order, converting every position', () => {
+    const o = route([pos(0, 0), pos(1, 2), pos(3, 4)])[0]!;
+    expect(o.kind).toBe('path');
+    if (o.kind !== 'path') return;
+    expect(o.line).toEqual([
+      { lat: 0, lng: 0 },
+      { lat: 2, lng: 1 },
+      { lat: 4, lng: 3 },
+    ]);
+  });
+
+  it('drops a line of fewer than two positions, which cannot be drawn', () => {
+    expect(route([pos(0, 0)])).toEqual([]);
+    expect(route([])).toEqual([]);
+  });
+
+  it('drops the whole route when any position is bad', () => {
+    expect(route([pos(0, 0), pos(null, 1), pos(2, 2)])).toEqual([]);
+  });
+});
+
+describe('parseOverlayData — D3, an overlay belongs to exactly one layer', () => {
+  it('drops an overlay with no layerId rather than drawing it on every layer', () => {
+    expect(parseOne({ layerId: undefined })).toEqual([]);
+  });
+
+  it('drops an overlay with no id — the React key is layerId plus id', () => {
+    expect(parseOne({ id: undefined })).toEqual([]);
   });
 
   it('keeps the same id on two layers, which is the documented case not a collision', () => {
     // One building is emitted once per building layer with the same id. The key
     // is layerId + id, so this is correct rather than a duplicate.
-    const out = parseMarkerData(
+    const out = parseOverlayData(
       envelope({
-        markers: [
-          marker({ id: '2', layerId: 'building_numbers', text: { ko: '1', en: '1' } }),
-          marker({ id: '2', layerId: 'building_labels', text: { ko: '600주년기념관', en: '600th' } }),
+        overlays: [
+          overlay({ id: '2', layerId: 'building_numbers', text: { ko: '1', en: '1' } }),
+          overlay({ id: '2', layerId: 'building_labels', text: { ko: '600주년기념관', en: '600th' } }),
         ],
       }),
     );
-    expect(out.map((m) => m.layerId)).toEqual(['building_numbers', 'building_labels']);
+    expect(out.map((o) => o.layerId)).toEqual(['building_numbers', 'building_labels']);
   });
 });
 
-describe('parseMarkerData — text, the field that replaced displayNo', () => {
+describe('parseOverlayData — text, the field that replaced displayNo', () => {
   it('carries zh when ops authored one', () => {
-    const out = parseMarkerData(
-      envelope({
-        markers: [marker({ text: { ko: '우끼끼친', en: 'Ukkikki', zh: '乌key' } })],
-      }),
-    );
+    const out = parseOne({ text: { ko: '우끼끼친', en: 'Ukkikki', zh: '乌key' } });
     expect(out[0]?.text).toEqual({ ko: '우끼끼친', en: 'Ukkikki', zh: '乌key' });
   });
 
   it('falls en back to ko when the English string is empty, not just missing', () => {
     // Both writers of the buildings collection coalesce a missing English name to
     // '' rather than null, so a `??` fallback here would ship blank labels.
-    const out = parseMarkerData(envelope({ markers: [marker({ text: { ko: '수선관', en: '' } })] }));
-    expect(out[0]?.text.en).toBe('수선관');
+    expect(parseOne({ text: { ko: '수선관', en: '' } })[0]?.text.en).toBe('수선관');
   });
 
-  it('drops a marker with no ko text — it would draw blank but still eat a tap target', () => {
-    expect(
-      parseMarkerData(envelope({ markers: [marker({ text: { ko: '', en: 'x' } })] })),
-    ).toEqual([]);
+  it('drops an overlay with no ko text — it would draw blank but still eat a tap target', () => {
+    expect(parseOne({ text: { ko: '', en: 'x' } })).toEqual([]);
   });
 });
 
-describe('parseMarkerData — tap and window', () => {
+describe('parseOverlayData — tap and window', () => {
   it('narrows a known tap kind', () => {
-    const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'event', placeId: 'nsc-plaza-a3' } })] }),
-    );
+    const out = parseOne({ tap: { kind: 'event', placeId: 'nsc-plaza-a3' } });
     expect(out[0]?.tap).toEqual({ kind: 'event', placeId: 'nsc-plaza-a3' });
   });
 
-  it('keeps the marker but makes it inert on an unknown tap kind', () => {
+  it('keeps the overlay but makes it inert on an unknown tap kind', () => {
     // Fail soft: a kind we cannot route is still a place we can draw, and a
     // missing pin is a failure nobody can see or report.
-    const out = parseMarkerData(
-      envelope({ markers: [marker({ tap: { kind: 'eskara26', placeId: 'x' } })] }),
-    );
+    const out = parseOne({ tap: { kind: 'eskara26', placeId: 'x' } });
     expect(out).toHaveLength(1);
     expect(out[0]?.tap).toBeNull();
   });
 
-  it('accepts tap: null, which the degraded building fallback ships deliberately', () => {
-    const out = parseMarkerData(envelope({ markers: [marker({ tap: null })] }));
-    expect(out[0]?.tap).toBeNull();
+  it('accepts tap: null, which is how a backdrop is drawn', () => {
+    // A 통제 구간 outline and the degraded building fallback both ship this. The
+    // renderer must read it as "draw, do not wire onTap".
+    expect(parseOne({ tap: null })[0]?.tap).toBeNull();
   });
 
   it('keeps an absent hours list empty, which means always open and only that', () => {
-    const out = parseMarkerData(envelope({ markers: [marker({ hours: undefined })] }));
-    expect(out[0]?.hours).toEqual([]);
+    expect(parseOne({ hours: undefined })[0]?.hours).toEqual([]);
   });
 
   it('keeps a fully bounded window verbatim', () => {
     const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: '2026-09-16T11:00:00.000Z' }];
-    const out = parseMarkerData(envelope({ markers: [marker({ hours })] }));
-    expect(out[0]?.hours).toEqual(hours);
+    expect(parseOne({ hours })[0]?.hours).toEqual(hours);
   });
 
   it('keeps every window of a place open on two days', () => {
@@ -238,57 +377,53 @@ describe('parseMarkerData — tap and window', () => {
       { startAt: '2026-08-27T09:00:00.000Z', endAt: '2026-08-27T15:00:00.000Z' },
       { startAt: '2026-08-28T09:00:00.000Z', endAt: '2026-08-28T15:00:00.000Z' },
     ];
-    const out = parseMarkerData(envelope({ markers: [marker({ hours })] }));
-    expect(out[0]?.hours).toHaveLength(2);
+    expect(parseOne({ hours })[0]?.hours).toHaveLength(2);
   });
 
   it('drops a half-bounded window rather than admitting a second way to say "no limit"', () => {
-    const out = parseMarkerData(
-      envelope({
-        markers: [marker({ hours: [{ startAt: '2026-09-16T07:00:00.000Z', endAt: null }] })],
-      }),
-    );
-    expect(out[0]?.hours).toEqual([]);
+    const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: null }];
+    expect(parseOne({ hours })[0]?.hours).toEqual([]);
   });
 
   it('drops an unparseable bound rather than carrying NaN into the comparison', () => {
     // Every comparison against NaN is false, so the window would never be open
     // and the place would read as permanently closed with nothing to blame.
-    const out = parseMarkerData(
-      envelope({ markers: [marker({ hours: [{ startAt: 'soon', endAt: 'later' }] })] }),
-    );
-    expect(out[0]?.hours).toEqual([]);
+    expect(parseOne({ hours: [{ startAt: 'soon', endAt: 'later' }] })[0]?.hours).toEqual([]);
+  });
+
+  it('carries hours on a zone too — a 취식존 closes like a booth does', () => {
+    const hours = [{ startAt: '2026-08-27T09:00:00.000Z', endAt: '2026-08-27T15:00:00.000Z' }];
+    const out = parseOne({
+      kind: 'polygon',
+      geometry: { type: 'Polygon', coordinates: [RING] },
+      hours,
+    });
+    expect(out[0]?.hours).toEqual(hours);
   });
 });
 
-describe('parseMarkerData — the place document the card renders', () => {
+describe('parseOverlayData — the place document the card renders', () => {
   it('reads subtitle, fields and actions', () => {
-    const out = parseMarkerData(
-      envelope({
-        markers: [
-          marker({
-            subtitle: { ko: '연합 주점', en: 'Joint bar' },
-            fields: [{ label: { ko: '메뉴', en: 'Menu' }, value: { ko: '골뱅이소면', en: 'Noodles' } }],
-            actions: [
-              {
-                id: 'a1',
-                label: { ko: '안내', en: 'Info' },
-                actionType: 'webview',
-                actionValue: 'https://example.com',
-                style: 'primary',
-              },
-            ],
-          }),
-        ],
-      }),
-    );
+    const out = parseOne({
+      subtitle: { ko: '연합 주점', en: 'Joint bar' },
+      fields: [{ label: { ko: '메뉴', en: 'Menu' }, value: { ko: '골뱅이소면', en: 'Noodles' } }],
+      actions: [
+        {
+          id: 'a1',
+          label: { ko: '안내', en: 'Info' },
+          actionType: 'webview',
+          actionValue: 'https://example.com',
+          style: 'primary',
+        },
+      ],
+    });
     expect(out[0]?.subtitle?.ko).toBe('연합 주점');
     expect(out[0]?.fields).toHaveLength(1);
     expect(out[0]?.actions[0]?.style).toBe('primary');
   });
 
-  it('leaves a building\'s booth-shaped half as stated emptiness', () => {
-    const out = parseMarkerData(envelope({ markers: [marker()] }));
+  it("leaves a building's booth-shaped half as stated emptiness", () => {
+    const out = parseOne();
     expect(out[0]?.subtitle).toBeNull();
     expect(out[0]?.fields).toEqual([]);
     expect(out[0]?.actions).toEqual([]);
@@ -297,41 +432,30 @@ describe('parseMarkerData — the place document the card renders', () => {
   it('keeps a button whose actionType this build cannot route', () => {
     // `parseActionType` degrades it to 'unknown', which the handler declines to
     // open. A button that does nothing beats a booth that is missing.
-    const out = parseMarkerData(
-      envelope({
-        markers: [
-          marker({
-            actions: [
-              { id: 'a1', label: { ko: 'X' }, actionType: 'teleport', actionValue: 'x' },
-            ],
-          }),
-        ],
-      }),
-    );
+    const out = parseOne({
+      actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'teleport', actionValue: 'x' }],
+    });
     expect(out[0]?.actions[0]?.actionType).toBe('unknown');
   });
 
   it('drops a button with no value, and serves the place without it', () => {
-    const out = parseMarkerData(
-      envelope({
-        markers: [
-          marker({
-            actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'webview', actionValue: '' }],
-          }),
-        ],
-      }),
-    );
+    const out = parseOne({
+      actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'webview', actionValue: '' }],
+    });
     expect(out).toHaveLength(1);
     expect(out[0]?.actions).toEqual([]);
   });
 
   it('defaults order and pinPriority to 0 rather than NaN', () => {
     // NaN would make every collision comparison false and the ladder non-total.
-    const out = parseMarkerData(envelope({ markers: [marker({ order: 'first' })] }));
+    const out = parseOne({ order: 'first' });
     expect(out[0]?.order).toBe(0);
-    expect(out[0]?.pinPriority).toBe(0);
+    const o = out[0]!;
+    if (o.kind !== 'marker') return;
+    expect(o.pinPriority).toBe(0);
   });
 });
+
 
 describe('parseMapConfig — chipGroupId, the group a chip may swap a layer within', () => {
   it('keeps a declared group verbatim', () => {

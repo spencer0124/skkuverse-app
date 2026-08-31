@@ -53,7 +53,7 @@
 import { isOpenNow, nextOpeningAfter } from './window';
 import type { TimeWindow } from '../types/map';
 
-/** The minimum the ladder needs. `RawMarkerData` satisfies it. */
+/** The minimum the ladder needs. `MapOverlay`'s marker arm satisfies it. */
 export interface PinCandidate {
   id: string;
   lat: number;

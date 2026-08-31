@@ -26,7 +26,7 @@ import {
   useSettingsStore,
   useT,
   type MarkerAction,
-  type RawMarkerData,
+  type MapOverlay,
 } from '@skkuverse/shared';
 import { Sheet, SheetCloseButton, Txt, type SheetRef } from '@skkuverse/sds';
 import { handleSduiAction } from '@/sdui/action-handler';
@@ -39,7 +39,7 @@ import { PlaceCard } from './PlaceCard';
 const CONTENT_BOTTOM_PAD = 32;
 
 interface EventMapPeekSheetProps {
-  place: RawMarkerData | null;
+  place: MapOverlay | null;
   /** From `useWindowClock`, so the pill matches the pin that was tapped. */
   now: number;
   /**
@@ -119,7 +119,7 @@ function PlaceBody({
   now,
   onNavigateAway,
 }: {
-  place: RawMarkerData;
+  place: MapOverlay;
   now: number;
   onNavigateAway?: () => void;
 }) {

@@ -141,7 +141,9 @@ export type {
   MarkerShape,
   MapLayerDef,
   MapConfig,
-  RawMarkerData,
+  MapOverlay,
+  MarkerOverlay,
+  LatLng,
   MarkerTap,
   MarkerAction,
   MarkerField,
@@ -149,7 +151,6 @@ export type {
   DailyWindow,
   LayerDefaultVisibility,
   TimeWindow,
-  PolylineCoord,
 } from './types/map';
 
 
@@ -209,8 +210,9 @@ export {
 // ── Map parsers + defaults ──
 export {
   parseMapConfig,
-  parseMarkerData,
-  parsePolylineData,
+  parseOverlayData,
+  toLatLng,
+  overlayAnchor,
   DEFAULT_MAP_CONFIG,
   DEFAULT_CAMERA_DEFAULTS,
   defaultVisibleAt,
@@ -238,13 +240,13 @@ export type { LayerVisibilityState, PinCandidate } from './map';
 // ordinary marker wire, so what used to be a module of its own is the list and
 // sort rules in `./map` plus the two UI choices below.
 export {
-  selectVisibleMarkers,
+  selectVisibleOverlays,
   sortPlaces,
   pickI18nText,
   wrapMarkerLabel,
   PLACE_SORTS,
 } from './map';
-export type { PlaceSortKey, VisibleMarkersInput } from './map';
+export type { PlaceSortKey, VisibleOverlaysInput } from './map';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';
 
@@ -319,10 +321,8 @@ export {
   BUILDINGS_KEY,
   useBuildingDetail,
   BUILDING_DETAIL_KEY,
-  useLayerMarkers,
-  useLayerPolyline,
-  MAP_LAYER_MARKERS_KEY,
-  MAP_LAYER_POLYLINE_KEY,
+  useLayerOverlays,
+  MAP_LAYER_OVERLAYS_KEY,
   useWindowClock,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,

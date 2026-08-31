@@ -11,10 +11,8 @@ export { useMapConfig, MAP_CONFIG_KEY } from './useMapConfig';
 export { useBuildings, BUILDINGS_KEY } from './useBuildings';
 export { useBuildingDetail, BUILDING_DETAIL_KEY } from './useBuildingDetail';
 export {
-  useLayerMarkers,
-  useLayerPolyline,
-  MAP_LAYER_MARKERS_KEY,
-  MAP_LAYER_POLYLINE_KEY,
+  useLayerOverlays,
+  MAP_LAYER_OVERLAYS_KEY,
 } from './useMapLayers';
 export { useWindowClock } from './useWindowClock';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';

@@ -1,4 +1,5 @@
-export { parseMapConfig, parseMarkerData, parsePolylineData } from './parser';
+export { parseMapConfig, parseOverlayData } from './parser';
+export { toLatLng, overlayAnchor } from './geometry';
 export { DEFAULT_MAP_CONFIG, DEFAULT_CAMERA_DEFAULTS } from './defaults';
 export {
   defaultVisibleAt,
@@ -22,10 +23,10 @@ export {
   MAX_TIMEOUT_MS,
 } from './window';
 export {
-  selectVisibleMarkers,
+  selectVisibleOverlays,
   sortPlaces,
   PLACE_SORTS,
   type PlaceSortKey,
-  type VisibleMarkersInput,
+  type VisibleOverlaysInput,
 } from './list';
 export { pickI18nText, wrapMarkerLabel } from './text';

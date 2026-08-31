@@ -1,11 +1,11 @@
 /**
  * Narrow an untrusted value to a member of a closed union, or `undefined`.
  *
- * Parsers in this package historically wrote `raw.type as 'marker' | 'polyline'`,
- * which is a lie the compiler believes: a server sending `"heatmap"` produces a
- * value whose type says `'marker' | 'polyline'` while every downstream
- * `if (x === 'marker')` and `if (x === 'polyline')` misses, so the thing silently
- * disappears with no error anywhere. `asMember` makes the check real and pushes
+ * Parsers in this package historically wrote `raw.markerStyle as 'numberCircle'
+ * | …`, which is a lie the compiler believes: a server sending `"hexagon"`
+ * produces a value whose type says it is a member while every downstream
+ * `if (x === 'numberCircle')` misses, so the thing silently disappears with no
+ * error anywhere. `asMember` makes the check real and pushes
  * the decision about what to do with an unknown value back to the caller, which
  * is the only place that knows whether a default or a drop is correct.
  *
