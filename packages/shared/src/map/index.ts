@@ -28,4 +28,4 @@ export {
   type PlaceSortKey,
   type VisibleMarkersInput,
 } from './list';
-export { pickI18nText } from './text';
+export { pickI18nText, wrapMarkerLabel } from './text';

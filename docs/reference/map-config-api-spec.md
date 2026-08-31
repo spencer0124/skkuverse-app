@@ -203,6 +203,15 @@ field existed — so a server sending none of them renders exactly as one that n
 | `captionTextSize` | number | `placeDot`, `textLabel` | Caption point size |
 | `zIndex` | number | `textLabel` | Draw order against other overlays. The label layer sets it high so a building name is never hidden behind a booth pin |
 
+**The caption's line budget is not on the wire, and is client-owned for now.** How many columns a
+caption may fill and how many lines it may take are constants in `MapMarkerLayer`, not `style`
+fields — the same place `width`, `height` and `size` lived before they were promoted. They are not
+here because they were tuned against real label data rather than chosen, and a server that has never
+seen those labels cannot tune them better. Promote them the way the geometry was promoted, if a
+layer ever needs its own budget. What the client no longer honours at all is the SDK's own
+`requestedWidth`: it is pinned to `0`, because the native wrapper only breaks at whitespace and the
+Korean names that need breaking have none. See eventmap-rendering §6.3.
+
 **Colour is deliberately absent from the building layers.** The number circle's fill and the
 `placeDot` tint fall back to a design token that resolves per theme, and a hex from the server
 cannot. Geometry is theme-independent and belongs on the wire; a colour that comes from a token
