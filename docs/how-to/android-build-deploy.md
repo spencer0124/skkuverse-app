@@ -3,7 +3,7 @@ title: Android Build & Deploy
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-16
+last-updated: 2026-08-31
 audience: internal
 ---
 
@@ -188,6 +188,102 @@ white background with no icon, point it at `transparent_1x1.png`:
 
 ```ts
 ["expo-splash-screen", { backgroundColor: "#ffffff", image: "./assets/images/transparent_1x1.png" }]
+```
+
+### The build succeeds but the script exits 1, and nothing is uploaded
+
+EAS writes the artifact, prints `Build successful`, and then fails while deleting its own
+temp directory:
+
+```text
+[PREPARE_ARTIFACTS] Writing artifacts to .../build.aab
+Build successful
+ENOTEMPTY: directory not empty, rmdir '.../eas-build-local-nodejs/<uuid>/build/.git'
+```
+
+The `.aab` is finished and valid. Only the cleanup failed. But it exits non-zero, and
+`android-release.sh` runs under `set -euo pipefail`, so the script aborts at the `eas build`
+line and **never reaches the `fastlane` line below it**. The symptom is a release that looks
+failed while a complete artifact sits in `apps/mobile/`.
+
+Do not rebuild. Upload the artifact that already exists:
+
+```bash
+cd apps/mobile
+bundle exec fastlane android upload_release aab:"./build.aab"   # or upload_beta
+```
+
+Check `fastlane/report.xml` afterwards: a `<testcase>` for `upload_to_play_store` with no
+`<failure>` child is the upload succeeding. That file is the reliable signal, because piping
+a build script through `tail` masks its exit code with the pager's.
+
+### An image asset fails AAPT with "file failed to compile"
+
+```text
+Execution failed for task ':app:mergeReleaseResources'.
+> ERROR: .../assets_video_subsposter.png: AAPT: error: file failed to compile.
+```
+
+The file's extension disagrees with its actual contents — typically JPEG data named `.png`.
+AAPT trusts the extension and refuses; nothing else in the toolchain does, which is why such a
+file can sit in the repo for a long time before anyone sees this:
+
+- **iOS never notices.** Apple's toolchain reads the file header, so the asset builds and ships.
+- **Android debug never notices.** Metro serves the asset, so it never passes through AAPT.
+  Only `mergeReleaseResources` in a release build does.
+
+So a mismatch is invisible to local development and to the entire iOS pipeline, and surfaces
+only on an Android store build. Find any others with:
+
+```bash
+cd apps/mobile/assets
+find . -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.webp' \) -exec file {} +
+```
+
+Rename the file to match what it actually is and update the `require`, rather than re-encoding
+it: a photograph re-encoded to a true PNG grows by an order of magnitude for no benefit.
+
+### `expo run:android` cannot build this project
+
+It fails to resolve a dependency that is present on disk:
+
+```text
+Could not find any matches for app.notifee:core:+ as no versions of app.notifee:core are available.
+```
+
+`expo run:android` passes `--configure-on-demand`. Notifee registers its bundled local Maven
+repository from inside its own `build.gradle`, so under configure-on-demand `:app` resolves its
+classpath before that registration has happened and only the remote repositories are searched.
+A full-configuration build has no such ordering problem:
+
+```bash
+cd apps/mobile
+./android/gradlew -p android app:assembleDebug -x lint -x test \
+  -PreactNativeDevServerPort=8081 -PreactNativeArchitectures=arm64-v8a
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+**Release builds are unaffected**, because EAS does not pass the flag. This is a local
+development-loop problem only.
+
+### The build is killed, or CMake cannot write its cache
+
+```text
+CMake Error: Cannot open file for write: .../CMakeCache.txt.tmp
+CMake Error: : System Error: Inappropriate ioctl for device
+```
+
+Check free disk space first. A local EAS build unpacks the project, installs dependencies and
+compiles native code for every ABI, and each attempt leaves its working directory behind under
+`$TMPDIR/eas-build-local-nodejs/<uuid>/`. Several failed attempts accumulate quickly, and a full
+volume presents as either this CMake error or the build being killed mid-compile rather than as
+anything mentioning space.
+
+Reclaim the build caches, all of which are regenerated on the next build:
+
+```bash
+rm -rf "${TMPDIR}eas-build-local-nodejs" ~/.eas-build-tmp
+rm -rf ~/Library/Developer/Xcode/DerivedData/<this-project>-*   # if iOS has also been built here
 ```
 
 ## Related

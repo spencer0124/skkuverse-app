@@ -49,7 +49,13 @@ export const SHOW = {
 [성균관대 스캔들]`,
   channelName: 'SUBS 성대방송국',
   channelUrl: 'https://youtube.com/channel/UCCwTQy5erJK34z9-VW1aMtQ',
-  hero: require('../../../assets/video/subs-poster.png'),
+  // .jpg, not .png: the file has always been JPEG data. Android's AAPT trusts
+  // the extension and fails `mergeReleaseResources` outright on the mismatch
+  // ("file failed to compile"), which broke every Android RELEASE build. Debug
+  // builds were unaffected because Metro serves the asset instead of routing it
+  // through AAPT, and iOS sniffs content rather than the extension — so the
+  // defect only ever surfaced on an Android store build.
+  hero: require('../../../assets/video/subs-poster.jpg'),
   staff: [
     { role: '기획', names: '김신비 이시원 조서희' },
     { role: '제작', names: '설연희 윤서현 이성민' },
