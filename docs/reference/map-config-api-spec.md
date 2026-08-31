@@ -35,7 +35,7 @@ Every response uses the v2 envelope format, `{ meta, data }`.
 > the whole response — which is exactly how both building layers came to draw all 137 buildings
 > each, with every number colliding with its name.
 >
-> **A layer selects; an overlay renders.** Because a layer no longer names a renderer, layers
+> **A layer selects. An overlay renders.** Because a layer no longer names a renderer, layers
 > sharing an endpoint are free to draw different things — one layer can hold pins, a zone and a
 > route line together.
 >
@@ -585,7 +585,7 @@ know, so three rules bind it:
    additive server change into a blank layer on an already-shipped build.
 
 The client absorbs the openness in one place — the `OVERLAY_KINDS` allowlist in
-`packages/shared/src/map/parser.ts` — so the switch downstream *is* exhaustive without asserting
+`packages/shared/src/map/parser.ts` — so the switch downstream stays exhaustive without asserting
 anything. The two are not in tension: unknown wire values never reach the switch, and what
 exhaustiveness buys is the other direction, that adding a kind without writing its renderer fails
 to compile.
