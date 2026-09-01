@@ -8,11 +8,13 @@ import {
 } from '@skkuverse/shared';
 import { signInWithGoogle } from '@/services/google-auth';
 import {
+  ensurePreferencesDoc,
   getPreferences,
   initializeFirestoreNotifications,
   unregisterDevice,
 } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { withRetry } from '@/utils/with-retry';
 
 export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
 
@@ -78,6 +80,23 @@ export async function signInWithDeviceMigration(
     displayName: user.displayName,
     photoURL: user.photoURL,
     isAnonymous: user.isAnonymous,
+  });
+
+  // Guarantee the preferences document exists for the post-sign-in uid.
+  //
+  // The equivalent self-heal in useAppInit lives inside onAuthStateChanged,
+  // and Android's linkWithCredential PRESERVES the uid — so that callback
+  // never fires here (the reason setAuthenticated is called manually above).
+  // The result was that the one path where a fresh Google account is most
+  // likely to have no document was also the one path with no recovery, which
+  // is how the 2026-07 picker ghost state survived its own fix.
+  //
+  // Deliberately OUTSIDE the `deviceId && fcmToken` gate below: during first
+  // onboarding fcmToken is still null, so phase C is a no-op on exactly the
+  // path that needs this. Fire-and-forget with withRetry, matching useAppInit
+  // — awaiting would stall the sign-in flow for a best-effort repair.
+  withRetry(() => ensurePreferencesDoc(user.uid)).catch((err) => {
+    logHandledError(`${scope}/ensure-prefs`, err);
   });
 
   const fcmToken = useNotificationStore.getState().fcmToken;

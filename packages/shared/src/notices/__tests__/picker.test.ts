@@ -190,3 +190,95 @@ describe('resolvePickerSelection (post-rename)', () => {
     expect(resolvePickerSelection(empty, undefined)).toEqual(['first']);
   });
 });
+
+// ── The 건축학과 fallback — 2026-07 / 2026-09 department-picker bug ──────────
+//
+// These fixtures mirror the SERVER's categories.json, where the `dept` and
+// `general` tabs carry NO defaultIds key at all. That makes rung 2 a dead rung
+// for them, so any empty or unresolvable stored value drops to rung 3 and
+// renders sources[0] — 'arch' (건축학과) for dept, 'health' for general.
+// Reordering those arrays server-side silently changes which department a
+// broken save impersonates, which is why both tabs are pinned here.
+describe('resolvePickerSelection — the sources[0] fallback', () => {
+  const deptTab = pickerTab(
+    'dept',
+    [
+      { id: 'arch', campus: 'nsc' }, // 건축학과 — first by Korean collation
+      { id: 'cs', campus: 'nsc' },
+      { id: 'biz-undergrad', campus: 'hssc' },
+    ],
+    [], // server sends no defaultIds for dept
+    { hssc: [], nsc: [] },
+  );
+
+  const generalTab = pickerTab(
+    'general',
+    [
+      { id: 'health', campus: null },
+      { id: 'lib-all', campus: null },
+    ],
+    [], // server sends no defaultIds for general either
+    { hssc: [], nsc: [] },
+  );
+
+  it('falls back to sources[0] for a first-time user (stored undefined)', () => {
+    expect(resolvePickerSelection(deptTab, undefined)).toEqual(['arch']);
+    expect(resolvePickerSelection(generalTab, undefined)).toEqual(['health']);
+  });
+
+  // S2: '대표학과 스킵' sentinel with no interest depts. The doc is healthy,
+  // yet the user still sees 건축학과 — a wholly separate route to the same
+  // symptom as the ghost-doc case.
+  it("falls back when stored is only the '' primary-skip sentinel", () => {
+    expect(resolvePickerSelection(deptTab, [''])).toEqual(['arch']);
+  });
+
+  it('drops the sentinel but keeps real interest ids', () => {
+    expect(resolvePickerSelection(deptTab, ['', 'cs'])).toEqual(['cs']);
+  });
+
+  it('falls back when every stored id has been retired server-side', () => {
+    expect(resolvePickerSelection(deptTab, ['retired-dept'])).toEqual(['arch']);
+  });
+
+  it('falls back on an empty stored array', () => {
+    expect(resolvePickerSelection(deptTab, [])).toEqual(['arch']);
+  });
+
+  // Instrumentation: rung 3 is kept (never blank the notices tab) but it must
+  // no longer be silent. Reaching it means either a first-time user or a
+  // broken save, and only telemetry tells those apart in the field — the
+  // 2026-07 incident ran 84 days precisely because nothing reported this.
+  it('invokes onFallback ONLY when rung 3 is reached', () => {
+    let hits = 0;
+    const count = () => {
+      hits++;
+    };
+
+    resolvePickerSelection(deptTab, ['cs'], count);
+    expect(hits).toBe(0); // rung 1 — stored is valid
+
+    resolvePickerSelection(
+      pickerTab('library', [{ id: 'lib-all', campus: null }], ['lib-all'], {
+        hssc: [],
+        nsc: [],
+      }),
+      undefined,
+      count,
+    );
+    expect(hits).toBe(0); // rung 2 — server defaultIds exist
+
+    resolvePickerSelection(deptTab, [''], count);
+    expect(hits).toBe(1); // rung 3 — the 건축학과 path
+
+    resolvePickerSelection(deptTab, undefined, count);
+    expect(hits).toBe(2);
+  });
+
+  it('does not invoke onFallback when there are no sources to fall back to', () => {
+    let hits = 0;
+    const empty = pickerTab('dept', [], [], { hssc: [], nsc: [] });
+    expect(resolvePickerSelection(empty, undefined, () => hits++)).toEqual([]);
+    expect(hits).toBe(0);
+  });
+});

@@ -24,6 +24,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { test, describe, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import {
   initializeTestEnvironment,
   assertFails,
@@ -527,6 +528,70 @@ describe('users/{uid}/preferences/main rules — Phase F (SSOT lockdown)', () =>
       prefsRef(ctx, 'uid-1').update({ 'noticeTabEnabled.academic': false }),
     );
   });
+
+  // ── MISSING-DOCUMENT UPDATE — the 2026-07 / 2026-09 picker ghost bug ──────
+  //
+  // 이 세 케이스가 픽커 자가복구(prefs-self-heal)의 전제를 고정한다.
+  //
+  // `update()` 는 patch mutation 이라 문서가 없으면 실패한다. 문제는 "어떤
+  // 코드로" 실패하느냐다. 위 allow update 는 `resource.data.diff(...)` 와
+  // `resource.data.onboardedAt` 을 역참조하는데, 문서가 없으면 `resource`
+  // 가 null 이라 룰이 거부한다 — 즉 클라이언트는 NOT_FOUND 가 아니라
+  // PERMISSION_DENIED 를 받는다.
+  //
+  // 2026-08-19 (7234bb1) 에 추가된 setMiniAppSubscribed 의 자가복구 분기는
+  // `code !== 'firestore/not-found'` 를 검사한다. 위 추론이 맞다면 그 분기는
+  // 단 한 번도 실행된 적이 없는 죽은 코드다 — 2026-07 사고의 essential:false
+  // 시드와 정확히 같은 유형(구조적으로 실행 불가능한 복구 경로).
+  //
+  // 그래서 assertFails 만으로는 부족하다. 에러 "코드"를 직접 단언한다.
+  test('update() on a MISSING preferences doc → deny with permission-denied (not not-found)', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    let caught;
+    try {
+      await prefsRef(ctx, 'uid-1').update({ 'pickerSelections.dept': ['cs'] });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, 'update() on a missing document must reject');
+    // 이 단언이 isMissingPrefsDocError 가 permission-denied 를 반드시
+    // 포함해야 하는 이유다. 여기가 not-found 로 바뀌면 자가복구 술어를
+    // 좁혀도 된다는 뜻이므로, 실패 시 반드시 prefsWriteErrors.ts 를 함께 볼 것.
+    assert.equal(caught.code, 'permission-denied');
+  });
+
+  // 회귀 가드: 자가복구의 실제 경로는 create 단독이 아니라 create → update 쌍이다.
+  // 2026-07 가드(:458)는 create 만 덮었고, 그래서 update 가 막히는 경우를 잡지 못했다.
+  test('self-heal round trip: create prod-shape doc then update picker → both allow', async () => {
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').set({
+        enabled: false,
+        categoryEnabled: { essential: true, services: false, notices: false },
+        noticeTabEnabled: {},
+        pickerSelections: {},
+        subscribedTopics: [],
+        derivedAt: null,
+        onboardedAt: null,
+      }),
+    );
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'pickerSelections.dept': ['cs'] }),
+    );
+  });
+
+  // '대표학과 스킵' sentinel 이 룰 차원에서 막히는 게 아님을 확인 —
+  // S2 상태(빈 배열처럼 해석되는 [''])의 원인이 룰이 아니라는 것을 배제한다.
+  test("update picker with the '' primary-skip sentinel → allow", async () => {
+    await testEnv.withSecurityRulesDisabled(async (env) => {
+      await env.firestore().doc('users/uid-1/preferences/main').set(intentDoc());
+    });
+    const ctx = testEnv.authenticatedContext('uid-1');
+    await assertSucceeds(
+      prefsRef(ctx, 'uid-1').update({ 'pickerSelections.dept': [''] }),
+    );
+  });
+
 });
 
 // ──────────────────────────────────────────────────────────────────────

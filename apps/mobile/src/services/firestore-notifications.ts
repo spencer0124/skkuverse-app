@@ -1,11 +1,13 @@
 import firestore, {
   FirebaseFirestoreTypes,
 } from '@react-native-firebase/firestore';
-import type {
-  DeviceDocument,
-  PreferencesDocument,
-  UserDocument,
+import {
+  isMissingPrefsDocError,
+  type DeviceDocument,
+  type PreferencesDocument,
+  type UserDocument,
 } from '@skkuverse/shared';
+import { writeWithSelfHeal } from '@/services/prefs-self-heal';
 import { primeAppCheck } from '@/services/app-check-prime';
 import { logHandledError } from '@/services/crashlytics';
 
@@ -70,12 +72,40 @@ export async function updateUserLocale(
     .set({ locale } satisfies UserDocument, { merge: true });
 }
 
+/**
+ * Every `preferences/main` writer below goes through this.
+ *
+ * `update()` is a patch mutation, so all of them fail permanently for a user
+ * whose document is missing — the ghost state behind the 2026-07 and 2026-09
+ * department-picker bugs. Routing them through one wrapper means a future
+ * writer inherits the recovery instead of reproducing the bug; the ordering
+ * rationale (write first, never seed first) lives in prefs-self-heal.ts.
+ *
+ * `restore` is threaded through so the healed document carries the user's
+ * actual MMKV selection rather than an empty one. Without it the seed lands
+ * with `onboardedAt: null`, and since `ensurePreferencesDoc` early-returns on
+ * an existing document that null is permanent — second-device auto-restore
+ * would never fire for that user again.
+ */
+async function updatePrefsWithSelfHeal(
+  uid: string,
+  mutation: Record<string, unknown>,
+  restore?: { pickerSelections: Record<string, string[]>; onboarded: boolean },
+): Promise<void> {
+  await primeAppCheck();
+  await writeWithSelfHeal({
+    write: () => prefsRef(uid).update(mutation),
+    ensure: () => ensurePreferencesDoc(uid, restore),
+    isRecoverable: isMissingPrefsDocError,
+    onEnsureError: (err) => logHandledError('notifications/self-heal-seed', err),
+  });
+}
+
 export async function setMasterEnabled(
   uid: string,
   enabled: boolean,
 ): Promise<void> {
-  await primeAppCheck();
-  await prefsRef(uid).update({ enabled });
+  await updatePrefsWithSelfHeal(uid, { enabled });
 }
 
 export async function setCategoryEnabled(
@@ -83,8 +113,7 @@ export async function setCategoryEnabled(
   key: 'essential' | 'services' | 'notices',
   on: boolean,
 ): Promise<void> {
-  await primeAppCheck();
-  await prefsRef(uid).update({ [`categoryEnabled.${key}`]: on });
+  await updatePrefsWithSelfHeal(uid, { [`categoryEnabled.${key}`]: on });
 }
 
 /**
@@ -98,17 +127,20 @@ export async function setNoticeTabEnabled(
   tabKey: string,
   on: boolean,
 ): Promise<void> {
-  await primeAppCheck();
-  await prefsRef(uid).update({ [`noticeTabEnabled.${tabKey}`]: on });
+  await updatePrefsWithSelfHeal(uid, { [`noticeTabEnabled.${tabKey}`]: on });
 }
 
 export async function setPickerSelectionRemote(
   uid: string,
   tabKey: string,
   ids: string[],
+  restore?: { pickerSelections: Record<string, string[]>; onboarded: boolean },
 ): Promise<void> {
-  await primeAppCheck();
-  await prefsRef(uid).update({ [`pickerSelections.${tabKey}`]: ids });
+  await updatePrefsWithSelfHeal(
+    uid,
+    { [`pickerSelections.${tabKey}`]: ids },
+    restore,
+  );
 }
 
 /**
@@ -126,9 +158,9 @@ export async function setPickerSelectionRemote(
  * admitted as-is. (Had it been an allowlist, every new intent field would need
  * an app release and a rules deploy landed in lockstep.)
  *
- * `ensurePreferencesDoc` first because `update()` is a patch mutation: it fails
- * NOT_FOUND on a missing document, which is exactly the state an anonymous or
- * never-onboarded user is in — and those users are allowed to subscribe.
+ * Self-heals a missing document because `update()` is a patch mutation, which
+ * is exactly the state an anonymous or never-onboarded user is in — and those
+ * users are allowed to subscribe.
  *
  * The topic this becomes, `miniapp:<id>`, is derived server-side by the Cloud
  * Function. Until that ships (skkuverse#17) this field is recorded intent that
@@ -146,28 +178,14 @@ export async function setMiniAppSubscribed(
       : firestore.FieldValue.arrayRemove(miniAppId),
   };
 
-  // update() FIRST, and only fall back to seeding on NOT_FOUND.
+  // Seeding-on-failure lives in updatePrefsWithSelfHeal now.
   //
-  // The obvious ordering — ensurePreferencesDoc() then update() — silently
-  // destroys the offline behaviour this function is written for. A Firestore
-  // write promise settles on SERVER ACK, so in a dead spot the `await` on the
-  // seed never resolves and execution never reaches the update: the toggle is
-  // lost with no error and no log, because the promise neither resolves nor
-  // rejects. Issuing the mutation first means the common case (document
-  // exists) is applied locally and flushed on reconnect, exactly like
-  // setMasterEnabled and the other writers here.
-  //
-  // The seed path is for a user who has never had a preferences document —
-  // anonymous, or a first-time installer who skipped the wizard. Offline that
-  // case is genuinely unrecoverable either way; online it costs one extra
-  // round trip on a path that runs at most once per account.
-  try {
-    await prefsRef(uid).update(mutation);
-  } catch (err) {
-    if ((err as { code?: string }).code !== 'firestore/not-found') throw err;
-    await ensurePreferencesDoc(uid);
-    await prefsRef(uid).update(mutation);
-  }
+  // The hand-rolled version here tested `code !== 'firestore/not-found'` and
+  // was therefore dead code: a missing document is reported as
+  // PERMISSION_DENIED, because `allow update` dereferences `resource.data` and
+  // `resource` is null when the document does not exist. Pinned in
+  // firestore.rules.test.mjs, "update() on a MISSING preferences doc".
+  await updatePrefsWithSelfHeal(uid, mutation);
 }
 
 /**

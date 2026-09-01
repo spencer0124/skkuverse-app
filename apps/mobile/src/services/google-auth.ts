@@ -140,11 +140,15 @@ export async function signInWithGoogle() {
       try {
         result = await linkWithCredential(currentUser, googleCredential);
       } catch (linkErr: any) {
+        // This fallback changes the uid, which orphans the anonymous user's
+        // `preferences/main` and `devices/{id}` documents under an identity
+        // nothing will read again. That is a real, silent data-loss path — and
+        // until now its only trace was a console.warn, which reaches nobody.
+        // Logging it does not fix the orphaning (that is an account-merge
+        // decision with migration consequences), but it makes the affected
+        // population countable instead of unknown.
         console.warn('[google-auth] linkWithCredential failed:', linkErr.code, linkErr.message);
-        if (linkErr.code !== 'auth/credential-already-in-use') {
-          // Fallback: try signInWithCredential instead of failing
-          console.warn('[google-auth] Falling back to signInWithCredential');
-        }
+        logHandledError('google-auth/link-fallback', linkErr);
         result = await signInWithCredential(getAuth(), googleCredential);
       }
     } else {

@@ -3,7 +3,7 @@ title: Notices Picker Ghost State Postmortem
 type: postmortem
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-10
+last-updated: 2026-09-01
 audience: internal
 ---
 
@@ -117,8 +117,9 @@ Fix commit `3e3cbca`, five files, +215/−52, with tsc, lint, tests and all rule
 - [ ] End to end: run a DECLINE onboarding on an Android beta profile build, which is the only
       way to exercise the real Play Integrity path, then verify the picker saves
 - [ ] Process: make reviewing non-fatal errors a weekly habit
-- [ ] Optional. S3: give the user feedback when a picker write fails. P4: skip the
-      pre-create during onboarding
+- [x] **S3: give the user feedback when a picker write fails** (2026-09-01). Marked optional
+      here, and that turned out to be the single reason this bug shipped twice — see the
+      recurrence section below. P4 (skip the pre-create during onboarding) is still open
 
 ## Appendix: where the code is
 
@@ -132,3 +133,72 @@ The triage this produced now lives in
 [`how-to/firestore-debugging.md`](../how-to/firestore-debugging.md): a change that appears
 then reverts means the server rejected it, no reaction at all with an `update()` means the
 document is missing, and writes working in other collections rules out auth and App Check.
+
+## Recurrence: 2026-09-01
+
+Reported again, in the same words: "공지-학과선택에서 학과를 선택해도 건축학과에서 타 과로
+바뀌지 않아요." Two days after Release 3.6.0 (`ota/prod/2026-08-30T2026`).
+
+**Not a revert.** Every fix from 2026-07 was still present on `dev` and `main`: the
+`essential: true` seed, the ordering-invariant comment, the `useAppInit` self-heal, the
+prod-mirror rules test. The bug returned through the gap those fixes left open.
+
+### What we got wrong the first time
+
+**1. The failure was still silent.** The one action item marked *optional* above — tell the
+user when a picker write fails — was the difference between a bug that reports itself and one
+that waits for a user to notice. `handleConfirm` was fire-and-forget with an unconditional
+`router.back()`, so a failed save was pixel-identical to a successful one. That is the whole
+reason the recurrence had to be reported by a human rather than by Crashlytics.
+
+**2. The 2026-08-19 self-heal was dead code, in the same way the 2026-07 seed was.**
+`setMiniAppSubscribed` gained a NOT_FOUND fallback (`7234bb1`) that tested
+`code !== 'firestore/not-found'`. A missing document does not surface as `not-found`: the
+`allow update` rule dereferences `resource.data`, `resource` is null when the document is
+absent, and the client is told **`permission-denied`**. So the fallback had never once fired.
+
+This is exactly the shape of the original root cause — a recovery path structurally incapable
+of running — and it was reintroduced within a month of fixing it, because nothing in the repo
+asserted the error *code*. There is now a test that does:
+`firestore.rules.test.mjs` → "update() on a MISSING preferences doc → deny with
+permission-denied (not not-found)". **Do not narrow `isMissingPrefsDocError` back to
+`not-found` without changing that test first.**
+
+**3. The ordering invariant was prose, and prose has an `else` branch.** `handleComplete`
+honoured it inside `if (uid)` but the no-uid branch logged and fell through to
+`completeOnboarding()`, which sat *outside* the if/else — deliberately minting a ghost and
+trusting the `useAppInit` self-heal. That self-heal is `!user.isAnonymous`-gated, un-awaited,
+and lives inside `onAuthStateChanged`, which Android's `linkWithCredential` never fires
+because it preserves the uid. The promised recovery could not run on the one path that needed
+it most.
+
+**4. A third state nobody had named.** The picker modal seeded its edit buffer from
+`resolvePickerSelection` — the *resolved fallback*, not the *stored* value. So the modal
+opened with 건축학과 pre-checked, the user added their own department, and the save
+**succeeded**, persisting `['arch', <theirs>]`. A display fallback laundered into stored
+intent. This needs no failed write at all, and it fits the reported wording better than the
+ghost state does.
+
+### What shipped (2026-09-01)
+
+| File | Change |
+| --- | --- |
+| `packages/shared/src/notices/prefsWriteErrors.ts` | `isMissingPrefsDocError` — treats `permission-denied` as recoverable, with the reasoning |
+| `apps/mobile/src/services/prefs-self-heal.ts` | `writeWithSelfHeal` — one recovery point; **all five** `preferences/main` writers route through it |
+| `apps/mobile/app/notices/picker.tsx` | awaits the write, keeps the modal open on failure, Toast + retry; edit buffer seeds from *stored* |
+| `packages/shared/src/notices/picker.ts` | rung 3 kept (never blank the tab) but instrumented via `onFallback` |
+| `apps/mobile/src/features/onboarding/completion.ts` | `decideOnboardingCompletion` — no-uid now aborts instead of minting a ghost |
+| `apps/mobile/src/services/auth-flow.ts` | unconditional `ensurePreferencesDoc` after sign-in, closing the Android link gap |
+| `apps/mobile/src/services/google-auth.ts` | the uid-orphaning link fallback is logged instead of `console.warn` |
+| `functions/scripts/backfill-prefs.ts` | audit + repair for existing ghosts; `--dry-run` yields the impact number |
+
+### The lesson that generalises
+
+Both root causes — 2026-07 and 2026-09 — were **recovery paths that could not execute**, and
+in both cases the code read as though it handled the failure. A recovery path with no test
+proving it runs is decoration. The rules test that pins the error code is the cheapest
+insurance in this whole file, and it did not exist for the first 84-day incident or the
+6-week gap that followed.
+
+Second: 84 days passed the first time because nobody had a count. `backfill-prefs.ts --dry-run`
+now produces one on demand.

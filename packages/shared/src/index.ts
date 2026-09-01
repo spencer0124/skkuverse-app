@@ -267,6 +267,7 @@ export {
   computeOnboardingPickerSeed,
   highlightMatches,
   classifyBookmarkToggleError,
+  isMissingPrefsDocError,
   filterPickerSources,
   isUnsupportedSource,
   recommendCollegeMates,
