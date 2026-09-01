@@ -47,7 +47,12 @@
  *   node --experimental-strip-types scripts/backfill-prefs.ts --apply
  */
 
-import { getApps, initializeApp, applicationDefault } from 'firebase-admin/app';
+import {
+  getApps,
+  initializeApp,
+  applicationDefault,
+  cert,
+} from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
@@ -73,12 +78,46 @@ const PROJECT = process.env.GCLOUD_PROJECT ?? process.env.FIREBASE_PROJECT;
 if (!PROJECT) {
   throw new Error(
     'Set GCLOUD_PROJECT to the production project id, and authenticate with ' +
-      'GOOGLE_APPLICATION_CREDENTIALS or `gcloud auth application-default login`.',
+      'FIREBASE_SERVICE_ACCOUNT (inline JSON), GOOGLE_APPLICATION_CREDENTIALS, ' +
+      'or `gcloud auth application-default login`.',
   );
 }
 
+// Credential resolution, in order of preference:
+//   1. FIREBASE_SERVICE_ACCOUNT — inline JSON, the same variable and shape
+//      skkuverse-server already uses (src/infra/firebase.ts). Preferred here
+//      because it means no gcloud SDK install and no key file written to disk.
+//   2. GOOGLE_APPLICATION_CREDENTIALS / ADC — the standard path, for CI or a
+//      machine that has already run `gcloud auth application-default login`.
+//
+// The inline JSON is read from the environment and never logged or persisted.
+function resolveCredential() {
+  const inline = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (inline) {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(inline) as Record<string, unknown>;
+    } catch {
+      throw new Error(
+        'FIREBASE_SERVICE_ACCOUNT is set but is not valid JSON. Pass the whole ' +
+          'service-account object, not a file path.',
+      );
+    }
+    // Fail loudly on a credential for the wrong project rather than auditing
+    // someone else's user list and reporting a meaningless number.
+    if (parsed.project_id && parsed.project_id !== PROJECT) {
+      throw new Error(
+        `FIREBASE_SERVICE_ACCOUNT is for project '${String(parsed.project_id)}' ` +
+          `but GCLOUD_PROJECT is '${PROJECT}'. Refusing to run.`,
+      );
+    }
+    return cert(parsed as Parameters<typeof cert>[0]);
+  }
+  return applicationDefault();
+}
+
 if (getApps().length === 0) {
-  initializeApp({ credential: applicationDefault(), projectId: PROJECT });
+  initializeApp({ credential: resolveCredential(), projectId: PROJECT });
 }
 const db = getFirestore();
 const auth = getAuth();

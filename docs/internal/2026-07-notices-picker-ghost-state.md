@@ -192,6 +192,29 @@ ghost state does.
 | `apps/mobile/src/services/google-auth.ts` | the uid-orphaning link fallback is logged instead of `console.warn` |
 | `functions/scripts/backfill-prefs.ts` | audit + repair for existing ghosts; `--dry-run` yields the impact number |
 
+### Measured impact of the recurrence (2026-09-01)
+
+`backfill-prefs.ts --dry-run` against production, which is the count nobody had
+in 2026-07:
+
+| | |
+| --- | --- |
+| Auth users scanned | 8,552 |
+| Google-linked (candidates) | 1,133 |
+| **Ghosts — no `preferences/main`** | **45** (~4% of signed-in users) |
+| Repaired (`--apply`) | 45 created, 0 failed, re-audit confirms 0 remaining |
+
+**Crashlytics undercounted by 9x.** `notifications/picker-set` showed 5 affected
+users; the real dead-write population was 45. A ghost who never opens the picker
+never generates an error, so the error log can only ever show the subset who hit
+the symptom AND reported it. Any future estimate of a silent-failure population
+should come from a census like this one, not from the non-fatal count.
+
+Note what the repair does and does not do: it restores the ability to save. It
+does not restore anyone's department, because the only copy of that lives in the
+device's MMKV. Those 45 users still see 건축학과 until they re-pick — but the
+re-pick now persists.
+
 ### The lesson that generalises
 
 Both root causes — 2026-07 and 2026-09 — were **recovery paths that could not execute**, and
