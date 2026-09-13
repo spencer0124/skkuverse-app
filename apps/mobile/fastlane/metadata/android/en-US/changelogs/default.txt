@@ -1,1 +1,2 @@
-Campus map update
+• Fixed a crash that could close the app when opening the map
+• Fixed department selection not saving in notices

@@ -740,12 +740,15 @@ constraint (§7.1) rather than a styling choice.
   locate button and the heading compass. What a distance sort still needs is the denied-permission
   path: **hide** the sort rather than show a dead control. This bullet used to say the package was
   absent, which was true when it was written and stopped being true when location tracking shipped.
-- **`@mj-studio/react-native-naver-map` is pinned exact at 2.7.1, and the pin is the point.** 2.9.0
-  changes nothing about clustering and bumps the native Naver SDK, so it would need
-  `expo prebuild --clean` plus a manual `runtimeVersion` bump — a caret would let an ordinary install
-  pull that in with neither. Our nil-icon patch is gone: the fix went upstream as PR #184 and ships
-  in 2.7.1, whose version restores `alpha` unconditionally and guards only the `iconImage`
-  assignment. Ours guarded both, so a failed image load left the marker permanently invisible.
+- **`@mj-studio/react-native-naver-map` is pinned exact, and the pin is the point.** The version
+  lives in `apps/mobile/package.json`. A newer release can bump the native Naver SDK, which would
+  need `expo prebuild --clean` plus a manual `runtimeVersion` bump — a caret would let an ordinary
+  install pull that in with neither. Our nil-icon patch is gone: the fix went upstream as PR #184,
+  whose version restores `alpha` unconditionally and guards only the `iconImage` assignment. Ours
+  guarded both, so a failed image load left the marker permanently invisible. The floor is 2.8.0,
+  the release that moved the iOS image loader off `RCTImageLoader` so every completion lands on the
+  main queue; below it, `imageCache` is written from a background queue while the main thread reads
+  it, over-releasing `NMFOverlayImage` — see spencer0124/skkuverse#53.
 - **`useMapConfig` must keep its never-throw fallback.** It is now the ONLY thing standing between a
   config hiccup and a festival that does not exist: the endpoint the booths arrive on is read off its
   layers, so a thrown config is a blank event map as well as a blank filter sheet. The offline
