@@ -77,6 +77,7 @@ const SCREEN_NAMES: Record<string, string> = {
   '/mini-app': 'mini_app_screen',
   // Dev
   '/sds-preview': 'dev_sds_preview',
+  '/place-sheet-preview': 'dev_place_sheet_preview',
 };
 
 function resolveScreenName(
@@ -411,6 +412,12 @@ export default function RootLayout() {
                     title: 'SDS Preview',
                     presentation: 'modal',
                   }}
+                />
+                {/* Pushed, not modal: the place sheet is portalled above the
+                    root Stack, and a native modal would cover it. */}
+                <Stack.Screen
+                  name="place-sheet-preview"
+                  options={{ title: 'Place sheet preview' }}
                 />
                 <Stack.Screen name="video-gallery" options={{ headerShown: false }} />
                 <Stack.Screen
