@@ -247,6 +247,32 @@ export {
   PLACE_SORTS,
 } from './map';
 export type { PlaceSortKey, VisibleOverlaysInput } from './map';
+export {
+  buildPlaceTabs,
+  dayLabelOf,
+  entryFeeRange,
+  festivalDaysOf,
+  formatPriceRange,
+  groupThousands,
+  highlightOf,
+  kstDateKey,
+} from './map';
+export type {
+  PlaceDays,
+  PlaceHighlight,
+  PlaceSectionKey,
+  PlaceTab,
+  PlaceTabKey,
+  PriceRange,
+} from './map';
+export type {
+  PlaceKind,
+  PlaceContent,
+  PlaceMenuItem,
+  PlaceMenuGroup,
+  PlaceEntryFee,
+  PlaceDetail,
+} from './types/placeDetail';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';
 
@@ -325,6 +351,8 @@ export {
   useLayerOverlays,
   MAP_LAYER_OVERLAYS_KEY,
   useWindowClock,
+  usePlaceDetail,
+  PLACE_DETAIL_KEY,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,

@@ -52,6 +52,16 @@ export type {
   LatLng,
 } from './map';
 
+// ── Place detail types ──
+export type {
+  PlaceKind,
+  PlaceContent,
+  PlaceMenuItem,
+  PlaceMenuGroup,
+  PlaceEntryFee,
+  PlaceDetail,
+} from './placeDetail';
+
 // ── Building types ──
 export type {
   LocalizedText,
