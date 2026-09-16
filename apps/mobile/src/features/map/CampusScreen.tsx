@@ -42,6 +42,7 @@ import {
   sortPlaces,
   isFestivalLayer,
   withoutFestival,
+  festivalDaysOf,
   DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
@@ -640,6 +641,19 @@ export function CampusScreen() {
   }, [eventOverlays]);
 
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
+
+  /**
+   * The festival's days, counted from every served place rather than configured
+   * — the server carries no calendar, and the places' own hours already say
+   * which days exist. A booth's 1일차/2일차 is its index in this list.
+   */
+  const festivalDays = useMemo(() => festivalDaysOf(eventOverlays), [eventOverlays]);
+
+  /** The tapped pin's layer label — what the sheet calls a place it has no detail for. */
+  const selectedCategoryLabel = useMemo(
+    () => mapConfig?.layers.find((l) => l.id === selectedPlace?.layerId)?.label ?? null,
+    [mapConfig, selectedPlace?.layerId],
+  );
 
   /**
    * Whether the marker request has come back at least once.
@@ -1552,6 +1566,8 @@ export function CampusScreen() {
           ref={peekSheetRef}
           place={selectedPlace}
           now={now}
+          festivalDays={festivalDays}
+          categoryLabel={selectedCategoryLabel}
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
           onNavigateAway={handlePeekNavigateAway}

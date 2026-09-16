@@ -389,7 +389,9 @@ export type CampusContentType =
   // events and drown the signal the user actually gave.
   | 'map_chip'
   | 'eventmap_sort'
-  | 'eventmap_list_row';
+  | 'eventmap_list_row'
+  // A tab press in a place sheet; `item_id` is the tab (`home` / `menu` / `info`).
+  | 'eventmap_detail_tab';
 export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
 }

@@ -3,7 +3,7 @@ title: The bottom sheet system
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-17
 audience: internal
 ---
 
@@ -257,10 +257,15 @@ schedule as the side inset.
 A `detached` sheet gets its content box shrunk to the visible card for free. A
 crossfading one does not. Gorhom sizes the content to the container, so a long
 list keeps drawing below the card's bottom edge, over the map, at the low
-detent. `EventMapPeekSheet` is the only sheet in this position, and it adds
-`bottomGap` to its scroll content's bottom padding — constant rather than
-animated, because the extra band is invisible once the sheet attaches and the
-floating tab bar sits over it anyway.
+detent. `EventMapPeekSheet` is the only sheet in this position.
+
+Padding the scroll content by `bottomGap` only moves the last row clear of that
+band, and the floating tab bar does not cover it while the modal is up. The place
+sheet fills its collapsed card to the edge on purpose, so it clips instead:
+`SheetCardClip` wraps the header and the scroll view in a view whose height and
+bottom corners follow the card, computed from the same `sheetChromeAt`. Only
+that wrapper's height changes per frame — what it holds is laid out once at the
+body's full height — so a drag still re-lays out one view.
 
 ## The glass rounds itself
 

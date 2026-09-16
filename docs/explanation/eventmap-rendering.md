@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-17
 audience: internal
 ---
 
@@ -174,8 +174,10 @@ Openness is a pure function of the device clock and the windows, and the server 
 hours.length === 0 || hours.some(w => now >= w.startAt && now < w.endAt)
 ```
 
-`packages/shared/src/map/window.ts` is the only implementation. `PlaceCard` turns it into one of
-three pills — open, upcoming, closed — and `resolvePinCollisions` reads it as step 1 of the ladder.
+`packages/shared/src/map/window.ts` is the only implementation. `opennessOf`
+(`apps/mobile/src/features/eventmap/place/placeFormat.ts`) turns it into one of three pills — open,
+upcoming, closed — for both the list row and the sheet, and `resolvePinCollisions` reads it as step 1
+of the ladder.
 
 ### 5.1 An empty list means always open, and only that
 
@@ -462,7 +464,8 @@ dispatcher is fire-and-forget and has no surface to render prose into. `miniapp`
 no button at all: the parser keeps them for contract fidelity, but a button that does nothing is
 worse than a missing one.
 
-**The peek sheet dismisses itself before it navigates.** `ActionButton` calls
+**The peek sheet dismisses itself before it navigates.** `usePlaceNavigate`
+(`apps/mobile/src/features/eventmap/place/PlaceActions.tsx`) calls
 `useBottomSheetModal().dismiss()` and only then `handleSduiAction`. This is not polish; without it
 the destination arrives damaged.
 
@@ -685,9 +688,12 @@ server opens the window**.
 | `packages/shared/src/hooks/useMapLayers.ts` | the one marker query, keyed on the endpoint (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/map/festivalGate.ts` | `isFestivalUnlocked()` — what decides whether the gate is open (§9) |
-| `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the fixed card layout; `compact` for list rows |
+| `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the list row's layout |
 | `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet; the only home for the sort control |
-| `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet + action buttons |
+| `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
+| `apps/mobile/src/features/eventmap/place/` | the sheet's body — summary, tabs, sections (§10) |
+| `packages/shared/src/map/placeDetail.ts` | `buildPlaceTabs`, `highlightOf`, `festivalDaysOf`, `dayLabelOf` — the sheet's decisions (§10) |
+| `packages/shared/src/hooks/usePlaceDetail.ts` | a place's detail; a development-only mock until the server serves one (§10) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
 | `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
 | `apps/mobile/src/features/map/components/MapOverlayLayer.tsx` | draws every `/map/config` layer, booth pins included; dispatches on each overlay's `kind`; applies the ladder to markers alone |
@@ -707,9 +713,32 @@ server opens the window**.
 `CampusNaverMap` needed **no change** through any of this — it forwards `children` verbatim into
 `NaverMapView`, and no phase has needed a new map-level prop.
 
-The card body is a fixed layout now. What `EventMapPeekSheet` keeps beyond it is the sheet chrome and
-the actions row, including `ActionButton`'s dismiss-before-navigate, which is a portal ordering
-constraint (§7.1) rather than a styling choice.
+## 10. The place sheet
+
+The sheet is one skeleton for every kind of place: a **summary** the collapsed card shows, then
+**tabs** (홈 · 메뉴 · 정보) below it. <!-- conventions:allow-korean: the tab labels the app shows -->
+What differs between a pub and a toilet is only which blocks are non-empty.
+`buildPlaceTabs` drops empty tabs; two or more make a tab bar that sticks once scrolled past, one is
+drawn without a bar, and none — a toilet — ends the sheet at its summary and shrinks the collapsed
+card to fit.
+
+- **The summary is at least as tall as the collapsed card's content area** (`place/sheetFold.ts`), so
+  the tab bar always starts under the fold. That is how "collapsed shows a summary, expanded shows
+  tabs" holds without reading the detent, which the sheet system rules out.
+- **Buttons come before the highlight.** The fold lands on the highlight card or the photo strip,
+  never on the row a visitor acts on.
+- **The content is clipped to the card** (`SheetCardClip.tsx`). Gorhom lays the body out as tall as
+  the top detent, so a summary that fills the card to its edge would otherwise draw over the map in
+  the band below it.
+
+What the server does not carry yet — the operating organisation, an intro and images, representative
+contents, a priced menu — is `PlaceDetail` (`packages/shared/src/types/placeDetail.ts`). Until the
+server serves it, `usePlaceDetail` answers from a mock keyed by the seed's slugs, **in development
+builds only**: the 2026 content will reuse the same slug scheme, and the beta channel sees the real
+festival the moment the server opens it. A release build resolves every place to no detail, which is
+the base skeleton plus the server's own `subtitle`, `fields` and `content` prose. The development
+menu in settings opens `/place-sheet-preview`, which shows every kind of place without a server
+window.
 
 ## 11. Gotchas
 

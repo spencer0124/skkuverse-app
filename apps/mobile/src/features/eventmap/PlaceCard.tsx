@@ -1,5 +1,9 @@
 /**
- * A place, drawn as a card.
+ * A place, drawn as a list row.
+ *
+ * The event list is the one caller left: the peek sheet grew its own summary
+ * (`place/PlaceSummary.tsx`), and both read status and hours from
+ * `place/placeFormat.ts` so the row and the sheet cannot disagree.
  *
  * **A fixed layout, deliberately.** This replaced `CardRenderer`, which drew
  * whatever slots a server-declared `cardTemplateId` resolved to. The template
@@ -9,11 +13,6 @@
  * the cost of a slot union, a resolver and a publish pipeline to keep them in
  * step. `fields` preserves the one ordering that was ever ops-driven.
  *
- * The open/closed pill is derived here rather than carried, and that is the same
- * decision the wire made when it dropped `status`: it was only ever a cache of
- * `isOpenNow`, and caching it made a place's openness disagree with its own
- * hours the moment the clock passed a boundary.
- *
  * `now` is a prop rather than a `Date.now()` call in the body, because the card
  * must re-derive when the clock crosses a boundary and nothing else changes —
  * `useWindowClock` upstream owns that timer. Reading the clock here would make
@@ -22,77 +21,14 @@
 
 import { StyleSheet, View } from 'react-native';
 import {
-  isOpenNow,
-  nextOpeningAfter,
   pickI18nText,
   SdsColors,
   useSettingsStore,
   useT,
   type MapOverlay,
-  type TimeWindow,
-  type TranslationKey,
-  type AppLanguage,
 } from '@skkuverse/shared';
 import { Badge, Txt } from '@skkuverse/sds';
-
-type Openness = 'open' | 'upcoming' | 'closed';
-
-const STATUS_LABEL: Record<Openness, TranslationKey> = {
-  open: 'eventmap.status.open',
-  upcoming: 'eventmap.status.upcoming',
-  closed: 'eventmap.status.closed',
-};
-
-const STATUS_STYLE: Record<Openness, { color: string; backgroundColor: string }> = {
-  open: { color: SdsColors.brand, backgroundColor: SdsColors.grey100 },
-  upcoming: { color: SdsColors.grey700, backgroundColor: SdsColors.grey100 },
-  closed: { color: SdsColors.grey500, backgroundColor: SdsColors.grey100 },
-};
-
-/**
- * Three states out of two functions.
- *
- * There is no fourth. `unknown` existed because the server could null both
- * bounds to mean "do not recompute", which is exactly the ambiguity the wire
- * removed: an empty `hours` is ALWAYS OPEN and nothing else, and a cancelled
- * place is not served at all.
- */
-function opennessOf(hours: readonly TimeWindow[], now: number): Openness {
-  if (isOpenNow(hours, now)) return 'open';
-  return nextOpeningAfter(hours, now) === null ? 'closed' : 'upcoming';
-}
-
-const HH_MM: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
-const M_D: Intl.DateTimeFormatOptions = { month: 'numeric', day: 'numeric' };
-
-/** BCP-47 tags for the app's three languages, for `toLocaleString`. */
-const LOCALE: Record<AppLanguage, string> = { ko: 'ko-KR', en: 'en-US', zh: 'zh-CN' };
-
-/**
- * Opening hours as one line.
- *
- * The server used to ship a formatted `hoursLabel` beside the instants. It does
- * not any more, and that is the right side of the trade: a formatted string
- * cannot follow the device's locale or its 24-hour setting, and the instants
- * were already on the wire for the arithmetic.
- *
- * The date is shown only when there is more than one window, which is exactly
- * when it disambiguates — a 주점 open on both festival nights needs to say which
- * night, a single-window booth does not. A window crossing midnight ends on the
- * next day's date, so `18:00–00:00` reads correctly without a special case.
- */
-function formatHours(hours: readonly TimeWindow[], lang: AppLanguage, always: string): string {
-  if (hours.length === 0) return always;
-  const locale = LOCALE[lang];
-  return hours
-    .map((w) => {
-      const start = new Date(w.startAt);
-      const end = new Date(w.endAt);
-      const span = `${start.toLocaleTimeString(locale, HH_MM)}–${end.toLocaleTimeString(locale, HH_MM)}`;
-      return hours.length > 1 ? `${start.toLocaleDateString(locale, M_D)} ${span}` : span;
-    })
-    .join(', ');
-}
+import { formatHours, opennessOf, STATUS_LABEL, STATUS_STYLE } from './place/placeFormat';
 
 interface PlaceCardProps {
   place: MapOverlay;
