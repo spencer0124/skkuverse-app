@@ -13,4 +13,7 @@ export {
   SHEET_RADIUS_FLOATING,
   SHEET_RADIUS_ATTACHED,
   DISPLAY_CORNER_RADIUS,
+  sheetChromeAt,
+  bottomCornerRadius,
+  type SheetChrome,
 } from './chrome';
