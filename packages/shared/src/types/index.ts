@@ -55,11 +55,14 @@ export type {
 // ── Place detail types ──
 export type {
   PlaceKind,
-  PlaceContent,
-  PlaceMenuItem,
-  PlaceMenuGroup,
-  PlaceEntryFee,
   PlaceDetail,
+  PlaceAction,
+  PlaceInstagramAction,
+  PlaceLinkAction,
+  PlaceBlock,
+  PlaceBlockType,
+  PlaceListItem,
+  PlaceTableRow,
 } from './placeDetail';
 
 // ── Building types ──

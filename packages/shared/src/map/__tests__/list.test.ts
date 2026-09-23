@@ -12,12 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { MapLayerDef, MapOverlay, MarkerOverlay } from '../../types/map';
-import { PLACE_SORTS, selectVisibleOverlays, sortPlaces } from '../list';
-
-const NOON = Date.parse('2026-09-16T12:00:00.000Z');
-const DAY = { startAt: '2026-09-16T11:00:00.000Z', endAt: '2026-09-16T15:00:00.000Z' };
-const NIGHT = { startAt: '2026-09-16T18:00:00.000Z', endAt: '2026-09-17T00:00:00.000Z' };
-const LATER = { startAt: '2026-09-16T22:00:00.000Z', endAt: '2026-09-17T02:00:00.000Z' };
+import { selectVisibleOverlays, sortPlaces } from '../list';
 
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   label: over.id,
@@ -110,6 +105,14 @@ describe('selectVisibleOverlays', () => {
     expect(selectVisibleOverlays({ markers, layers, state: off, now: NOW })).toEqual([]);
   });
 
+  it('skips an inert overlay: a label with nowhere to go gets no row', () => {
+    const withLabel = [...markers, place({ id: 'b1-label', layerId: 'eskara26_booth', tap: null })];
+    expect(ids(selectVisibleOverlays({ markers: withLabel, layers, state: state(), now: NOW }))).toEqual([
+      'b1',
+      'r1',
+    ]);
+  });
+
   it('preserves input order, so a sort applied upstream survives', () => {
     expect(ids(selectVisibleOverlays({ markers, layers, state: state(), now: NOW }))).toEqual([
       'b1',
@@ -119,76 +122,24 @@ describe('selectVisibleOverlays', () => {
 });
 
 describe('sortPlaces', () => {
-  it('order: by the author\'s position, ascending', () => {
-    const out = sortPlaces(
-      [place({ id: 'c', order: 30 }), place({ id: 'a', order: 10 }), place({ id: 'b', order: 20 })],
-      'order',
-      'ko',
-      NOON,
-    );
-    expect(ids(out)).toEqual(['a', 'b', 'c']);
-  });
-
-  it('title: by the string the CURRENT language renders', () => {
-    const a = place({ id: 'a', text: { ko: '나', en: 'Zulu' } });
-    const b = place({ id: 'b', text: { ko: '가', en: 'Alpha' } });
-    expect(ids(sortPlaces([a, b], 'title', 'ko', NOON))).toEqual(['b', 'a']);
-    expect(ids(sortPlaces([a, b], 'title', 'en', NOON))).toEqual(['b', 'a']);
-    const c = place({ id: 'c', text: { ko: '가', en: 'Zulu' } });
-    const d = place({ id: 'd', text: { ko: '나', en: 'Alpha' } });
-    // Same pair, opposite answers — which is the point of sorting on the
-    // rendered string rather than on `ko`.
-    expect(ids(sortPlaces([c, d], 'title', 'ko', NOON))).toEqual(['c', 'd']);
-    expect(ids(sortPlaces([c, d], 'title', 'en', NOON))).toEqual(['d', 'c']);
-  });
-
-  it('opening: open now first, then soonest, then never again', () => {
-    const openNow = place({ id: 'open', hours: [DAY] });
-    const soon = place({ id: 'soon', hours: [NIGHT] });
-    const later = place({ id: 'later', hours: [LATER] });
-    const done = place({ id: 'done', hours: [{ startAt: '2026-09-15T11:00:00.000Z', endAt: '2026-09-15T15:00:00.000Z' }] });
-    expect(ids(sortPlaces([done, later, soon, openNow], 'opening', 'ko', NOON))).toEqual([
-      'open',
-      'soon',
-      'later',
-      'done',
+  it("by the author's position, ascending", () => {
+    const out = sortPlaces([
+      place({ id: 'c', order: 30 }),
+      place({ id: 'a', order: 10 }),
+      place({ id: 'b', order: 20 }),
     ]);
-  });
-
-  it('opening: an always-open place sorts with the open ones, not at the top of "soonest"', () => {
-    const always = place({ id: 'toilet', hours: [] });
-    const soon = place({ id: 'soon', hours: [NIGHT] });
-    expect(ids(sortPlaces([soon, always], 'opening', 'ko', NOON))).toEqual(['toilet', 'soon']);
-  });
-
-  it('opening: two open places tie and fall through to id, not to input order', () => {
-    // Both rank -Infinity. A subtracting comparator would produce NaN here,
-    // which is neither 0 nor a sign, so the id fallthrough would never run and
-    // the list would reshuffle at every clock boundary.
-    const b = place({ id: 'b', hours: [DAY] });
-    const a = place({ id: 'a', hours: [] });
-    expect(ids(sortPlaces([b, a], 'opening', 'ko', NOON))).toEqual(['a', 'b']);
-  });
-
-  it('opening: two finished places tie the same way', () => {
-    const past = { startAt: '2026-09-15T11:00:00.000Z', endAt: '2026-09-15T15:00:00.000Z' };
-    const b = place({ id: 'b', hours: [past] });
-    const a = place({ id: 'a', hours: [past] });
-    expect(ids(sortPlaces([b, a], 'opening', 'ko', NOON))).toEqual(['a', 'b']);
+    expect(ids(out)).toEqual(['a', 'b', 'c']);
   });
 
   it('never mutates its input', () => {
     const input = [place({ id: 'b', order: 2 }), place({ id: 'a', order: 1 })];
-    sortPlaces(input, 'order', 'ko', NOON);
+    sortPlaces(input);
     expect(ids(input)).toEqual(['b', 'a']);
   });
 
-  it('every offered sort is total', () => {
+  it('is total: an order tie falls through to id, not to input order', () => {
     // A tie anywhere makes the result depend on input order, and the input is
     // re-derived on every clock boundary.
-    const pair = [place({ id: 'b' }), place({ id: 'a' })];
-    for (const sort of PLACE_SORTS) {
-      expect(ids(sortPlaces(pair, sort, 'ko', NOON))).toEqual(['a', 'b']);
-    }
+    expect(ids(sortPlaces([place({ id: 'b' }), place({ id: 'a' })]))).toEqual(['a', 'b']);
   });
 });

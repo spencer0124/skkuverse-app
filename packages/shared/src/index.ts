@@ -237,41 +237,30 @@ export type { LayerVisibilityState, PinCandidate } from './map';
 //
 // The snapshot tier is gone. `/eventmap/manifest` and `/eventmap/snapshot` were
 // deleted server-side and the place documents they carried now ride on the
-// ordinary marker wire, so what used to be a module of its own is the list and
-// sort rules in `./map` plus the two UI choices below.
+// ordinary marker wire, so what used to be a module of its own is the list
+// rules in `./map` plus the store below.
+export { selectVisibleOverlays, sortPlaces, pickI18nText, wrapMarkerLabel } from './map';
+export type { VisibleOverlaysInput } from './map';
 export {
-  selectVisibleOverlays,
-  sortPlaces,
-  pickI18nText,
-  wrapMarkerLabel,
-  PLACE_SORTS,
-} from './map';
-export type { PlaceSortKey, VisibleOverlaysInput } from './map';
-export {
-  buildPlaceTabs,
+  highlightBlock,
+  firstImageUrl,
+  HIGHLIGHT_MAX,
+  placeSections,
   dayLabelOf,
-  entryFeeRange,
   festivalDaysOf,
-  formatPriceRange,
-  groupThousands,
-  highlightOf,
   kstDateKey,
 } from './map';
-export type {
-  PlaceDays,
-  PlaceHighlight,
-  PlaceSectionKey,
-  PlaceTab,
-  PlaceTabKey,
-  PriceRange,
-} from './map';
+export type { PlaceDays, PlaceSectionKey } from './map';
 export type {
   PlaceKind,
-  PlaceContent,
-  PlaceMenuItem,
-  PlaceMenuGroup,
-  PlaceEntryFee,
   PlaceDetail,
+  PlaceAction,
+  PlaceInstagramAction,
+  PlaceLinkAction,
+  PlaceBlock,
+  PlaceBlockType,
+  PlaceListItem,
+  PlaceTableRow,
 } from './types/placeDetail';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';

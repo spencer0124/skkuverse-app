@@ -24,7 +24,7 @@ import {
   type SheetRef,
 } from '@skkuverse/sds';
 import { EventMapPeekSheet } from '../EventMapPeekSheet';
-import { PREVIEW_LAYER_LABELS, previewPlaces, type PreviewClock } from './mockOverlays';
+import { previewPlaces, type PreviewClock } from './mockOverlays';
 
 const CLOCKS: { value: PreviewClock; label: string }[] = [
   { value: 'open', label: '운영 중' },
@@ -112,7 +112,6 @@ export function PlaceSheetPreviewScreen() {
         place={selected}
         now={now}
         festivalDays={festivalDays}
-        categoryLabel={selected ? (PREVIEW_LAYER_LABELS[selected.layerId] ?? null) : null}
         bottomGap={insets.bottom + SHEET_FLOAT_INSET}
         onDismiss={onDismiss}
         onNavigateAway={onNavigateAway}

@@ -1,133 +1,132 @@
 /**
- * The collapsed sheet's one extra block — what a place serves or runs.
+ * The one block the collapsed sheet lifts above the fold.
  *
- * Which block, and how many lines, is `highlightOf`'s decision
- * (`packages/shared/src/map/placeDetail.ts`); this file only draws it. The card
- * paints its own fill, because the collapsed sheet is glass and a block without
- * one is text over a moving map (`bottom-sheet-system.md`, "Each block paints
- * its own fill").
+ * WHICH block is `highlightBlock`'s decision
+ * (`packages/shared/src/map/placeDetail.ts`) — the first `list` or `table` in
+ * the body, so the operator chooses it by ordering their blocks rather than by
+ * a per-kind table written here. This file only draws it, in two shapes:
+ *
+ * - a `list` becomes a row of pills, which is what a booth's contents want;
+ * - a `table` becomes a card — thumbnail, label, first row, and "외 N개".
+ *
+ * The card paints its own fill, because the collapsed sheet is glass and a
+ * block without one is text over a moving map (`bottom-sheet-system.md`, "Each
+ * block paints its own fill").
  */
 
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  formatPriceRange,
-  groupThousands,
+  HIGHLIGHT_MAX,
   pickI18nText,
   SdsColors,
   SdsRadius,
   SdsSpacing,
   useSettingsStore,
   useT,
-  type PlaceHighlight as Highlight,
-  type PlaceMenuItem,
+  type PlaceBlock,
+  type PlaceListItem,
+  type PlaceTableRow,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { SHEET_GUTTER } from './layout';
 
-export function PlaceHighlight({ highlight }: { highlight: Highlight }) {
-  const { t, tpl } = useT();
+export function PlaceHighlight({ block }: { block: PlaceBlock }) {
+  if (block.type === 'list') {
+    return <ListPills items={block.items} />;
+  }
+  if (block.type === 'table') {
+    return <TableCard title={block.title} rows={block.rows} />;
+  }
+  return null;
+}
+
+function ListPills({ items }: { items: readonly PlaceListItem[] }) {
   const lang = useSettingsStore((s) => s.appLanguage);
+  const shown = items.slice(0, HIGHLIGHT_MAX.list);
+  if (shown.length === 0) return null;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[styles.pills, styles.pillBleed]}
+      contentContainerStyle={styles.pillRow}
+    >
+      {shown.map((item, index) => (
+        <View key={`${item.title.ko}-${index}`} style={styles.pill}>
+          <Text style={styles.emoji}>{item.emoji ?? '✨'}</Text>
+          <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey900} numberOfLines={1}>
+            {pickI18nText(item.title, lang)}
+          </Txt>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
 
-  if (highlight.type === 'text') {
-    return (
-      <View style={styles.card}>
-        <Txt typography="t6" color={SdsColors.grey800} numberOfLines={2}>
-          {pickI18nText(highlight.text, lang)}
-        </Txt>
-      </View>
-    );
-  }
+function TableCard({ title, rows }: { title: PlaceBlock['title']; rows: readonly PlaceTableRow[] }) {
+  const { tpl } = useT();
+  const lang = useSettingsStore((s) => s.appLanguage);
+  const first = rows[0];
+  if (first === undefined) return null;
 
-  if (highlight.type === 'contents') {
-    return (
-      <View style={styles.card}>
-        <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
-          {t('eventmap.section.contents')}
-        </Txt>
-        {highlight.items.map((content, i) => (
-          <View key={`${content.title.ko}-${i}`} style={styles.contentRow}>
-            <Txt typography="t6" fontWeight="semiBold" color={SdsColors.grey900} numberOfLines={1}>
-              {pickI18nText(content.title, lang)}
-            </Txt>
-            {content.description ? (
-              <Txt typography="t7" color={SdsColors.grey600} numberOfLines={1}>
-                {pickI18nText(content.description, lang)}
-              </Txt>
-            ) : null}
-          </View>
-        ))}
-        {highlight.more > 0 ? <More text={tpl('eventmap.menu.more', highlight.more)} /> : null}
-      </View>
-    );
-  }
+  const more = Math.max(0, rows.length - HIGHLIGHT_MAX.table);
+  const value = pickI18nText(first.value, lang);
+  const description = more > 0 ? `${value} · ${tpl('eventmap.menu.more', more)}` : value;
 
   return (
     <View style={styles.card}>
-      {/* The entry fee rides on the label's line: it is one number, and a row
-          of its own would push a menu line under the collapsed card's edge. */}
-      <View style={styles.headerRow}>
-        <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
-          {t('eventmap.highlight.menu')}
-        </Txt>
-        {highlight.entryFee ? (
-          <Txt typography="t7" color={SdsColors.grey600}>
-            {`${t('eventmap.section.entryFee')} ${tpl('eventmap.price', formatPriceRange(highlight.entryFee))}`}
+      <View style={styles.copy}>
+        {title ? (
+          <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey600}>
+            {pickI18nText(title, lang)}
           </Txt>
         ) : null}
-      </View>
-      {highlight.items.map((item, i) => (
-        <MenuLine key={`${item.name.ko}-${i}`} item={item} />
-      ))}
-      {highlight.more > 0 ? <More text={tpl('eventmap.menu.more', highlight.more)} /> : null}
-    </View>
-  );
-}
-
-function MenuLine({ item }: { item: PlaceMenuItem }) {
-  const { tpl } = useT();
-  const lang = useSettingsStore((s) => s.appLanguage);
-  const price =
-    item.price !== null
-      ? tpl('eventmap.price', groupThousands(item.price))
-      : item.note
-        ? pickI18nText(item.note, lang)
-        : null;
-  return <Line name={pickI18nText(item.name, lang)} price={price} />;
-}
-
-function Line({ name, price }: { name: string; price: string | null }) {
-  return (
-    <View style={styles.line}>
-      <Txt typography="t6" color={SdsColors.grey900} numberOfLines={1} style={styles.lineName}>
-        {name}
-      </Txt>
-      {price !== null ? (
-        <Txt typography="t6" fontWeight="semiBold" color={SdsColors.grey900}>
-          {price}
+        <Txt typography="t6" fontWeight="semiBold" color={SdsColors.grey900} numberOfLines={1}>
+          {pickI18nText(first.label, lang)}
         </Txt>
-      ) : null}
+        <Txt typography="t7" color={SdsColors.grey600} numberOfLines={1}>
+          {description}
+        </Txt>
+      </View>
     </View>
-  );
-}
-
-function More({ text }: { text: string }) {
-  return (
-    <Txt typography="t7" color={SdsColors.grey500}>
-      {text}
-    </Txt>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    gap: SdsSpacing.xs,
-    paddingHorizontal: SdsSpacing.base,
-    paddingVertical: SdsSpacing.md,
+    flexDirection: 'row',
+    gap: SdsSpacing.sm,
+    minHeight: 72,
+    padding: SdsSpacing.sm,
     borderRadius: SdsRadius.lg,
     backgroundColor: SdsColors.grey50,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', gap: SdsSpacing.sm },
-  contentRow: { gap: 1, marginTop: 2 },
-  line: { flexDirection: 'row', alignItems: 'baseline', gap: SdsSpacing.md },
-  lineName: { flex: 1 },
+  thumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: SdsRadius.md,
+    backgroundColor: SdsColors.grey100,
+  },
+  copy: { flex: 1, justifyContent: 'center', gap: 1 },
+  pillRow: { paddingHorizontal: SHEET_GUTTER, gap: SdsSpacing.sm },
+  // A horizontal ScrollView otherwise expands into the summary's height,
+  // separating the photo peek from the compact content pills.
+  pills: { flexGrow: 0 },
+  pillBleed: { marginHorizontal: -SHEET_GUTTER },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 36,
+    maxWidth: 164,
+    paddingHorizontal: SdsSpacing.sm,
+    borderRadius: 18,
+    backgroundColor: SdsColors.grey50,
+  },
+  emoji: {
+    fontFamily: 'TossFaceFontMac',
+    fontSize: 14,
+    lineHeight: 16,
+  },
 });

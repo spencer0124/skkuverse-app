@@ -19,16 +19,17 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
-import { SdsSpacing, useT, type MapOverlay } from '@skkuverse/shared';
+import { pickI18nText, SdsColors, SdsSpacing, useSettingsStore, useT, type MapOverlay } from '@skkuverse/shared';
 import {
   Sheet,
   SheetCloseButton,
   SHEET_DETENT_PERCENT,
+  Txt,
   type SheetPosition,
   type SheetRef,
 } from '@skkuverse/sds';
 import { placeIdOf, PlaceSheetScroll } from './place/PlaceSheetScroll';
-import { fittedDetentHeight } from './place/sheetFold';
+import { collapsedDetentHeight } from './place/sheetFold';
 import { SHEET_HANDLE_HEIGHT, SheetCardClip } from './SheetCardClip';
 
 /**
@@ -36,8 +37,6 @@ import { SHEET_HANDLE_HEIGHT, SheetCardClip } from './SheetCardClip';
  * added to it.
  */
 const CONTENT_BOTTOM_PAD = 32;
-/** A sheet that ends at its summary has no list to pad below. */
-const FITTED_BOTTOM_PAD = SdsSpacing.xs;
 
 /** The pinned header before it has been measured: a 32pt button and its padding. */
 const HEADER_ESTIMATE = 40;
@@ -47,15 +46,13 @@ const EXPANDABLE: SheetPosition = { kind: 'expandable', detents: DETENTS };
 
 interface EventMapPeekSheetProps {
   place: MapOverlay | null;
-  /** From `useWindowClock`, so the pill matches the pin that was tapped. */
+  /** From `useWindowClock`, so the status sentence matches the tapped pin. */
   now: number;
   /**
-   * Every festival day the served places open on, from `festivalDaysOf` over
-   * all event overlays — the base a place's 1일차/2일차 is counted from.
+   * Every KST day the served places open on, from `festivalDaysOf` over all
+   * event overlays — the base a place's 1일차/2일차 is counted from.
    */
   festivalDays: readonly string[];
-  /** The tapped pin's layer label, for a place that has no detail to name its kind. */
-  categoryLabel: string | null;
   /**
    * Gap between the card's bottom edge and the screen's, in the modal's own
    * (window) coordinates — the campus card's edge restated, so the two cards
@@ -76,14 +73,14 @@ interface EventMapPeekSheetProps {
 
 export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
   function EventMapPeekSheet(
-    { place, now, festivalDays, categoryLabel, bottomGap, onDismiss, onNavigateAway },
+    { place, now, festivalDays, bottomGap, onDismiss, onNavigateAway },
     ref,
   ) {
     const { t } = useT();
+    const lang = useSettingsStore((s) => s.appLanguage);
     const { height: windowHeight } = useWindowDimensions();
 
     const [headerHeight, setHeaderHeight] = useState(HEADER_ESTIMATE);
-    const [hasTabs, setHasTabs] = useState(true);
     const [contentHeight, setContentHeight] = useState<number | null>(null);
     const chromeAbove = SHEET_HANDLE_HEIGHT + headerHeight;
 
@@ -101,32 +98,31 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
       setHeaderHeight(e.nativeEvent.layout.height);
     }, []);
 
-    // A place with nothing below its summary — a toilet — is shrunk to the
-    // summary, so the collapsed card is not mostly empty glass. The top detent
-    // stays `large`: that is what makes this sheet crossfade, and switching the
-    // sheet between crossfading and floating per place would swap its whole
-    // background mid-presentation.
-    const fitted = hasTabs
-      ? null
-      : fittedDetentHeight({
-          containerHeight: windowHeight,
-          detentPercent: SHEET_DETENT_PERCENT.small,
-          bottomGap,
-          chromeAbove,
-          contentHeight,
-        });
+    // The default mid-size detent for anything with a real body; only a place
+    // whose whole sheet is shorter than that shrinks, so a toilet does not float
+    // a card of empty glass. One rule for every place, so nothing branches on
+    // whether a place has a detail. The top detent stays `large`: that is what
+    // makes this sheet crossfade, and switching between crossfading and floating
+    // per place would swap its whole background mid-presentation.
+    const collapsed = collapsedDetentHeight({
+      containerHeight: windowHeight,
+      detentPercent: SHEET_DETENT_PERCENT.small,
+      bottomGap,
+      chromeAbove,
+      contentHeight,
+    });
     const position = useMemo<SheetPosition>(
       () =>
-        fitted === null
+        collapsed === null
           ? EXPANDABLE
-          : { kind: 'expandable', detents: DETENTS, heights: { small: fitted } },
-      [fitted],
+          : { kind: 'expandable', detents: DETENTS, heights: { small: collapsed } },
+      [collapsed],
     );
 
     // Room under the last row once the sheet attaches and runs to the screen's
     // bottom edge. `bottomGap` already clears the home indicator in both
     // callers; the band below the floating card is `SheetCardClip`'s job.
-    const bottomPadding = (hasTabs ? CONTENT_BOTTOM_PAD : FITTED_BOTTOM_PAD) + bottomGap;
+    const bottomPadding = CONTENT_BOTTOM_PAD + bottomGap;
 
     return (
       <Sheet
@@ -157,10 +153,19 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
           lastIndex={DETENTS.length - 1}
           bottomGap={bottomGap}
         >
-          {/* The X is a sibling of the scroll view, pinned: inside it, it would
-              ride up and out of reach once the tabs outgrew the sheet. No title
-              beside it — the summary carries its own. */}
+          {/* The title and X stay pinned together while the sheet body scrolls. */}
           <View style={styles.header} onLayout={onHeaderLayout}>
+            {place ? (
+              <Txt
+                typography="t5"
+                fontWeight="bold"
+                color={SdsColors.grey900}
+                numberOfLines={2}
+                style={styles.headerTitle}
+              >
+                {pickI18nText(place.text, lang)}
+              </Txt>
+            ) : null}
             <SheetCloseButton label={t('common.close')} />
           </View>
           {place ? (
@@ -168,12 +173,8 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
               place={place}
               now={now}
               festivalDays={festivalDays}
-              categoryLabel={categoryLabel}
-              bottomGap={bottomGap}
-              chromeAbove={chromeAbove}
               bottomPadding={bottomPadding}
               onNavigateAway={onNavigateAway}
-              onHasTabs={setHasTabs}
               onContentHeight={setContentHeight}
             />
           ) : (
@@ -188,7 +189,8 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    gap: SdsSpacing.sm,
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
@@ -196,5 +198,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
+  headerTitle: { flex: 1, paddingTop: 5 },
   empty: { flex: 1 },
 });

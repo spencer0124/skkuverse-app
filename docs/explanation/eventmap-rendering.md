@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-17
+last-updated: 2026-09-22
 audience: internal
 ---
 
@@ -48,7 +48,7 @@ fetches are the data the list and the peek sheet render.** What left the client 
 | `useEventMap`, the manifest and snapshot queries, the MMKV last-known-good cache | `useLayerOverlays` on the festival layer's own `endpoint` |
 | `schemaVersion` and its exact-match gate | nothing — there is no envelope left to version |
 | `cardTemplates`, `EventMapCardSlot`, `resolveSlots`, `CardRenderer` | `PlaceCard`, a fixed layout over `subtitle` / `hours` / `fields` |
-| `sorts` declared by the server | `PLACE_SORTS` in `map/list.ts`, labelled by translation |
+| `sorts` declared by the server | nothing — the list has one order, the author's `order` (§4.2) |
 | `status` on the wire, `ItemStatus`, `deriveItemStatus` | `isOpenNow(hours, now)` (§5) |
 | `stackKey`, `buildStacks`, stacked peek cards | `resolvePinCollisions` (§6.3); a tap is one place |
 | `eventmap-refresh` silent push, `services/silent-push.ts` | nothing — the server deleted the sender |
@@ -123,6 +123,11 @@ A marker naming a layer this build was not served is not listed. There is no pin
 marker route serves markers per served layer — so the two stay in step for an id outside the
 activation window too.
 
+**An inert overlay (`tap: null`) is not listed.** A row is a way to a place, and a background zone or
+a label-only overlay has nowhere to go: listing it would open an all-but-empty sheet. It is still
+drawn — the filter is on the list, not on the render loop — so a zone's label can share its layer
+and switch on and off with it without adding a row.
+
 **The list describes the layer. The pin describes the coordinate.** A place suppressed by the
 collision ladder (§6.3) keeps its row: losing a shared spot to whoever is open at this hour says
 nothing about whether the place exists. This is the one place the two views deliberately differ, and
@@ -143,28 +148,24 @@ the same detent, list and all, when the peek sheet is dismissed — the hand-off
   the festival pins and flies there but leaves the feed in the sheet. If that reads wrong on device,
   the alternative — showing the list whenever any event layer is visible — would replace the feed for
   the whole festival, which is a product call rather than a code one.
+- **A narrowing with no row shows no list.** A chip whose layers hold only inert overlays — the 통제 <!-- conventions:allow-korean: the chip label the app shows -->
+  zones are drawn, not pressed — moves the camera and leaves the sheet where it was, the way the reset
+  chip does. That is read off the listed places rather than declared on the chip: a flag saying "this
+  chip opens no list" could disagree with the places actually served, and whether the list is empty
+  depends on the user's own layer toggles, which the server cannot see.
 
 Every place stays reachable by a pin tap, a deep link and an already-open peek sheet regardless of
 the filter (`placesById` is built from **all** event markers): a shared link must reach a booth whose
 layer the recipient happens to have hidden, and hiding a layer must not slam shut a sheet someone is
 reading.
 
-### 4.2 Sort is only observable in the list
+### 4.2 One order: the author's
 
-The orders are the client's own — `PLACE_SORTS` in `map/list.ts`, one translation key each. The
-snapshot used to declare them with server-authored labels, and there is no snapshot; the marker wire
-carries `order` and `hours`, which is everything the three comparators need.
+The list has no sort control and no count header. `sortPlaces` (`map/list.ts`) orders the rows by
+the marker's `order`, ascending — the position ops authored — and that is the only order there is.
 
-Sorting has no effect on pins, which are positional, nor inside the peek sheet, which now shows one
-place. It is visible **only** in `EventListPanel`, and so the sort control lives there and
-deliberately not in `FilterSheet` — a sort selector beside the filters would be a control that
-appears to do nothing, the same dead-control shape a permission-denied distance sort would be.
-
-Every comparator ends at `id`. The list re-derives at every clock boundary, so a tie is a list that
-reshuffles itself while it is being read. The `opening` comparator **compares rather than
-subtracts** for the same reason: two open places both rank `-Infinity`, and `Infinity - Infinity` is
-`NaN`, which is neither zero nor a sign — so a subtracting comparator would skip the `id` tiebreak
-and put the order back at the mercy of input order.
+It ends at `id`. The list re-derives at every clock boundary, so a tie is a list that reshuffles
+itself while it is being read.
 
 ## 5. Openness
 
@@ -465,7 +466,7 @@ no button at all: the parser keeps them for contract fidelity, but a button that
 worse than a missing one.
 
 **The peek sheet dismisses itself before it navigates.** `usePlaceNavigate`
-(`apps/mobile/src/features/eventmap/place/PlaceActions.tsx`) calls
+(`apps/mobile/src/features/eventmap/place/navigate.ts`) calls
 `useBottomSheetModal().dismiss()` and only then `handleSduiAction`. This is not polish; without it
 the destination arrives damaged.
 
@@ -566,41 +567,22 @@ release.
 
 ## 8. State
 
-`useEventMapStore` (Zustand):
+`useEventMapStore` (Zustand) holds one thing, `selectedPlaceId` — which place's peek sheet is open.
 
-```ts
-{ activeLayerSetId, sortId, selectedPlaceId }
-```
+**Not persisted.** A peek sheet reopening on cold start, for a booth tapped yesterday, is never right.
+The store used to persist a sort and the layer set it was keyed to; the list has one order now (§4.2),
+so both went with it. Installs that ran an older build keep a stale `eventmap` key in MMKV that
+nothing reads.
 
-Persisted: `activeLayerSetId` and `sortId`. Never `selectedPlaceId` — a peek sheet reopening on cold
-start, for a booth tapped yesterday, is never right.
-
-`sortId` is one of `PLACE_SORTS`, the client's own set. It used to be an id chosen from a `sorts`
-array the snapshot declared, which is why the v4 migration **drops a stored value that is not one of
-this build's keys**: a persisted `'manual'` or `'distance'` would leave the list on an order nothing
-can render. `syncLayerSet` resets the sort when the live layer set changes — a different event starts
-clean — keyed on the festival layers' `chipGroupId`, which is the layer set id by another name and
-the one thing on `/map/config` that turns over when next year's festival replaces this one.
-
-**The persisted blob is schema-versioned**, with `version` and `migrate` in
-`packages/shared/src/store/eventmap.ts`. Every bump so far has been a key leaving: `clockOffset`,
-then `layerVisibility` and `selectedChips`, and now `selectedStackKey` with the snapshot tier that
-produced stacks. Dropping a key from `partialize` only stops new writes — persist shallow-merges the
-stored blob over the initial state, so an existing install would rehydrate it as a property the types
-no longer describe. Every bump is **one-directional**: an OTA rollback to a bundle published before
-it finds the newer `version` in MMKV, has no way down, and discards the blob, so the sort reverts to
-the default. Nothing irreplaceable is lost, but it is silent.
-
-Both writers — `setSortId` and `setSelectedPlaceId` — are user gestures, and that is a constraint
-rather than a coincidence: a write here re-renders every consumer and costs an MMKV write. Nothing on
-a polling cadence belongs in this store. The clock offset used to be written on every manifest poll,
-which re-rendered `CampusScreen` for the whole of an event without changing a single derived value.
+Its one writer, `setSelectedPlaceId`, is a user gesture, and that is a constraint rather than a
+coincidence: a write here re-renders every consumer. Nothing on a polling cadence belongs in this
+store. The clock offset used to be written on every manifest poll, which re-rendered `CampusScreen`
+for the whole of an event without changing a single derived value.
 
 **Layer visibility is not here.** Festival layers are ordinary `/map/config` layers, so their
 visibility lives in `useMapLayerStore` with every other layer's — ephemeral, seeded by nothing at
-all, holding only the user's own `overrides` and a transient `chip` (§5.4). Two stores, two
-lifetimes: that one is the map's, this one is the event's, and keeping event keys out of the map's is
-what stops a persisted blob accumulating a festival's worth of dead ids.
+all, holding only the user's own `overrides` and a transient `chip` (§5.4). Two stores: that one is
+the map's, this one is the event's.
 
 ### 8.1 `basemapOverride` is gone
 
@@ -679,7 +661,7 @@ server opens the window**.
 | `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` — absolute instants (§5) |
 | `packages/shared/src/map/daily-window.ts` | `kstMinutesOfDay`, `isDailyWindowOpen`, `nextDailyBoundaryAfter` — recurring KST wall-clock (§5.4) |
 | `packages/shared/src/map/pins.ts` | `resolvePinCollisions` — the coordinate ladder (§6.3) |
-| `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` and `PLACE_SORTS` (§4.2) |
+| `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` (§4.2) |
 | `packages/shared/src/map/text.ts` | `pickI18nText` — the one place a language is chosen |
 | `packages/shared/src/map/chips.ts` | `isLayerVisible` (the four tiers, §5.4), `defaultVisibleAt`, and the chip rules the list borrows (§4.1) |
 | `packages/shared/src/store/map.ts` | `overrides` and the transient `chip` — what the user expressed, and nothing else (§5.4) |
@@ -689,10 +671,10 @@ server opens the window**.
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/map/festivalGate.ts` | `isFestivalUnlocked()` — what decides whether the gate is open (§9) |
 | `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the list row's layout |
-| `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet; the only home for the sort control |
+| `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
-| `apps/mobile/src/features/eventmap/place/` | the sheet's body — summary, tabs, sections (§10) |
-| `packages/shared/src/map/placeDetail.ts` | `buildPlaceTabs`, `highlightOf`, `festivalDaysOf`, `dayLabelOf` — the sheet's decisions (§10) |
+| `apps/mobile/src/features/eventmap/place/` | the sheet: summary, facts card, and `PlaceBlocks` for the composed body (§10) |
+| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock`, `festivalDaysOf`, `dayLabelOf` — the sheet's decisions (§10) |
 | `packages/shared/src/hooks/usePlaceDetail.ts` | a place's detail; a development-only mock until the server serves one (§10) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
 | `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
@@ -715,30 +697,75 @@ server opens the window**.
 
 ## 10. The place sheet
 
-The sheet is one skeleton for every kind of place: a **summary** the collapsed card shows, then
-**tabs** (홈 · 메뉴 · 정보) below it. <!-- conventions:allow-korean: the tab labels the app shows -->
-What differs between a pub and a toilet is only which blocks are non-empty.
-`buildPlaceTabs` drops empty tabs; two or more make a tab bar that sticks once scrolled past, one is
-drawn without a bar, and none — a toilet — ends the sheet at its summary and shrinks the collapsed
-card to fit.
+The sheet is a **structured head** every place shares and a **body the operator composes**.
 
-- **The summary is at least as tall as the collapsed card's content area** (`place/sheetFold.ts`), so
-  the tab bar always starts under the fold. That is how "collapsed shows a summary, expanded shows
-  tabs" holds without reading the detent, which the sheet system rules out.
-- **Buttons come before the highlight.** The fold lands on the highlight card or the photo strip,
-  never on the row a visitor acts on.
-- **The content is clipped to the card** (`SheetCardClip.tsx`). Gorhom lays the body out as tall as
-  the top detent, so a summary that fills the card to its edge would otherwise draw over the map in
-  the band below it.
+```text
+[pinned]  title
+status    open now · day 2          statusLineOf + dayLabelOf
+meta      <locationLabel> · <org>
+highlight the first list or table block, lifted above the fold
+─ collapsed card ends about here ─
+facts     location · hours · instagram · links · notices
+blocks    text · list · table · image · notice, in the authored order
+```
 
-What the server does not carry yet — the operating organisation, an intro and images, representative
-contents, a priced menu — is `PlaceDetail` (`packages/shared/src/types/placeDetail.ts`). Until the
-server serves it, `usePlaceDetail` answers from a mock keyed by the seed's slugs, **in development
-builds only**: the 2026 content will reuse the same slug scheme, and the beta channel sees the real
-festival the moment the server opens it. A release build resolves every place to no detail, which is
-the base skeleton plus the server's own `subtitle`, `fields` and `content` prose. The development
-menu in settings opens `/place-sheet-preview`, which shows every kind of place without a server
-window.
+**The facts card is the floor, and it is always mounted.** `placeSections` returns `['facts']` for a
+place with no detail at all, which is 56 of the 67 the server serves — every one of them carries
+`hours` on the overlay wire, and gating the card away took their opening times with it. Only
+`locationLabel` fills the location row. The wire's `subtitle` is whatever ops wrote — a bay number,
+a kind and a day, an operating note, a shuttle route — so half the bars would read
+"location: 연합 주점". <!-- conventions:allow-korean: the subtitle ops authored, quoted -->
+It belongs in the meta line instead, where every one of those readings is correct.
+
+### 10.1 Why the body is blocks
+
+The council's requirement sheet names twelve categories whose bodies share almost nothing: a booth
+wants an introduction and a list of games, a goods shop wants an item/price table plus payment and
+pickup instructions, a barrier-free zone wants three prose paragraphs, a toilet wants nothing. A
+typed field per category means a client release every time ops needs a shape the app has not shipped.
+
+So `PlaceDetail.blocks` is an ordered list of five types — `text`, `list`, `table`, `image`,
+`notice` — and a new category becomes an authoring change. `MapPlaceDoc` grows one field rather than
+ten. The wire already had a primitive form of this: a `content` MarkerAction carries free text
+(`daybooth-01`'s reward explainer).
+
+Three rules are load-bearing:
+
+- **`type` is an OPEN enum.** An unknown block is dropped on its own, and the switch in
+  `place/PlaceBlocks.tsx` deliberately has no exhaustive `never` arm — one would blank a whole body
+  on an older build the day a sixth type ships. Same discipline as `OVERLAY_KINDS`.
+- **Style belongs to the type, not the block.** The operator picks which blocks and in what order,
+  never how they look. A per-block styling knob multiplies the design surface by every place.
+- **The highlight is the first `list` or `table`** (`highlightBlock`), so the operator chooses what
+  the collapsed card leads with by ordering their blocks. That replaced a per-kind fallback table;
+  nothing branches rendering on `PlaceKind` any more. The kind is kept for the list's filters.
+
+Anything genuinely long-form stays a **link out** rather than an embed: `goods-shop` and `preorder`
+already carry a goods-guide `webview` action to `webview.skkuverse.com/eskara/goods`. A web view inside the
+sheet would bring a second scroller into the one slot gorhom allows (§"a gorhom scrollable cannot
+nest inside another"), report its height only after first paint, and load once per pin on the worst
+network day of the year.
+
+### 10.2 The collapsed card follows the summary
+
+`collapsedDetentHeight` (`place/sheetFold.ts`) is one rule for every place: the summary, a sliver of
+the facts card, capped at the default detent. It replaced two competing paths — one padded the
+summary out to the fold, which left a band of empty glass whenever the summary was short; the other
+shrank the card to its content, but only for a place with no sections at all. The summary carries no
+minimum height now; it reports its measured height instead, and nothing reads the detent, which is
+what `docs/explanation/bottom-sheet-system.md` rules out.
+
+The content is still clipped to the card (`SheetCardClip.tsx`): gorhom lays the body out as tall as
+the top detent, so a summary that fills the card to its edge would otherwise draw over the map.
+
+### 10.3 Where the data comes from
+
+None of `PlaceDetail` exists on the server yet. `usePlaceDetail` answers from a mock keyed by the
+seed's slugs, **in development builds only**: the 2026 content will reuse the same slug scheme, and
+the beta channel sees the real festival the moment the server opens it. A release build resolves
+every place to no detail — the head plus the server's own `subtitle`, `hours` and actions. When the
+server serves `blocks`, `lookup()` in `usePlaceDetail.ts` is the one line that changes. The
+development menu in settings opens `/place-sheet-preview`.
 
 ## 11. Gotchas
 
@@ -764,11 +791,6 @@ window.
   with a typo'd `actionType` used to be handed to the webview opener and now does nothing. That is
   the intended direction — the failure mode of not understanding an action should not be to open it —
   but it reads as a regression in QA unless you know.
-- **A distance sort needs permission handling, not a new dependency.** `expo-location` is already
-  one (`apps/mobile/package.json`), and `features/map/hooks/useLocationTracking.ts` uses it for the
-  locate button and the heading compass. What a distance sort still needs is the denied-permission
-  path: **hide** the sort rather than show a dead control. This bullet used to say the package was
-  absent, which was true when it was written and stopped being true when location tracking shipped.
 - **`@mj-studio/react-native-naver-map` is pinned exact, and the pin is the point.** The version
   lives in `apps/mobile/package.json`. A newer release can bump the native Naver SDK, which would
   need `expo prebuild --clean` plus a manual `runtimeVersion` bump — a caret would let an ordinary

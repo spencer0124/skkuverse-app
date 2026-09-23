@@ -182,6 +182,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       UIBackgroundModes: ["remote-notification"],
+      // `Linking.canOpenURL('instagram://…')` is privacy-gated on iOS. This
+      // declaration lets the sheet detect Instagram before choosing the native
+      // app or its deterministic in-app-webview fallback.
+      LSApplicationQueriesSchemes: ["instagram"],
     },
   },
   android: {

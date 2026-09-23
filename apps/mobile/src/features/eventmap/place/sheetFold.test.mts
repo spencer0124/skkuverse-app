@@ -1,18 +1,16 @@
 /**
- * The place sheet's fold.
+ * The place sheet's collapsed height.
  *
- * The collapsed card must show the summary and never the tab bar, and a place
- * with nothing below its summary must not float a card of empty glass. Both
- * reduce to arithmetic on the detent, and the edges worth pinning are the ones
- * that would draw a broken layout rather than a slightly wrong one: negative
- * heights, and a fitted sheet taller than the default.
+ * The rule that matters is that the DEFAULT detent wins for anything with a
+ * real body — it is the mid-size card, and sizing the sheet to less than that
+ * makes every place a sliver. Only a sheet shorter than the detent shrinks.
  *
  * NOTE: apps/mobile runs `node --test`; `sheetFold.ts` imports nothing.
  */
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { collapsedContentHeight, detentHeight, fittedDetentHeight } from './sheetFold.ts';
+import { collapsedDetentHeight, detentHeight } from './sheetFold.ts';
 
 // An iPhone 15-sized window, the `small` detent, the campus card's gap, and a
 // 22pt handle over a 40pt header.
@@ -24,28 +22,34 @@ describe('detentHeight', () => {
   });
 });
 
-describe('collapsedContentHeight', () => {
-  it('is the detent less the floating gap and the chrome', () => {
-    // 852 * 0.45 = 383.4 → 383.4 - 90 - 62 = 231.4 → 231
-    assert.equal(collapsedContentHeight(BASE), 231);
-  });
-
-  it('never goes negative', () => {
-    assert.equal(collapsedContentHeight({ ...BASE, containerHeight: 200 }), 0);
-  });
-});
-
-describe('fittedDetentHeight', () => {
+describe('collapsedDetentHeight', () => {
   it('waits for a measurement', () => {
-    assert.equal(fittedDetentHeight({ ...BASE, contentHeight: null }), null);
-    assert.equal(fittedDetentHeight({ ...BASE, contentHeight: 0 }), null);
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: null }), null);
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: 0 }), null);
   });
 
-  it('hugs a short summary', () => {
-    assert.equal(fittedDetentHeight({ ...BASE, contentHeight: 180.2 }), 243);
+  // 852 * 0.45 = 383.4 → 383. A place with a facts card and a body is well past
+  // that, so it gets the mid-size card the sheet has always had.
+  it('keeps the default mid-size detent for a place with a body', () => {
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: 900 }), 383);
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: 400 }), 383);
   });
 
-  it('never grows past the default detent', () => {
-    assert.equal(fittedDetentHeight({ ...BASE, contentHeight: 900 }), 383);
+  it('shrinks only when the whole sheet is shorter than the detent', () => {
+    // 62 chrome + 180 content = 242, under the 383 detent.
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: 180 }), 242);
+  });
+
+  // `contentHeight` already carries the scroll view's bottom padding, which is
+  // what pays for the gap the card floats above the screen. Adding `bottomGap`
+  // here again would push a short sheet past its own content.
+  it('does not add the floating gap a second time', () => {
+    const wide = collapsedDetentHeight({ ...BASE, contentHeight: 180 });
+    const noGap = collapsedDetentHeight({ ...BASE, bottomGap: 0, contentHeight: 180 });
+    assert.equal(wide, noGap);
+  });
+
+  it('rounds up, so a fractional content height is never cut', () => {
+    assert.equal(collapsedDetentHeight({ ...BASE, contentHeight: 180.2 }), 243);
   });
 });

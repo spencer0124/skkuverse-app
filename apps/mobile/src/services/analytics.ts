@@ -388,7 +388,6 @@ export type CampusContentType =
   // `logLayerToggle` per layer the chip switched: one tap would emit five layer
   // events and drown the signal the user actually gave.
   | 'map_chip'
-  | 'eventmap_sort'
   | 'eventmap_list_row'
   // A tab press in a place sheet; `item_id` is the tab (`home` / `menu` / `info`).
   | 'eventmap_detail_tab';

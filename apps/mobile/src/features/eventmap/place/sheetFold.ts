@@ -1,12 +1,15 @@
 /**
- * Where the place sheet's collapsed card ends, in content coordinates.
+ * How tall the place sheet's collapsed card is.
  *
- * The sheet has one layout for both detents — a summary, then tabs — because
- * `docs/explanation/bottom-sheet-system.md` rules out branching content on the
- * detent. What the user asked for is that the collapsed card shows the summary
- * and not the tabs, so the summary is given a minimum height that reaches the
- * collapsed card's bottom edge: the tab bar then always starts below the fold,
- * whatever the summary happens to contain.
+ * One rule for every place: the default mid-size detent, unless the whole sheet
+ * is shorter than that, in which case the card shrinks to fit.
+ *
+ * This replaced two competing paths. One padded the summary out to the fold so
+ * the sections started below it, which left a band of nothing whenever the
+ * summary was short. The other shrank the card to its content, but only for a
+ * place that had no sections at all. The padding is gone — the summary carries
+ * no minimum height, so the facts card starts right below it and fills the
+ * card — and the shrink now applies to every place on the same terms.
  *
  * Imports nothing, so `sheetFold.test.mts` can load it under plain Node.
  *
@@ -36,34 +39,32 @@ export function detentHeight(containerHeight: number, detentPercent: number): nu
 }
 
 /**
- * How much scroll content the collapsed card shows.
+ * The collapsed snap height for a place sheet.
  *
- * Floored and never negative: a landscape phone can make the chrome taller
- * than the detent, and a negative minimum height is not a layout.
- */
-export function collapsedContentHeight(input: FoldInput): number {
-  const { containerHeight, detentPercent, bottomGap, chromeAbove } = input;
-  return Math.max(0, Math.floor(detentHeight(containerHeight, detentPercent) - bottomGap - chromeAbove));
-}
-
-/**
- * The collapsed snap height for a sheet that ends at its summary.
+ * **The default detent is the answer for almost every place.** It is a mid-size
+ * card — `SHEET_DETENT_PERCENT.small` of the window — and it is what a place
+ * with a real body gets, because its content is taller than that. Only a place
+ * whose whole sheet is shorter than the detent shrinks, so a toilet with three
+ * lines does not float a card of empty glass.
  *
- * A place with no tabs — a toilet — has nothing to drag up to, so the default
- * detent would leave most of the card as empty glass. The sheet is shrunk to
- * its content instead, but never grown past the default: a long summary still
- * collapses to the usual height and scrolls.
+ * Measured against the SCROLL CONTENT, not the summary. Sizing this to the
+ * summary alone collapses every card to a sliver and takes the mid size with
+ * it — the summary is short for most places, and the facts card below it is
+ * most of the sheet.
+ *
+ * `contentHeight` already includes the scroll view's bottom padding, which pays
+ * for `bottomGap` itself; adding the gap again clips the card.
  *
  * `null` until the content has been measured, which tells the caller to keep
- * the default rather than snap to a guess.
+ * the default detent rather than snap to a guess.
  */
-export function fittedDetentHeight(
+export function collapsedDetentHeight(
   input: FoldInput & { contentHeight: number | null },
 ): number | null {
   const { contentHeight, containerHeight, detentPercent, chromeAbove } = input;
   if (contentHeight === null || contentHeight <= 0) return null;
-  // `contentHeight` already includes the scroll view's bottom padding, which
-  // pays for `bottomGap` itself — see EventMapPeekSheet.
-  const fitted = Math.ceil(chromeAbove + contentHeight);
-  return Math.min(fitted, Math.floor(detentHeight(containerHeight, detentPercent)));
+  return Math.min(
+    Math.ceil(chromeAbove + contentHeight),
+    Math.floor(detentHeight(containerHeight, detentPercent)),
+  );
 }

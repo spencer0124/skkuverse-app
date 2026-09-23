@@ -31,7 +31,6 @@ import {
   useCampusSections,
   useMapConfig,
   useMapLayerStore,
-  useSettingsStore,
   useLayerOverlays,
   useWindowClock,
   useEventMapStore,
@@ -606,20 +605,8 @@ export function CampusScreen() {
    */
   const now = useWindowClock(eventOverlays, layerWindows);
 
-  const sortId = useEventMapStore((s) => s.sortId);
-  const appLanguage = useSettingsStore((s) => s.appLanguage);
   const setSelectedPlaceId = useEventMapStore((s) => s.setSelectedPlaceId);
   const selectedPlaceId = useEventMapStore((s) => s.selectedPlaceId);
-  const syncLayerSet = useEventMapStore((s) => s.syncLayerSet);
-
-  /** The live layer set, for keying the persisted sort. `chipGroupId` is its id. */
-  const activeLayerSetId = useMemo(
-    () => mapConfig?.layers.find(isFestivalLayer)?.chipGroupId ?? null,
-    [mapConfig],
-  );
-  useEffect(() => {
-    syncLayerSet(activeLayerSetId);
-  }, [activeLayerSetId, syncLayerSet]);
 
   /**
    * placeId → place. Built from EVERY event overlay rather than the listed ones,
@@ -643,17 +630,12 @@ export function CampusScreen() {
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
 
   /**
-   * The festival's days, counted from every served place rather than configured
-   * — the server carries no calendar, and the places' own hours already say
-   * which days exist. A booth's 1일차/2일차 is its index in this list.
+   * The festival's days, counted from every served place rather than
+   * configured — the server carries no calendar, and the places' own hours
+   * already say which days exist. A place's 1일차/2일차 is its index in this
+   * list.
    */
   const festivalDays = useMemo(() => festivalDaysOf(eventOverlays), [eventOverlays]);
-
-  /** The tapped pin's layer label — what the sheet calls a place it has no detail for. */
-  const selectedCategoryLabel = useMemo(
-    () => mapConfig?.layers.find((l) => l.id === selectedPlace?.layerId)?.label ?? null,
-    [mapConfig, selectedPlace?.layerId],
-  );
 
   /**
    * Whether the marker request has come back at least once.
@@ -969,20 +951,6 @@ export function CampusScreen() {
   // ── The event list in the sheet ──
 
   /**
-   * What the campus sheet shows: the event list while a chip has narrowed the
-   * map, the server's campus feed otherwise.
-   *
-   * Narrowed, not merely "an event is on": the feed is the sheet's resting
-   * content, and a chip tap is the moment the user asks what is in the view
-   * they just chose. The reset chip CLEARS the narrowing, so it flies to the
-   * festival and leaves the feed in place — the same outcome the old derived
-   * form reached by reading the restored defaults as "narrowed to nothing".
-   * `eventActive` keeps the list off a campus the event is not on: the toggle
-   * can be flipped away while the festival layers stay narrowed.
-   */
-  const showEventList = narrowedChip !== null && eventActive;
-
-  /**
    * The layer ids whose markers compete for a coordinate: the FESTIVAL layers
    * currently drawn.
    *
@@ -1004,7 +972,7 @@ export function CampusScreen() {
   );
 
   /**
-   * The list's rows: the places whose layer is drawn, in the active sort.
+   * The list's rows: the places whose layer is drawn, in the author's order.
    *
    * `selectVisibleOverlays` reads the same `isLayerVisible` the render loop below
    * does — deliberately not a second copy — so a row is listed exactly when its
@@ -1022,13 +990,30 @@ export function CampusScreen() {
               state: layerState,
               now,
             }),
-            sortId,
-            appLanguage,
-            now,
           )
         : [],
-    [mapConfig, eventOverlays, layerState, sortId, appLanguage, now],
+    [mapConfig, eventOverlays, layerState, now],
   );
+
+  /**
+   * What the campus sheet shows: the event list while a chip has narrowed the
+   * map, the server's campus feed otherwise.
+   *
+   * Narrowed, not merely "an event is on": the feed is the sheet's resting
+   * content, and a chip tap is the moment the user asks what is in the view
+   * they just chose. The reset chip CLEARS the narrowing, so it flies to the
+   * festival and leaves the feed in place — the same outcome the old derived
+   * form reached by reading the restored defaults as "narrowed to nothing".
+   * `eventActive` keeps the list off a campus the event is not on: the toggle
+   * can be flipped away while the festival layers stay narrowed.
+   *
+   * And only with a row to show. A chip whose layers hold nothing tappable —
+   * the 통제 zones are drawn, not pressed — has nothing to list, so it moves
+   * the camera and leaves the sheet where it was, as the reset chip does. That
+   * is read off `listedPlaces` rather than declared on the chip: a flag saying
+   * "this chip opens no list" could disagree with the places actually served.
+   */
+  const showEventList = narrowedChip !== null && eventActive && listedPlaces.length > 0;
 
   // When the list appears, bring the sheet up to the middle detent — enough to
   // read it, with the map still showing the pins it describes. An effect on the
@@ -1567,7 +1552,6 @@ export function CampusScreen() {
           place={selectedPlace}
           now={now}
           festivalDays={festivalDays}
-          categoryLabel={selectedCategoryLabel}
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
           onNavigateAway={handlePeekNavigateAway}

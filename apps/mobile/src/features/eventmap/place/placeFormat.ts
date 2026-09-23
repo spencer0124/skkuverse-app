@@ -99,6 +99,42 @@ export function formatHoursLines(hours: readonly TimeWindow[], lang: AppLanguage
   return hours.map((w) => formatWindow(w, lang, true));
 }
 
+/**
+ * The one status sentence the sheet needs above its actions. It intentionally
+ * answers only the immediate question — whether to go now, and when that
+ * answer changes — while the full timetable remains in Details.
+ */
+export function statusLineOf(
+  hours: readonly TimeWindow[],
+  now: number,
+  lang: AppLanguage,
+  t: (key: TranslationKey) => string,
+  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
+): { text: string; color: string } {
+  if (hours.length === 0) return { text: t('eventmap.hours.always'), color: SdsColors.brand };
+
+  const active = hours.find((window) => {
+    const start = Date.parse(window.startAt);
+    const end = Date.parse(window.endAt);
+    return Number.isFinite(start) && Number.isFinite(end) && start <= now && now < end;
+  });
+  if (active) {
+    return {
+      text: tpl('eventmap.status.openUntil', new Date(active.endAt).toLocaleTimeString(LOCALE[lang], HH_MM)),
+      color: SdsColors.brand,
+    };
+  }
+
+  const next = nextOpeningAfter(hours, now);
+  if (next !== null) {
+    return {
+      text: tpl('eventmap.status.opensAt', new Date(next).toLocaleTimeString(LOCALE[lang], HH_MM)),
+      color: SdsColors.grey700,
+    };
+  }
+  return { text: t('eventmap.status.closed'), color: SdsColors.grey500 };
+}
+
 /** `{type:'days', days:[1,3]}` → "1·3일차"; all days → 양일 or 매일. */
 export function formatDays(
   days: PlaceDays,

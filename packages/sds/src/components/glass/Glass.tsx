@@ -89,8 +89,7 @@ export function GlassIconButton({
  * `accent` and `selected` are different things and both are needed: `accent`
  * tints the label to draw the eye (a suggested question), while `selected` is a
  * filled toggle state (a chip the user has switched on). A selected chip fills
- * with brand colour rather than tinting its text, matching `FilterPill` so the
- * map and the filter sheet read as one control set.
+ * with brand colour rather than tinting its text.
  *
  * When selected, the glass surface is bypassed: a brand fill behind translucent
  * glass reads as a muddy tint rather than a pressed state.

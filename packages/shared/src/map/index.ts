@@ -22,27 +22,16 @@ export {
   toEpochMs,
   MAX_TIMEOUT_MS,
 } from './window';
-export {
-  selectVisibleOverlays,
-  sortPlaces,
-  PLACE_SORTS,
-  type PlaceSortKey,
-  type VisibleOverlaysInput,
-} from './list';
+export { selectVisibleOverlays, sortPlaces, type VisibleOverlaysInput } from './list';
 export { pickI18nText, wrapMarkerLabel } from './text';
 export {
-  buildPlaceTabs,
+  highlightBlock,
+  firstImageUrl,
+  HIGHLIGHT_MAX,
+  placeSections,
   dayLabelOf,
-  entryFeeRange,
   festivalDaysOf,
-  formatPriceRange,
-  groupThousands,
-  highlightOf,
   kstDateKey,
   type PlaceDays,
-  type PlaceHighlight,
   type PlaceSectionKey,
-  type PlaceTab,
-  type PlaceTabKey,
-  type PriceRange,
 } from './placeDetail';

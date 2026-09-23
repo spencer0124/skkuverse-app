@@ -5,24 +5,23 @@
  *
  * - A window's START decides its festival day. A 주점 open 18:00–00:00 ends on
  *   the next date, and counting that end would put every pub on both days.
- * - Tabs with nothing in them are dropped, and a place with no detail gets no
- *   tabs at all — the base skeleton a toilet shows.
- * - The highlight follows the kind's fallback order, so a booth without
- *   contents still says something while collapsed.
+ * - `facts` is always in the section list. 56 of the 67 served places have no
+ *   detail, and dropping the section took their opening hours with it.
+ * - An unknown block type drops alone. An exhaustive check here would blank a
+ *   whole body on an older build the day a new type ships.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
-  buildPlaceTabs,
   dayLabelOf,
-  entryFeeRange,
   festivalDaysOf,
-  formatPriceRange,
-  groupThousands,
-  highlightOf,
+  firstImageUrl,
+  highlightBlock,
   kstDateKey,
+  placeSections,
 } from '../placeDetail';
-import type { PlaceDetail } from '../../types/placeDetail';
+import { MOCK_PLACE_DETAILS } from '../mock/placeDetails';
+import type { PlaceBlock, PlaceDetail } from '../../types/placeDetail';
 import type { I18nText } from '../../types/map';
 
 const ko = (s: string): I18nText => ({ ko: s, en: s });
@@ -40,18 +39,32 @@ function detail(overrides: Partial<PlaceDetail> = {}): PlaceDetail {
     org: null,
     isUnion: false,
     locationLabel: null,
-    intro: null,
-    logoUrl: null,
-    images: [],
-    contents: [],
-    menu: [],
-    entryFees: [],
-    notices: [],
-    paymentMethods: [],
-    instagramUrl: null,
+    actions: [],
+    blocks: [],
     ...overrides,
   };
 }
+
+const textBlock = (id: string): PlaceBlock => ({ type: 'text', id, title: null, body: ko('소개') });
+const listBlock = (id: string): PlaceBlock => ({
+  type: 'list',
+  id,
+  title: null,
+  items: [{ emoji: null, title: ko('게임'), description: null }],
+});
+const tableBlock = (id: string): PlaceBlock => ({
+  type: 'table',
+  id,
+  title: null,
+  rows: [{ label: ko('닭꼬치'), value: ko('5,000원') }],
+});
+const imageBlock = (id: string, url: string): PlaceBlock => ({
+  type: 'image',
+  id,
+  title: null,
+  url,
+  caption: null,
+});
 
 describe('kstDateKey', () => {
   it('reads the KST calendar day, not the UTC one', () => {
@@ -100,141 +113,69 @@ describe('dayLabelOf', () => {
   });
 });
 
-describe('buildPlaceTabs', () => {
-  it('gives no tabs to a place with no detail', () => {
-    expect(buildPlaceTabs(null, [DAY1_BAR])).toEqual([]);
+describe('placeSections', () => {
+  // The regression that matters: 56 of the 67 served places have no detail, and
+  // every one of them carries `hours` on the overlay wire. Returning an empty
+  // list here is what used to drop the facts card, and with it the opening
+  // times of five sixths of the map.
+  it('gives a place with no detail its facts, so the hours still show', () => {
+    expect(placeSections(null)).toEqual(['facts']);
   });
 
-  it("keeps the server's prose for a place with no detail, as one home tab", () => {
-    expect(buildPlaceTabs(null, [], 1)).toEqual([{ key: 'home', sections: ['prose'] }]);
+  it('gives a place with an empty body its facts alone', () => {
+    expect(placeSections(detail())).toEqual(['facts']);
   });
 
-  it("puts the server's prose last in the home tab", () => {
-    const d = detail({ contents: [{ title: ko('게임'), description: null }] });
-    expect(buildPlaceTabs(d, [], 2)).toEqual([{ key: 'home', sections: ['contents', 'prose'] }]);
+  it('adds the body when there is one', () => {
+    expect(placeSections(detail({ blocks: [textBlock('a')] }))).toEqual(['facts', 'blocks']);
   });
 
-  it('gives a full pub home, menu and info', () => {
-    const pub = detail({
-      kind: 'pub',
-      org: ko('경영대학 학생회'),
-      intro: ko('소개'),
-      notices: [ko('사전 예약')],
-      entryFees: [{ label: ko('성균인'), price: 18000 }],
-    });
-    expect(buildPlaceTabs(pub, [DAY1_BAR, DAY2_BAR])).toEqual([
-      { key: 'home', sections: ['intro', 'notices'] },
-      { key: 'menu', sections: ['menu'] },
-      { key: 'info', sections: ['info'] },
-    ]);
-  });
-
-  it('drops the home tab when there is nothing to put in it', () => {
-    const truck = detail({
-      kind: 'foodTruck',
-      instagramUrl: 'https://instagram.com/x',
-      menu: [{ title: null, items: [{ name: ko('닭꼬치'), price: 5000, note: null }] }],
-    });
-    expect(buildPlaceTabs(truck, [DAY1_BOOTH]).map((t) => t.key)).toEqual(['menu', 'info']);
-  });
-
-  it('does not count a menu group with no items', () => {
-    const d = detail({ menu: [{ title: ko('메인'), items: [] }], contents: [{ title: ko('게임'), description: null }] });
-    expect(buildPlaceTabs(d, []).map((t) => t.key)).toEqual(['home']);
-  });
-
-  it('leaves out an info tab that would only repeat the summary', () => {
-    const medical = detail({ kind: 'facility', notices: [ko('응급 상황 시 방문')] });
-    expect(buildPlaceTabs(medical, [])).toEqual([{ key: 'home', sections: ['notices'] }]);
-  });
-
-  it('earns the info tab from a second day of hours alone', () => {
-    const d = detail({ contents: [{ title: ko('게임'), description: null }] });
-    expect(buildPlaceTabs(d, [DAY1_BOOTH]).map((t) => t.key)).toEqual(['home']);
-    expect(buildPlaceTabs(d, [DAY1_BAR, DAY2_BAR]).map((t) => t.key)).toEqual(['home', 'info']);
-  });
-
-  it('counts a logo alone as an intro', () => {
-    const d = detail({ kind: 'promo', logoUrl: 'https://example.com/logo.png' });
-    expect(buildPlaceTabs(d, [])).toEqual([{ key: 'home', sections: ['intro'] }]);
+  it('starts every ESKARA mock with facts', () => {
+    for (const place of Object.values(MOCK_PLACE_DETAILS)) {
+      expect(placeSections(place)[0]).toBe('facts');
+    }
   });
 });
 
-describe('highlightOf', () => {
-  const menu = [
-    { title: ko('메인'), items: [1, 2].map((n) => ({ name: ko(`메인${n}`), price: n * 1000, note: null })) },
-    { title: ko('사이드'), items: [3, 4].map((n) => ({ name: ko(`사이드${n}`), price: null, note: null })) },
-  ];
-
-  it('crosses menu groups to fill its lines', () => {
-    const oneEach = [
-      { title: ko('메인'), items: [{ name: ko('메인1'), price: 1000, note: null }] },
-      { title: ko('사이드'), items: [{ name: ko('사이드1'), price: null, note: null }] },
-    ];
-    const h = highlightOf(detail({ kind: 'pub', menu: oneEach }));
-    expect(h?.type === 'menu' && h.items.map((i) => i.name.ko)).toEqual(['메인1', '사이드1']);
+describe('highlightBlock', () => {
+  it('has nothing to lift out of an empty body', () => {
+    expect(highlightBlock([])).toBeNull();
   });
 
-  it('leads a pub with its first menu lines, and counts the rest', () => {
-    const h = highlightOf(detail({ kind: 'pub', menu, entryFees: [] }));
-    expect(h).toMatchObject({ type: 'menu', more: 2, entryFee: null });
-    expect(h?.type === 'menu' && h.items.map((i) => i.name.ko)).toEqual(['메인1', '메인2']);
+  it('has nothing to lift out of prose alone', () => {
+    expect(highlightBlock([textBlock('a'), textBlock('b')])).toBeNull();
   });
 
-  it('carries the entry-fee range, even for a pub with no menu lines', () => {
-    const fees = [
-      { label: ko('원전공생'), price: 16000 },
-      { label: ko('외부인'), price: 20000 },
-      { label: ko('성균인'), price: 18000 },
-    ];
-    expect(highlightOf(detail({ kind: 'pub', entryFees: fees }))).toEqual({
-      type: 'menu',
-      items: [],
-      more: 0,
-      entryFee: { min: 16000, max: 20000 },
-    });
+  it('lifts a list', () => {
+    expect(highlightBlock([textBlock('a'), listBlock('b')])?.id).toBe('b');
   });
 
-  it('limits a food truck to two lines', () => {
-    const h = highlightOf(detail({ kind: 'foodTruck', menu }));
-    expect(h).toMatchObject({ type: 'menu', more: 2 });
+  it('lifts a table', () => {
+    expect(highlightBlock([textBlock('a'), tableBlock('b')])?.id).toBe('b');
   });
 
-  it('leads a booth with its contents and falls back to the intro', () => {
-    const contents = [1, 2, 3].map((n) => ({ title: ko(`게임${n}`), description: null }));
-    expect(highlightOf(detail({ contents }))).toMatchObject({ type: 'contents', more: 1 });
-    expect(highlightOf(detail({ intro: ko('소개') }))).toEqual({ type: 'text', text: ko('소개') });
+  // The operator chooses the highlight by ordering their blocks, which is what
+  // replaced the old per-kind fallback table.
+  it('lets the authored order decide between a list and a table', () => {
+    expect(highlightBlock([tableBlock('t'), listBlock('l')])?.id).toBe('t');
+    expect(highlightBlock([listBlock('l'), tableBlock('t')])?.id).toBe('l');
   });
 
-  it('never leads a booth with a menu', () => {
-    expect(highlightOf(detail({ kind: 'booth', menu }))).toBeNull();
-  });
-
-  it('leads a facility with its first notice', () => {
-    const d = detail({ kind: 'facility', notices: [ko('첫째'), ko('둘째')], intro: ko('소개') });
-    expect(highlightOf(d)).toEqual({ type: 'text', text: ko('첫째') });
-  });
-
-  it('has nothing to say without a detail', () => {
-    expect(highlightOf(null)).toBeNull();
-    expect(highlightOf(detail({ kind: 'facility' }))).toBeNull();
+  // An older build must drop the one block it cannot draw, never the body. An
+  // exhaustive `never` here is what would blank the whole sheet.
+  it('walks past a block type it does not know', () => {
+    const unknown = { type: 'video', id: 'v' } as unknown as PlaceBlock;
+    expect(highlightBlock([unknown, listBlock('l')])?.id).toBe('l');
   });
 });
 
-describe('prices', () => {
-  it('groups thousands', () => {
-    expect(groupThousands(0)).toBe('0');
-    expect(groupThousands(900)).toBe('900');
-    expect(groupThousands(12000)).toBe('12,000');
-    expect(groupThousands(1234567)).toBe('1,234,567');
+describe('firstImageUrl', () => {
+  it('is null without an image', () => {
+    expect(firstImageUrl([textBlock('a')])).toBeNull();
   });
 
-  it('collapses a flat range to one number', () => {
-    expect(formatPriceRange({ min: 16000, max: 20000 })).toBe('16,000–20,000');
-    expect(formatPriceRange({ min: 5000, max: 5000 })).toBe('5,000');
-  });
-
-  it('has no range without fees', () => {
-    expect(entryFeeRange([])).toBeNull();
+  it('takes the first image, whatever else is around it', () => {
+    const blocks = [textBlock('a'), imageBlock('i1', 'one.png'), imageBlock('i2', 'two.png')];
+    expect(firstImageUrl(blocks)).toBe('one.png');
   });
 });
