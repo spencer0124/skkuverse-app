@@ -3,7 +3,7 @@ title: The bottom sheet system
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-17
+last-updated: 2026-09-23
 audience: internal
 ---
 
@@ -232,9 +232,8 @@ host measured its own root view and hoped the two agreed.
 
 They are the same 8pt for an inline sheet and they are not the same number for a
 modal, because the gap is measured from the card's own **container** and those
-containers differ. An inline sheet's container is the host screen's root view,
-whose bottom edge already sits above the tab bar. A modal is portalled to the
-root and its container is the whole window.
+containers differ. An inline sheet's container is the host screen's root view. A
+modal is portalled to the root and its container is the whole window.
 
 A gap chosen locally (the safe area, say) looks right on its own and then sits
 visibly above the card behind it. That was the first attempt, and it was obvious
@@ -251,6 +250,27 @@ schedule as the side inset.
 > `bottomInset` also shrinks the container that a percentage snap point resolves
 > against, so the same percentage yields a slightly shorter sheet than it did
 > while attached. Worth knowing before tuning that number.
+
+### The iOS 26 tab bar floats over an inline sheet
+
+Under JSX `<Tabs>` (iOS before 26, Android) a tab screen ends above its tab bar.
+Under iOS 26 NativeTabs it does not: react-native-screens hosts each tab as a
+`UITabBarController` child pinned to every edge, and the glass tab bar floats
+over the bottom of the full-window screen. The inline campus sheet's top detent
+reaches the window's bottom edge, so without help its last rows sit under the
+bar, visible and untappable. No bottom gap fixes that, because a gap only moves
+the card; the rows are inside it.
+
+The scroll content clears the bar instead, with a bottom padding measured per
+screen. No API reports a native tab bar's height, but UIKit's per-view safe area
+includes it: a `SafeAreaListener` mounted inside the tab screen reads its own
+`safeAreaInsets` and reports the overlap. The root
+`SafeAreaProvider` cannot, because it sits above the tab controller and sees only
+the home indicator. It is the same per-view-controller rule
+[ios-modal-safe-area-provider.md](ios-modal-safe-area-provider.md) describes.
+`CampusScreen` keeps the value as `tabBarOverlap` and pads both sheet bodies
+with it. A listener rather than a nested provider, because a provider would
+also change `useSafeAreaInsets()` for everything else in the screen.
 
 ### A crossfading modal has to pay for its own gap
 

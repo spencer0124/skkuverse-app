@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaListener, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import { CrosshairSimpleIcon } from 'phosphor-react-native';
@@ -309,9 +309,10 @@ export function CampusScreen() {
 
   /**
    * Measured rather than taken from `useWindowDimensions`: the sheet's percentage
-   * snaps resolve against ITS container, which is this screen's root view, and
-   * that is not the window once safe areas and the tab bar are accounted for.
-   * Using the window height would put the parking spot a tab bar's worth off.
+   * snaps resolve against ITS container, which is this screen's root view. Under
+   * JSX `<Tabs>` (iOS < 26, Android) that root stops above the tab bar and is
+   * not the window. Under iOS 26 NativeTabs it IS the window, and the floating
+   * tab bar is drawn over its bottom — see `tabBarOverlap`.
    */
   const [sheetContainerHeight, setSheetContainerHeight] = useState(0);
   const handleRootLayout = useCallback((e: LayoutChangeEvent) => {
@@ -336,6 +337,29 @@ export function CampusScreen() {
         : SHEET_FLOAT_INSET,
     [windowHeight, sheetContainerHeight],
   );
+
+  /**
+   * How much of this screen's bottom the tab bar covers, in points.
+   *
+   * iOS 26 NativeTabs lays each tab full-window and floats its glass tab bar
+   * over the bottom, so the inline sheet's top detent runs under it. Nothing
+   * reports that bar's height to JS. What does is UIKit's per-view safe area:
+   * the `SafeAreaListener` at the end of this screen measures its OWN
+   * `safeAreaInsets`, which inside the tab's view controller includes the bar
+   * (83pt on an iPhone 17 Pro, home indicator included). The root provider
+   * sits above the tab controller and reports only the home indicator, which is
+   * why `useSafeAreaInsets()` cannot answer this.
+   *
+   * 0 under JSX `<Tabs>`, whose screen already ends above its bar, and 0 until
+   * the first measurement.
+   */
+  const [tabBarOverlap, setTabBarOverlap] = useState(0);
+  const handleSafeAreaChange = useCallback(
+    ({ insets: measured }: { insets: { bottom: number } }) => setTabBarOverlap(measured.bottom),
+    [],
+  );
+  /** Room under the campus sheet's last row: clear of the tab bar, never less than 32. */
+  const sheetContentBottom = Math.max(32, tabBarOverlap + 16);
 
   // ── Sheet detents ──
   /**
@@ -1504,6 +1528,7 @@ export function CampusScreen() {
           {showEventList ? (
             <EventListPanel
               places={listedPlaces}
+              bottomPadding={sheetContentBottom}
               now={now}
               onSelectPlace={handleSelectFromList}
             />
@@ -1513,7 +1538,7 @@ export function CampusScreen() {
                still moves it. It stays mounted even when the feed is empty. */
             <Sheet.ScrollView
               style={styles.sheetContent}
-              contentContainerStyle={styles.sheetFeed}
+              contentContainerStyle={[styles.sheetFeed, { paddingBottom: sheetContentBottom }]}
             >
               {/* Empty while the gate is shut, and the GATE is what says so —
                   not the disabled query. `enabled: false` stops refetching but
@@ -1561,6 +1586,13 @@ export function CampusScreen() {
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
           onNavigateAway={handlePeekNavigateAway}
+        />
+        {/* Measures, draws nothing. Last, full-size and untouchable, so it
+            moves no layout and takes no touches. See `tabBarOverlap`. */}
+        <SafeAreaListener
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+          onChange={handleSafeAreaChange}
         />
       </View>
   );
@@ -1616,9 +1648,6 @@ const styles = StyleSheet.create({
     // widgets deliberately carry none (see sdui/renderer.tsx).
     paddingHorizontal: 16,
     paddingTop: 8,
-    // Clears the floating tab bar at the top detent, where the feed is the only
-    // thing that scrolls. Matches HomeScreen's 32; confirm against a long feed
-    // on device, since nothing here measures the bar.
-    paddingBottom: 32,
+    // paddingBottom is `sheetContentBottom`, measured against the tab bar.
   },
 });

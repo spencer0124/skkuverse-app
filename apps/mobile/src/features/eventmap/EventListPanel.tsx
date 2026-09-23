@@ -35,9 +35,14 @@ interface EventListPanelProps {
   /** From `useWindowClock`, so every row's pill re-derives at a boundary together. */
   now: number;
   onSelectPlace: (place: MapOverlay) => void;
+  /**
+   * Room under the last row. `CampusScreen` measures it against the tab bar,
+   * which on iOS 26 floats over the bottom of this list at the top detent.
+   */
+  bottomPadding: number;
 }
 
-export function EventListPanel({ places, now, onSelectPlace }: EventListPanelProps) {
+export function EventListPanel({ places, now, onSelectPlace, bottomPadding }: EventListPanelProps) {
   const renderItem = useCallback(
     ({ item }: { item: MapOverlay }) => (
       <Pressable
@@ -60,7 +65,7 @@ export function EventListPanel({ places, now, onSelectPlace }: EventListPanelPro
       keyExtractor={(item: MapOverlay) => item.id}
       renderItem={renderItem}
       style={styles.list}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingBottom: bottomPadding }]}
       ItemSeparatorComponent={Separator}
     />
   );
@@ -84,7 +89,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  listContent: { paddingHorizontal: GUTTER, paddingBottom: 32 },
+  listContent: { paddingHorizontal: GUTTER },
   row: { paddingVertical: 12 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: SdsColors.grey200 },
 });

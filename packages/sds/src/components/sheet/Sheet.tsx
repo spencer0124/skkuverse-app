@@ -136,9 +136,13 @@ export interface SheetProps {
    * The card's bottom gap while it floats, in points. Glass only.
    *
    * Defaults to the same side gap the card uses, which is right for an inline
-   * sheet whose container already stops above the tab bar. A modal's container
-   * is the whole window, so a modal that has to line up with an inline card on
-   * the same screen must restate that card's bottom edge here.
+   * sheet. A modal's container is the whole window, so a modal that has to line
+   * up with an inline card on the same screen must restate that card's bottom
+   * edge here.
+   *
+   * This gap does not clear a tab bar. Under iOS 26 NativeTabs an inline
+   * sheet's container runs under the floating bar, so the caller clears it with
+   * its scroll content's bottom padding (`CampusScreen`'s `tabBarOverlap`).
    */
   bottomGap?: number;
   /** Pinned above the content, outside the scrollable. */
