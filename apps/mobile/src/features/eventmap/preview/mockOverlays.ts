@@ -6,9 +6,8 @@
  * this gives the sheet something to open without opening a server window.
  *
  * Titles, subtitles, fields and actions mirror the server's seed
- * (skkuverse-server `scripts/data/eskara-2026-places.json`), and the ids are the
- * seed's, so `usePlaceDetail` resolves the same mock detail it would for a real
- * pin. Hours are built around the moment the preview was opened, so every
+ * (skkuverse-server `scripts/data/eskara-2026-places.json`), and each id is the
+ * key of its `MOCK_PLACE_DETAILS` entry. Hours are built around the moment the preview was opened, so every
  * opening state can be shown on any day.
  */
 

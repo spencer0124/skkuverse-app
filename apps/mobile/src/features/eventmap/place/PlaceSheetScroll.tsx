@@ -22,7 +22,6 @@ import type { BottomSheetScrollViewMethods } from '@gorhom/bottom-sheet';
 import {
   placeSections,
   SdsSpacing,
-  usePlaceDetail,
   type MapOverlay,
   type PlaceDetail,
   type PlaceSectionKey,
@@ -40,6 +39,8 @@ export function placeIdOf(place: MapOverlay): string {
 
 interface PlaceSheetScrollProps {
   place: MapOverlay;
+  /** The place's sheet body from `usePlaceDetails`, or `null` for the overlay alone. */
+  detail: PlaceDetail | null;
   now: number;
   /** Every KST day the served places open on — the base a place's 1일차 counts from. */
   festivalDays: readonly string[];
@@ -52,6 +53,7 @@ interface PlaceSheetScrollProps {
 
 export function PlaceSheetScroll({
   place,
+  detail,
   now,
   festivalDays,
   bottomPadding,
@@ -59,8 +61,6 @@ export function PlaceSheetScroll({
   onContentHeight,
 }: PlaceSheetScrollProps) {
   const placeId = placeIdOf(place);
-  const { data } = usePlaceDetail(placeId);
-  const detail = data ?? null;
 
   const sections = useMemo(() => placeSections(detail), [detail]);
 

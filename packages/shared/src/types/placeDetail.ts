@@ -3,10 +3,11 @@
  *
  * The overlay wire (`MapOverlay`) is the SUMMARY: a title, a subtitle, opening
  * hours, flat field rows and buttons. That is enough for a pin and a list row
- * and not enough for the sheet the student council asked for. None of this
- * exists on the server yet (skkuverse-server `MapPlaceDoc` has no field for any
- * of it, and its importer drops unknown keys), so this type is authored
- * client-first and served from a mock until the server grows the same shape.
+ * and not enough for the sheet the student council asked for. This is the rest,
+ * served on its own route, `GET /map/overlays/event/details`, keyed by the id
+ * the overlay's `tap.placeId` carries. skkuverse-server mirrors this shape
+ * one-to-one in `src/map/map-place-detail.types.ts`; the contract is its
+ * `docs/reference/map-overlays-api.md` §5.4.
  *
  * Kept apart from `MapOverlay` on purpose. The overlay is what the map, the
  * list and the pin-collision ladder already agree on; the detail is read by the
@@ -46,16 +47,22 @@ import type { I18nText } from './map';
  * Nothing branches its RENDERING on this — the body is whatever blocks the
  * operator composed, and the summary's highlight is the first one that can fill
  * it. The kind is carried for the list's filters, which the council asked for.
+ *
+ * **CLOSED**, unlike a block's `type`: the parser drops a whole detail whose
+ * kind is not in this list, so a new kind ships here first and on the server
+ * second. The server holds the same list and refuses anything else at import.
  */
-export type PlaceKind =
-  | 'pub'
-  | 'booth'
-  | 'promo'
-  | 'foodTruck'
-  | 'goods'
-  | 'facility'
-  | 'stage'
-  | 'etc';
+export const PLACE_KINDS = [
+  'pub',
+  'booth',
+  'promo',
+  'foodTruck',
+  'goods',
+  'facility',
+  'stage',
+  'etc',
+] as const;
+export type PlaceKind = (typeof PLACE_KINDS)[number];
 
 // ── Body blocks ───────────────────────────────────────────────────────────
 
@@ -128,7 +135,7 @@ export interface PlaceInstagramAction {
   postUrl: string | null;
 }
 
-/** A labelled page that always stays inside the app's webview. */
+/** A labelled page, an absolute https URL the app opens externally. */
 export interface PlaceLinkAction {
   type: 'link';
   id: string;

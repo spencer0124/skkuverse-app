@@ -25,7 +25,9 @@ import {
   type TextLayoutEventData,
 } from 'react-native';
 import {
+  heroGallery,
   pickI18nText,
+  placeBody,
   SdsColors,
   SdsRadius,
   SdsSpacing,
@@ -43,17 +45,22 @@ import { PlaceGallery } from './PlaceGallery';
 const TEXT_LINES = 3;
 
 export function PlaceBlocks({ blocks }: { blocks: readonly PlaceBlock[] }) {
-  // The summary draws the first image under the highlight, so the body starts
-  // after it. Any later image is the operator's own, and stays where they put
-  // it.
-  const heroId = blocks.find((block) => block.type === 'image')?.id;
+  // Consecutive images fold into one rail (`placeBody`). The summary draws the
+  // first rail under the highlight, so the body skips it; any later rail is the
+  // operator's own, and stays where they put it.
+  const body = placeBody(blocks);
+  const heroId = heroGallery(body)?.id;
   return (
     <View style={styles.body}>
-      {blocks
-        .filter((block) => block.id !== heroId)
-        .map((block) => (
-          <PlaceBlockView key={block.id} block={block} />
-        ))}
+      {body
+        .filter((item) => item.id !== heroId)
+        .map((item) =>
+          item.type === 'gallery' ? (
+            <PlaceGallery key={item.id} images={item.images} />
+          ) : (
+            <PlaceBlockView key={item.id} block={item.block} />
+          ),
+        )}
     </View>
   );
 }
@@ -66,8 +73,9 @@ function PlaceBlockView({ block }: { block: PlaceBlock }) {
       return <ListBlock title={block.title} items={block.items} />;
     case 'table':
       return <TableBlock title={block.title} rows={block.rows} />;
+    // Folded into a gallery by `placeBody` before this switch is reached.
     case 'image':
-      return <ImageBlock url={block.url} caption={block.caption} />;
+      return null;
     case 'notice':
       return <NoticeBlock title={block.title} items={block.items} />;
     // No `never` arm, on purpose. See the file header.
@@ -207,22 +215,6 @@ function TableBlock({ title, rows }: { title: I18nText | null; rows: readonly Pl
   );
 }
 
-// ── image ─────────────────────────────────────────────────────────────────
-
-function ImageBlock({ url, caption }: { url: string; caption: I18nText | null }) {
-  const lang = useSettingsStore((s) => s.appLanguage);
-  return (
-    <View>
-      <PlaceGallery images={[url]} compact />
-      {caption ? (
-        <Txt typography="t7" color={SdsColors.grey500} style={styles.caption}>
-          {pickI18nText(caption, lang)}
-        </Txt>
-      ) : null}
-    </View>
-  );
-}
-
 // ── notice ────────────────────────────────────────────────────────────────
 
 function NoticeBlock({ title, items }: { title: I18nText | null; items: readonly I18nText[] }) {
@@ -264,7 +256,6 @@ const styles = StyleSheet.create({
   },
   emojiText: { fontFamily: 'TossFaceFontMac', fontSize: 18, lineHeight: 22 },
   tableRow: { paddingVertical: SdsSpacing.md },
-  caption: { marginTop: SdsSpacing.xs },
   bullets: { gap: SdsSpacing.sm },
   bulletRow: { flexDirection: 'row', gap: SdsSpacing.sm },
   bulletMark: { paddingTop: 1 },

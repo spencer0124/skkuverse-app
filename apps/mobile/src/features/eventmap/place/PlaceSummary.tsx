@@ -17,17 +17,19 @@
  * A row with nothing to say is not drawn, which is the whole difference between
  * a pub and a toilet: a toilet is only its live status.
  *
- * Without a detail the server's `subtitle` stands in for the metadata line, so
- * an unmocked place still renders a useful, compact card.
+ * The operator's `org` leads the metadata line when the detail names one, and
+ * the server's `subtitle` stands in otherwise — a food truck names no operator,
+ * and its subtitle (야끼소바 · 오꼬노미야끼) is the line worth reading.
  */
 
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   dayLabelOf,
-  firstImageUrl,
+  heroGallery,
   highlightBlock,
   pickI18nText,
+  placeBody,
   SdsColors,
   SdsSpacing,
   useSettingsStore,
@@ -64,9 +66,8 @@ export function PlaceSummary({
   const { t, tpl } = useT();
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  const orgText = detail
-    ? detail.org && pickI18nText(detail.org, lang)
-    : place.subtitle && pickI18nText(place.subtitle, lang);
+  const orgSource = detail?.org ?? place.subtitle;
+  const orgText = orgSource ? pickI18nText(orgSource, lang) : null;
   const meta = [
     detail?.locationLabel ? pickI18nText(detail.locationLabel, lang) : null,
     orgText,
@@ -76,9 +77,9 @@ export function PlaceSummary({
 
   const blocks = detail?.blocks ?? [];
   const highlight = highlightBlock(blocks);
-  // The summary owns the first image; `PlaceBlocks` skips it so it is not drawn
-  // twice in one sheet.
-  const heroUrl = firstImageUrl(blocks);
+  // The summary owns the body's first photo rail; `PlaceBlocks` skips it by id
+  // so it is not drawn twice in one sheet.
+  const hero = heroGallery(placeBody(blocks));
   const status = statusLineOf(place.hours, now, lang, t, tpl);
   // Which festival day, appended to the status rather than given a row of its
   // own: nine places run on one day only — the eight night bars and the
@@ -111,7 +112,7 @@ export function PlaceSummary({
       {/* Under the highlight, so the collapsed card's edge cuts a photo rather
           than a row the visitor acts on. A half-shown image reads as "there is
           more" without a word of copy. */}
-      {heroUrl ? <PlaceGallery images={[heroUrl]} compact /> : null}
+      {hero ? <PlaceGallery images={hero.images} /> : null}
     </View>
   );
 }

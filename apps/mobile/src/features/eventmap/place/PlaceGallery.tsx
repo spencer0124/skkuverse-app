@@ -1,5 +1,9 @@
 /**
- * A sideways strip of a place's photos, the last block of the summary.
+ * A sideways strip of a place's photos, each with its caption under it.
+ *
+ * One rail per run of consecutive image blocks (`placeBody`), so a food truck's
+ * three dish photos are one strip the viewer pages across rather than three
+ * strips of one. The summary draws the body's first rail as its last block.
  *
  * Last on purpose: it is what the collapsed card's bottom edge cuts through,
  * the way Naver's photo row peeks under its buttons — a half-visible image says
@@ -23,13 +27,22 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { XIcon } from 'phosphor-react-native';
-import { SdsColors, SdsRadius } from '@skkuverse/shared';
+import {
+  pickI18nText,
+  SdsColors,
+  SdsRadius,
+  SdsSpacing,
+  useSettingsStore,
+  type PlaceImage,
+} from '@skkuverse/shared';
+import { Txt } from '@skkuverse/sds';
 import { SHEET_GUTTER } from './layout';
 
-const THUMB = 120;
-const COMPACT_THUMB = 192;
+const THUMB_WIDTH = 256;
+const THUMB_HEIGHT = 192;
 
-export function PlaceGallery({ images, compact = false }: { images: readonly string[]; compact?: boolean }) {
+export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
+  const lang = useSettingsStore((s) => s.appLanguage);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const viewerRef = useRef<ScrollView>(null);
   const { width, height } = useWindowDimensions();
@@ -59,11 +72,11 @@ export function PlaceGallery({ images, compact = false }: { images: readonly str
         style={styles.bleed}
         contentContainerStyle={styles.row}
       >
-        {images.map((uri, index) => (
+        {images.map((image, index) => (
           <GalleryThumbnail
-            key={uri}
-            uri={uri}
-            compact={compact}
+            key={image.id}
+            uri={image.url}
+            caption={image.caption ? pickI18nText(image.caption, lang) : null}
             onOpen={() => setSelectedIndex(index)}
           />
         ))}
@@ -84,14 +97,19 @@ export function PlaceGallery({ images, compact = false }: { images: readonly str
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={onViewerScrollEnd}
           >
-            {images.map((uri) => (
-              <View key={uri} style={[styles.viewerPage, { width, height }]}>
+            {images.map((image) => (
+              <View key={image.id} style={[styles.viewerPage, { width, height }]}>
                 <Image
-                  source={{ uri }}
+                  source={{ uri: image.url }}
                   style={{ width, height }}
                   contentFit="contain"
                   accessibilityIgnoresInvertColors
                 />
+                {image.caption ? (
+                  <Txt typography="t6" color="#fff" style={styles.viewerCaption}>
+                    {pickI18nText(image.caption, lang)}
+                  </Txt>
+                ) : null}
               </View>
             ))}
           </ScrollView>
@@ -111,7 +129,15 @@ export function PlaceGallery({ images, compact = false }: { images: readonly str
 }
 
 /** A horizontal drag must never be mistaken for a tap that opens the viewer. */
-function GalleryThumbnail({ uri, compact, onOpen }: { uri: string; compact: boolean; onOpen: () => void }) {
+function GalleryThumbnail({
+  uri,
+  caption,
+  onOpen,
+}: {
+  uri: string;
+  caption: string | null;
+  onOpen: () => void;
+}) {
   const start = useRef<{ x: number; y: number } | null>(null);
   const moved = useRef(false);
 
@@ -136,11 +162,17 @@ function GalleryThumbnail({ uri, compact, onOpen }: { uri: string; compact: bool
     >
       <Image
         source={{ uri }}
-        style={compact ? styles.compactThumb : styles.thumb}
+        style={styles.thumb}
         contentFit="cover"
         transition={150}
         accessibilityIgnoresInvertColors
+        accessibilityLabel={caption ?? undefined}
       />
+      {caption ? (
+        <Txt typography="t7" color={SdsColors.grey600} numberOfLines={1} style={styles.caption}>
+          {caption}
+        </Txt>
+      ) : null}
     </Pressable>
   );
 }
@@ -149,19 +181,21 @@ const styles = StyleSheet.create({
   bleed: { marginHorizontal: -SHEET_GUTTER, flexGrow: 0 },
   row: { paddingHorizontal: SHEET_GUTTER, gap: 6 },
   thumb: {
-    width: THUMB,
-    height: THUMB,
+    width: THUMB_WIDTH,
+    height: THUMB_HEIGHT,
     borderRadius: SdsRadius.md,
     backgroundColor: SdsColors.grey100,
   },
-  compactThumb: {
-    width: 256,
-    height: COMPACT_THUMB,
-    borderRadius: SdsRadius.md,
-    backgroundColor: SdsColors.grey100,
-  },
+  caption: { width: THUMB_WIDTH, marginTop: SdsSpacing.xs },
   viewer: { flex: 1, backgroundColor: '#000' },
   viewerPage: { justifyContent: 'center', alignItems: 'center' },
+  viewerCaption: {
+    position: 'absolute',
+    bottom: 64,
+    left: 20,
+    right: 20,
+    textAlign: 'center',
+  },
   viewerClose: {
     position: 'absolute',
     top: 56,

@@ -19,7 +19,15 @@
 import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
-import { pickI18nText, SdsColors, SdsSpacing, useSettingsStore, useT, type MapOverlay } from '@skkuverse/shared';
+import {
+  pickI18nText,
+  SdsColors,
+  SdsSpacing,
+  useSettingsStore,
+  useT,
+  type MapOverlay,
+  type PlaceDetail,
+} from '@skkuverse/shared';
 import {
   Sheet,
   SheetCloseButton,
@@ -46,6 +54,8 @@ const EXPANDABLE: SheetPosition = { kind: 'expandable', detents: DETENTS };
 
 interface EventMapPeekSheetProps {
   place: MapOverlay | null;
+  /** `place`'s sheet body, looked up by the caller; `null` draws the overlay alone. */
+  detail: PlaceDetail | null;
   /** From `useWindowClock`, so the status sentence matches the tapped pin. */
   now: number;
   /**
@@ -73,7 +83,7 @@ interface EventMapPeekSheetProps {
 
 export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
   function EventMapPeekSheet(
-    { place, now, festivalDays, bottomGap, onDismiss, onNavigateAway },
+    { place, detail, now, festivalDays, bottomGap, onDismiss, onNavigateAway },
     ref,
   ) {
     const { t } = useT();
@@ -171,6 +181,7 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
           {place ? (
             <PlaceSheetScroll
               place={place}
+              detail={detail}
               now={now}
               festivalDays={festivalDays}
               bottomPadding={bottomPadding}

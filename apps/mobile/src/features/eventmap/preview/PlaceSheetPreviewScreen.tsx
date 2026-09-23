@@ -1,9 +1,9 @@
 /**
  * Development screen: every kind of festival place, one tap from its sheet.
  *
- * Reached from the settings screen's development menu, and only in a
- * development build — `usePlaceDetail` serves its mock under `__DEV__` alone,
- * so anywhere else this would list places whose sheets are all base skeletons.
+ * Reached from the settings screen's development menu, in a development build.
+ * Each place's body is its `MOCK_PLACE_DETAILS` entry, handed to the sheet the
+ * way `CampusScreen` hands it the served one.
  *
  * It mounts the real `EventMapPeekSheet`, with the same dismiss-and-return
  * round trip `CampusScreen` wires, so what is checked here is what the map
@@ -15,7 +15,13 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { festivalDaysOf, pickI18nText, SdsColors, SdsSpacing } from '@skkuverse/shared';
+import {
+  festivalDaysOf,
+  MOCK_PLACE_DETAILS,
+  pickI18nText,
+  SdsColors,
+  SdsSpacing,
+} from '@skkuverse/shared';
 import {
   ListRow,
   SegmentedControl,
@@ -24,6 +30,7 @@ import {
   type SheetRef,
 } from '@skkuverse/sds';
 import { EventMapPeekSheet } from '../EventMapPeekSheet';
+import { placeIdOf } from '../place/PlaceSheetScroll';
 import { previewPlaces, type PreviewClock } from './mockOverlays';
 
 const CLOCKS: { value: PreviewClock; label: string }[] = [
@@ -42,6 +49,7 @@ export function PlaceSheetPreviewScreen() {
   const sheetRef = useRef<SheetRef>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = places.find((p) => p.overlay.id === selectedId)?.overlay ?? null;
+  const selectedDetail = selected ? (MOCK_PLACE_DETAILS[placeIdOf(selected)] ?? null) : null;
 
   // The same two-flag round trip as CampusScreen: a button dismisses the sheet
   // to navigate, and the sheet comes back when this screen is focused again.
@@ -80,7 +88,7 @@ export function PlaceSheetPreviewScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <Txt typography="t7" color={SdsColors.grey600}>
-              목 데이터는 개발 빌드에서만 연결돼요. 시각을 바꾸면 운영 상태가 바뀌어요.
+              목 데이터로 그려요. 시각을 바꾸면 운영 상태가 바뀌어요.
             </Txt>
             <SegmentedControl value={clock} onValueChange={(v) => setClock(v as PreviewClock)}>
               {CLOCKS.map((c) => (
@@ -110,6 +118,7 @@ export function PlaceSheetPreviewScreen() {
       <EventMapPeekSheet
         ref={sheetRef}
         place={selected}
+        detail={selectedDetail}
         now={now}
         festivalDays={festivalDays}
         bottomGap={insets.bottom + SHEET_FLOAT_INSET}

@@ -32,6 +32,7 @@ import {
   useMapConfig,
   useMapLayerStore,
   useLayerOverlays,
+  usePlaceDetails,
   useWindowClock,
   useEventMapStore,
   useT,
@@ -573,6 +574,9 @@ export function CampusScreen() {
   );
   const eventQuery = useLayerOverlays(eventEndpoint ?? '', eventEndpoint !== null);
   const eventOverlays = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
+  // The sheet bodies ride their own route beside the overlays, under the same
+  // gate: no festival endpoint, no request. See `usePlaceDetails`.
+  const placeDetails = usePlaceDetails(eventEndpoint).data;
 
   /**
    * Every daily window the served layers declare.
@@ -628,6 +632,7 @@ export function CampusScreen() {
   }, [eventOverlays]);
 
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
+  const selectedDetail = selectedPlaceId ? (placeDetails?.[selectedPlaceId] ?? null) : null;
 
   /**
    * The festival's days, counted from every served place rather than
@@ -1550,6 +1555,7 @@ export function CampusScreen() {
         <EventMapPeekSheet
           ref={peekSheetRef}
           place={selectedPlace}
+          detail={selectedDetail}
           now={now}
           festivalDays={festivalDays}
           bottomGap={modalCardBottomGap}

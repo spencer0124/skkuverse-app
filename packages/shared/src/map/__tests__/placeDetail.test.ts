@@ -5,7 +5,7 @@
  *
  * - A window's START decides its festival day. A 주점 open 18:00–00:00 ends on
  *   the next date, and counting that end would put every pub on both days.
- * - `facts` is always in the section list. 56 of the 67 served places have no
+ * - `facts` is always in the section list. Most served places have no
  *   detail, and dropping the section took their opening hours with it.
  * - An unknown block type drops alone. An exhaustive check here would blank a
  *   whole body on an older build the day a new type ships.
@@ -15,9 +15,10 @@ import { describe, expect, it } from 'vitest';
 import {
   dayLabelOf,
   festivalDaysOf,
-  firstImageUrl,
+  heroGallery,
   highlightBlock,
   kstDateKey,
+  placeBody,
   placeSections,
 } from '../placeDetail';
 import { MOCK_PLACE_DETAILS } from '../mock/placeDetails';
@@ -114,7 +115,7 @@ describe('dayLabelOf', () => {
 });
 
 describe('placeSections', () => {
-  // The regression that matters: 56 of the 67 served places have no detail, and
+  // The regression that matters: most served places have no detail, and
   // every one of them carries `hours` on the overlay wire. Returning an empty
   // list here is what used to drop the facts card, and with it the opening
   // times of five sixths of the map.
@@ -169,13 +170,39 @@ describe('highlightBlock', () => {
   });
 });
 
-describe('firstImageUrl', () => {
-  it('is null without an image', () => {
-    expect(firstImageUrl([textBlock('a')])).toBeNull();
+describe('placeBody', () => {
+  it('folds consecutive images into one gallery, in order', () => {
+    // The food truck shape: a menu, then one photo per dish.
+    const body = placeBody([tableBlock('menu'), imageBlock('p1', 'one.png'), imageBlock('p2', 'two.png')]);
+    expect(body.map((i) => [i.type, i.id])).toEqual([
+      ['block', 'menu'],
+      ['gallery', 'p1'],
+    ]);
+    const gallery = body[1];
+    expect(gallery?.type === 'gallery' && gallery.images.map((i) => i.url)).toEqual(['one.png', 'two.png']);
   });
 
-  it('takes the first image, whatever else is around it', () => {
-    const blocks = [textBlock('a'), imageBlock('i1', 'one.png'), imageBlock('i2', 'two.png')];
-    expect(firstImageUrl(blocks)).toBe('one.png');
+  it('keeps an image between two other blocks a gallery of its own', () => {
+    const body = placeBody([
+      imageBlock('logo', 'logo.png'),
+      textBlock('intro'),
+      imageBlock('p1', 'one.png'),
+    ]);
+    expect(body.map((i) => [i.type, i.id])).toEqual([
+      ['gallery', 'logo'],
+      ['block', 'intro'],
+      ['gallery', 'p1'],
+    ]);
+  });
+});
+
+describe('heroGallery', () => {
+  it('is null without an image', () => {
+    expect(heroGallery(placeBody([textBlock('a')]))).toBeNull();
+  });
+
+  it('takes the first gallery, whatever else is around it', () => {
+    const body = placeBody([textBlock('a'), imageBlock('i1', 'one.png'), textBlock('b'), imageBlock('i2', 'two.png')]);
+    expect(heroGallery(body)?.id).toBe('i1');
   });
 });

@@ -12,7 +12,7 @@
  */
 
 import type { PlaceBlock, PlaceBlockType, PlaceDetail } from '../types/placeDetail';
-import type { TimeWindow } from '../types/map';
+import type { I18nText, TimeWindow } from '../types/map';
 import { toEpochMs } from './window';
 
 // ── Festival days ─────────────────────────────────────────────────────────
@@ -92,10 +92,10 @@ export type PlaceSectionKey = 'facts' | 'blocks';
 /**
  * The sections below a place's summary, in display order.
  *
- * **Always starts with `facts`, detail or no detail.** Of the 67 places the
- * server serves, 56 have no detail at all, and every one of them still carries
- * `hours` on the overlay wire — so gating the facts card away was throwing out
- * the opening times of five sixths of the map. `FactsSection` already draws its
+ * **Always starts with `facts`, detail or no detail.** Most places the server
+ * serves have no detail at all, and every one of them still carries `hours` on
+ * the overlay wire — so gating the facts card away was throwing out the opening
+ * times of most of the map. `FactsSection` already draws its
  * hours row unconditionally; this is the gate that used to stop it mounting.
  */
 export function placeSections(detail: PlaceDetail | null): PlaceSectionKey[] {
@@ -131,8 +131,54 @@ export function highlightBlock(blocks: readonly PlaceBlock[]): PlaceBlock | null
   return blocks.find((block) => HIGHLIGHT_TYPES.includes(block.type)) ?? null;
 }
 
-/** The first image in a body, used as the highlight card's thumbnail. */
-export function firstImageUrl(blocks: readonly PlaceBlock[]): string | null {
-  const image = blocks.find((block) => block.type === 'image');
-  return image === undefined || image.type !== 'image' ? null : image.url;
+// ── Photos ────────────────────────────────────────────────────────────────
+
+/** One photo of a gallery, as the rail and the full-screen viewer draw it. */
+export interface PlaceImage {
+  id: string;
+  url: string;
+  caption: I18nText | null;
+}
+
+/**
+ * One item of a body as the sheet draws it: a block, or a run of photos.
+ *
+ * `id` is the first image's, so it stays stable as long as the run's head does.
+ */
+export type PlaceBodyItem =
+  | { type: 'block'; id: string; block: PlaceBlock }
+  | { type: 'gallery'; id: string; images: PlaceImage[] };
+
+/**
+ * The body with each run of CONSECUTIVE image blocks folded into one gallery.
+ *
+ * A food truck is a menu table followed by one photo per dish. Drawn a block at
+ * a time, three photos were three rails of one image each, stacked, and the
+ * viewer opened each alone. Folded, they are one rail the viewer pages across.
+ * Only adjacency folds: an image the operator put between two paragraphs is a
+ * gallery of one, and stays where they put it.
+ */
+export function placeBody(blocks: readonly PlaceBlock[]): PlaceBodyItem[] {
+  const items: PlaceBodyItem[] = [];
+  for (const block of blocks) {
+    if (block.type !== 'image') {
+      items.push({ type: 'block', id: block.id, block });
+      continue;
+    }
+    const image: PlaceImage = { id: block.id, url: block.url, caption: block.caption };
+    const last = items[items.length - 1];
+    if (last?.type === 'gallery') last.images.push(image);
+    else items.push({ type: 'gallery', id: block.id, images: [image] });
+  }
+  return items;
+}
+
+/**
+ * The gallery the summary lifts under its highlight — the body's first.
+ *
+ * The body skips it by `id`, so a photo is never drawn twice in one sheet.
+ */
+export function heroGallery(body: readonly PlaceBodyItem[]): Extract<PlaceBodyItem, { type: 'gallery' }> | null {
+  for (const item of body) if (item.type === 'gallery') return item;
+  return null;
 }

@@ -1,11 +1,10 @@
 /**
- * Mock place details, until the server can serve them.
+ * Mock place details for the development preview screen.
  *
- * **Development builds only.** The keys are the real seed slugs
- * (`eskara-2026-*`), and the 2026 content will be authored under the same slug
- * scheme — so if this table reached a release or the beta channel, the real
- * festival's pins would open 2025's text. `usePlaceDetail` is the only reader,
- * and it consults this table under `__DEV__` alone.
+ * The real ones are served by `GET /map/overlays/event/details` and read by
+ * `usePlaceDetails`; nothing on the campus map reads this table. It exists so
+ * `PlaceSheetPreviewScreen` can show every block composition the sheet has,
+ * whatever the server is serving that day.
  *
  * The text is adapted from the 2025 ESKARA archive
  * (`26eskara/archive/notion/2025-eskara/`). Bank accounts, depositor names and

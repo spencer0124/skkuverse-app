@@ -29,6 +29,15 @@ import type {
   LatLng,
   TimeWindow,
 } from '../types/map';
+import {
+  PLACE_KINDS,
+  type PlaceAction,
+  type PlaceBlock,
+  type PlaceBlockType,
+  type PlaceDetail,
+  type PlaceListItem,
+  type PlaceTableRow,
+} from '../types/placeDetail';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
@@ -688,4 +697,142 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
       }
     }
   });
+}
+
+// ── Place details ─────────────────────────────────────────────────────────
+
+/**
+ * The block types this build can draw. A `type` outside the set drops that ONE
+ * block and leaves the rest of the body, the same way `OVERLAY_KINDS` absorbs
+ * an overlay kind — so the switch in `parsePlaceBlock` can be exhaustive
+ * without asserting `never`.
+ */
+const PLACE_BLOCK_TYPES = ['text', 'list', 'table', 'image', 'notice'] as const satisfies readonly PlaceBlockType[];
+
+/**
+ * `data` of `GET /map/overlays/event/details` — every served place's sheet
+ * body, keyed by the `tap.placeId` its overlay carries.
+ *
+ * Fail soft and as narrowly as the server does: a broken row drops from its
+ * block, a broken block or action drops from its detail, and a detail drops
+ * whole only when it has no id or its `kind` is not one this build knows
+ * (`PLACE_KINDS` is closed). A place with no detail is simply absent, which the
+ * sheet already reads as "draw the overlay alone".
+ *
+ * Keyed by the detail's own `placeId` rather than the record's key, so the id a
+ * sheet looks up is the one the server stated for that body.
+ */
+export function parsePlaceDetails(envelope: ApiEnvelope<unknown>): Record<string, PlaceDetail> {
+  const data = envelope.data as Record<string, unknown> | null;
+  const raw = data?.details;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, PlaceDetail> = {};
+  for (const entry of Object.values(raw as Record<string, unknown>)) {
+    const detail = parsePlaceDetail(entry);
+    if (detail) out[detail.placeId] = detail;
+  }
+  return out;
+}
+
+function parsePlaceDetail(raw: unknown): PlaceDetail | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const d = raw as Record<string, unknown>;
+  if (typeof d.placeId !== 'string' || d.placeId === '') return null;
+  const kind = asMember(d.kind, PLACE_KINDS);
+  if (!kind) return null;
+  return {
+    placeId: d.placeId,
+    kind,
+    org: parseI18nText(d.org),
+    isUnion: d.isUnion === true,
+    locationLabel: parseI18nText(d.locationLabel),
+    actions: parseEach(d.actions, parsePlaceAction),
+    blocks: parseEach(d.blocks, parsePlaceBlock),
+  };
+}
+
+/** An absolute `https:` URL, or `null`. Everything the sheet opens or loads is one. */
+function httpsUrl(raw: unknown): string | null {
+  return typeof raw === 'string' && /^https:\/\/[^\s/]+/.test(raw) ? raw : null;
+}
+
+/** Keeps the entries `parse` accepts; an empty result is the caller's to reject. */
+function parseEach<T>(raw: unknown, parse: (entry: unknown) => T | null): T[] {
+  return Array.isArray(raw) ? raw.flatMap((entry) => parse(entry) ?? []) : [];
+}
+
+function parseListItem(raw: unknown): PlaceListItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const i = raw as Record<string, unknown>;
+  const title = parseI18nText(i.title);
+  if (title === null) return null;
+  return {
+    emoji: typeof i.emoji === 'string' && i.emoji !== '' ? i.emoji : null,
+    title,
+    description: parseI18nText(i.description),
+  };
+}
+
+function parseTableRow(raw: unknown): PlaceTableRow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const label = parseI18nText(r.label);
+  const value = parseI18nText(r.value);
+  return label && value ? { label, value } : null;
+}
+
+/**
+ * One body block, or `null`. A list, table or notice with no readable row is
+ * dropped rather than drawn as a heading over nothing.
+ */
+function parsePlaceBlock(raw: unknown): PlaceBlock | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const type = asMember(b.type, PLACE_BLOCK_TYPES);
+  if (!type) return null;
+  if (typeof b.id !== 'string' || b.id === '') return null;
+  const id = b.id;
+  const title = parseI18nText(b.title);
+
+  switch (type) {
+    case 'text': {
+      const body = parseI18nText(b.body);
+      return body ? { type, id, title, body } : null;
+    }
+    case 'list': {
+      const items = parseEach(b.items, parseListItem);
+      return items.length > 0 ? { type, id, title, items } : null;
+    }
+    case 'table': {
+      const rows = parseEach(b.rows, parseTableRow);
+      return rows.length > 0 ? { type, id, title, rows } : null;
+    }
+    case 'image': {
+      const url = httpsUrl(b.url);
+      return url ? { type, id, title, url, caption: parseI18nText(b.caption) } : null;
+    }
+    case 'notice': {
+      const items = parseEach(b.items, parseI18nText);
+      return items.length > 0 ? { type, id, title, items } : null;
+    }
+  }
+}
+
+/** A sheet action, or `null`. An unknown `type` drops that one button. */
+function parsePlaceAction(raw: unknown): PlaceAction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.id !== 'string' || a.id === '') return null;
+  const label = parseI18nText(a.label);
+  if (label === null) return null;
+  if (a.type === 'link') {
+    const url = httpsUrl(a.url);
+    return url ? { type: 'link', id: a.id, label, url } : null;
+  }
+  if (a.type === 'instagram') {
+    const profileUrl = httpsUrl(a.profileUrl);
+    if (profileUrl === null) return null;
+    return { type: 'instagram', id: a.id, label, profileUrl, postUrl: httpsUrl(a.postUrl) };
+  }
+  return null;
 }

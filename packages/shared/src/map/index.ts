@@ -26,7 +26,8 @@ export { selectVisibleOverlays, sortPlaces, type VisibleOverlaysInput } from './
 export { pickI18nText, wrapMarkerLabel } from './text';
 export {
   highlightBlock,
-  firstImageUrl,
+  placeBody,
+  heroGallery,
   HIGHLIGHT_MAX,
   placeSections,
   dayLabelOf,
@@ -34,4 +35,6 @@ export {
   kstDateKey,
   type PlaceDays,
   type PlaceSectionKey,
+  type PlaceBodyItem,
+  type PlaceImage,
 } from './placeDetail';

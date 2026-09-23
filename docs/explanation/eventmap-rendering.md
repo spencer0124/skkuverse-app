@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-22
+last-updated: 2026-09-23
 audience: internal
 ---
 
@@ -675,7 +675,7 @@ server opens the window**.
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
 | `apps/mobile/src/features/eventmap/place/` | the sheet: summary, facts card, and `PlaceBlocks` for the composed body (§10) |
 | `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock`, `festivalDaysOf`, `dayLabelOf` — the sheet's decisions (§10) |
-| `packages/shared/src/hooks/usePlaceDetail.ts` | a place's detail; a development-only mock until the server serves one (§10) |
+| `packages/shared/src/hooks/usePlaceDetails.ts` | every place's detail from `/map/overlays/event/details`, parsed by `parsePlaceDetails` (§10.3) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
 | `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
 | `apps/mobile/src/features/map/components/MapOverlayLayer.tsx` | draws every `/map/config` layer, booth pins included; dispatches on each overlay's `kind`; applies the ladder to markers alone |
@@ -702,15 +702,16 @@ The sheet is a **structured head** every place shares and a **body the operator 
 ```text
 [pinned]  title
 status    open now · day 2          statusLineOf + dayLabelOf
-meta      <locationLabel> · <org>
+meta      <locationLabel> · <org, or the overlay's subtitle>
 highlight the first list or table block, lifted above the fold
+photos    the body's first run of consecutive images, one rail
 ─ collapsed card ends about here ─
 facts     location · hours · instagram · links · notices
 blocks    text · list · table · image · notice, in the authored order
 ```
 
 **The facts card is the floor, and it is always mounted.** `placeSections` returns `['facts']` for a
-place with no detail at all, which is 56 of the 67 the server serves — every one of them carries
+place with no detail at all, which is most of what the server serves — every one of them carries
 `hours` on the overlay wire, and gating the card away took their opening times with it. Only
 `locationLabel` fills the location row. The wire's `subtitle` is whatever ops wrote — a bay number,
 a kind and a day, an operating note, a shuttle route — so half the bars would read
@@ -740,6 +741,13 @@ Three rules are load-bearing:
   the collapsed card leads with by ordering their blocks. That replaced a per-kind fallback table;
   nothing branches rendering on `PlaceKind` any more. The kind is kept for the list's filters.
 
+**Consecutive images are one rail** (`placeBody` in `packages/shared/src/map/placeDetail.ts`). A food
+truck is a menu table and then one photo per dish, captioned with the dish's name; drawn a block at a
+time that was a stack of one-photo rails, and the viewer opened each alone. Folded, it is one rail the
+viewer pages across. The summary draws the body's first rail (`heroGallery`) and the body skips it by
+id. Only adjacency folds, so a logo above an introduction stays a rail of one where the operator put
+it.
+
 Anything genuinely long-form stays a **link out** rather than an embed: `goods-shop` and `preorder`
 already carry a goods-guide `webview` action to `webview.skkuverse.com/eskara/goods`. A web view inside the
 sheet would bring a second scroller into the one slot gorhom allows (§"a gorhom scrollable cannot
@@ -760,12 +768,24 @@ the top detent, so a summary that fills the card to its edge would otherwise dra
 
 ### 10.3 Where the data comes from
 
-None of `PlaceDetail` exists on the server yet. `usePlaceDetail` answers from a mock keyed by the
-seed's slugs, **in development builds only**: the 2026 content will reuse the same slug scheme, and
-the beta channel sees the real festival the moment the server opens it. A release build resolves
-every place to no detail — the head plus the server's own `subtitle`, `hours` and actions. When the
-server serves `blocks`, `lookup()` in `usePlaceDetail.ts` is the one line that changes. The
-development menu in settings opens `/place-sheet-preview`.
+`GET /map/overlays/event/details` serves every place's detail in one response, keyed by the overlay's
+`tap.placeId`. The contract is skkuverse-server `docs/reference/map-overlays-api.md` §5.4, and the
+server mirrors `PlaceDetail` one-to-one. A separate route rather than a field on the overlay, because
+only the sheet reads it.
+
+`usePlaceDetails` fetches it once, beside the overlays, so a tapped pin's sheet opens with its menu
+already there instead of drawing its skeleton and growing under the finger. The route is the festival
+layer's endpoint plus `/details`, and a `null` endpoint disables the query — so the festival gate
+closes the details with the overlays and no second guard. `CampusScreen` looks the selected place up
+and passes `detail` down as a prop, the same way it passes `place`.
+
+`parsePlaceDetails` (`map/parser.ts`) fails as narrowly as the server does: a bad row, block or
+action drops alone, and a detail drops whole only without an id or with a `kind` outside
+`PLACE_KINDS`, which is closed where a block's `type` is open. A failed request, or a place with no
+detail, is the overlay alone: hours and actions, with the `subtitle` on the meta line.
+
+The dev-only preview (`/place-sheet-preview`, from the development menu in settings) hands the sheet
+`MOCK_PLACE_DETAILS` directly, so it shows every block composition whatever the server serves.
 
 ## 11. Gotchas
 

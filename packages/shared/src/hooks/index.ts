@@ -15,7 +15,7 @@ export {
   MAP_LAYER_OVERLAYS_KEY,
 } from './useMapLayers';
 export { useWindowClock } from './useWindowClock';
-export { usePlaceDetail, PLACE_DETAIL_KEY } from './usePlaceDetail';
+export { usePlaceDetails, PLACE_DETAILS_KEY } from './usePlaceDetails';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 
 // ── Notice hooks ──

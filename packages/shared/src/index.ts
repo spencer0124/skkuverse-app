@@ -243,14 +243,17 @@ export { selectVisibleOverlays, sortPlaces, pickI18nText, wrapMarkerLabel } from
 export type { VisibleOverlaysInput } from './map';
 export {
   highlightBlock,
-  firstImageUrl,
+  placeBody,
+  heroGallery,
   HIGHLIGHT_MAX,
   placeSections,
   dayLabelOf,
   festivalDaysOf,
   kstDateKey,
 } from './map';
-export type { PlaceDays, PlaceSectionKey } from './map';
+export type { PlaceDays, PlaceSectionKey, PlaceBodyItem, PlaceImage } from './map';
+/** Development only: the place sheet preview screen's details. */
+export { MOCK_PLACE_DETAILS } from './map/mock/placeDetails';
 export type {
   PlaceKind,
   PlaceDetail,
@@ -340,8 +343,8 @@ export {
   useLayerOverlays,
   MAP_LAYER_OVERLAYS_KEY,
   useWindowClock,
-  usePlaceDetail,
-  PLACE_DETAIL_KEY,
+  usePlaceDetails,
+  PLACE_DETAILS_KEY,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,
