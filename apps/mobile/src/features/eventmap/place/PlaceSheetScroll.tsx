@@ -6,17 +6,16 @@
  * [1] sections       facts, intro, representative content, and menu
  * ```
  *
- * Nothing here reads the sheet's detent. Collapsed shows the summary and
- * expanded shows the rest because the CARD is sized to the summary
- * (`sheetFold.ts` measures it through `onSummaryHeight`), not because the
- * content is branched on the detent — which
+ * Nothing here reads the sheet's detent. The collapsed card is one fixed size
+ * (`EventMapPeekSheet`), so collapsed shows as much of the flow as fits and
+ * expanded shows the rest, with no content branched on the detent — which
  * `docs/explanation/bottom-sheet-system.md` rules out.
  *
  * `facts` is always in the list, so a place the server has no detail for still
  * shows its opening hours. See `placeSections`.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { BottomSheetScrollViewMethods } from '@gorhom/bottom-sheet';
 import {
@@ -47,8 +46,6 @@ interface PlaceSheetScrollProps {
   /** Bottom padding of the scroll content, which already includes `bottomGap`. */
   bottomPadding: number;
   onNavigateAway?: () => void;
-  /** The scroll content's height — what the collapsed card is sized from. */
-  onContentHeight?: (height: number) => void;
 }
 
 export function PlaceSheetScroll({
@@ -58,7 +55,6 @@ export function PlaceSheetScroll({
   festivalDays,
   bottomPadding,
   onNavigateAway,
-  onContentHeight,
 }: PlaceSheetScrollProps) {
   const placeId = placeIdOf(place);
 
@@ -72,17 +68,11 @@ export function PlaceSheetScroll({
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [placeId]);
 
-  const onContentSizeChange = useCallback(
-    (_width: number, height: number) => onContentHeight?.(height),
-    [onContentHeight],
-  );
-
   return (
     <Sheet.ScrollView
       ref={scrollRef}
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
-      onContentSizeChange={onContentSizeChange}
     >
       <PlaceSummary
         place={place}

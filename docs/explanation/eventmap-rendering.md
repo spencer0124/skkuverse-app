@@ -754,14 +754,13 @@ sheet would bring a second scroller into the one slot gorhom allows (§"a gorhom
 nest inside another"), report its height only after first paint, and load once per pin on the worst
 network day of the year.
 
-### 10.2 The collapsed card follows the summary
+### 10.2 The collapsed card is one size
 
-`collapsedDetentHeight` (`place/sheetFold.ts`) is one rule for every place: the summary, a sliver of
-the facts card, capped at the default detent. It replaced two competing paths — one padded the
-summary out to the fold, which left a band of empty glass whenever the summary was short; the other
-shrank the card to its content, but only for a place with no sections at all. The summary carries no
-minimum height now; it reports its measured height instead, and nothing reads the detent, which is
-what `docs/explanation/bottom-sheet-system.md` rules out.
+Every place opens at SDS's `small` detent, however short its content. The card used to shrink to fit
+a short place, so a toilet opened as a sliver and a food truck as a full card, and one kind of sheet
+at two heights read as two different sheets. A short place now leaves glass below its content
+instead. The summary carries no minimum height and nothing reads the detent, which is what
+`docs/explanation/bottom-sheet-system.md` rules out.
 
 The content is still clipped to the card (`SheetCardClip.tsx`): gorhom lays the body out as tall as
 the top detent, so a summary that fills the card to its edge would otherwise draw over the map.

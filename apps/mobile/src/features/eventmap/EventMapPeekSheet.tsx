@@ -12,12 +12,11 @@
  *
  * The body is `place/PlaceSheetScroll` — a summary every kind of place shares,
  * then tabs for whatever the place's detail fills in. What stays here is the
- * sheet chrome and its height: the pinned close button, and the one decision
- * the body cannot make for itself, which is how tall the collapsed card is.
+ * sheet chrome: the pinned close button, the card clip, and the detents.
  */
 
-import React, { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import React, { forwardRef } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import {
   pickI18nText,
@@ -31,14 +30,12 @@ import {
 import {
   Sheet,
   SheetCloseButton,
-  SHEET_DETENT_PERCENT,
   Txt,
   type SheetPosition,
   type SheetRef,
 } from '@skkuverse/sds';
-import { placeIdOf, PlaceSheetScroll } from './place/PlaceSheetScroll';
-import { collapsedDetentHeight } from './place/sheetFold';
-import { SHEET_HANDLE_HEIGHT, SheetCardClip } from './SheetCardClip';
+import { PlaceSheetScroll } from './place/PlaceSheetScroll';
+import { SheetCardClip } from './SheetCardClip';
 
 /**
  * The scroll content's own bottom padding, before the card's bottom gap is
@@ -46,11 +43,14 @@ import { SHEET_HANDLE_HEIGHT, SheetCardClip } from './SheetCardClip';
  */
 const CONTENT_BOTTOM_PAD = 32;
 
-/** The pinned header before it has been measured: a 32pt button and its padding. */
-const HEADER_ESTIMATE = 40;
-
 const DETENTS = ['small', 'large'] as const;
-const EXPANDABLE: SheetPosition = { kind: 'expandable', detents: DETENTS };
+/**
+ * Every place opens at the standard collapsed card, however short its content:
+ * one kind of sheet at two heights reads as two different sheets, so a short
+ * place leaves glass below its content instead. The top detent stays `large`,
+ * which is what makes this sheet crossfade.
+ */
+const POSITION: SheetPosition = { kind: 'expandable', detents: DETENTS };
 
 interface EventMapPeekSheetProps {
   place: MapOverlay | null;
@@ -88,46 +88,11 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
   ) {
     const { t } = useT();
     const lang = useSettingsStore((s) => s.appLanguage);
-    const { height: windowHeight } = useWindowDimensions();
-
-    const [headerHeight, setHeaderHeight] = useState(HEADER_ESTIMATE);
-    const [contentHeight, setContentHeight] = useState<number | null>(null);
-    const chromeAbove = SHEET_HANDLE_HEIGHT + headerHeight;
 
     // Owned here rather than inside `Sheet`, so the clip below reads the same
     // position the card's background is drawn from.
     const animatedIndex = useSharedValue(-1);
     const animatedPosition = useSharedValue(0);
-
-    const placeKey = place ? placeIdOf(place) : null;
-    useEffect(() => {
-      setContentHeight(null);
-    }, [placeKey]);
-
-    const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
-      setHeaderHeight(e.nativeEvent.layout.height);
-    }, []);
-
-    // The default mid-size detent for anything with a real body; only a place
-    // whose whole sheet is shorter than that shrinks, so a toilet does not float
-    // a card of empty glass. One rule for every place, so nothing branches on
-    // whether a place has a detail. The top detent stays `large`: that is what
-    // makes this sheet crossfade, and switching between crossfading and floating
-    // per place would swap its whole background mid-presentation.
-    const collapsed = collapsedDetentHeight({
-      containerHeight: windowHeight,
-      detentPercent: SHEET_DETENT_PERCENT.small,
-      bottomGap,
-      chromeAbove,
-      contentHeight,
-    });
-    const position = useMemo<SheetPosition>(
-      () =>
-        collapsed === null
-          ? EXPANDABLE
-          : { kind: 'expandable', detents: DETENTS, heights: { small: collapsed } },
-      [collapsed],
-    );
 
     // Room under the last row once the sheet attaches and runs to the screen's
     // bottom edge. `bottomGap` already clears the home indicator in both
@@ -142,7 +107,7 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
         // has to clear the campus sheet's own detents — that sheet steps aside
         // (closes) before this one rises and returns when it goes, so the two
         // are never on screen together. See `sheetHandoff.ts`.
-        position={position}
+        position={POSITION}
         // Because the top detent is `large`, this is the one modal that
         // CROSSFADES: a floating card down low, an ordinary opaque sheet once
         // it attaches, matching the campus sheet it rose in place of. The
@@ -164,7 +129,7 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
           bottomGap={bottomGap}
         >
           {/* The title and X stay pinned together while the sheet body scrolls. */}
-          <View style={styles.header} onLayout={onHeaderLayout}>
+          <View style={styles.header}>
             {place ? (
               <Txt
                 typography="t5"
@@ -186,7 +151,6 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
               festivalDays={festivalDays}
               bottomPadding={bottomPadding}
               onNavigateAway={onNavigateAway}
-              onContentHeight={setContentHeight}
             />
           ) : (
             <Sheet.ScrollView style={styles.empty}>{null}</Sheet.ScrollView>
