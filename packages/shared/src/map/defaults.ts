@@ -31,6 +31,19 @@
 import type { MapCameraDefaults, MapConfig } from '../types/map';
 
 /**
+ * The Naver custom style prod serves as `naver.styleId` (the server's
+ * `NAVER_MAP_STYLE_ID`), copied here so the map keeps its look when
+ * `/map/config` fails or answers without one. Without it the SDK falls back to
+ * the stock Naver basemap, which reads as a different app rather than a
+ * failure.
+ *
+ * The server stays the source of truth: a styleId on the wire always wins, so
+ * a restyle ships without a release. Update this copy when prod's value
+ * changes, or the fallback quietly reverts to the old look.
+ */
+export const DEFAULT_NAVER_STYLE_ID = '91a6fcf5-9d03-4762-99a5-7e58a5674628';
+
+/**
  * The camera settings a server predating `cameraDefaults` does not send.
  *
  * These are the literals `CampusScreen` used to repeat at three call sites,
@@ -44,7 +57,7 @@ export const DEFAULT_CAMERA_DEFAULTS: MapCameraDefaults = {
 };
 
 export const DEFAULT_MAP_CONFIG: MapConfig = {
-  naver: {},
+  naver: { styleId: DEFAULT_NAVER_STYLE_ID },
   campuses: [
     {
       id: 'hssc',

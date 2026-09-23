@@ -1,6 +1,6 @@
 export { parseMapConfig, parseOverlayData } from './parser';
 export { toLatLng, overlayAnchor } from './geometry';
-export { DEFAULT_MAP_CONFIG, DEFAULT_CAMERA_DEFAULTS } from './defaults';
+export { DEFAULT_MAP_CONFIG, DEFAULT_CAMERA_DEFAULTS, DEFAULT_NAVER_STYLE_ID } from './defaults';
 export {
   defaultVisibleAt,
   isLayerVisible,

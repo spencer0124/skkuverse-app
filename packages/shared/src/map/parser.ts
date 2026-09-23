@@ -43,7 +43,11 @@ import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
 import { toMinutesOfDay } from './daily-window';
 import { toLatLng } from './geometry';
-import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from './defaults';
+import {
+  DEFAULT_CAMERA_DEFAULTS,
+  DEFAULT_MAP_CONFIG,
+  DEFAULT_NAVER_STYLE_ID,
+} from './defaults';
 
 /**
  * The renderers this build has. A `kind` outside the set drops that ONE
@@ -88,8 +92,10 @@ const ACTION_STYLES = ['primary', 'secondary'] as const;
 
 // ── Internal helpers ──
 
+/** A response without a usable styleId still gets the bundled one — see DEFAULT_NAVER_STYLE_ID. */
 function parseNaverConfig(raw: Record<string, unknown>): NaverConfig {
-  return { styleId: (raw.styleId as string) ?? undefined };
+  const styleId = typeof raw.styleId === 'string' ? raw.styleId.trim() : '';
+  return { styleId: styleId || DEFAULT_NAVER_STYLE_ID };
 }
 
 /**

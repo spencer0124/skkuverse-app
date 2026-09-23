@@ -30,7 +30,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import { parseMapConfig, parseOverlayData } from '../parser';
-import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from '../defaults';
+import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG, DEFAULT_NAVER_STYLE_ID } from '../defaults';
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({
   meta: { code: 200 },
@@ -818,5 +818,26 @@ describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
     expect(parseChips([chip({ action: { kind: 'focus', camera: chip().action.camera } })])).toEqual(
       [],
     );
+  });
+});
+
+describe('parseMapConfig — naver.styleId, the map keeps its look without the server', () => {
+  const styleIdOf = (naver: unknown) =>
+    parseMapConfig(envelope({ naver, layers: [layer()] })).naver.styleId;
+
+  it('prefers the styleId on the wire, so a restyle ships without a release', () => {
+    expect(styleIdOf({ styleId: 'from-server' })).toBe('from-server');
+  });
+
+  it('falls back to the bundled styleId when the wire has none', () => {
+    expect(styleIdOf(undefined)).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({})).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: null })).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: '  ' })).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: 7 })).toBe(DEFAULT_NAVER_STYLE_ID);
+  });
+
+  it('carries the bundled styleId in the config a failed fetch falls back to', () => {
+    expect(DEFAULT_MAP_CONFIG.naver.styleId).toBe(DEFAULT_NAVER_STYLE_ID);
   });
 });
