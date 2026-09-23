@@ -236,6 +236,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           dependencies: [
             "com.google.ads.mediation:facebook:6.21.0.1",
           ],
+          // Extract native libraries at install time instead of loading them
+          // straight out of the APK. Left in the APK, SoLoader
+          // (DirectApkSoSource) searches only the first entry of
+          // Build.SUPPORTED_ABIS, while the package manager installed whichever
+          // ABI it picked. On x86_64 emulators with ARM translation the two
+          // disagree (lib/x86_64 installed, lib/arm64-v8a searched, or the
+          // reverse) and the app dies in MainApplication.onCreate with
+          // SoLoaderDSONotFoundError before any JS runs. Extracted, the
+          // libraries sit in nativeLibraryDir, which is by definition the ABI
+          // the package manager chose. The cost is on-device size.
+          // docs/explanation/android-native-library-loading.md
+          useLegacyPackaging: true,
         },
       },
     ],
