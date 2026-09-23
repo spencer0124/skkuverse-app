@@ -22,8 +22,6 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { XIcon } from 'phosphor-react-native';
@@ -43,22 +41,18 @@ const THUMB_HEIGHT = 192;
 
 export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
   const lang = useSettingsStore((s) => s.appLanguage);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  // The photo the viewer was opened on, or `null` while it is shut. Only a
+  // thumbnail tap and the close paths write it — see the note at the `Modal`.
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   const viewerRef = useRef<ScrollView>(null);
   const { width, height } = useWindowDimensions();
 
-  const closeViewer = useCallback(() => setSelectedIndex(null), []);
+  const closeViewer = useCallback(() => setOpenIndex(null), []);
   const positionViewer = useCallback(() => {
-    if (selectedIndex !== null) {
-      viewerRef.current?.scrollTo({ x: selectedIndex * width, animated: false });
+    if (openIndex !== null) {
+      viewerRef.current?.scrollTo({ x: openIndex * width, animated: false });
     }
-  }, [selectedIndex, width]);
-  const onViewerScrollEnd = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      setSelectedIndex(Math.round(event.nativeEvent.contentOffset.x / width));
-    },
-    [width],
-  );
+  }, [openIndex, width]);
 
   if (images.length === 0) return null;
 
@@ -77,13 +71,17 @@ export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
             key={image.id}
             uri={image.url}
             caption={image.caption ? pickI18nText(image.caption, lang) : null}
-            onOpen={() => setSelectedIndex(index)}
+            onOpen={() => setOpenIndex(index)}
           />
         ))}
       </ScrollView>
 
+      {/* The pager must never write `openIndex`. iOS keeps a Modal's children
+          mounted until its dismiss finishes, and Fabric's ScrollView emits
+          `onMomentumScrollEnd` when it leaves the window — so a pager that
+          tracked its page into this state reopened the viewer on every X. */}
       <Modal
-        visible={selectedIndex !== null}
+        visible={openIndex !== null}
         animationType="fade"
         statusBarTranslucent
         onShow={positionViewer}
@@ -95,7 +93,6 @@ export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={onViewerScrollEnd}
           >
             {images.map((image) => (
               <View key={image.id} style={[styles.viewerPage, { width, height }]}>
