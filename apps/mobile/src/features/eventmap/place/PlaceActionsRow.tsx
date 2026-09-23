@@ -10,13 +10,16 @@
  * has, the mark is more legible at a glance than the word, and dropping the
  * label leaves room for the authored links beside it.
  *
+ * Every other link leads with a link glyph. A grey pill with a word in it reads
+ * as a tag, not a button; the glyph is what says it goes somewhere.
+ *
  * Both handlers dismiss the sheet before they navigate — a portal ordering
  * constraint, see `navigate.ts`.
  */
 
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { InstagramLogoIcon } from 'phosphor-react-native';
+import { InstagramLogoIcon, LinkSimpleIcon } from 'phosphor-react-native';
 import {
   pickI18nText,
   SdsColors,
@@ -109,7 +112,14 @@ function LinkPill({ label, onPress }: { label: string; onPress: () => void }) {
       style={({ pressed }) => [styles.linkPill, pressed && styles.pressed]}
     >
       <View style={styles.linkPillContents}>
-        <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey800} numberOfLines={1}>
+        <LinkSimpleIcon size={16} color={SdsColors.grey800} weight="bold" />
+        <Txt
+          typography="t7"
+          fontWeight="semiBold"
+          color={SdsColors.grey800}
+          numberOfLines={1}
+          style={styles.linkLabel}
+        >
           {label}
         </Txt>
       </View>
@@ -139,6 +149,9 @@ const styles = StyleSheet.create({
     borderRadius: SdsRadius.full,
     backgroundColor: SdsColors.grey50,
   },
-  linkPillContents: { flexDirection: 'row', alignItems: 'center', maxWidth: 176 },
+  linkPillContents: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 176 },
+  // Shrinks before the glyph does, so a long label ellipsises instead of
+  // pushing the icon out of the pill.
+  linkLabel: { flexShrink: 1 },
   pressed: { opacity: 0.72 },
 });
