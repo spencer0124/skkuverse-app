@@ -119,7 +119,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     height: 36,
-    maxWidth: 164,
+    // No max width: a menu name cut to "까칠한 MJ도 좋아하는 오…" is the one
+    // thing on the card worth reading. The row scrolls sideways instead.
     paddingHorizontal: SdsSpacing.sm,
     borderRadius: 18,
     backgroundColor: SdsColors.grey50,

@@ -95,7 +95,10 @@ export function PlaceSummary({
           {statusText}
         </Txt>
         {meta ? (
-          <Txt typography="t7" color={SdsColors.grey600} numberOfLines={1}>
+          // Two lines, not one: an operator is often a joint council
+          // ("의과대학 제28대 학생회 Smile X 약학대학 …") and one line cut the
+          // name off mid-word.
+          <Txt typography="t7" color={SdsColors.grey600} numberOfLines={2}>
             {meta}
           </Txt>
         ) : null}
