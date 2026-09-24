@@ -592,11 +592,13 @@ Every overlay from either producer is the same object plus the field its `kind` 
 | `actions` | array | Yes | Sheet buttons in authored order. Empty for a building |
 | `order` | number | Yes | Author's sort position, and the last tiebreak in a coordinate collision |
 | `pinPriority` | number | `marker` only | A step of the collision ladder. Higher wins. `0` for a building |
-| `tap` | object \| null | Yes | `{ kind, placeId }`, or `null` for a **backdrop** — drawn, deliberately not pressable |
+| `locationAccuracy` | `'exact'` \| `'area'` | `marker` only | Whether the point is the place's spot or only names the area it is in (the food trucks, placed on the day). Absent or unknown reads as `'exact'`. An `'area'` place's sheet opens at `large` |
+| `tap` | object \| null | Yes | `{ kind, placeId }` for a place, `{ kind: 'chip', chipId }` to run a chip, or `null` for a **backdrop** — drawn, deliberately not pressable |
 
 ```ts
 type MapOverlay =
-  | (OverlayBase & { kind: 'marker';  geometry: GeoJsonPoint;      pinPriority: number })
+  | (OverlayBase & { kind: 'marker';  geometry: GeoJsonPoint;      pinPriority: number;
+                    locationAccuracy: 'exact' | 'area' })
   | (OverlayBase & { kind: 'polygon'; geometry: GeoJsonPolygon })
   | (OverlayBase & { kind: 'path';    geometry: GeoJsonLineString });
 ```
@@ -697,6 +699,14 @@ meant for the markers inside it is worse than one that is not drawn.
 Which categories are inert is authored per **category** on the server, never derived from "has no
 `fields` or `actions`" — adding one card row must not silently turn a backdrop into a button.
 
+### `tap.kind: 'chip'` runs a chip
+
+A shape that stands for a whole list rather than one place carries `tap: { kind: 'chip', chipId }`.
+The 2026 food-truck zone's ring and its pin are the case. A tap runs that chip exactly as the chip row
+would, through the same `handleChipPress`: its layers, its camera, its list. Such an overlay opens no
+sheet and is never a list row. A `chipId` naming no chip this build was served opens nothing. A chip
+tap with an empty `chipId` parses as `null`. The server authors it per category (`tapChip`).
+
 ### Two fields that are gone
 
 - **`displayNo` folded into `text`.** The two building layers are the same documents differing only
@@ -766,7 +776,9 @@ once did went with the snapshot tier, and the app now ignores data-only messages
   shape is in the server's `map-chip.types.ts`.
 - The `campuses` array can grow without a client change, for a new satellite campus.
 - A **new `tap.kind` does not** — it is the one thing here that still needs a client branch,
-  because the client routes a tap on it. That is exactly why the festival kind is `event` rather
+  because the client routes a tap on it. `chip` (2026-09-24) is the latest. A build predating
+  it parses the tap as `null` and draws the shape inert, which is what makes adding a kind safe to
+  ship before the client that routes it. That is exactly why the festival kind is `event` rather
   than the festival's name: the branch resolves `placeId` against whichever event is live, so the
   next festival needs no new kind, no new route and no client release.
 

@@ -414,7 +414,7 @@ Four sheets, and never two at once.
 | --- | --- | --- |
 | Campus sheet (inline) | `expandable` `small / medium / large`, low two overridden | glass, crossfading |
 | Filter / layers | `stuck` `medium`, not dismissible, backdrop | glass, static card |
-| Event peek | `expandable` `small / large` | glass, crossfading |
+| Event peek | `expandable` `small / large`, opening at `large` for an area pin | glass, crossfading |
 | Building detail | `stuck` `large` | attaches, so plain opaque |
 
 The building detail sheet is the one to look at twice. It used to be a floating
@@ -436,6 +436,31 @@ campus sheet closes first; the modal is held until gorhom reports the sheet
 closed, then rises from the bottom; and when the modal is dismissed the campus
 sheet returns to the detent it left. The user sees one sheet go down and another
 come up, in sequence, rather than one landing on top of the other.
+
+**Both moves are short, named timings, not gorhom's default spring.** Under the
+spring the sequence read as a pause: a list row tapped, the list sinking slowly,
+then the place climbing up. The order is kept and the two moves are cut short.
+The values are `SHEET_HANDOFF_CLOSE` (`out`, 150 ms) and `SHEET_HANDOFF_RISE`
+(`expo`, 250 ms), in `packages/sds/src/components/sheet/motion.ts`. They are
+timings rather than springs because a hand-off gated on "the first one has
+landed" wants a length it can state. The two knobs they use:
+
+- `SheetRef.close(animationConfigs?)` overrides one close only. The campus sheet
+  leaves fast for a modal and moves as before everywhere else.
+- The `animationConfigs` prop sets how every snap of a sheet animates, its rise
+  included. gorhom's `present()` takes no override, so a modal that must arrive
+  fast says so on the prop. The peek and building sheets do.
+
+On the iOS simulator at 60 fps, the close is gone in about four frames and the
+modal settles about six frames after it starts. A deep link still waits its own
+400 ms before presenting. That wait belongs to cold-start navigation, not to
+the hand-off.
+
+The peek sheet's opening detent is decided per place, just before it presents:
+`large` when the place's pin names only an area (`placeSheetOpensTall`, see
+`eventmap-rendering.md` §10.2), `small` otherwise. That works without touching
+the hand-off because a gorhom modal mounts afresh on every `present()`, so it
+reads the `index` it is handed at that moment.
 
 The decisions are a pure state machine in
 `apps/mobile/src/features/map/utils/sheetHandoff.ts`, tested under `node --test`

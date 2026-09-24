@@ -91,6 +91,8 @@ The server fails loud on config it can fix. The client fails soft on a payload i
 | coordinate absent, unparseable, or `\|lat\| > 90` | `parseOverlayData` | drop the marker — a swapped pair puts it in the ocean and never throws |
 | unknown `campus` | `parseOverlayData` | drop the marker, rather than put it on the wrong map |
 | unknown `tap.kind` | `parseMarkerTap` | `tap: null` — still a place worth drawing, just inert |
+| `tap.kind: "chip"` with no `chipId` | `parseMarkerTap` | `tap: null`, rather than a guess at which chip |
+| `locationAccuracy` absent or unknown | `parseOverlayData` | `'exact'` — every server before the field, and every building, means that |
 | half-bounded or unparseable window | `parseHours` | drop that window (§5) |
 | field row missing a label or a value | `parseFields` | drop the row |
 | action missing an id, label or value | `parseActions` | drop the button, serve the place |
@@ -129,6 +131,11 @@ a label-only overlay has nowhere to go: listing it would open an all-but-empty s
 drawn — the filter is on the list, not on the render loop — so a zone's label can share its layer
 and switch on and off with it without adding a row.
 
+**Nor is an overlay whose tap runs a chip** (`tap.kind: "chip"`). It is a way *into* a list, not a
+row in one. The food-truck zone's ring and its pin run the food-truck chip when tapped (`handleMarkerTap` →
+`handleChipPress`, the chip row's own handler). A chip this build was not served opens nothing, the
+same as a place id that resolves to no marker.
+
 **The list describes the layer. The pin describes the coordinate.** A place suppressed by the
 collision ladder (§6.3) keeps its row: losing a shared spot to whoever is open at this hour says
 nothing about whether the place exists. This is the one place the two views deliberately differ, and
@@ -139,9 +146,11 @@ narrowed the map (`useMapLayerStore`'s `chip`, looked up in the served chip list
 body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to
 its middle detent when the list appears — enough to read a few rows with the pins still showing —
 and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
-campus sheet closes first and the peek sheet rises once that animation finishes. It comes back to
-the same detent, list and all, when the peek sheet is dismissed — the hand-off is described in
-[bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
+campus sheet closes first and the peek sheet rises once that animation finishes. Both moves are
+short named timings (`SHEET_HANDOFF_CLOSE`, 150 ms, and `SHEET_HANDOFF_RISE`, 250 ms), because under
+gorhom's default spring the pair read as a pause between the tap and the sheet that answers it. It
+comes back to the same detent, list and all, when the peek sheet is dismissed. The hand-off is
+described in [bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
 
 - Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
   on the derived flag, not a call inside the chip handler.
@@ -356,7 +365,11 @@ so a tap re-renders the two markers whose selection changed rather than all ~100
 ### 6.2 Density levers, in order
 
 1. **the dot** (§6.1) — roughly 60% less screen area per marker than a teardrop
-2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapOverlayLayer`
+2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of
+   `MapOverlayLayer`. **Except on a marker whose tap runs a chip.** It names an area, so its caption
+   is the whole point of it. On iOS the SDK hid the food-truck zone pin's caption with no other marker
+   within ~60 m (checked 2026-09-24 by logging every drawn marker near it), and turning the flag off
+   for that marker was what made it appear.
 3. **the caption line budget** (§6.4) — a narrower caption collides with fewer neighbours, and a
    collision here hides the whole label rather than shortening it, so wrapping puts *more* names on
    screen rather than fewer
@@ -724,11 +737,11 @@ server opens the window**.
 | `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
 | `apps/mobile/src/features/eventmap/place/` | the sheet: summary, facts card, and `PlaceBlocks` for the composed body (§10) |
-| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock` — the sheet's decisions (§10) |
+| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock`, `placeSheetOpensTall` — the sheet's decisions (§10) |
 | `packages/shared/src/map/kst-format.ts` | the dated KST strings every row and the sheet show (§5.2) |
 | `packages/shared/src/hooks/usePlaceDetails.ts` | every place's detail from `/map/overlays/event/details`, parsed by `parsePlaceDetails` (§10.3) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
-| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
+| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind` (a place's sheet, or a chip via `handleChipPress`), owns the gate and the collision peer set, swaps the sheet body, resolves place links, hands the screen to a modal |
 | `apps/mobile/src/features/map/components/MapOverlayLayer.tsx` | draws every `/map/config` layer, booth pins included; dispatches on each overlay's `kind`; applies the ladder to markers alone |
 | `apps/mobile/src/features/map/components/MapZoneOverlay.tsx` | one `kind: "polygon"` overlay |
 | `apps/mobile/src/features/map/components/MapRouteOverlay.tsx` | one `kind: "path"` overlay |
@@ -807,7 +820,14 @@ network day of the year.
 
 ### 10.2 The collapsed card is one size
 
-Every place opens at SDS's `small` detent, however short its content. The card used to shrink to fit
+Every place opens at SDS's `small` detent, however short its content — **except a place whose pin
+names only an area.** A marker with `locationAccuracy: 'area'` (the food trucks, placed on the day and
+stacked on one point) opens at `large`, because the low detent exists to keep the pin in view and
+that pin points at nothing. The rule is `placeSheetOpensTall` in `placeDetail.ts`. The server only
+states the fact, and `EventMapPeekSheet` picks between two module-level positions that differ only in
+`initial`, so the sheet still drags down. A zone is never `area` on the wire and keeps the low detent.
+
+The rest of this section is about the places that open low. The card used to shrink to fit
 a short place, so a toilet opened as a sliver and a food truck as a full card, and one kind of sheet
 at two heights read as two different sheets. A short place now leaves glass below its content
 instead. The summary carries no minimum height and nothing reads the detent, which is what
