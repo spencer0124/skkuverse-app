@@ -42,6 +42,7 @@ export {
   heroGallery,
   HIGHLIGHT_MAX,
   placeSections,
+  placeSheetOpensTall,
   type PlaceSectionKey,
   type PlaceBodyItem,
   type PlaceImage,

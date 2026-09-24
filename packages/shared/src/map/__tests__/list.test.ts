@@ -48,6 +48,7 @@ const place = (over: Partial<MarkerOverlay> & { id: string }): MarkerOverlay => 
   facets: {},
   orderByOption: {},
   pinPriority: 0,
+  locationAccuracy: 'exact',
   tap: { kind: 'event', placeId: over.id },
   ...over,
 });

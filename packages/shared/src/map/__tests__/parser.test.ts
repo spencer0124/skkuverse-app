@@ -366,6 +366,18 @@ describe('parseOverlayData — tap and window', () => {
     expect(parseOne({ tap: { kind: 'chip', placeId: 'x' } })[0]?.tap).toBeNull();
   });
 
+  it('reads locationAccuracy, and treats a missing or unknown one as exact', () => {
+    const accuracy = (over: Record<string, unknown>) => {
+      const m = parseOne(over)[0];
+      return m?.kind === 'marker' ? m.locationAccuracy : undefined;
+    };
+    expect(accuracy({ locationAccuracy: 'area' })).toBe('area');
+    // Every server before the field, and every building, sends none: exact.
+    expect(accuracy({})).toBe('exact');
+    // A value this build does not know reads as the old behaviour, not a guess.
+    expect(accuracy({ locationAccuracy: 'roughly' })).toBe('exact');
+  });
+
   it('accepts tap: null, which is how a backdrop is drawn', () => {
     // A 통제 구간 outline and the degraded building fallback both ship this. The
     // renderer must read it as "draw, do not wire onTap".

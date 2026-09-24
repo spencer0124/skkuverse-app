@@ -117,6 +117,12 @@ export interface MapLayerStyle {
 export type MarkerShape = 'pin' | 'dot' | 'dotThenPin';
 
 /**
+ * How precisely a place marker's point locates it. See
+ * `MapOverlay['locationAccuracy']`. A literal union so `asMember` can check it.
+ */
+export type LocationAccuracy = 'exact' | 'area';
+
+/**
  * One daily recurring window, in KST wall-clock `"HH:MM"`, half-open
  * `[start, end)`.
  *
@@ -593,6 +599,13 @@ export type MapOverlay =
        * the others rather than merely unused.
        */
       pinPriority: number;
+      /**
+       * Whether this pin is the place's spot (`'exact'`) or only names the area
+       * it is somewhere in (`'area'`) — the festival's food trucks, placed on the
+       * day and stacked on one point. A fact, not an instruction: what follows
+       * from it (a place sheet that opens tall) is this app's decision.
+       */
+      locationAccuracy: LocationAccuracy;
     })
   | (OverlayBase & {
       kind: 'polygon';

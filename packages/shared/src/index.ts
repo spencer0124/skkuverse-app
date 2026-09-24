@@ -270,6 +270,7 @@ export {
   heroGallery,
   HIGHLIGHT_MAX,
   placeSections,
+  placeSheetOpensTall,
   formatKstDate,
   formatKstDateTime,
   formatKstTime,

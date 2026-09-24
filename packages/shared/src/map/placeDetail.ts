@@ -12,7 +12,7 @@
  */
 
 import type { PlaceBlock, PlaceBlockType, PlaceDetail } from '../types/placeDetail';
-import type { I18nText } from '../types/map';
+import type { I18nText, MapOverlay } from '../types/map';
 
 // ── Detail flow ───────────────────────────────────────────────────────────
 
@@ -118,4 +118,20 @@ export function placeBody(blocks: readonly PlaceBlock[]): PlaceBodyItem[] {
 export function heroGallery(body: readonly PlaceBodyItem[]): Extract<PlaceBodyItem, { type: 'gallery' }> | null {
   for (const item of body) if (item.type === 'gallery') return item;
   return null;
+}
+
+/**
+ * Whether a place's sheet opens at its tallest detent rather than its lowest.
+ *
+ * The low detent exists to keep the place's pin in view above the sheet. A pin
+ * that names only an AREA — the festival's food trucks, placed on the day and
+ * stacked on one point — has nothing to show there, so the low detent is only a
+ * step the user would have to drag past. The server says which pins those are
+ * (`locationAccuracy`); what follows from it is decided here, once.
+ *
+ * Only a marker can be `area`. A zone is an area by construction and keeps the
+ * low detent, which shows the zone itself.
+ */
+export function placeSheetOpensTall(place: MapOverlay | null): boolean {
+  return place?.kind === 'marker' && place.locationAccuracy === 'area';
 }

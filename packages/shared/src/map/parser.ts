@@ -76,6 +76,7 @@ const MARKER_STYLES = [
  * the opposite of `MARKER_STYLES`'.
  */
 const MARKER_SHAPES = ['pin', 'dot', 'dotThenPin'] as const;
+const LOCATION_ACCURACIES = ['exact', 'area'] as const;
 /**
  * The tap kinds this build knows how to route. A kind outside the set leaves the
  * marker drawn but inert — see parseMarkerTap.
@@ -784,6 +785,11 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
             // at, so unlike `order` this default is a fact rather than a
             // fallback.
             pinPriority: toFiniteNumber(raw.pinPriority) ?? 0,
+            // Absent from every server before it existed, and from buildings'
+            // meaning: a pin is the place's spot unless the server says it
+            // names only an area. An unknown value reads the same way — the
+            // old behaviour, not a guess.
+            locationAccuracy: asMember(raw.locationAccuracy, LOCATION_ACCURACIES) ?? 'exact',
           },
         ];
       }

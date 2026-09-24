@@ -15,9 +15,10 @@ import {
   highlightBlock,
   placeBody,
   placeSections,
+  placeSheetOpensTall,
 } from '../placeDetail';
 import type { PlaceBlock, PlaceDetail } from '../../types/placeDetail';
-import type { I18nText } from '../../types/map';
+import type { I18nText, MapOverlay } from '../../types/map';
 
 const ko = (s: string): I18nText => ({ ko: s, en: s });
 
@@ -139,5 +140,49 @@ describe('heroGallery', () => {
   it('takes the first gallery, whatever else is around it', () => {
     const body = placeBody([textBlock('a'), imageBlock('i1', 'one.png'), textBlock('b'), imageBlock('i2', 'two.png')]);
     expect(heroGallery(body)?.id).toBe('i1');
+  });
+});
+
+describe('placeSheetOpensTall — a pin that names an area opens the sheet tall', () => {
+  type Marker = Extract<MapOverlay, { kind: 'marker' }>;
+  const base: Omit<Marker, 'kind' | 'lat' | 'lng' | 'pinPriority' | 'locationAccuracy'> = {
+    id: 'p',
+    layerId: 'eskara26_food',
+    campus: 'nsc',
+    text: { ko: 'p', en: 'p' },
+    subtitle: null,
+    hours: [],
+    fields: [],
+    actions: [],
+    order: 0,
+    facets: {},
+    orderByOption: {},
+    tap: { kind: 'event', placeId: 'p' },
+  };
+  const marker = (locationAccuracy: 'exact' | 'area'): MapOverlay => ({
+    ...base,
+    kind: 'marker',
+    lat: 37.29,
+    lng: 126.97,
+    pinPriority: 20,
+    locationAccuracy,
+  });
+
+  it('opens tall for an area pin — a food truck, placed on the day', () => {
+    expect(placeSheetOpensTall(marker('area'))).toBe(true);
+  });
+
+  it('opens low for an exact pin, which the low detent keeps in view', () => {
+    expect(placeSheetOpensTall(marker('exact'))).toBe(false);
+  });
+
+  it('opens low for a zone, which the map above the sheet shows itself', () => {
+    // Only `kind` matters to the rule, so the ring's shape is not built out.
+    const zone = { ...base, kind: 'polygon' } as unknown as MapOverlay;
+    expect(placeSheetOpensTall(zone)).toBe(false);
+  });
+
+  it('opens low when there is no place yet', () => {
+    expect(placeSheetOpensTall(null)).toBe(false);
   });
 });

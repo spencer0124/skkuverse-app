@@ -19,6 +19,7 @@ import React, { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   pickI18nText,
+  placeSheetOpensTall,
   SdsColors,
   SdsSpacing,
   useSettingsStore,
@@ -51,6 +52,13 @@ const DETENTS = ['small', 'large'] as const;
  * which is what makes this sheet crossfade.
  */
 const POSITION: SheetPosition = { kind: 'expandable', detents: DETENTS };
+/**
+ * The same two detents, opened at the top — for a place whose pin names only an
+ * area (`placeSheetOpensTall`), where the low detent would keep a map in view
+ * that points at nothing. Still draggable down. Module-level, like `POSITION`,
+ * so a re-render hands the sheet the same object.
+ */
+const POSITION_TALL: SheetPosition = { kind: 'expandable', detents: DETENTS, initial: 'large' };
 
 interface EventMapPeekSheetProps {
   place: MapOverlay | null;
@@ -97,7 +105,9 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
         // has to clear the campus sheet's own detents — that sheet steps aside
         // (closes) before this one rises and returns when it goes, so the two
         // are never on screen together. See `sheetHandoff.ts`.
-        position={POSITION}
+        // Read on each present: the modal mounts afresh every time it rises, so
+        // the place selected before the hand-off decides where this one opens.
+        position={placeSheetOpensTall(place) ? POSITION_TALL : POSITION}
         // Because the top detent is `large`, this is the one modal that
         // CROSSFADES: a floating card down low, an ordinary opaque sheet once
         // it attaches, matching the campus sheet it rose in place of. The
