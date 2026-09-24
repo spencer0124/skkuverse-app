@@ -945,11 +945,11 @@ describe('parseMapConfig — a chip list, which only ever degrades toward showin
     expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);
   });
 
-  it('falls back to order for an unknown sort, and clears a scope that is not a kept required facet', () => {
+  it('falls back to order for an unknown sort, and clears a scope that is not a kept facet', () => {
     expect(listOf({ facets: [DAY], sort: { key: 'price' } })?.sort).toEqual({ key: 'order', scopeFacetId: null });
     expect(listOf({ facets: [DAY, ORG], sort: { key: 'order', scopeFacetId: 'org' } })?.sort).toEqual({
       key: 'order',
-      scopeFacetId: null,
+      scopeFacetId: 'org',
     });
     expect(listOf({ facets: [], sort: { key: 'order', scopeFacetId: 'day' } })?.sort.scopeFacetId).toBeNull();
     expect(listOf({ facets: [DAY], sort: { key: 'title', scopeFacetId: 'day' } })?.sort).toEqual({

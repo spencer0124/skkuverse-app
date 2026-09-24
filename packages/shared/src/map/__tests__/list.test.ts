@@ -15,6 +15,8 @@ import type { MapChipList, MapLayerDef, MapOverlay, MarkerOverlay } from '../../
 import {
   defaultFacetSelection,
   filterByFacets,
+  isFacetNarrowed,
+  toggleChecklist,
   selectVisibleOverlays,
   sortForList,
   sortPlaces,
@@ -176,17 +178,18 @@ describe("a chip's list — the server decides, the app matches ids", () => {
     ],
     sort: { key: 'order', scopeFacetId: 'day' },
   };
-  const at = (iso: string) => Date.parse(iso);
 
   describe('defaultFacetSelection', () => {
-    it('opens on the day that contains now, and on 전체 for an optional facet', () => {
-      expect(defaultFacetSelection(LIST, at('2026-10-02T19:00:00+09:00'))).toEqual({ day: 'day2', org: null });
-      expect(defaultFacetSelection(LIST, at('2026-10-01T12:00:00+09:00'))).toEqual({ day: 'day1', org: null });
+    it('opens a checklist on every option — 전체 — whatever the date', () => {
+      const bothMulti: MapChipList = {
+        ...LIST,
+        facets: LIST.facets.map((f) => ({ ...f, select: 'optional' as const })),
+      };
+      expect(defaultFacetSelection(bothMulti)).toEqual({ day: ['day1', 'day2'], org: ['council', 'club'] });
     });
 
-    it('opens on the first day before the festival and after it', () => {
-      expect(defaultFacetSelection(LIST, at('2026-09-24T12:00:00+09:00')).day).toBe('day1');
-      expect(defaultFacetSelection(LIST, at('2026-10-05T12:00:00+09:00')).day).toBe('day1');
+    it('opens a single choice on its first option', () => {
+      expect(defaultFacetSelection(LIST)).toEqual({ day: ['day1'], org: ['council', 'club'] });
     });
   });
 
@@ -196,13 +199,28 @@ describe("a chip's list — the server decides, the app matches ids", () => {
     const two = place({ id: 'two', facets: { day: ['day2'], org: [] } });
 
     it('puts a two-day place under both days', () => {
-      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day1', org: null }))).toEqual(['both', 'one']);
-      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: null }))).toEqual(['both', 'two']);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: ['day1'], org: ['council', 'club'] }))).toEqual(['both', 'one']);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: ['day2'], org: ['council', 'club'] }))).toEqual(['both', 'two']);
+    });
+
+    it('keeps an untagged place while every option is checked, and passes a place in ANY checked option', () => {
+      const untagged = place({ id: 'untagged', facets: { day: ['day2'], org: [] } });
+      expect(ids(filterByFacets([both, two, untagged], LIST, { day: ['day2'], org: ['council', 'club'] }))).toEqual([
+        'both',
+        'two',
+        'untagged',
+      ]);
+      const three = place({ id: 'three', facets: { day: ['day2'], org: ['council'] } });
+      expect(ids(filterByFacets([both, three, untagged], LIST, { day: ['day2'], org: ['council', 'club'] }))).toEqual([
+        'both',
+        'three',
+        'untagged',
+      ]);
     });
 
     it('narrows by every selected facet, and leaves out an untagged place once one is chosen', () => {
-      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: 'club' }))).toEqual(['both']);
-      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: 'council' }))).toEqual([]);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: ['day2'], org: ['club'] }))).toEqual(['both']);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: ['day2'], org: ['council'] }))).toEqual([]);
     });
 
     it('keeps everything when nothing is selected', () => {
@@ -210,20 +228,32 @@ describe("a chip's list — the server decides, the app matches ids", () => {
     });
   });
 
+  describe('sortForList with more than one day checked', () => {
+    it("lists day 1's order, then the places that open only on day 2 in day 2's order", () => {
+      const a = place({ id: 'a', order: 9, facets: { day: ['day1', 'day2'] }, orderByOption: { day1: 2, day2: 1 } });
+      const b = place({ id: 'b', order: 9, facets: { day: ['day1'] }, orderByOption: { day1: 1 } });
+      const c = place({ id: 'c', order: 9, facets: { day: ['day2'] }, orderByOption: { day2: 2 } });
+      const d = place({ id: 'd', order: 9, facets: { day: ['day2'] }, orderByOption: { day2: 3 } });
+      expect(ids(sortForList([d, c, a, b], LIST, { day: ['day1', 'day2'] }))).toEqual(['b', 'a', 'c', 'd']);
+      expect(ids(sortForList([d, c, a, b], LIST, { day: ['day2'] }))).toEqual(['a', 'c', 'd', 'b']);
+    });
+  });
+
   describe('sortForList', () => {
     it("orders a booth by its running order for the selected day, falling back to order", () => {
-      const a = place({ id: 'a', order: 1, orderByOption: { day1: 3, day2: 1 } });
-      const b = place({ id: 'b', order: 2, orderByOption: { day1: 1, day2: 3 } });
-      const c = place({ id: 'c', order: 2 });
-      expect(ids(sortForList([a, b, c], LIST, { day: 'day1', org: null }))).toEqual(['b', 'c', 'a']);
-      expect(ids(sortForList([a, b, c], LIST, { day: 'day2', org: null }))).toEqual(['a', 'c', 'b']);
+      const all = { day: ['day1', 'day2'] };
+      const a = place({ id: 'a', order: 1, facets: all, orderByOption: { day1: 3, day2: 1 } });
+      const b = place({ id: 'b', order: 2, facets: all, orderByOption: { day1: 1, day2: 3 } });
+      const c = place({ id: 'c', order: 2, facets: all });
+      expect(ids(sortForList([a, b, c], LIST, { day: ['day1'], org: ['council', 'club'] }))).toEqual(['b', 'c', 'a']);
+      expect(ids(sortForList([a, b, c], LIST, { day: ['day2'], org: ['council', 'club'] }))).toEqual(['a', 'c', 'b']);
     });
 
     it('ignores orderByOption when the sort is not scoped', () => {
       const unscoped: MapChipList = { ...LIST, sort: { key: 'order', scopeFacetId: null } };
       const a = place({ id: 'a', order: 2, orderByOption: { day1: 0 } });
       const b = place({ id: 'b', order: 1 });
-      expect(ids(sortForList([a, b], unscoped, { day: 'day1', org: null }))).toEqual(['b', 'a']);
+      expect(ids(sortForList([a, b], unscoped, { day: ['day1'], org: ['council', 'club'] }))).toEqual(['b', 'a']);
     });
 
     it('sorts a title list in 가나다 order, whatever the order field says', () => {
@@ -239,5 +269,42 @@ describe("a chip's list — the server decides, the app matches ids", () => {
         '희망츄러스',
       ]);
     });
+  });
+});
+
+describe('toggleChecklist — no tap is refused, and nothing-selected cannot exist', () => {
+  const DAY = {
+    id: 'day',
+    label: '일자',
+    select: 'optional' as const,
+    options: [
+      { id: 'day1', label: '10/1(목)', window: null },
+      { id: 'day2', label: '10/2(금)', window: null },
+    ],
+  };
+  const ALL = ['day1', 'day2'];
+
+  it('narrows to one option in one tap from 전체', () => {
+    expect(toggleChecklist(DAY, ALL, 'day2')).toEqual(['day2']);
+  });
+
+  it('falls back to 전체 when the last option is unchecked', () => {
+    expect(toggleChecklist(DAY, ['day2'], 'day2')).toEqual(ALL);
+  });
+
+  it('collapses into 전체 once every option is checked, in the server order', () => {
+    expect(toggleChecklist(DAY, ['day2'], 'day1')).toEqual(ALL);
+  });
+
+  it('puts 전체 back from anywhere', () => {
+    expect(toggleChecklist(DAY, ['day1'], null)).toEqual(ALL);
+  });
+
+  it('counts only a real choice as narrowed', () => {
+    expect(isFacetNarrowed(DAY, ALL)).toBe(false);
+    expect(isFacetNarrowed(DAY, ['day1'])).toBe(true);
+    const single = { ...DAY, select: 'required' as const };
+    expect(isFacetNarrowed(single, ['day1'])).toBe(false);
+    expect(isFacetNarrowed(single, ['day2'])).toBe(true);
   });
 });

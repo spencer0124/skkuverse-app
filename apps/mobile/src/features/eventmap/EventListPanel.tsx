@@ -14,12 +14,14 @@
  * order the chip's `list` asks for (`sortForList`), or the author's `order`
  * for a chip with no list.
  *
- * Filters, when the chip has a `list`: one segmented control per facet, in
- * the server's order. A `required` facet (1일차 / 2일차) is its options; an
- * `optional` one (총학생회 / 학생단체) gets a leading "전체". This file decides
+ * Filters, when the chip has a `list`: ONE row of dropdown chips, one per
+ * facet, each reading what is in force — `일자: 10/1(목) ▾`, `운영: 전체 ▾`. A tap
+ * opens the option sheet (`ListFacetSheet`, owned by `CampusScreen`). One row
+ * rather than a control per facet stacked above the list, so a list with two
+ * filters is not a different shape from a list with one. This file decides
  * nothing about membership — it reports taps and draws what it is handed —
- * and the empty state exists for a tab with no rows, because `CampusScreen`
- * keeps the list mounted while the chip's layers hold any place at all.
+ * and the empty state exists for a selection with no rows, because
+ * `CampusScreen` keeps the list mounted while the chip's layers hold any place.
  *
  * The sheet's whole body, not a sibling of the feed: a gorhom scrollable cannot
  * nest inside another, so `CampusScreen` mounts this INSTEAD of the feed's
@@ -30,14 +32,17 @@
 
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   SdsColors,
+  isFacetNarrowed,
+  isWholeFacet,
   useT,
   type FacetSelection,
   type MapChipList,
   type MapOverlay,
 } from '@skkuverse/shared';
-import { SegmentedControl, Sheet, Txt } from '@skkuverse/sds';
+import { Sheet, Txt } from '@skkuverse/sds';
 import { logCampusContentSelect } from '@/services/analytics';
 import { PlaceCard } from './PlaceCard';
 
@@ -55,16 +60,9 @@ interface EventListPanelProps {
   /** The narrowed chip's list, or `null` for an unfiltered one (no controls). */
   list: MapChipList | null;
   selection: FacetSelection;
-  /** `null` is "전체" on an optional facet. */
-  onSelectFacet: (facetId: string, optionId: string | null) => void;
+  /** A filter chip was tapped; `CampusScreen` opens that facet's option sheet. */
+  onOpenFacet: (facetId: string) => void;
 }
-
-/**
- * The segment value standing for "전체". Not `''`: `SegmentedControl` skips an
- * item whose value is falsy, which would leave the indicator nowhere. A server
- * option id is never `*`.
- */
-const ALL = '*';
 
 export function EventListPanel({
   places,
@@ -73,7 +71,7 @@ export function EventListPanel({
   bottomPadding,
   list,
   selection,
-  onSelectFacet,
+  onOpenFacet,
 }: EventListPanelProps) {
   const { t } = useT();
   const renderItem = useCallback(
@@ -95,35 +93,40 @@ export function EventListPanel({
   const header =
     list && list.facets.length > 0 ? (
       <View style={styles.filters}>
-        {list.facets.map((facet) => (
-          <SegmentedControl
-            key={facet.id}
-            value={selection[facet.id] ?? ALL}
-            onValueChange={(value) => {
-              const optionId = value === ALL ? null : value;
-              logCampusContentSelect({
-                content_type: 'eventmap_list_facet',
-                item_id: `${facet.id}:${optionId ?? 'all'}`,
-              });
-              onSelectFacet(facet.id, optionId);
-            }}
-          >
-            {[
-              ...(facet.select === 'optional'
-                ? [
-                    <SegmentedControl.Item key={ALL} value={ALL}>
-                      {t('common.total')}
-                    </SegmentedControl.Item>,
-                  ]
-                : []),
-              ...facet.options.map((option) => (
-                <SegmentedControl.Item key={option.id} value={option.id}>
-                  {option.label}
-                </SegmentedControl.Item>
-              )),
-            ]}
-          </SegmentedControl>
-        ))}
+        {list.facets.map((facet) => {
+          const held = selection[facet.id] ?? [];
+          // Every chip names its facet — `일자: 10/1(목)`, `운영: 전체` — so
+          // the row reads the same whatever kind of filter it holds. A facet
+          // with every option checked reads 전체.
+          const value = isWholeFacet(facet, held) && facet.options.length > 1
+            ? t('common.total')
+            : facet.options
+                .filter((o) => held.includes(o.id))
+                .map((o) => o.label)
+                .join(', ');
+          // Green only for a choice the user made — never for 전체 or a default.
+          const engaged = isFacetNarrowed(facet, held);
+          return (
+            <Pressable
+              key={facet.id}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.filterChip,
+                engaged && styles.filterChipEngaged,
+                pressed && styles.filterChipPressed,
+              ]}
+              onPress={() => {
+                logCampusContentSelect({ content_type: 'eventmap_list_facet', item_id: facet.id });
+                onOpenFacet(facet.id);
+              }}
+            >
+              <Txt typography="t6" fontWeight="semiBold" color={engaged ? SdsColors.brand : SdsColors.grey800}>
+                {`${facet.label}: ${value}`}
+              </Txt>
+              <Ionicons name="chevron-down" size={14} color={engaged ? SdsColors.brand : SdsColors.grey500} />
+            </Pressable>
+          );
+        })}
       </View>
     ) : null;
 
@@ -166,6 +169,17 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: GUTTER },
   row: { paddingVertical: 12 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: SdsColors.grey200 },
-  filters: { gap: 8, paddingTop: 4, paddingBottom: 4 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 4, paddingBottom: 8 },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: SdsColors.grey100,
+  },
+  filterChipEngaged: { backgroundColor: SdsColors.brandLight },
+  filterChipPressed: { opacity: 0.6 },
   empty: { textAlign: 'center', paddingVertical: 32 },
 });

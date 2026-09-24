@@ -88,35 +88,75 @@ export function sortPlaces(markers: readonly MapOverlay[]): MapOverlay[] {
 // is id matching and one comparator, so the rules below are deliberately
 // mechanical: the app never derives a day from a date.
 
-/** The option held per facet id; `null` is "전체" on an optional facet. */
-export type FacetSelection = Readonly<Record<string, string | null>>;
+/**
+ * The options held per facet id. A `required` facet holds exactly one; an
+ * `optional` one holds any non-empty subset, and holding all of them is "no
+ * filter" — which is what it opens on.
+ */
+export type FacetSelection = Readonly<Record<string, readonly string[]>>;
 
 /**
- * Where a list opens: each `required` facet on the option whose window
- * contains `now`, else its first; each `optional` facet on nothing.
+ * Where a list opens: always the whole list. A checklist (`optional`) opens
+ * with every option checked, which is 전체; a single choice (`required`) on
+ * its first option.
  *
- * Before the festival that is 1일차 and after it the first again — the list
- * a person planning ahead or looking back most likely wants.
+ * Deliberately not "today": a default that moves with the clock makes the same
+ * tap show different rows on different days, and the user asked for 전체.
  */
-export function defaultFacetSelection(list: MapChipList, now: number): FacetSelection {
-  const out: Record<string, string | null> = {};
+export function defaultFacetSelection(list: MapChipList): FacetSelection {
+  const out: Record<string, readonly string[]> = {};
   for (const facet of list.facets) {
-    if (facet.select === 'optional') {
-      out[facet.id] = null;
-      continue;
-    }
-    const current = facet.options.find(
-      ({ window }) => window !== null && now >= Date.parse(window.startAt) && now < Date.parse(window.endAt),
-    );
-    out[facet.id] = (current ?? facet.options[0])?.id ?? null;
+    out[facet.id] =
+      facet.select === 'optional'
+        ? facet.options.map((o) => o.id)
+        : facet.options.slice(0, 1).map((o) => o.id);
   }
   return out;
 }
 
+/** True when a facet's selection holds every option — no filter at all. */
+export function isWholeFacet(facet: MapChipList['facets'][number], held: readonly string[] | undefined): boolean {
+  return held !== undefined && facet.options.every((o) => held.includes(o.id));
+}
+
 /**
- * The places in every selected option. A facet with nothing selected filters
- * nothing, and a place the server put in no option of a selected facet is left
- * out — that is the server's answer, not a gap to fill here.
+ * A checklist facet's next state after a tap on `optionId`, or on 전체 when
+ * `null`. Every option held is 전체.
+ *
+ *  - 전체 tapped: every option.
+ *  - An option tapped under 전체: that option alone — one tap to narrow.
+ *  - Otherwise it toggles; emptied, it falls back to 전체, so "nothing
+ *    selected" never exists and no tap has to be refused.
+ *
+ * Kept in the server's option order whatever order the taps came in.
+ */
+export function toggleChecklist(
+  facet: MapChipList['facets'][number],
+  held: readonly string[],
+  optionId: string | null,
+): readonly string[] {
+  const all = facet.options.map((o) => o.id);
+  if (optionId === null) return all;
+  if (isWholeFacet(facet, held)) return [optionId];
+  const toggled = held.includes(optionId) ? held.filter((id) => id !== optionId) : [...held, optionId];
+  return toggled.length === 0 ? all : all.filter((id) => toggled.includes(id));
+}
+
+/**
+ * Whether a facet holds something other than where it opens — a choice the
+ * user made, which the filter row shows as engaged.
+ */
+export function isFacetNarrowed(facet: MapChipList['facets'][number], held: readonly string[]): boolean {
+  return facet.select === 'optional'
+    ? !isWholeFacet(facet, held)
+    : held[0] !== undefined && held[0] !== facet.options[0]?.id;
+}
+
+/**
+ * The places in the selection. A place passes a facet when it is in ANY of
+ * the options held there. A facet holding every option filters nothing — so a
+ * booth with no 운영 tag still shows until someone narrows 운영 — and so does
+ * a facet with nothing held, which the UI never produces.
  */
 export function filterByFacets(
   places: readonly MapOverlay[],
@@ -124,12 +164,13 @@ export function filterByFacets(
   selection: FacetSelection,
 ): MapOverlay[] {
   const active = list.facets.flatMap((facet) => {
-    const option = selection[facet.id];
-    return option ? [[facet.id, option] as const] : [];
+    const held = selection[facet.id];
+    if (!held || held.length === 0 || isWholeFacet(facet, held)) return [];
+    return [[facet.id, held] as const];
   });
   if (active.length === 0) return [...places];
   return places.filter((place) =>
-    active.every(([facetId, option]) => place.facets[facetId]?.includes(option) ?? false),
+    active.every(([facetId, held]) => (place.facets[facetId] ?? []).some((o) => held.includes(o))),
   );
 }
 
@@ -137,8 +178,9 @@ export function filterByFacets(
  * The list's order, then `id` — the same tiebreak as `sortPlaces`, for the same
  * reason: a tie would reshuffle rows on every clock boundary.
  *
- *  - `order`: the place's order within the selected option of `scopeFacetId`
- *    (a booth's running order that day), else its `order`.
+ *  - `order` scoped to a facet: by the first checked option of that facet the
+ *    place is in, then by its `orderByOption` there, else its `order` — a
+ *    booth's running order per day. Unscoped: just `order`.
  *  - `title`: the Korean title in code-point order. Hangul syllables are
  *    encoded in 가나다 order, so this needs no `Intl` — and no collator that
  *    Hermes might build differently on one platform.
@@ -155,7 +197,22 @@ export function sortForList(
     );
   }
   const scope = list.sort.scopeFacetId;
-  const option = scope ? selection[scope] : null;
-  const keyOf = (p: MapOverlay) => (option ? (p.orderByOption[option] ?? p.order) : p.order);
-  return [...places].sort((a, b) => keyOf(a) - keyOf(b) || byId(a, b));
+  const held = scope ? (selection[scope] ?? []) : [];
+  if (!scope || held.length === 0) {
+    return [...places].sort((a, b) => a.order - b.order || byId(a, b));
+  }
+  // By the first checked option the place is in, then its order within it: one
+  // day checked is that day's running order; both are day 1's order, then the
+  // places that open only on day 2 in day 2's order.
+  const rankOf = (p: MapOverlay): [number, number] => {
+    const mine = p.facets[scope] ?? [];
+    const at = held.findIndex((o) => mine.includes(o));
+    if (at < 0) return [held.length, p.order];
+    return [at, p.orderByOption[held[at]!] ?? p.order];
+  };
+  return [...places].sort((a, b) => {
+    const [ga, oa] = rankOf(a);
+    const [gb, ob] = rankOf(b);
+    return ga - gb || oa - ob || byId(a, b);
+  });
 }

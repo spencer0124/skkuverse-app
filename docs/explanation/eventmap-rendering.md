@@ -164,8 +164,9 @@ reading.
 The list has no sort control and no count header. A chip with no `list` orders its rows by the
 marker's `order`, ascending, using `sortPlaces` (`map/list.ts`). That is the position ops authored.
 
-A chip with a `list` gets its filters and its sort from the server. The filters are 1일차 / 2일차
-tabs, plus 총학생회 / 학생단체 on booths. The sort is a per-day `order` for booths and 가나다 for
+A chip with a `list` gets its filters and its sort from the server. The filters are one row of
+dropdown chips: 일자, plus 운영 (총학생회 / 학생단체) on booths. Each opens a checklist that starts
+on 전체. The sort is a per-day `order` for booths and 가나다 for
 food trucks. The app matches the ids each overlay's `facets` carries and runs `sortForList`. Nothing
 here decides which day a place is on. The app used to infer that from the dates it was served, and
 one stray date renumbered every place. See

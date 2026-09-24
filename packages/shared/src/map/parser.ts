@@ -394,8 +394,8 @@ function parseFacet(raw: unknown): MapChipFacet | null {
  *
  * Every failure degrades TOWARD SHOWING MORE. A dropped facet filters nothing,
  * an unknown sort key falls back to `order`, and a scope that no longer names a
- * kept `required` facet is cleared — so a malformed list can reorder rows but
- * never hide one.
+ * kept facet is cleared — so a malformed list can reorder rows but never hide
+ * one.
  */
 function parseChipList(raw: unknown): MapChipList | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -405,7 +405,7 @@ function parseChipList(raw: unknown): MapChipList | null {
   if (sortRaw.key === 'title') return { facets, sort: { key: 'title', scopeFacetId: null } };
   const scope = sortRaw.scopeFacetId;
   const scopeFacetId =
-    typeof scope === 'string' && facets.some((f) => f.id === scope && f.select === 'required')
+    typeof scope === 'string' && facets.some((f) => f.id === scope)
       ? scope
       : null;
   return { facets, sort: { key: 'order', scopeFacetId } };

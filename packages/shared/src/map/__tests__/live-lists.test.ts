@@ -9,8 +9,8 @@
  * shapes the parser reads — an absent key parses to "unfiltered" with no error
  * on either side, which would look like a working list with no tabs.
  *
- * Captured 2026-09-24 from skkuverse-server `5b81308` (the commit that added
- * lists) over the ESKARA 2026 sheet, with an activation open. The overlay
+ * Captured 2026-09-24 from skkuverse-server `dev` (lists, with 일자 and 운영
+ * both checklists and dates as labels) over the ESKARA 2026 sheet, with an activation open. The overlay
  * fixture keeps the two festival layers whose lists are populated; booths have
  * no place until the council sends them.
  *
@@ -38,7 +38,7 @@ describe('the live lists, parsed whole', () => {
   it('reads each list the server authored, and none on the others', () => {
     expect(listOf('eskara26_view_bar').facets.map((f) => f.id)).toEqual(['day']);
     expect(listOf('eskara26_view_booth').facets.map((f) => [f.id, f.select])).toEqual([
-      ['day', 'required'],
+      ['day', 'optional'],
       ['org', 'optional'],
     ]);
     expect(listOf('eskara26_view_booth').sort).toEqual({ key: 'order', scopeFacetId: 'day' });
@@ -47,10 +47,12 @@ describe('the live lists, parsed whole', () => {
     expect(withList).toEqual(['eskara26_view_bar', 'eskara26_view_booth', 'eskara26_view_food']);
   });
 
-  it('keeps the day windows, so a list opens on the day that is on', () => {
-    const bar = listOf('eskara26_view_bar');
-    expect(defaultFacetSelection(bar, Date.parse('2026-10-01T19:00:00+09:00'))).toEqual({ day: 'day1' });
-    expect(defaultFacetSelection(bar, Date.parse('2026-10-02T19:00:00+09:00'))).toEqual({ day: 'day2' });
+  it('opens every list on 전체: both checklists fully checked', () => {
+    expect(defaultFacetSelection(listOf('eskara26_view_booth'))).toEqual({
+      day: ['day1', 'day2'],
+      org: ['council', 'club'],
+    });
+    expect(listOf('eskara26_view_bar').facets[0]!.options.map((o) => o.label)).toEqual(['10/1(목)', '10/2(금)']);
   });
 });
 
@@ -58,8 +60,8 @@ describe('the live lists, filtered the way the sheet filters them', () => {
   it('puts every pub under its night, and the two-night ones under both', () => {
     const bar = listOf('eskara26_view_bar');
     const pubs = onLayer('eskara26_bar');
-    const day1 = filterByFacets(pubs, bar, { day: 'day1' });
-    const day2 = filterByFacets(pubs, bar, { day: 'day2' });
+    const day1 = filterByFacets(pubs, bar, { day: ['day1'] });
+    const day2 = filterByFacets(pubs, bar, { day: ['day2'] });
     const both = day1.filter((p) => day2.includes(p));
     // Every pub is on at least one night, and one with two windows is on both.
     expect(new Set([...day1, ...day2]).size).toBe(pubs.length);
@@ -69,7 +71,7 @@ describe('the live lists, filtered the way the sheet filters them', () => {
 
   it('lists the food trucks in 가나다 order', () => {
     const food = listOf('eskara26_view_food');
-    const titles = sortForList(onLayer('eskara26_food'), food, { day: 'day1' }).map((p) => p.text.ko);
+    const titles = sortForList(onLayer('eskara26_food'), food, { day: ['day1'] }).map((p) => p.text.ko);
     expect(titles).toEqual([...titles].sort());
     expect(titles[0]).toBe('건강가족');
   });

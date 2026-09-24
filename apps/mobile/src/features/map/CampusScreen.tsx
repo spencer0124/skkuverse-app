@@ -58,6 +58,7 @@ import {
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventListPanel } from '@/features/eventmap/EventListPanel';
+import { ListFacetSheet } from '@/features/eventmap/ListFacetSheet';
 import { GlassIconButton, Sheet, SHEET_FLOAT_INSET, type SheetRef } from '@skkuverse/sds';
 import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
@@ -1025,9 +1026,7 @@ export function CampusScreen() {
    *
    * The pick is tied to the store's chip OBJECT, not its id: every narrowing
    * writes a fresh one, so tapping 주점 again — or coming back to it later —
-   * opens on today's tab rather than wherever the last visit left it. Until
-   * the user taps a segment the selection is the default, re-read on the
-   * clock, so a list left open across the 06:00 cut-over moves to the new day.
+   * opens on 전체 rather than wherever the last visit left it.
    */
   const narrowedList = narrowedChip?.list ?? null;
   const [facetPick, setFacetPick] = useState<{
@@ -1037,14 +1036,32 @@ export function CampusScreen() {
   const facetSelection = useMemo<FacetSelection>(() => {
     if (!narrowedList) return {};
     if (facetPick && facetPick.chip === activeChip) return facetPick.selection;
-    return defaultFacetSelection(narrowedList, now);
-  }, [narrowedList, facetPick, activeChip, now]);
+    return defaultFacetSelection(narrowedList);
+  }, [narrowedList, facetPick, activeChip]);
   const handleSelectFacet = useCallback(
-    (facetId: string, optionId: string | null) => {
-      setFacetPick({ chip: activeChip, selection: { ...facetSelection, [facetId]: optionId } });
+    (facetId: string, held: readonly string[]) => {
+      setFacetPick({ chip: activeChip, selection: { ...facetSelection, [facetId]: held } });
+      // A single choice is made in one tap, so the sheet closes behind it; a
+      // checklist stays up for the next toggle.
+      if (narrowedList?.facets.find((f) => f.id === facetId)?.select === 'required') {
+        facetSheetRef.current?.dismiss?.();
+      }
     },
-    [activeChip, facetSelection],
+    [activeChip, facetSelection, narrowedList],
   );
+
+  /**
+   * The option sheet a list filter chip opens. Which facet it shows is state;
+   * the sheet itself floats beside the campus card like the filter sheet, so
+   * it needs no hand-off.
+   */
+  const facetSheetRef = useRef<SheetRef>(null);
+  const [openFacetId, setOpenFacetId] = useState<string | null>(null);
+  const openFacet = narrowedList?.facets.find((f) => f.id === openFacetId) ?? null;
+  const handleOpenFacet = useCallback((facetId: string) => {
+    setOpenFacetId(facetId);
+    facetSheetRef.current?.present?.();
+  }, []);
 
   /**
    * The rows: filtered and ordered as the chip's `list` says, or in the
@@ -1583,7 +1600,7 @@ export function CampusScreen() {
               places={listedPlaces}
               list={narrowedList}
               selection={facetSelection}
-              onSelectFacet={handleSelectFacet}
+              onOpenFacet={handleOpenFacet}
               bottomPadding={sheetContentBottom}
               now={now}
               onSelectPlace={handleSelectFromList}
@@ -1627,6 +1644,13 @@ export function CampusScreen() {
               mapConfig={mapConfig}
               bottomGap={modalCardBottomGap}
               now={now}
+            />
+            <ListFacetSheet
+              ref={facetSheetRef}
+              facet={openFacet}
+              held={openFacet ? (facetSelection[openFacet.id] ?? []) : []}
+              onChange={handleSelectFacet}
+              bottomGap={modalCardBottomGap}
             />
           </>
         )}

@@ -482,18 +482,25 @@ interface MapChipList {
 }
 ```
 
-- **`required`** (1일차 / 2일차): tabs, opening on the option whose `window` contains now, else the
-  first. **`optional`** (총학생회 / 학생단체): the app adds a leading 전체, meaning no filter.
-- **Filter:** keep an overlay when, for every facet with a selection, `overlay.facets[facet.id]`
-  includes the selected option.
-- **Sort,** then by `id`. `order` uses `orderByOption[<selected option of scopeFacetId>] ?? order`,
-  which is how booths get a running order per day. `title` sorts on `text.ko` in code-point order,
-  which is 가나다 for Hangul.
+- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 전체`,
+  `운영: 총학생회`. A chip turns green only when the user has made a choice, never for 전체 or a
+  default. Tapping it opens the option sheet.
+- **`optional`** (일자, 운영 in ESKARA 2026): a checklist headed by 전체. It opens on 전체, which is
+  no filter. Tapping an option under 전체 picks that option alone. Unchecking the last option falls
+  back to 전체, and checking every option collapses into 전체, so "nothing selected" cannot exist.
+  **`required`**: a single choice, opening on its first option.
+- **No time-dependent default.** A list opens the same way before and during the festival.
+- **Filter:** keep an overlay when, for every facet not on 전체, `overlay.facets[facet.id]` shares an
+  option with what is checked.
+- **Sort,** then by `id`. `order` with a scope sorts by the first checked option of that facet the
+  overlay is in, then `orderByOption[that option] ?? order`. With one day checked, that is the day's
+  running order. Under 전체, it is day 1's order followed by day-2-only booths in day 2's order.
+  `title` sorts on `text.ko` in code-point order, which is 가나다 for Hangul.
 - **Parsing degrades toward showing more.** A facet the app cannot draw is dropped, an unknown sort
   becomes `order`, and a scope that no longer names a kept `required` facet is cleared. A malformed
   list can reorder rows, but never hide one.
 
-The logic is `defaultFacetSelection`, `filterByFacets` and `sortForList` in
+The logic is `defaultFacetSelection`, `toggleChecklist`, `filterByFacets` and `sortForList` in
 `packages/shared/src/map/list.ts`. The server contract is skkuverse-server
 `docs/reference/map-overlays-api.md` §8.8.
 

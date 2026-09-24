@@ -314,11 +314,11 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "required",
+              "select": "optional",
               "options": [
                 {
                   "id": "day1",
-                  "label": "1일차",
+                  "label": "10/1(목)",
                   "window": {
                     "startAt": "2026-09-30T21:00:00.000Z",
                     "endAt": "2026-10-01T21:00:00.000Z"
@@ -326,7 +326,7 @@
                 },
                 {
                   "id": "day2",
-                  "label": "2일차",
+                  "label": "10/2(금)",
                   "window": {
                     "startAt": "2026-10-01T21:00:00.000Z",
                     "endAt": "2026-10-02T21:00:00.000Z"
@@ -368,11 +368,11 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "required",
+              "select": "optional",
               "options": [
                 {
                   "id": "day1",
-                  "label": "1일차",
+                  "label": "10/1(목)",
                   "window": {
                     "startAt": "2026-09-30T21:00:00.000Z",
                     "endAt": "2026-10-01T21:00:00.000Z"
@@ -380,7 +380,7 @@
                 },
                 {
                   "id": "day2",
-                  "label": "2일차",
+                  "label": "10/2(금)",
                   "window": {
                     "startAt": "2026-10-01T21:00:00.000Z",
                     "endAt": "2026-10-02T21:00:00.000Z"
@@ -439,11 +439,11 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "required",
+              "select": "optional",
               "options": [
                 {
                   "id": "day1",
-                  "label": "1일차",
+                  "label": "10/1(목)",
                   "window": {
                     "startAt": "2026-09-30T21:00:00.000Z",
                     "endAt": "2026-10-01T21:00:00.000Z"
@@ -451,7 +451,7 @@
                 },
                 {
                   "id": "day2",
-                  "label": "2일차",
+                  "label": "10/2(금)",
                   "window": {
                     "startAt": "2026-10-01T21:00:00.000Z",
                     "endAt": "2026-10-02T21:00:00.000Z"
