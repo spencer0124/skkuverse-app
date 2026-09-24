@@ -306,6 +306,58 @@ export interface MapChip {
    * does for every chip; this says what the tap MEANS within it.
    */
   isReset: boolean;
+  /**
+   * The filters and sort of the list this chip opens, or `null` for a list that
+   * is unfiltered and in `order` — the reset chip, and any chip the festival
+   * authored no list for.
+   *
+   * The server decides everything here, including which places are on which
+   * day (each overlay's `facets`). The app draws the controls, matches ids and
+   * runs `sortForList`; it never works out a day from a date. Contract:
+   * skkuverse-server `docs/reference/map-overlays-api.md` §8.8.
+   */
+  list: MapChipList | null;
+}
+
+export interface MapChipFacetOption {
+  id: string;
+  /** Already localised. */
+  label: string;
+  /**
+   * On a `day`-style facet's options, the interval the option covers; `null`
+   * on a tag's. Read for one thing only: opening a `required` facet on the
+   * option that contains now. Membership rides on each overlay's `facets`.
+   */
+  window: TimeWindow | null;
+}
+
+export type MapChipFacetSelect = 'required' | 'optional';
+
+export interface MapChipFacet {
+  id: string;
+  label: string;
+  /**
+   * `required`: exactly one option selected — tabs, opening on the option whose
+   * window contains now, else the first. `optional`: zero or one, with an
+   * app-drawn "전체" meaning none.
+   */
+  select: MapChipFacetSelect;
+  /** Never empty — the parser drops a facet with no usable option. */
+  options: MapChipFacetOption[];
+}
+
+/**
+ * `order`: `orderByOption[<selected option of scopeFacetId>] ?? order`. A scope
+ * always names a `required` facet of the same list, so an option is selected.
+ * `title`: the Korean title in code-point order, which is 가나다 for Hangul.
+ */
+export type MapListSort =
+  | { key: 'order'; scopeFacetId: string | null }
+  | { key: 'title'; scopeFacetId: null };
+
+export interface MapChipList {
+  facets: MapChipFacet[];
+  sort: MapListSort;
 }
 
 /**
@@ -476,6 +528,17 @@ interface OverlayBase {
   actions: MarkerAction[];
   /** Author's sort position, and the last tiebreak in a coordinate collision. Lower wins. */
   order: number;
+  /**
+   * The list-facet options this overlay is in, keyed by facet id —
+   * `{ day: ['day1', 'day2'], org: ['council'] }`. Decided by the server; `{}`
+   * for a building or when the server sent none. See `MapChipList`.
+   */
+  facets: Record<string, string[]>;
+  /**
+   * Sort position inside one facet option — a booth's running order per day.
+   * Read only by a list sorted on that option's facet; `{}` when unauthored.
+   */
+  orderByOption: Record<string, number>;
   /**
    * What a tap opens, or `null` for an overlay that is inert.
    *

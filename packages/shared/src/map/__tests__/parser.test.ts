@@ -732,6 +732,7 @@ describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
         layerIds: ['eskara26_stage'],
       },
       isReset: false,
+      list: null,
     });
   });
 
@@ -871,5 +872,106 @@ describe('parseMapConfig — naver.styleId, the map keeps its look without the s
 
   it('carries the bundled styleId in the config a failed fetch falls back to', () => {
     expect(DEFAULT_MAP_CONFIG.naver.styleId).toBe(DEFAULT_NAVER_STYLE_ID);
+  });
+});
+
+describe('parseMapConfig — a chip list, which only ever degrades toward showing more', () => {
+  const DAY = {
+    id: 'day',
+    label: '일자',
+    select: 'required',
+    options: [
+      {
+        id: 'day1',
+        label: '1일차',
+        window: { startAt: '2026-09-30T21:00:00.000Z', endAt: '2026-10-01T21:00:00.000Z' },
+      },
+      { id: 'day2', label: '2일차', window: { startAt: '2026-10-01T21:00:00.000Z', endAt: '2026-10-02T21:00:00.000Z' } },
+    ],
+  };
+  const ORG = {
+    id: 'org',
+    label: '운영',
+    select: 'optional',
+    options: [
+      { id: 'council', label: '총학생회', window: null },
+      { id: 'club', label: '학생단체', window: null },
+    ],
+  };
+  const listOf = (list: unknown) =>
+    parseMapConfig(
+      envelope({
+        chips: [
+          {
+            id: 'c',
+            label: '부스',
+            icon: null,
+            action: {
+              kind: 'focus',
+              camera: { lat: 37.29, lng: 126.97, zoom: 17, tilt: 0, bearing: 0, durationMs: 500 },
+              layerIds: ['eskara26_booth'],
+            },
+            list,
+          },
+        ],
+      }),
+    ).chips[0]!.list;
+
+  it('parses the booth list whole', () => {
+    expect(listOf({ facets: [DAY, ORG], sort: { key: 'order', scopeFacetId: 'day' } })).toEqual({
+      facets: [DAY, ORG],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+  });
+
+  it('reads an absent or non-object list as none', () => {
+    expect(listOf(undefined)).toBeNull();
+    expect(listOf('day')).toBeNull();
+  });
+
+  it('drops a facet it cannot draw, keeping the rest', () => {
+    const out = listOf({
+      facets: [{ ...DAY, select: 'many' }, { ...ORG, options: [{ id: 'x' }] }, { ...ORG, id: 'org2' }],
+      sort: { key: 'order', scopeFacetId: null },
+    });
+    expect(out?.facets.map((f) => f.id)).toEqual(['org2']);
+  });
+
+  it('keeps an option whose window is malformed, with no window', () => {
+    const out = listOf({
+      facets: [{ ...DAY, options: [{ id: 'day1', label: '1일차', window: { startAt: 'soon' } }] }],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+    expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);
+  });
+
+  it('falls back to order for an unknown sort, and clears a scope that is not a kept required facet', () => {
+    expect(listOf({ facets: [DAY], sort: { key: 'price' } })?.sort).toEqual({ key: 'order', scopeFacetId: null });
+    expect(listOf({ facets: [DAY, ORG], sort: { key: 'order', scopeFacetId: 'org' } })?.sort).toEqual({
+      key: 'order',
+      scopeFacetId: null,
+    });
+    expect(listOf({ facets: [], sort: { key: 'order', scopeFacetId: 'day' } })?.sort.scopeFacetId).toBeNull();
+    expect(listOf({ facets: [DAY], sort: { key: 'title', scopeFacetId: 'day' } })?.sort).toEqual({
+      key: 'title',
+      scopeFacetId: null,
+    });
+  });
+});
+
+describe('parseOverlayData — facets and orderByOption', () => {
+  it('carries both through', () => {
+    const out = parseOne({ facets: { day: ['day1', 'day2'], org: ['council'] }, orderByOption: { day1: 3 } });
+    expect(out[0]?.facets).toEqual({ day: ['day1', 'day2'], org: ['council'] });
+    expect(out[0]?.orderByOption).toEqual({ day1: 3 });
+  });
+
+  it('reads an absent or malformed value as empty, never dropping the overlay', () => {
+    const out = parseOne({ facets: { day: 'day1', org: ['council', 7] }, orderByOption: { day1: 'x', day2: 4 } });
+    expect(out[0]?.facets).toEqual({ org: ['council'] });
+    expect(out[0]?.orderByOption).toEqual({ day2: 4 });
+    const bare = parseOne();
+    expect(bare[0]?.facets).toEqual({});
+    expect(bare[0]?.orderByOption).toEqual({});
   });
 });

@@ -11,8 +11,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { MapLayerDef, MapOverlay, MarkerOverlay } from '../../types/map';
-import { selectVisibleOverlays, sortPlaces } from '../list';
+import type { MapChipList, MapLayerDef, MapOverlay, MarkerOverlay } from '../../types/map';
+import {
+  defaultFacetSelection,
+  filterByFacets,
+  selectVisibleOverlays,
+  sortForList,
+  sortPlaces,
+} from '../list';
 
 const layer = (over: Partial<MapLayerDef> & { id: string }): MapLayerDef => ({
   label: over.id,
@@ -37,6 +43,8 @@ const place = (over: Partial<MarkerOverlay> & { id: string }): MarkerOverlay => 
   fields: [],
   actions: [],
   order: 0,
+  facets: {},
+  orderByOption: {},
   pinPriority: 0,
   tap: { kind: 'event', placeId: over.id },
   ...over,
@@ -141,5 +149,95 @@ describe('sortPlaces', () => {
     // A tie anywhere makes the result depend on input order, and the input is
     // re-derived on every clock boundary.
     expect(ids(sortPlaces([place({ id: 'b' }), place({ id: 'a' })]))).toEqual(['a', 'b']);
+  });
+});
+
+describe("a chip's list — the server decides, the app matches ids", () => {
+  const LIST: MapChipList = {
+    facets: [
+      {
+        id: 'day',
+        label: '일자',
+        select: 'required',
+        options: [
+          { id: 'day1', label: '1일차', window: { startAt: '2026-09-30T21:00:00.000Z', endAt: '2026-10-01T21:00:00.000Z' } },
+          { id: 'day2', label: '2일차', window: { startAt: '2026-10-01T21:00:00.000Z', endAt: '2026-10-02T21:00:00.000Z' } },
+        ],
+      },
+      {
+        id: 'org',
+        label: '운영',
+        select: 'optional',
+        options: [
+          { id: 'council', label: '총학생회', window: null },
+          { id: 'club', label: '학생단체', window: null },
+        ],
+      },
+    ],
+    sort: { key: 'order', scopeFacetId: 'day' },
+  };
+  const at = (iso: string) => Date.parse(iso);
+
+  describe('defaultFacetSelection', () => {
+    it('opens on the day that contains now, and on 전체 for an optional facet', () => {
+      expect(defaultFacetSelection(LIST, at('2026-10-02T19:00:00+09:00'))).toEqual({ day: 'day2', org: null });
+      expect(defaultFacetSelection(LIST, at('2026-10-01T12:00:00+09:00'))).toEqual({ day: 'day1', org: null });
+    });
+
+    it('opens on the first day before the festival and after it', () => {
+      expect(defaultFacetSelection(LIST, at('2026-09-24T12:00:00+09:00')).day).toBe('day1');
+      expect(defaultFacetSelection(LIST, at('2026-10-05T12:00:00+09:00')).day).toBe('day1');
+    });
+  });
+
+  describe('filterByFacets', () => {
+    const both = place({ id: 'both', facets: { day: ['day1', 'day2'], org: ['club'] } });
+    const one = place({ id: 'one', facets: { day: ['day1'], org: ['council'] } });
+    const two = place({ id: 'two', facets: { day: ['day2'], org: [] } });
+
+    it('puts a two-day place under both days', () => {
+      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day1', org: null }))).toEqual(['both', 'one']);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: null }))).toEqual(['both', 'two']);
+    });
+
+    it('narrows by every selected facet, and leaves out an untagged place once one is chosen', () => {
+      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: 'club' }))).toEqual(['both']);
+      expect(ids(filterByFacets([both, one, two], LIST, { day: 'day2', org: 'council' }))).toEqual([]);
+    });
+
+    it('keeps everything when nothing is selected', () => {
+      expect(ids(filterByFacets([both, one, two], LIST, {}))).toEqual(['both', 'one', 'two']);
+    });
+  });
+
+  describe('sortForList', () => {
+    it("orders a booth by its running order for the selected day, falling back to order", () => {
+      const a = place({ id: 'a', order: 1, orderByOption: { day1: 3, day2: 1 } });
+      const b = place({ id: 'b', order: 2, orderByOption: { day1: 1, day2: 3 } });
+      const c = place({ id: 'c', order: 2 });
+      expect(ids(sortForList([a, b, c], LIST, { day: 'day1', org: null }))).toEqual(['b', 'c', 'a']);
+      expect(ids(sortForList([a, b, c], LIST, { day: 'day2', org: null }))).toEqual(['a', 'c', 'b']);
+    });
+
+    it('ignores orderByOption when the sort is not scoped', () => {
+      const unscoped: MapChipList = { ...LIST, sort: { key: 'order', scopeFacetId: null } };
+      const a = place({ id: 'a', order: 2, orderByOption: { day1: 0 } });
+      const b = place({ id: 'b', order: 1 });
+      expect(ids(sortForList([a, b], unscoped, { day: 'day1', org: null }))).toEqual(['b', 'a']);
+    });
+
+    it('sorts a title list in 가나다 order, whatever the order field says', () => {
+      const byTitle: MapChipList = { facets: [], sort: { key: 'title', scopeFacetId: null } };
+      const trucks = ['희망츄러스', '건강가족', '오야봉', '냠냠쩝쩝', '파라다이스 커피'].map((ko, i) =>
+        place({ id: `t${i}`, order: i, text: { ko, en: ko } }),
+      );
+      expect(sortForList(trucks, byTitle, {}).map((p) => p.text.ko)).toEqual([
+        '건강가족',
+        '냠냠쩝쩝',
+        '오야봉',
+        '파라다이스 커피',
+        '희망츄러스',
+      ]);
+    });
   });
 });

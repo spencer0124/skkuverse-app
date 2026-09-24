@@ -391,7 +391,9 @@ export type CampusContentType =
   | 'map_chip'
   | 'eventmap_list_row'
   // A tab press in a place sheet; `item_id` is the tab (`home` / `menu` / `info`).
-  | 'eventmap_detail_tab';
+  | 'eventmap_detail_tab'
+  // A list filter segment; `item_id` is `<facet>:<option>`, `all` for 전체.
+  | 'eventmap_list_facet';
 export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
 }

@@ -577,6 +577,7 @@ const ko = {
   'eventmap.instagram': '인스타에서 자세히보기',
   'eventmap.more': '더보기',
   'eventmap.less': '접기',
+  'eventmap.list.empty': '이 조건에 맞는 곳이 없어요',
 } as const;
 
 type TranslationKey = keyof typeof ko;
@@ -1080,6 +1081,7 @@ const en: TranslationMap = {
   'eventmap.instagram': 'More on Instagram',
   'eventmap.more': 'More',
   'eventmap.less': 'Less',
+  'eventmap.list.empty': 'Nothing matches these filters',
 };
 
 const zh: TranslationMap = {
@@ -1572,6 +1574,7 @@ const zh: TranslationMap = {
   'eventmap.instagram': '在 Instagram 查看详情',
   'eventmap.more': '展开',
   'eventmap.less': '收起',
+  'eventmap.list.empty': '没有符合条件的地点',
 };
 
 export const translations: Record<AppLanguage, TranslationMap> = { ko, en, zh };

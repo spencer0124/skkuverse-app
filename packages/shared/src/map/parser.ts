@@ -21,6 +21,9 @@ import type {
   MapChipAction,
   MapChipCamera,
   MapChipIcon,
+  MapChipFacet,
+  MapChipFacetOption,
+  MapChipList,
   MapLayerDef,
   MapLayerStyle,
   MapOverlay,
@@ -359,6 +362,77 @@ function parseChipAction(
   return { kind, camera, layerIds };
 }
 
+const FACET_SELECTS = ['required', 'optional'] as const;
+
+function parseFacetOption(raw: unknown): MapChipFacetOption | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== 'string' || o.id === '') return null;
+  if (typeof o.label !== 'string' || o.label === '') return null;
+  // A malformed window costs only the "open on today" default; the option
+  // itself still filters, so it is kept with `null`.
+  const window = parseHours([o.window])[0] ?? null;
+  return { id: o.id, label: o.label, window };
+}
+
+function parseFacet(raw: unknown): MapChipFacet | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const f = raw as Record<string, unknown>;
+  if (typeof f.id !== 'string' || f.id === '') return null;
+  if (typeof f.label !== 'string' || f.label === '') return null;
+  const select = asMember(f.select, FACET_SELECTS);
+  if (!select) return null;
+  const options = parseEach(f.options, parseFacetOption);
+  // A tab row with nothing to press is worse than no row.
+  if (options.length === 0) return null;
+  return { id: f.id, label: f.label, select, options };
+}
+
+/**
+ * A chip's list, or `null` — which the list reads as unfiltered and in
+ * `order`, what every chip meant before lists existed.
+ *
+ * Every failure degrades TOWARD SHOWING MORE. A dropped facet filters nothing,
+ * an unknown sort key falls back to `order`, and a scope that no longer names a
+ * kept `required` facet is cleared — so a malformed list can reorder rows but
+ * never hide one.
+ */
+function parseChipList(raw: unknown): MapChipList | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const l = raw as Record<string, unknown>;
+  const facets = parseEach(l.facets, parseFacet);
+  const sortRaw = (l.sort && typeof l.sort === 'object' ? l.sort : {}) as Record<string, unknown>;
+  if (sortRaw.key === 'title') return { facets, sort: { key: 'title', scopeFacetId: null } };
+  const scope = sortRaw.scopeFacetId;
+  const scopeFacetId =
+    typeof scope === 'string' && facets.some((f) => f.id === scope && f.select === 'required')
+      ? scope
+      : null;
+  return { facets, sort: { key: 'order', scopeFacetId } };
+}
+
+/** `{ facetId: optionId[] }`. Anything else is `{}` — in no option, so filtered out only when filtering. */
+function parseFacetMembership(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    out[key] = value.filter((v): v is string => typeof v === 'string');
+  }
+  return out;
+}
+
+/** `{ optionId: number }`, keeping only finite numbers. */
+function parseOrderByOption(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const n = toFiniteNumber(value);
+    if (n !== null) out[key] = n;
+  }
+  return out;
+}
+
 /**
  * A chip, or `null`.
  *
@@ -383,7 +457,14 @@ function parseChip(
   // which is what every authored chip is — and it is the safe direction, since
   // mistaking a narrowing chip for a reset would silently drop the user's view
   // instead of applying the one they asked for.
-  return { id, label, icon: parseChipIcon(raw.icon), action, isReset: raw.isReset === true };
+  return {
+    id,
+    label,
+    icon: parseChipIcon(raw.icon),
+    action,
+    isReset: raw.isReset === true,
+    list: parseChipList(raw.list),
+  };
 }
 
 // ── Public parsers ──
@@ -675,6 +756,8 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
       // `id`. `?? 0` rather than NaN, which would make every comparison in the
       // ladder false and the ladder non-total.
       order: toFiniteNumber(raw.order) ?? 0,
+      facets: parseFacetMembership(raw.facets),
+      orderByOption: parseOrderByOption(raw.orderByOption),
       // `null` is meaningful: a backdrop that is drawn and not pressable.
       tap: parseMarkerTap(raw.tap),
     };

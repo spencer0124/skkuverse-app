@@ -138,6 +138,11 @@ export type {
   MapChipAction,
   MapChipCamera,
   MapChipIcon,
+  MapChipList,
+  MapChipFacet,
+  MapChipFacetOption,
+  MapChipFacetSelect,
+  MapListSort,
   MapLayerStyle,
   MarkerShape,
   MapLayerDef,
@@ -247,7 +252,16 @@ export type { LayerVisibilityState, PinCandidate } from './map';
 // deleted server-side and the place documents they carried now ride on the
 // ordinary marker wire, so what used to be a module of its own is the list
 // rules in `./map` plus the store below.
-export { selectVisibleOverlays, sortPlaces, pickI18nText, wrapMarkerLabel } from './map';
+export {
+  selectVisibleOverlays,
+  sortPlaces,
+  defaultFacetSelection,
+  filterByFacets,
+  sortForList,
+  pickI18nText,
+  wrapMarkerLabel,
+} from './map';
+export type { FacetSelection } from './map';
 export type { VisibleOverlaysInput } from './map';
 export {
   highlightBlock,

@@ -159,10 +159,21 @@ the filter (`placesById` is built from **all** event markers): a shared link mus
 layer the recipient happens to have hidden, and hiding a layer must not slam shut a sheet someone is
 reading.
 
-### 4.2 One order: the author's
+### 4.2 One order, chosen by the server
 
-The list has no sort control and no count header. `sortPlaces` (`map/list.ts`) orders the rows by
-the marker's `order`, ascending — the position ops authored — and that is the only order there is.
+The list has no sort control and no count header. A chip with no `list` orders its rows by the
+marker's `order`, ascending, using `sortPlaces` (`map/list.ts`). That is the position ops authored.
+
+A chip with a `list` gets its filters and its sort from the server. The filters are 1일차 / 2일차
+tabs, plus 총학생회 / 학생단체 on booths. The sort is a per-day `order` for booths and 가나다 for
+food trucks. The app matches the ids each overlay's `facets` carries and runs `sortForList`. Nothing
+here decides which day a place is on. The app used to infer that from the dates it was served, and
+one stray date renumbered every place. See
+[map-config-api-spec.md § Chip lists](../reference/map-config-api-spec.md#chip-lists).
+
+While a chip's layers hold any place, the list stays mounted even when a tab has no rows. The tab
+shows an empty line rather than the sheet falling back to the feed, which would take the tabs with
+it.
 
 It ends at `id`. The list re-derives at every clock boundary, so a tie is a list that reshuffles
 itself while it is being read.

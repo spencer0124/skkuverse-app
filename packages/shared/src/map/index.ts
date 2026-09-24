@@ -23,7 +23,15 @@ export {
   toEpochMs,
   MAX_TIMEOUT_MS,
 } from './window';
-export { selectVisibleOverlays, sortPlaces, type VisibleOverlaysInput } from './list';
+export {
+  selectVisibleOverlays,
+  sortPlaces,
+  defaultFacetSelection,
+  filterByFacets,
+  sortForList,
+  type FacetSelection,
+  type VisibleOverlaysInput,
+} from './list';
 export { pickI18nText, wrapMarkerLabel } from './text';
 export {
   highlightBlock,

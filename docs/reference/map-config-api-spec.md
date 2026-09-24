@@ -386,6 +386,7 @@ interface MapChip {
   icon: { kind: "emoji"; emoji: string } | null;
   action: MapChipAction;
   isReset: boolean;                               // true on exactly the synthesised reset chip
+  list: MapChipList | null;                       // the list this chip opens — see "Chip lists"
 }
 ```
 
@@ -396,6 +397,7 @@ interface MapChip {
 | `icon` | object \| null | Yes | `null` is declared before it is reachable, so a text-only chip can arrive without a coordinated release. An unrecognised icon kind degrades to `null` rather than dropping the chip |
 | `action` | object | Yes | Discriminated on `kind`. A kind the client cannot route **drops the whole chip** |
 | `isReset` | boolean | Yes | Does a tap mean **stop narrowing** rather than "show these layers". `false` on every authored chip rather than absent, since an optional field is a second thing to branch on. The client reads only an explicit `true` |
+| `list` | object \| null | Yes | The filters and sort of the list this chip opens. `null` means unfiltered and in `order`. See [Chip lists](#chip-lists) |
 
 > [!IMPORTANT]
 > **`isReset` is on the wire because it stopped being derivable.** The reset chip used to be
@@ -460,6 +462,40 @@ Clearing writes nothing — it drops the shadow — so a layer the user had turn
 a layer they never touched returns to its own schedule rather than to a boolean captured on the way
 in. Toggling a tile in the filter sheet also ends the narrowing, committing the visible state first
 so nothing else on screen jumps.
+
+### Chip lists
+
+The list the sheet shows while a chip is narrowed carries its filters and sort on that chip.
+The server decides everything: which filter axes exist, which options each place is in (each
+overlay's `facets`), and how the list sorts. The app draws one segmented control per facet,
+matches ids and runs one comparator. It never works out a day from a date.
+
+```ts
+interface MapChipList {
+  facets: {
+    id: string;
+    label: string;                                 // already localised
+    select: "required" | "optional";
+    options: { id: string; label: string; window: { startAt: string; endAt: string } | null }[];
+  }[];
+  sort: { key: "order"; scopeFacetId: string | null } | { key: "title"; scopeFacetId: null };
+}
+```
+
+- **`required`** (1일차 / 2일차): tabs, opening on the option whose `window` contains now, else the
+  first. **`optional`** (총학생회 / 학생단체): the app adds a leading 전체, meaning no filter.
+- **Filter:** keep an overlay when, for every facet with a selection, `overlay.facets[facet.id]`
+  includes the selected option.
+- **Sort,** then by `id`. `order` uses `orderByOption[<selected option of scopeFacetId>] ?? order`,
+  which is how booths get a running order per day. `title` sorts on `text.ko` in code-point order,
+  which is 가나다 for Hangul.
+- **Parsing degrades toward showing more.** A facet the app cannot draw is dropped, an unknown sort
+  becomes `order`, and a scope that no longer names a kept `required` facet is cleared. A malformed
+  list can reorder rows, but never hide one.
+
+The logic is `defaultFacetSelection`, `filterByFacets` and `sortForList` in
+`packages/shared/src/map/list.ts`. The server contract is skkuverse-server
+`docs/reference/map-overlays-api.md` §8.8.
 
 ## `cameraDefaults`
 

@@ -88,6 +88,7 @@ const focusChip = (id: string, layerIds: string[], isReset = false): MapChip => 
   icon: { kind: 'emoji', emoji: '\u{1F3AA}' },
   action: { kind: 'focus', camera: CAMERA, layerIds },
   isReset,
+  list: null,
 });
 
 const WEBVIEW_CHIP: MapChip = {
@@ -96,6 +97,7 @@ const WEBVIEW_CHIP: MapChip = {
   icon: { kind: 'emoji', emoji: '\u{1F9F3}' },
   action: { kind: 'webview', url: 'https://webview.skkuverse.com/skku/lostandfound' },
   isReset: false,
+  list: null,
 };
 
 const STAGE_CHIP = focusChip('eskara26_view_stage', ['eskara26_stage']);

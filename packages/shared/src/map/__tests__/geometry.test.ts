@@ -36,6 +36,8 @@ const base = {
   fields: [],
   actions: [],
   order: 0,
+  facets: {},
+  orderByOption: {},
   tap: null,
 };
 

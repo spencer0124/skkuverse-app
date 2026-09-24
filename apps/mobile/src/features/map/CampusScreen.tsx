@@ -40,6 +40,10 @@ import {
   resolveChipLayerVisibility,
   selectVisibleOverlays,
   sortPlaces,
+  defaultFacetSelection,
+  filterByFacets,
+  sortForList,
+  type FacetSelection,
   isFestivalLayer,
   withoutFestival,
   DEFAULT_CAMERA_DEFAULTS,
@@ -1000,19 +1004,56 @@ export function CampusScreen() {
    * still gets a row: that ladder answers which pin is drawn there, not whether
    * the place exists.
    */
-  const listedPlaces = useMemo(
+  const layerPlaces = useMemo(
     () =>
       mapConfig
-        ? sortPlaces(
-            selectVisibleOverlays({
-              markers: eventOverlays,
-              layers: mapConfig.layers,
-              state: layerState,
-              now,
-            }),
-          )
+        ? selectVisibleOverlays({
+            markers: eventOverlays,
+            layers: mapConfig.layers,
+            state: layerState,
+            now,
+          })
         : [],
     [mapConfig, eventOverlays, layerState, now],
+  );
+
+  /**
+   * The narrowed chip's list filters, and what the user picked in them.
+   *
+   * The pick is tied to the store's chip OBJECT, not its id: every narrowing
+   * writes a fresh one, so tapping 주점 again — or coming back to it later —
+   * opens on today's tab rather than wherever the last visit left it. Until
+   * the user taps a segment the selection is the default, re-read on the
+   * clock, so a list left open across the 06:00 cut-over moves to the new day.
+   */
+  const narrowedList = narrowedChip?.list ?? null;
+  const [facetPick, setFacetPick] = useState<{
+    chip: typeof activeChip;
+    selection: FacetSelection;
+  } | null>(null);
+  const facetSelection = useMemo<FacetSelection>(() => {
+    if (!narrowedList) return {};
+    if (facetPick && facetPick.chip === activeChip) return facetPick.selection;
+    return defaultFacetSelection(narrowedList, now);
+  }, [narrowedList, facetPick, activeChip, now]);
+  const handleSelectFacet = useCallback(
+    (facetId: string, optionId: string | null) => {
+      setFacetPick({ chip: activeChip, selection: { ...facetSelection, [facetId]: optionId } });
+    },
+    [activeChip, facetSelection],
+  );
+
+  /**
+   * The rows: filtered and ordered as the chip's `list` says, or in the
+   * author's `order` for a chip with none. Every decision was the server's —
+   * which day a place is on, how the list sorts — so this only matches ids.
+   */
+  const listedPlaces = useMemo(
+    () =>
+      narrowedList
+        ? sortForList(filterByFacets(layerPlaces, narrowedList, facetSelection), narrowedList, facetSelection)
+        : sortPlaces(layerPlaces),
+    [layerPlaces, narrowedList, facetSelection],
   );
 
   /**
@@ -1030,10 +1071,10 @@ export function CampusScreen() {
    * And only with a row to show. A chip whose layers hold nothing tappable —
    * the 통제 zones are drawn, not pressed — has nothing to list, so it moves
    * the camera and leaves the sheet where it was, as the reset chip does. That
-   * is read off `listedPlaces` rather than declared on the chip: a flag saying
+   * is read off `layerPlaces` rather than declared on the chip: a flag saying
    * "this chip opens no list" could disagree with the places actually served.
    */
-  const showEventList = narrowedChip !== null && eventActive && listedPlaces.length > 0;
+  const showEventList = narrowedChip !== null && eventActive && layerPlaces.length > 0;
 
   // When the list appears, bring the sheet up to the middle detent — enough to
   // read it, with the map still showing the pins it describes. An effect on the
@@ -1525,6 +1566,9 @@ export function CampusScreen() {
           {showEventList ? (
             <EventListPanel
               places={listedPlaces}
+              list={narrowedList}
+              selection={facetSelection}
+              onSelectFacet={handleSelectFacet}
               bottomPadding={sheetContentBottom}
               now={now}
               onSelectPlace={handleSelectFromList}

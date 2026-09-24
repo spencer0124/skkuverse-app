@@ -13,7 +13,7 @@
  * one can be written.
  */
 
-import type { MapLayerDef, MapOverlay } from '../types/map';
+import type { MapChipList, MapLayerDef, MapOverlay } from '../types/map';
 import { isLayerVisible, type LayerVisibilityState } from './chips';
 
 export interface VisibleOverlaysInput {
@@ -79,4 +79,83 @@ export function sortPlaces(markers: readonly MapOverlay[]): MapOverlay[] {
     if (a.order !== b.order) return a.order - b.order;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
+}
+
+// ── A chip's list: facets and sort ──
+//
+// The server decides everything here — which options exist, which places are
+// in each, how a list sorts (`MapChip.list`, `MapOverlay.facets`). What is left
+// is id matching and one comparator, so the rules below are deliberately
+// mechanical: the app never derives a day from a date.
+
+/** The option held per facet id; `null` is "전체" on an optional facet. */
+export type FacetSelection = Readonly<Record<string, string | null>>;
+
+/**
+ * Where a list opens: each `required` facet on the option whose window
+ * contains `now`, else its first; each `optional` facet on nothing.
+ *
+ * Before the festival that is 1일차 and after it the first again — the list
+ * a person planning ahead or looking back most likely wants.
+ */
+export function defaultFacetSelection(list: MapChipList, now: number): FacetSelection {
+  const out: Record<string, string | null> = {};
+  for (const facet of list.facets) {
+    if (facet.select === 'optional') {
+      out[facet.id] = null;
+      continue;
+    }
+    const current = facet.options.find(
+      ({ window }) => window !== null && now >= Date.parse(window.startAt) && now < Date.parse(window.endAt),
+    );
+    out[facet.id] = (current ?? facet.options[0])?.id ?? null;
+  }
+  return out;
+}
+
+/**
+ * The places in every selected option. A facet with nothing selected filters
+ * nothing, and a place the server put in no option of a selected facet is left
+ * out — that is the server's answer, not a gap to fill here.
+ */
+export function filterByFacets(
+  places: readonly MapOverlay[],
+  list: MapChipList,
+  selection: FacetSelection,
+): MapOverlay[] {
+  const active = list.facets.flatMap((facet) => {
+    const option = selection[facet.id];
+    return option ? [[facet.id, option] as const] : [];
+  });
+  if (active.length === 0) return [...places];
+  return places.filter((place) =>
+    active.every(([facetId, option]) => place.facets[facetId]?.includes(option) ?? false),
+  );
+}
+
+/**
+ * The list's order, then `id` — the same tiebreak as `sortPlaces`, for the same
+ * reason: a tie would reshuffle rows on every clock boundary.
+ *
+ *  - `order`: the place's order within the selected option of `scopeFacetId`
+ *    (a booth's running order that day), else its `order`.
+ *  - `title`: the Korean title in code-point order. Hangul syllables are
+ *    encoded in 가나다 order, so this needs no `Intl` — and no collator that
+ *    Hermes might build differently on one platform.
+ */
+export function sortForList(
+  places: readonly MapOverlay[],
+  list: MapChipList,
+  selection: FacetSelection,
+): MapOverlay[] {
+  const byId = (a: MapOverlay, b: MapOverlay) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  if (list.sort.key === 'title') {
+    return [...places].sort((a, b) =>
+      a.text.ko !== b.text.ko ? (a.text.ko < b.text.ko ? -1 : 1) : byId(a, b),
+    );
+  }
+  const scope = list.sort.scopeFacetId;
+  const option = scope ? selection[scope] : null;
+  const keyOf = (p: MapOverlay) => (option ? (p.orderByOption[option] ?? p.order) : p.order);
+  return [...places].sort((a, b) => keyOf(a) - keyOf(b) || byId(a, b));
 }
