@@ -82,6 +82,9 @@ ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider �
 ### Data Layer (in `@skkuverse/shared`)
 
 - **API client:** Axios with auth interceptor and retry. Requests wrapped in `Result<T>` (success/failure union).
+- **Retries live in one place.** axios-retry (`packages/shared/src/api/interceptors/retry.ts`) is the only retry layer, and React Query's `retry` is off (`apps/mobile/src/lib/query-client.ts`). Don't add a per-query `retry`: the two layers multiply, and a synchronized retry burst is what hurts the server during a spike. 429 is never retried.
+- **A query with a fallback throws, and the hook applies it.** Returning defaults from a `queryFn` caches the failure as a success for the whole staleTime. Throw, and hand the caller `dataOrFallback(query, DEFAULTS)` (`packages/shared/src/hooks/fallback.ts`), as `useMapConfig` does.
+- **staleTime never exceeds the server's `max-age`.** The server's `Cache-Control` is the real freshness knob; the device's HTTP cache and the Cloudflare edge answer repeat requests, so a shorter staleTime costs the origin nothing, while a longer one holds data the server has already corrected.
 - **Stores:** `useAuthStore` (Firebase auth), `useSettingsStore` (campus, language, lastTab), `useMapLayerStore`.
 - **React Query hooks:** `useCampusSections`, `useTransitList`, `useBusConfig`, `useMapConfig`, `useBuildings`, etc.
 - **i18n:** `useT()` hook, `SUPPORTED_LANGUAGES`.
