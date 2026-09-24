@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { getAuth, signInAnonymously, onAuthStateChanged } from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 import { getLocales } from 'expo-localization';
 import {
   setAuthTokenProvider,
@@ -39,6 +39,12 @@ import {
 import { assembleOnboardingPickerSelections } from '@/features/onboarding/utils/assemblePickerSelections';
 import { onBookmarksChanged } from '@/services/firestore-bookmarks';
 import { withRetry } from '@/utils/with-retry';
+import { anonymousSession } from '@/services/anon-session-instance';
+
+// How long launch waits on the first anonymous sign-in before moving on
+// signed out. The attempt keeps running past this; only the splash stops
+// waiting for it. Below InitGate's 10s OTA budget so the two do not stack.
+const ANON_SIGNIN_TIMEOUT_MS = 8_000;
 
 // Verbose Firestore logging in dev builds so write-stream stalls become
 // visible (otherwise the SDK silently parks mutations on certain timings).
@@ -142,10 +148,11 @@ export function useAppInit() {
           return user.getIdToken(forceRefresh);
         });
 
-        // 2. Anonymous sign-in if needed
-        if (!getAuth().currentUser) {
-          await signInAnonymously(getAuth());
-        }
+        // 2. Anonymous sign-in if needed — never blocks launch. A failure (the
+        // per-IP sign-up quota behind a shared NAT, offline) leaves the app
+        // signed out, which onAuthStateChanged already handles, and retries in
+        // the background. See services/anon-session.ts.
+        await anonymousSession.start(ANON_SIGNIN_TIMEOUT_MS);
 
         // 3. Force-create API client singleton (interceptors attached)
         getApiClient();
@@ -490,6 +497,7 @@ export function useAppInit() {
       'change',
       (state) => {
         if (state === 'active') {
+          anonymousSession.onForeground();
           const lang = resolveAppLanguage();
           useSettingsStore.getState().setAppLanguage(lang);
           setAppLanguage(lang);

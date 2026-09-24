@@ -14,6 +14,7 @@ import {
   unregisterDevice,
 } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { anonymousSession } from '@/services/anon-session-instance';
 import { withRetry } from '@/utils/with-retry';
 
 export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
@@ -27,7 +28,8 @@ export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
  *      can claim the doc under the new uid via Firestore rule path b
  *      ("active==false" claim). Without this the iOS anon→Google transition
  *      leaves the doc stuck under the anon uid and breaks
- *      syncPreferencesToDevices fan-out.
+ *      syncPreferencesToDevices fan-out. Skipped without an fcmToken, since
+ *      no device doc can exist to claim.
  *
  *   B. Google sign-in (delegates to google-auth.signInWithGoogle which
  *      handles linkWithCredential vs signInWithCredential + domain check)
@@ -64,15 +66,31 @@ export async function signInWithDeviceMigration(
   scope: AuthFlowScope,
 ): Promise<FirebaseAuthTypes.User> {
   const deviceId = useNotificationStore.getState().deviceId;
-  if (deviceId) {
-    try {
-      await unregisterDevice(deviceId);
-    } catch (err) {
-      logHandledError(`${scope}/pre-unregister-anon-device`, err);
+  // Hold the cold-start anonymous retry and let any attempt already in flight
+  // land first: resolving after the Google credential, signInAnonymously
+  // would replace the Google user with a fresh anonymous one. resume() in the
+  // finally re-arms it only if the sign-in failed and nobody is signed in.
+  await anonymousSession.pause();
+  let result: FirebaseAuthTypes.UserCredential;
+  try {
+    // Phase A runs only when a device doc can exist. Every writer of
+    // devices/{id} sets fcmToken (MMKV-persisted) first, so no token means no
+    // doc — the same predicate phase C uses below. On a fresh install the
+    // unregister was always a permission-denied write against a missing doc,
+    // costing a forced App Check attestation before the Google sheet opened and
+    // hanging offline, since a Firestore write settles only on server ack.
+    if (deviceId && useNotificationStore.getState().fcmToken) {
+      try {
+        await unregisterDevice(deviceId);
+      } catch (err) {
+        logHandledError(`${scope}/pre-unregister-anon-device`, err);
+      }
     }
-  }
 
-  const result = await signInWithGoogle();
+    result = await signInWithGoogle();
+  } finally {
+    anonymousSession.resume();
+  }
   const user = result.user;
   authStore.getState().setAuthenticated({
     uid: user.uid,
