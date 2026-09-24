@@ -4,78 +4,15 @@
  * The sheet has one skeleton for every kind of place — a summary on top, then
  * tabs — and what varies by kind is only which blocks are non-empty. Those
  * choices live here rather than in the components so they can be pinned by
- * vitest: which festival day a booth belongs to, which tabs a place earns, and
- * what the collapsed sheet shows as its highlight.
+ * vitest: which sections a place earns and what the collapsed sheet shows as
+ * its highlight.
  *
  * Pure and store-free, like `festival.ts`: no `__DEV__` or `expo-*` import may
  * enter here, or the vitest suites stop being able to load it.
  */
 
 import type { PlaceBlock, PlaceBlockType, PlaceDetail } from '../types/placeDetail';
-import type { I18nText, TimeWindow } from '../types/map';
-import { toEpochMs } from './window';
-
-// ── Festival days ─────────────────────────────────────────────────────────
-
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-/**
- * `YYYY-MM-DD` of the KST calendar day an instant falls on.
- *
- * From the epoch, never from `Date.getDate()`, for the reason
- * `daily-window.ts` gives: a phone set to another zone must still put a booth
- * on the right festival day.
- */
-export function kstDateKey(epochMs: number): string {
-  return new Date(epochMs + KST_OFFSET_MS).toISOString().slice(0, 10);
-}
-
-/**
- * Every KST day any served place opens on, ascending.
- *
- * Derived rather than configured: the server deliberately carries no festival
- * calendar, and the places' own hours already say which days exist. A window's
- * START decides its day, so a 주점 open 18:00–00:00 belongs to the evening it
- * began on rather than to the next date its end carries.
- */
-export function festivalDaysOf(places: readonly { hours: readonly TimeWindow[] }[]): string[] {
-  const days = new Set<string>();
-  for (const place of places) {
-    for (const w of place.hours) {
-      const start = toEpochMs(w.startAt);
-      if (start !== null) days.add(kstDateKey(start));
-    }
-  }
-  return [...days].sort();
-}
-
-/** Which festival days a place is open on. */
-export type PlaceDays =
-  /** Every day of the festival. `count` picks between 양일 and 매일. */
-  | { type: 'all'; count: number }
-  /** 1-based day numbers, ascending. */
-  | { type: 'days'; days: number[] };
-
-/**
- * The day label for one place, or `null` when there is nothing worth saying.
- *
- * Null for a one-day festival (every place is on "day 1", which is noise), for
- * an always-open place (empty hours), and for a place whose windows fall on no
- * known day — which only a stale `days` list can produce.
- */
-export function dayLabelOf(hours: readonly TimeWindow[], days: readonly string[]): PlaceDays | null {
-  if (days.length < 2 || hours.length === 0) return null;
-  const own = new Set<number>();
-  for (const w of hours) {
-    const start = toEpochMs(w.startAt);
-    if (start === null) continue;
-    const index = days.indexOf(kstDateKey(start));
-    if (index >= 0) own.add(index + 1);
-  }
-  if (own.size === 0) return null;
-  if (own.size === days.length) return { type: 'all', count: days.length };
-  return { type: 'days', days: [...own].sort((a, b) => a - b) };
-}
+import type { I18nText } from '../types/map';
 
 // ── Detail flow ───────────────────────────────────────────────────────────
 

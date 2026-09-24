@@ -58,11 +58,6 @@ interface EventMapPeekSheetProps {
   /** From `useWindowClock`, so the status sentence matches the tapped pin. */
   now: number;
   /**
-   * Every KST day the served places open on, from `festivalDaysOf` over all
-   * event overlays — the base a place's 1일차/2일차 is counted from.
-   */
-  festivalDays: readonly string[];
-  /**
    * Gap between the card's bottom edge and the screen's, in the modal's own
    * (window) coordinates — the campus card's edge restated, so the two cards
    * sit on one line. Computed by `CampusScreen`, which measures both.
@@ -82,7 +77,7 @@ interface EventMapPeekSheetProps {
 
 export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
   function EventMapPeekSheet(
-    { place, detail, now, festivalDays, bottomGap, onDismiss, onNavigateAway },
+    { place, detail, now, bottomGap, onDismiss, onNavigateAway },
     ref,
   ) {
     const { t } = useT();
@@ -138,7 +133,6 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
               place={place}
               detail={detail}
               now={now}
-              festivalDays={festivalDays}
               bottomPadding={bottomPadding}
               onNavigateAway={onNavigateAway}
             />

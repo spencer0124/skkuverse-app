@@ -8,9 +8,9 @@
  * sheet's scroll content already carries the gutter.
  */
 
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { CaretDownIcon, CaretUpIcon, ClockIcon, MapPinIcon } from 'phosphor-react-native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { ClockIcon, MapPinIcon } from 'phosphor-react-native';
 import {
   pickI18nText,
   SdsColors,
@@ -22,7 +22,7 @@ import {
   type PlaceDetail,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
-import { formatHoursCompact, formatHoursLines } from './placeFormat';
+import { formatHoursLines } from './placeFormat';
 
 const ICON_SIZE = 19;
 const ICON_COLOR = SdsColors.grey500;
@@ -57,48 +57,29 @@ export function FactsSection({ place, detail }: { place: MapOverlay; detail: Pla
   );
 }
 
+/**
+ * Every window on its own dated line, always shown in full.
+ *
+ * It used to fold to one undated span when both nights shared the same hours,
+ * behind a caret. A two-day festival has at most two lines here, and the date
+ * is the part a visitor actually needs — folding it away saved a line by hiding
+ * the answer.
+ */
 function HoursFactRow({ hours }: { hours: MapOverlay['hours'] }) {
   const { t } = useT();
-  const lang = useSettingsStore((s) => s.appLanguage);
-  const [expanded, setExpanded] = useState(false);
-  const expandable = hours.length > 1;
-  const text = expanded
-    ? formatHoursLines(hours, lang).join('\n')
-    : formatHoursCompact(hours, lang, t('eventmap.hours.always'));
+  const text = hours.length === 0 ? t('eventmap.hours.always') : formatHoursLines(hours, t).join('\n');
 
   return (
     <FactRow
       icon={<ClockIcon size={ICON_SIZE} color={ICON_COLOR} />}
       label={t('eventmap.info.hours')}
       text={text}
-      onPress={expandable ? () => setExpanded((value) => !value) : undefined}
-      accessory={
-        expandable ? expanded ? (
-          <CaretUpIcon size={18} color={SdsColors.grey500} />
-        ) : (
-          <CaretDownIcon size={18} color={SdsColors.grey500} />
-        ) : null
-      }
     />
   );
 }
 
-function FactRow({
-  icon,
-  label,
-  text,
-  link = false,
-  onPress,
-  accessory,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  text: string;
-  link?: boolean;
-  onPress?: () => void;
-  accessory?: React.ReactNode;
-}) {
-  const content = (
+function FactRow({ icon, label, text }: { icon: React.ReactNode; label: string; text: string }) {
+  return (
     <View style={styles.factRow}>
       <View style={styles.factLabel}>
         <View style={styles.factIcon}>{icon}</View>
@@ -107,18 +88,12 @@ function FactRow({
         </Txt>
       </View>
       <View style={styles.factValue}>
-        <Txt typography="t7" color={link ? SdsColors.blue600 : SdsColors.grey800} style={styles.factText}>
+        <Txt typography="t7" color={SdsColors.grey800} style={styles.factText}>
           {text}
         </Txt>
-        {accessory ? <View style={styles.factAccessory}>{accessory}</View> : null}
       </View>
     </View>
   );
-  return onPress ? (
-    <Pressable accessibilityRole={link ? 'link' : 'button'} onPress={onPress} style={styles.factButton}>
-      {content}
-    </Pressable>
-  ) : content;
 }
 
 const styles = StyleSheet.create({
@@ -129,7 +104,6 @@ const styles = StyleSheet.create({
     borderRadius: SdsRadius.lg,
     backgroundColor: SdsColors.background,
   },
-  factButton: { alignSelf: 'stretch' },
   factRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -151,7 +125,6 @@ const styles = StyleSheet.create({
   factIcon: { width: 20, alignItems: 'center' },
   factValue: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingLeft: SdsSpacing.base },
   factText: { flex: 1 },
-  factAccessory: { marginLeft: SdsSpacing.sm, paddingTop: 2 },
   noticeStack: { flex: 1, gap: SdsSpacing.sm, paddingLeft: SdsSpacing.base },
   noticeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SdsSpacing.sm },
   noticeBullet: { paddingTop: 1 },

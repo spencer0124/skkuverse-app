@@ -13,6 +13,7 @@
  * hence the `typeof x === 'string'` narrowing on every field.
  */
 
+import { parseMiniAppTarget } from '../miniapps/target';
 import { parseActionType } from '../types/sdui';
 
 /**
@@ -34,13 +35,12 @@ export interface NotificationTapData {
 }
 
 /**
- * Action types this build can actually navigate to.
+ * Action types that reach the SDUI dispatcher.
  *
  * `content` is prose rendered in place by whichever sheet owns the button, and
- * `miniapp` is deferred until its value shape is settled (`eventmap-rendering.md`
- * §7.3 — the event-map parser validates it as an HTTPS URL while
- * `openMiniAppById` takes a registry slug, and guessing freezes the wrong one
- * into a binary). `unknown` is what an unrecognised value parses to.
+ * `unknown` is what an unrecognised value parses to. `miniapp` is handled on its
+ * own below, because it resolves to the mini-app kind rather than to an SDUI
+ * action.
  */
 const NAVIGABLE_ACTION_TYPES = ['route', 'webview', 'external'] as const;
 
@@ -49,7 +49,7 @@ export type NavigableActionType = (typeof NAVIGABLE_ACTION_TYPES)[number];
 export type NotificationTap =
   | { kind: 'notice'; sourceId: string; articleNo: string }
   | { kind: 'sdui-action'; actionType: NavigableActionType; actionValue: string }
-  | { kind: 'miniapp'; id: string }
+  | { kind: 'miniapp'; id: string; path?: string }
   | null;
 
 function asNonEmptyString(value: unknown): string | null {
@@ -107,10 +107,23 @@ export function resolveNotificationTap(data: NotificationTapData | undefined): N
         return { kind: 'sdui-action', actionType, actionValue };
       }
 
+      const id = asNonEmptyString(data.miniAppId);
+
+      // A page of this same mini app: `<miniAppId>[/path]`. A target naming a
+      // DIFFERENT mini app is ignored, because one service's announcement must
+      // not open another service under that one's name and badge. The server
+      // refuses it before sending; this holds the line if the send key leaks.
+      if (id && parseActionType(data.actionType) === 'miniapp') {
+        const target = parseMiniAppTarget(data.actionValue);
+        if (target && target.id === id) {
+          return target.path ? { kind: 'miniapp', id, path: target.path } : { kind: 'miniapp', id };
+        }
+      }
+
       // Everything else lands on the mini app itself, by id: no target given,
-      // a target this build cannot navigate (`content`/`miniapp`), a newer
-      // build's action type (`unknown`), an empty value, or a value whose shape
-      // the action type does not accept.
+      // a target this build cannot navigate (`content`, a malformed or foreign
+      // `miniapp` target), a newer build's action type (`unknown`), an empty
+      // value, or a value whose shape the action type does not accept.
       //
       // The contract's original wording said an unrecognised type degrades to a
       // no-op. The property that protected is "never open an arbitrary string",
@@ -118,7 +131,6 @@ export function resolveNotificationTap(data: NotificationTapData | undefined): N
       // `GET /miniapps/:id` and drops it silently on a miss. A dead tap during a
       // festival is a worse outcome than landing one screen up, so the fallback
       // is deliberate and is recorded in the contract document.
-      const id = asNonEmptyString(data.miniAppId);
       return id ? { kind: 'miniapp', id } : null;
     }
 

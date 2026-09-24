@@ -42,7 +42,6 @@ import {
   sortPlaces,
   isFestivalLayer,
   withoutFestival,
-  festivalDaysOf,
   DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
@@ -659,14 +658,6 @@ export function CampusScreen() {
   const selectedDetail = selectedPlaceId ? (placeDetails?.[selectedPlaceId] ?? null) : null;
 
   /**
-   * The festival's days, counted from every served place rather than
-   * configured — the server carries no calendar, and the places' own hours
-   * already say which days exist. A place's 1일차/2일차 is its index in this
-   * list.
-   */
-  const festivalDays = useMemo(() => festivalDaysOf(eventOverlays), [eventOverlays]);
-
-  /**
    * Whether the marker request has come back at least once.
    *
    * `isFetched` rather than "has data": it is the only value that separates "no
@@ -1070,6 +1061,12 @@ export function CampusScreen() {
     const tryConsume = () => {
       const p = pendingMapPlaceLink.consume();
       if (!p) return;
+      // An explicit place beats the round-trip restore. Leaving the peek sheet
+      // for a web shell arms `restorePeekOnFocus`; if that shell then sends the
+      // user back here at ANOTHER place (a mini app's "지도에서 보기"), the
+      // return focus would re-raise the old place's sheet on top of the new one.
+      // `openMapAtPlace` sets the link before it navigates, so this runs first.
+      restorePeekOnFocus.current = false;
       // A building is resolvable on its own — `/building/:id` needs nothing but
       // the id — so it does not wait on the event markers the way a booth does.
       // A bare id (no prefix) keeps its historical meaning: an event place.
@@ -1582,7 +1579,6 @@ export function CampusScreen() {
           place={selectedPlace}
           detail={selectedDetail}
           now={now}
-          festivalDays={festivalDays}
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
           onNavigateAway={handlePeekNavigateAway}

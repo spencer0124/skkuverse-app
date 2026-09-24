@@ -438,6 +438,38 @@ describe('parseOverlayData — the place document the card renders', () => {
     expect(out[0]?.actions[0]?.actionType).toBe('unknown');
   });
 
+  it('keeps a miniapp button whose value is a mini-app target', () => {
+    const out = parseOne({
+      actions: [
+        {
+          id: 'w',
+          label: { ko: '팔찌 배부 안내' },
+          actionType: 'miniapp',
+          actionValue: 'eskara-2026/eskara/wristband',
+        },
+      ],
+    });
+    expect(out[0]?.actions[0]).toMatchObject({
+      actionType: 'miniapp',
+      actionValue: 'eskara-2026/eskara/wristband',
+    });
+  });
+
+  it('drops a miniapp button whose value is not a target, and serves the place', () => {
+    const out = parseOne({
+      actions: [
+        {
+          id: 'w',
+          label: { ko: 'X' },
+          actionType: 'miniapp',
+          actionValue: 'https://eskara.miniapp.skkuverse.com/eskara',
+        },
+      ],
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0]?.actions).toEqual([]);
+  });
+
   it('drops a button with no value, and serves the place without it', () => {
     const out = parseOne({
       actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'webview', actionValue: '' }],

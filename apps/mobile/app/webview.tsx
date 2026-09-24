@@ -28,12 +28,18 @@ import {
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
-import { SdsColors, getBridgeOrigins, useT } from '@skkuverse/shared';
+import {
+  SdsColors,
+  WEB_BRIDGE_ADVERTISEMENT_JS,
+  getBridgeOrigins,
+  useT,
+} from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { parseWebMessage } from '@skkuverse/bridge';
 import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
+import { performWebAction } from '@/features/webview/web-action';
 
 /** Host shown as the header title when neither a param nor a page title exists. */
 function hostOf(url: string): string {
@@ -41,6 +47,22 @@ function hostOf(url: string): string {
     return new URL(url).host;
   } catch {
     return '';
+  }
+}
+
+/**
+ * ESKARA festival pages run without the banner — they are the festival's own
+ * guide, opened from the campus map, and an ad under a ticket notice reads as
+ * part of it. Matched on host or path so both deployments qualify
+ * (`eskara.miniapp.skkuverse.com/...` and `webview.skkuverse.com/eskara/...`),
+ * and decided from the START url so the banner never pops in or out mid-visit.
+ */
+function isAdFree(url: string): boolean {
+  try {
+    const { hostname, pathname } = new URL(url);
+    return hostname.includes('eskara') || pathname.includes('eskara');
+  } catch {
+    return false;
   }
 }
 
@@ -109,6 +131,9 @@ export default function WebViewScreen() {
         // TODO: show place info bottom sheet. Reachable only from the
         // first-party map pages, which the server no longer routes to.
         break;
+      case 'web:action':
+        performWebAction(msg.actionType, msg.actionValue);
+        break;
     }
   }, []);
 
@@ -133,6 +158,9 @@ export default function WebViewScreen() {
           source={{ uri: startUrl }}
           style={styles.webview}
           onMessage={handleMessage}
+          // Lists the actions this host accepts, so a page shows an action
+          // button only where it will work. Advertises; the gate still grants.
+          injectedJavaScriptBeforeContentLoaded={WEB_BRIDGE_ADVERTISEMENT_JS}
           onNavigationStateChange={onNavigationStateChange}
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
@@ -186,7 +214,7 @@ export default function WebViewScreen() {
         ) : null}
       </View>
 
-      <AdaptiveBanner unitId={AdUnitIds.webviewBanner} />
+      {isAdFree(startUrl) ? null : <AdaptiveBanner unitId={AdUnitIds.webviewBanner} />}
     </View>
   );
 }

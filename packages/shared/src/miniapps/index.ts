@@ -10,6 +10,11 @@ export {
   type MiniAppDetail,
 } from './schema';
 export {
+  parseMiniAppTarget,
+  resolveMiniAppUrl,
+  type MiniAppTarget,
+} from './target';
+export {
   getCachedMiniAppIndex,
   getCachedMiniAppDetail,
   remoteMiniAppRepository,

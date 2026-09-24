@@ -7,6 +7,7 @@
  */
 
 import type { ApiEnvelope } from '../api/types';
+import { parseMiniAppTarget } from '../miniapps/target';
 import type {
   DailyWindow,
   I18nText,
@@ -513,6 +514,11 @@ function parseFields(raw: unknown): MarkerField[] {
  * not. `actionType` is NOT a drop condition, because `parseActionType` already
  * degrades an unknown kind to `'unknown'`, which the action handler declines to
  * open. A button that does nothing is better than a booth that is missing.
+ *
+ * The one type-specific check is `miniapp`: a value that is not a mini-app
+ * target (`<miniAppId>[/path]`) has nowhere to go, and the pill would render
+ * with a logo lookup that finds nothing and a tap that does nothing. The server
+ * refuses the same values before it ships them, so this only fires on drift.
  */
 function parseActions(raw: unknown): MarkerAction[] {
   if (!Array.isArray(raw)) return [];
@@ -523,12 +529,14 @@ function parseActions(raw: unknown): MarkerAction[] {
     if (typeof a.id !== 'string' || a.id === '') return [];
     if (label === null) return [];
     if (typeof a.actionValue !== 'string' || a.actionValue === '') return [];
+    const actionType = parseActionType(a.actionType);
+    if (actionType === 'miniapp' && !parseMiniAppTarget(a.actionValue)) return [];
     const style = asMember(a.style, ACTION_STYLES);
     return [
       {
         id: a.id,
         label,
-        actionType: parseActionType(a.actionType),
+        actionType,
         actionValue: a.actionValue,
         ...(style ? { style } : {}),
       },

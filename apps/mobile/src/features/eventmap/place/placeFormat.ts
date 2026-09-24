@@ -7,11 +7,11 @@
  */
 
 import {
+  formatKstDateTime,
+  formatTimeWindow,
   isOpenNow,
   nextOpeningAfter,
   SdsColors,
-  type AppLanguage,
-  type PlaceDays,
   type TimeWindow,
   type TranslationKey,
 } from '@skkuverse/shared';
@@ -48,66 +48,46 @@ export function opennessOf(hours: readonly TimeWindow[], now: number): Openness 
   return nextOpeningAfter(hours, now) === null ? 'closed' : 'upcoming';
 }
 
-const HH_MM: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
-const M_D: Intl.DateTimeFormatOptions = { month: 'numeric', day: 'numeric' };
-
-/** BCP-47 tags for the app's three languages, for `toLocaleString`. */
-const LOCALE: Record<AppLanguage, string> = { ko: 'ko-KR', en: 'en-US', zh: 'zh-CN' };
-
-function formatWindow(w: TimeWindow, lang: AppLanguage, withDate: boolean): string {
-  const locale = LOCALE[lang];
-  const start = new Date(w.startAt);
-  const end = new Date(w.endAt);
-  const span = `${start.toLocaleTimeString(locale, HH_MM)}–${end.toLocaleTimeString(locale, HH_MM)}`;
-  return withDate ? `${start.toLocaleDateString(locale, M_D)} ${span}` : span;
-}
-
 /**
- * Opening hours as one line.
+ * Opening hours as one line — the list row's.
  *
  * The server used to ship a formatted `hoursLabel` beside the instants. It does
  * not any more, and that is the right side of the trade: a formatted string
- * cannot follow the device's locale or its 24-hour setting, and the instants
- * were already on the wire for the arithmetic.
+ * cannot follow the app's language, and the instants were already on the wire
+ * for the arithmetic.
  *
- * The date is shown only when there is more than one window, which is exactly
- * when it disambiguates — a 주점 open on both festival nights needs to say which
- * night, a single-window booth does not. A window crossing midnight ends on the
- * next day's date, so `18:00–00:00` reads correctly without a special case.
+ * Every window is dated, even a place's only one. The festival runs on two
+ * days, so `18:00–23:00` alone leaves the visitor guessing which of them — the
+ * date is the half of the answer the time cannot give.
  */
-export function formatHours(hours: readonly TimeWindow[], lang: AppLanguage, always: string): string {
+export function formatHours(
+  hours: readonly TimeWindow[],
+  t: (key: TranslationKey) => string,
+  always: string,
+): string {
   if (hours.length === 0) return always;
-  return hours.map((w) => formatWindow(w, lang, hours.length > 1)).join(', ');
+  return formatHoursLines(hours, t).join(', ');
 }
 
-/**
- * The summary line's hours: one span, however many days.
- *
- * The summary already says which days in its eyebrow, so repeating a date per
- * window here would spend the line on something it has said. When every window
- * shares one span — the usual festival case, 18:00–00:00 both nights — that
- * span is the line; when they differ, the full list is.
- */
-export function formatHoursCompact(hours: readonly TimeWindow[], lang: AppLanguage, always: string): string {
-  if (hours.length === 0) return always;
-  const [only, ...rest] = new Set(hours.map((w) => formatWindow(w, lang, false)));
-  return only !== undefined && rest.length === 0 ? only : formatHours(hours, lang, always);
-}
-
-/** One line per window, dated — the info tab's hours rows. */
-export function formatHoursLines(hours: readonly TimeWindow[], lang: AppLanguage): string[] {
-  return hours.map((w) => formatWindow(w, lang, true));
+/** One dated line per window — the sheet's hours row. A window that does not parse is skipped. */
+export function formatHoursLines(
+  hours: readonly TimeWindow[],
+  t: (key: TranslationKey) => string,
+): string[] {
+  return hours.flatMap((w) => formatTimeWindow(w, t) ?? []);
 }
 
 /**
  * The one status sentence the sheet needs above its actions. It intentionally
  * answers only the immediate question — whether to go now, and when that
  * answer changes — while the full timetable remains in Details.
+ *
+ * The moment it names is dated like every other time on the map: `18:00 시작`
+ * at 02:00 between the two nights would not say which evening.
  */
 export function statusLineOf(
   hours: readonly TimeWindow[],
   now: number,
-  lang: AppLanguage,
   t: (key: TranslationKey) => string,
   tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
 ): { text: string; color: string } {
@@ -120,7 +100,7 @@ export function statusLineOf(
   });
   if (active) {
     return {
-      text: tpl('eventmap.status.openUntil', new Date(active.endAt).toLocaleTimeString(LOCALE[lang], HH_MM)),
+      text: tpl('eventmap.status.openUntil', formatKstDateTime(Date.parse(active.endAt), t)),
       color: SdsColors.brand,
     };
   }
@@ -128,19 +108,9 @@ export function statusLineOf(
   const next = nextOpeningAfter(hours, now);
   if (next !== null) {
     return {
-      text: tpl('eventmap.status.opensAt', new Date(next).toLocaleTimeString(LOCALE[lang], HH_MM)),
+      text: tpl('eventmap.status.opensAt', formatKstDateTime(next, t)),
       color: SdsColors.grey700,
     };
   }
   return { text: t('eventmap.status.closed'), color: SdsColors.grey500 };
-}
-
-/** `{type:'days', days:[1,3]}` → "1·3일차"; all days → 양일 or 매일. */
-export function formatDays(
-  days: PlaceDays,
-  t: (key: TranslationKey) => string,
-  tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
-): string {
-  if (days.type === 'all') return t(days.count === 2 ? 'eventmap.day.both' : 'eventmap.day.every');
-  return tpl('eventmap.day.nth', days.days.join('·'));
 }

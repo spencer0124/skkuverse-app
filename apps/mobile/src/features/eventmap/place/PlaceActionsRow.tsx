@@ -6,25 +6,36 @@
  * dragging the sheet open first. The facts card answers where and when; these
  * are what you do about it.
  *
- * Instagram is the logo alone. It is the one destination every kind of place
- * has, the mark is more legible at a glance than the word, and dropping the
- * label leaves room for the authored links beside it.
+ * Every link leads with a link glyph. A grey pill with a word in it reads as a
+ * tag, not a button; the glyph is what says it goes somewhere.
  *
- * Every other link leads with a link glyph. A grey pill with a word in it reads
- * as a tag, not a button; the glyph is what says it goes somewhere.
+ * A `miniapp` action leads with that mini app's logo, from the registry index,
+ * so the pill says it opens inside skkuverse under that service's name rather
+ * than in a bare browser. No logo, or one that fails to load, falls back to the
+ * link glyph.
+ *
+ * Instagram leads with its logo instead, which says both where it goes and
+ * that it goes somewhere, and carries a fixed call to action rather than the
+ * operator's label. The logo alone read as a decoration, not something to
+ * press, and the server's label is only ever "인스타그램", which the logo
+ * already says.
  *
  * Both handlers dismiss the sheet before they navigate — a portal ordering
  * constraint, see `navigate.ts`.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { InstagramLogoIcon, LinkSimpleIcon } from 'phosphor-react-native';
 import {
+  parseMiniAppTarget,
   pickI18nText,
   SdsColors,
   SdsRadius,
+  useMiniAppIndex,
   useSettingsStore,
+  useT,
   type ActionType,
   type MarkerAction,
   type PlaceAction,
@@ -33,8 +44,8 @@ import { Txt } from '@skkuverse/sds';
 import { SHEET_GUTTER } from './layout';
 import { useInstagramNavigate, usePlaceNavigate } from './navigate';
 
-/** Actions that go somewhere. `content` is prose and `miniapp` does nothing. */
-const NAVIGABLE: ReadonlySet<ActionType> = new Set(['route', 'webview', 'external']);
+/** Actions that go somewhere. `content` is prose, rendered elsewhere. */
+const NAVIGABLE: ReadonlySet<ActionType> = new Set(['route', 'webview', 'external', 'miniapp']);
 
 export function PlaceActionsRow({
   actions,
@@ -45,9 +56,11 @@ export function PlaceActionsRow({
   detailActions: readonly PlaceAction[];
   onNavigateAway?: () => void;
 }) {
+  const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage);
   const openInstagram = useInstagramNavigate(onNavigateAway);
   const navigate = usePlaceNavigate(onNavigateAway);
+  const { data: miniApps } = useMiniAppIndex();
 
   const instagram = detailActions.find((a) => a.type === 'instagram');
   const links = detailActions.filter((a) => a.type === 'link');
@@ -63,14 +76,11 @@ export function PlaceActionsRow({
       contentContainerStyle={styles.row}
     >
       {instagram ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={pickI18nText(instagram.label, lang)}
+        <LinkPill
+          label={t('eventmap.instagram')}
+          icon={<InstagramLogoIcon size={16} color={SdsColors.grey800} />}
           onPress={() => openInstagram(instagram, pickI18nText(instagram.label, lang))}
-          style={({ pressed }) => [styles.iconPill, pressed && styles.pressed]}
-        >
-          <InstagramLogoIcon size={20} color={SdsColors.grey800} />
-        </Pressable>
+        />
       ) : null}
 
       {links.map((action) => (
@@ -91,6 +101,16 @@ export function PlaceActionsRow({
         <LinkPill
           key={`legacy-${action.id}`}
           label={pickI18nText(action.label, lang)}
+          icon={
+            action.actionType === 'miniapp' ? (
+              <MiniAppLogo
+                uri={
+                  miniApps?.find((m) => m.id === parseMiniAppTarget(action.actionValue)?.id)
+                    ?.logo?.uri
+                }
+              />
+            ) : undefined
+          }
           onPress={() =>
             navigate({
               actionType: action.actionType,
@@ -104,7 +124,37 @@ export function PlaceActionsRow({
   );
 }
 
-function LinkPill({ label, onPress }: { label: string; onPress: () => void }) {
+const ICON_SIZE = 16;
+
+function LinkGlyph() {
+  return <LinkSimpleIcon size={ICON_SIZE} color={SdsColors.grey800} weight="bold" />;
+}
+
+/** The mini app's registry logo, or the link glyph when there is none to show. */
+function MiniAppLogo({ uri }: { uri: string | undefined }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+  if (!uri || failed) return <LinkGlyph />;
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.miniAppLogo}
+      contentFit="cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function LinkPill({
+  label,
+  icon = <LinkGlyph />,
+  onPress,
+}: {
+  label: string;
+  /** Leads the label. The link glyph, unless the destination has its own mark. */
+  icon?: React.ReactNode;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -112,7 +162,7 @@ function LinkPill({ label, onPress }: { label: string; onPress: () => void }) {
       style={({ pressed }) => [styles.linkPill, pressed && styles.pressed]}
     >
       <View style={styles.linkPillContents}>
-        <LinkSimpleIcon size={16} color={SdsColors.grey800} weight="bold" />
+        {icon}
         <Txt
           typography="t7"
           fontWeight="semiBold"
@@ -134,14 +184,6 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 0 },
   bleed: { marginHorizontal: -SHEET_GUTTER },
   row: { paddingHorizontal: SHEET_GUTTER, gap: 8, alignItems: 'center' },
-  iconPill: {
-    width: PILL_HEIGHT,
-    height: PILL_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: SdsRadius.full,
-    backgroundColor: SdsColors.grey50,
-  },
   linkPill: {
     height: PILL_HEIGHT,
     justifyContent: 'center',
@@ -149,9 +191,12 @@ const styles = StyleSheet.create({
     borderRadius: SdsRadius.full,
     backgroundColor: SdsColors.grey50,
   },
-  linkPillContents: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 176 },
+  // Wide enough for the Instagram pill's full call to action; the row scrolls,
+  // so the cap only stops one authored label taking it all.
+  linkPillContents: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 208 },
   // Shrinks before the glyph does, so a long label ellipsises instead of
   // pushing the icon out of the pill.
   linkLabel: { flexShrink: 1 },
+  miniAppLogo: { width: ICON_SIZE, height: ICON_SIZE, borderRadius: 4 },
   pressed: { opacity: 0.72 },
 });

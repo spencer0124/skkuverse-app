@@ -77,7 +77,6 @@ const SCREEN_NAMES: Record<string, string> = {
   '/mini-app': 'mini_app_screen',
   // Dev
   '/sds-preview': 'dev_sds_preview',
-  '/place-sheet-preview': 'dev_place_sheet_preview',
 };
 
 function resolveScreenName(
@@ -160,8 +159,9 @@ function PendingNoticeLinkConsumer() {
 
 /**
  * Mini-app deep-link consumer — same pattern as PendingNoticeLinkConsumer.
- * `+native-intent.tsx` stashed a {id} for `/m/<slug>` and routed to home; once
- * the nav root is ready we open the mini-app shell on top.
+ * `+native-intent.tsx` stashed a {id, path?} for `/m/<target>` and routed to
+ * home; once the nav root is ready we open the mini-app shell on top, at `path`
+ * when one was given.
  *
  * This is also where REGISTRY MEMBERSHIP is checked. It used to happen in
  * `+native-intent.tsx` via a synchronous `isMiniAppId()` against bundled JSON,
@@ -201,7 +201,7 @@ function PendingMiniAppLinkConsumer() {
           // Defer a frame so the home navigate commits before we push the shell
           // (avoids RNScreens dedupe coalescing the two transitions).
           requestAnimationFrame(() => {
-            openMiniAppById(p.id);
+            openMiniAppById(p.id, p.path);
           });
         })
         .catch(() => {
@@ -412,12 +412,6 @@ export default function RootLayout() {
                     title: 'SDS Preview',
                     presentation: 'modal',
                   }}
-                />
-                {/* Pushed, not modal: the place sheet is portalled above the
-                    root Stack, and a native modal would cover it. */}
-                <Stack.Screen
-                  name="place-sheet-preview"
-                  options={{ title: 'Place sheet preview' }}
                 />
                 <Stack.Screen name="video-gallery" options={{ headerShown: false }} />
                 <Stack.Screen

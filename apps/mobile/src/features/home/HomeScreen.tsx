@@ -3,9 +3,10 @@ import {
   Platform,
   View,
   ScrollView,
-  // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
+  Pressable,
   StyleSheet,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 // import { CaretRightIcon } from 'phosphor-react-native';  // 미니앱 섹션 전용
@@ -20,7 +21,7 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { handleSduiAction } from '@/sdui/action-handler';
-// import { openMiniAppById } from '@/features/mini-app/open';  // 미니앱 섹션 전용
+import { openMiniAppById } from '@/features/mini-app/open';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -53,6 +54,18 @@ export function HomeScreen() {
         onPress: () => {
           logHomeContentSelect({ content_type: 'tile', item_id: 'notices' });
           router.navigate('/(tabs)/notices' as never);
+        },
+      },
+      // ESKARA 축제 미니앱 — 축제 기간 한정 (2026-09-23). 숨겨진 미니앱 섹션 대신
+      // 메인 그리드에 한 칸을 준다. 축제가 끝나면 이 블록을 주석 처리하고 아래
+      // 분실물 블록을 되살리면 원래 4칸으로 돌아간다.
+      {
+        id: 'eskara',
+        title: t('home.tile.eskara'),
+        emoji: '\u{1F30A}',
+        onPress: () => {
+          logHomeContentSelect({ content_type: 'tile', item_id: 'eskara' });
+          openMiniAppById('eskara-2026');
         },
       },
       // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 라우트(/video-gallery)와
@@ -98,20 +111,21 @@ export function HomeScreen() {
       // 교체 — 이동은 탭바에 이미 있어서 타일이 한 번 더 말하는 것뿐이었고,
       // 분실물은 캠퍼스 탭 하단 시트에만 있어 탭을 옮겨야 닿는 항목이었다.
       // 액션은 서버 `/ui/home/campus`의 lost_found 항목과 같은 값을 쓴다.
-      {
-        id: 'lost_found',
-        title: t('lostAndFound.title'),
-        emoji: '\u{1F9F3}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
-          handleSduiAction({
-            actionType: 'webview',
-            actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
-            webviewTitle: t('lostAndFound.title'),
-            webviewColor: '003626',
-          });
-        },
-      },
+      // 축제 기간엔 ESKARA 타일에 자리를 내준다 (2026-09-23) — 캠퍼스 탭 시트에는 그대로 있다.
+      // {
+      //   id: 'lost_found',
+      //   title: t('lostAndFound.title'),
+      //   emoji: '\u{1F9F3}',
+      //   onPress: () => {
+      //     logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
+      //     handleSduiAction({
+      //       actionType: 'webview',
+      //       actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
+      //       webviewTitle: t('lostAndFound.title'),
+      //       webviewColor: '003626',
+      //     });
+      //   },
+      // },
     ],
     [router, t],
   );
@@ -148,6 +162,26 @@ export function HomeScreen() {
       >
         {/* ── Hero Banner (auto-playing intro animation) ── */}
         <HeroBanner />
+
+        {/* ── ESKARA 축제 배너 ── 축제 기간 한정 (2026-09-24). 누르면 그리드의
+            ESKARA 타일과 같은 미니앱이 열린다. 이미지는 공식 캐러셀 3장을 이어
+            붙인 것(assets/images/eskara-banner.jpg). 축제가 끝나면 이 블록과
+            eskaraBanner 스타일, Pressable·Image import를 함께 걷어낸다. */}
+        <Pressable
+          onPress={() => {
+            logHomeContentSelect({ content_type: 'banner', item_id: 'eskara' });
+            openMiniAppById('eskara-2026');
+          }}
+          style={({ pressed }) => [styles.eskaraBanner, { opacity: pressed ? 0.85 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel={t('home.tile.eskara')}
+        >
+          <Image
+            source={require('../../../assets/images/eskara-banner.jpg')}
+            style={styles.eskaraBannerImage}
+            contentFit="cover"
+          />
+        </Pressable>
 
         {/* ── Grid Menu (main app tiles) ── */}
         <View style={styles.gridWrap}>
@@ -214,6 +248,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 32,
+  },
+
+  /* ── ESKARA 축제 배너 ── HeroBanner 카드와 같은 가로 여백·모서리 */
+  eskaraBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  eskaraBannerImage: {
+    width: '100%',
+    // 원본 비율(2400×1251) 그대로 — 가운데 타이틀이 잘리지 않게.
+    aspectRatio: 2400 / 1251,
   },
 
   /* ── Grid wrap ── */

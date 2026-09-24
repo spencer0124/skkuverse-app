@@ -152,7 +152,10 @@ function ListBlock({ title, items }: { title: I18nText | null; items: readonly P
           key={`${item.title.ko}-${i}`}
           horizontalPadding={0}
           verticalPadding="extraSmall"
-          leftAlignment="top"
+          // A name alone sits on the emoji's centre line. With a description
+          // under it, the emoji stays level with the name instead of drifting
+          // down between the two lines.
+          leftAlignment={item.description ? 'top' : 'center'}
           left={
             <View style={styles.emoji}>
               <Text style={styles.emojiText}>{item.emoji ?? '✨'}</Text>

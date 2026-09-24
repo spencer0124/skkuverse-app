@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-23
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -203,6 +203,14 @@ still derives correctly — a phone set to Bangkok agrees with one set to Seoul.
 **clock** is genuinely wrong does not, and that is accepted rather than corrected (ADR 0007). An
 earlier design reconciled against a response `Date` header and was removed as more machinery than the
 rare case justified.
+
+The same holds for what the rows **display**. Every time the map shows carries its date — the list
+row's hours, the sheet's status line and its hours row alike read `10/1(Thu) 18:00–23:00` — because
+the festival runs on two days and a bare time leaves the visitor to guess which. A window is dated by
+its **start**, so one crossing midnight stays on the evening it began. The strings are built by
+`packages/shared/src/map/kst-format.ts` from the epoch shifted to KST, not by `Intl`: without a
+`timeZone` a phone abroad formats in its own zone, `ko-KR` renders a date as `10. 1.`, and
+`hour12: false` prints midnight as `24:00` on some engines.
 
 ### 5.3 A marker's hours do not decide what is drawn
 
@@ -440,9 +448,10 @@ A sheet button carries one action. The app renders it; it never interprets what 
 | --- | --- | --- |
 | `content` | Render inline in the sheet, no navigation | **new** |
 | `route` | `router.push(actionValue)`; a bare `/` is intercepted as `router.dismissTo('/(tabs)/home')` | exists |
-| `webview` | `openWebView({url, title})` → `router.push('/webview', {url, title})` | exists — **ESKARA's primary type** |
+| `webview` | `openWebView({url, title})` → `router.push('/webview', {url, title})` | exists — pages on `WEBVIEW_ORIGIN` only |
 | `external` | The **same** in-app `/webview` shell; a non-web scheme (`mailto:`, `tel:`) hands off to `Linking.openURL` | exists |
-| `miniapp` | Mini-app scheme | **deferred**, §7.3 |
+| `miniapp` | `openMiniAppById(id, path)` — the registered mini app's shell, at that page | §7.3 |
+| `map` | `openMapAtPlace(ref)` — close any shell on top, open that place's sheet; value is the §7.2 `?place=` grammar | §7.2 |
 
 `webview` and `external` are one code path in `handleSduiAction`, and `webviewColor` is accepted
 but never read. They stay distinct action types because the server still emits both and older
@@ -455,15 +464,22 @@ plus the parser cleanup, and all of it has shipped. `parseActionType` returns `'
 unrecognized values, `handleSduiAction` no-ops it, and both `renderer.tsx` and the action handler
 now carry a `never` exhaustiveness guard.
 
-> `webview` is the **primary** type for ESKARA, which makes the origin gate in `app/webview.tsx` a
-> hard dependency rather than a mini-app concern. That gate is in place: `handleMessage` re-resolves
+> The 2026 ESKARA pages live on their own origin, `eskara.miniapp.skkuverse.com`, which the server
+> refuses as a `webview` value, so a map button into them is a **`miniapp`** action
+> (`eskara-2026/eskara/<page>`, §7.3) and opens inside the mini app shell. Both shells run the same
+> bridge gate: `handleMessage` re-resolves
 > `resolveWebviewCapabilities(event.nativeEvent.url, getBridgeOrigins())` **per message**, against
-> the document that actually posted it rather than once at open time.
+> the document that actually posted it rather than once at open time, so a page's `web:open-url`
+> and `web:action` behave the same in either shell
+> ([ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9). The way back — a page
+> opening the map on a place — is a `map` action sent as `web:action`; the runbook is
+> [add-view-on-map-button.md](../how-to/add-view-on-map-button.md).
 
 `content` is handled by the sheet that renders the button, not by `handleSduiAction` — that
-dispatcher is fire-and-forget and has no surface to render prose into. `miniapp` and `unknown` render
-no button at all: the parser keeps them for contract fidelity, but a button that does nothing is
-worse than a missing one.
+dispatcher is fire-and-forget and has no surface to render prose into. `unknown` renders no button at
+all: the parser keeps it for contract fidelity, but a button that does nothing is worse than a
+missing one. A `miniapp` pill leads with the mini app's registry logo instead of the link glyph, so it
+reads as "opens inside skkuverse"; the parser drops a `miniapp` action whose value is not a target.
 
 **The peek sheet dismisses itself before it navigates.** `usePlaceNavigate`
 (`apps/mobile/src/features/eventmap/place/navigate.ts`) calls
@@ -503,6 +519,12 @@ of a sheet the user already navigated away from. It pairs with `stackBehavior="r
 stops the default `'switch'` from resurrecting `BuildingDetailSheet` underneath.
 
 ### 7.2 Universal map scheme
+
+A place reference, `[<kind>:]<placeId>`, is parsed by `parseMapPlaceRef`
+(`packages/shared/src/map/place-ref.ts`) wherever it arrives: this link, and a `map` action,
+including a first-party page's `web:action` "view on map" button (ADR 0006 §9). A page can reach
+the map ONLY that way — never through `web:open-url` to this scheme, which would stack a second
+copy of the tabs on top of the web shell instead of replacing it.
 
 ```text
 skkuverse://map?place=<placeId>
@@ -544,26 +566,36 @@ navigation.
 No new screen: `skkuverse://map?place=X` resolves to `/(tabs)/campus` plus a pending payload. Details
 and the full route table: [`../reference/deep-link.md`](../reference/deep-link.md).
 
-### 7.3 Deferred — the `miniapp` action
+### 7.3 The `miniapp` action — a mini-app target
 
-Kept in the union so the contract does not change later, but not emitted until the mini-app platform
-ships. When it does:
+`actionValue` is a **mini-app target**, one grammar for the map action, a mini-app push's
+`miniapp` action, and the `/m/<target>` deep link (`packages/shared/src/miniapps/target.ts`, mirrored by
+the server's `src/miniapps/miniapp-target.ts`):
 
-- Widen `MINIAPP_PATH_RE` to carry a sub-path, **keeping the anchors**
-- Resolve the sub-path against the registry `startUrl`, **failing closed on origin**:
+```text
+<miniAppId>[<root-relative path>]
+eskara-2026                     the mini app at its registered startUrl
+eskara-2026/eskara/wristband    that page, inside the mini-app shell
+```
 
-  ```ts
-  const resolved = new URL(path, base);
-  // new URL('//evil.com/x', 'https://a.com') → 'https://evil.com/x'.
-  // Without this a deep link escapes the registered origin and renders arbitrary
-  // content inside a shell that shows the verified badge.
-  return resolved.origin === base.origin ? resolved.toString() : startUrl;
-  ```
+An id and a path rather than a URL: an origin does not name a mini app (one host can serve several),
+and the shell needs the id for the name, logo and verified badge it frames the page with.
 
-- The native side validates the *origin*, never the path — the page list is a mini-app-owned contract
+The shell resolves the path against the registry `startUrl`, **failing closed on origin**
+(`resolveMiniAppUrl`):
 
-Switching ESKARA buttons from `webview` to `miniapp` is then a server payload change with no app
-release.
+```ts
+const resolved = new URL(path, base);
+// new URL('//evil.com/x', 'https://a.com') → 'https://evil.com/x'.
+// Without this a deep link escapes the registered origin and renders arbitrary
+// content inside a shell that shows the verified badge.
+return resolved.origin === base.origin ? resolved.toString() : startUrl;
+```
+
+- The grammar already refuses `//…` and `/\…`, and the server refuses them before it ships a value.
+  The origin check is repeated in the shell because a deep link never passes the server.
+- The native side validates the *origin*, never the path — the page list is a mini-app-owned contract.
+- `startUrl` stays the mini app's home; `path` only chooses the first page loaded.
 
 ## 8. State
 
@@ -674,7 +706,8 @@ server opens the window**.
 | `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet |
 | `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
 | `apps/mobile/src/features/eventmap/place/` | the sheet: summary, facts card, and `PlaceBlocks` for the composed body (§10) |
-| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock`, `festivalDaysOf`, `dayLabelOf` — the sheet's decisions (§10) |
+| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock` — the sheet's decisions (§10) |
+| `packages/shared/src/map/kst-format.ts` | the dated KST strings every row and the sheet show (§5.2) |
 | `packages/shared/src/hooks/usePlaceDetails.ts` | every place's detail from `/map/overlays/event/details`, parsed by `parsePlaceDetails` (§10.3) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
 | `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
@@ -701,7 +734,7 @@ The sheet is a **structured head** every place shares and a **body the operator 
 
 ```text
 [pinned]  title
-status    open now · day 2          statusLineOf + dayLabelOf
+status    open now · closes 10/1(Thu) 23:00   statusLineOf
 meta      <locationLabel> · <org, or the overlay's subtitle>
 highlight the first list or table block, lifted above the fold
 photos    the body's first run of consecutive images, one rail
@@ -782,9 +815,6 @@ and passes `detail` down as a prop, the same way it passes `place`.
 action drops alone, and a detail drops whole only without an id or with a `kind` outside
 `PLACE_KINDS`, which is closed where a block's `type` is open. A failed request, or a place with no
 detail, is the overlay alone: hours and actions, with the `subtitle` on the meta line.
-
-The dev-only preview (`/place-sheet-preview`, from the development menu in settings) hands the sheet
-`MOCK_PLACE_DETAILS` directly, so it shows every block composition whatever the server serves.
 
 ## 11. Gotchas
 

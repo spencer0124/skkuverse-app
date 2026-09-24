@@ -26,4 +26,11 @@ export type WebToAppMessage =
   | { type: 'web:analytics'; event: string; params?: Record<string, unknown> }
   | { type: 'web:haptic'; style: 'light' | 'medium' | 'heavy' }
   | { type: 'web:open-url'; url: string }
-  | { type: 'web:map-select'; payload: MapSelectPayload };
+  | { type: 'web:map-select'; payload: MapSelectPayload }
+  /**
+   * Ask the app to perform an action, in the server's actionType/actionValue
+   * shape. Pages get a strict subset: `map` (a place, `[<kind>:]<placeId>`) and
+   * `miniapp` (`<id>[/path]`). Feature-detect with
+   * `window.skkuverse?.bridge?.actions`, which lists what the host accepts.
+   */
+  | { type: 'web:action'; actionType: string; actionValue: string };

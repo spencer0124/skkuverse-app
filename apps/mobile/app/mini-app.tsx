@@ -12,7 +12,7 @@ import {
   Linking,
   Platform,
   Pressable,
-  Share,
+  // Share, — 공유하기 메뉴 비활성화(아래 더보기 시트 참조)
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { WebView } from 'react-native-webview';
-import type { WebViewNavigation } from 'react-native-webview';
+import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -34,30 +34,37 @@ import {
   DotsThreeIcon,
   CaretLeftIcon,
   CaretRightIcon,
-  BookmarkSimpleIcon,
-  BellIcon,
+  // BookmarkSimpleIcon, // 저장 버튼 숨김 중
+  // BellIcon, // 알림 버튼 숨김 중
   GlobeSimpleIcon,
   ArrowClockwiseIcon,
   SealCheckIcon,
   LinkIcon,
   XIcon,
-  ShareNetworkIcon,
-  GearSixIcon,
-  HeadsetIcon,
-  HouseIcon,
+  // 공유하기/홈 화면에 추가/설정/고객센터 메뉴 비활성화(아래 더보기 시트 참조).
+  // ShareNetworkIcon,
+  // GearSixIcon,
+  // HeadsetIcon,
+  // HouseIcon,
   type Icon as PhosphorIcon,
 } from 'phosphor-react-native';
 import {
   SdsColors,
-  getWebOrigin,
+  WEB_BRIDGE_ADVERTISEMENT_JS,
+  getBridgeOrigins,
+  // getWebOrigin, — 공유/홈추가 메뉴 비활성화
+  resolveMiniAppUrl,
   useMiniAppDetail,
   useMiniAppIndex,
 } from '@skkuverse/shared';
 import { GlassSurface, Sheet, Txt } from '@skkuverse/sds';
+import { parseWebMessage } from '@skkuverse/bridge';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { faviconUrl } from '@/features/mini-app/protocol';
+import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
+import { performWebAction } from '@/features/webview/web-action';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
@@ -82,7 +89,7 @@ const PULL = 28; // 접힐 때 좌/우 클러스터가 가운데로 끌려가는
 // iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
 // SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
 // navbar tintColor 재염색 회피.
-const ICON_BELL = require('../assets/header-icons/bell.png');
+// const ICON_BELL = require('../assets/header-icons/bell.png'); // 알림 버튼 숨김 중
 const ICON_MORE = require('../assets/header-icons/dots-three.png');
 
 /**
@@ -202,10 +209,11 @@ function LinkRow({ label, url, onPress }: { label?: string; url: string; onPress
 }
 
 export default function MiniAppScreen() {
-  // slug만 라우트를 건넌다 — 이름·시작 URL·로고는 전부 레지스트리(서버)에서 해석.
-  // 예전처럼 serviceName/startUrl을 params로 받으면 호출부가 레지스트리와 어긋난
-  // 셸을 그릴 수 있다.
-  const params = useLocalSearchParams<{ id?: string }>();
+  // slug와 (선택) 경로만 라우트를 건넌다 — 이름·시작 URL·로고는 전부
+  // 레지스트리(서버)에서 해석. 예전처럼 serviceName/startUrl을 params로 받으면
+  // 호출부가 레지스트리와 어긋난 셸을 그릴 수 있다. `path`도 URL이 아니라 등록된
+  // origin 위의 경로라서, 아래 resolveMiniAppUrl이 origin을 벗어나면 startUrl로 연다.
+  const params = useLocalSearchParams<{ id?: string; path?: string }>();
   const miniAppId = params.id;
   const insets = useSafeAreaInsets();
 
@@ -224,11 +232,15 @@ export default function MiniAppScreen() {
   // 단계가 사라졌었다. 서버 데이터를 고치는 것과 별개로 여기서 방어한다 —
   // 레지스트리는 서버 소유라 언제든 http가 다시 들어올 수 있다.
   const startUrl = detail?.startUrl ? normalizeWebUrl(detail.startUrl).url : '';
+  // 처음 열 페이지 — `path`가 있으면 그 페이지, 없거나 origin을 벗어나면 startUrl.
+  // startUrl은 여전히 이 미니앱의 "홈"이다.
+  const initialUrl = startUrl ? resolveMiniAppUrl(startUrl, params.path) : '';
   const serviceName = entry?.name ?? '';
   const logoUri = entry?.logo?.uri;
   // 공유/홈추가 링크가 가리키는 웹 도메인 — 서버 설정(GET /app/config). 아직 못
   // 받았으면 null이고, 해당 메뉴는 degrade하거나 숨는다.
-  const webOrigin = getWebOrigin();
+  // 두 메뉴가 비활성화된 동안 주석 처리(더보기 시트 참조).
+  // const webOrigin = getWebOrigin();
 
   const webRef = useRef<WebView>(null);
 
@@ -238,9 +250,10 @@ export default function MiniAppScreen() {
   const { width: screenW } = useWindowDimensions();
   const collapsed = useSharedValue(0);
   const lastY = useRef(0);
-  // 좌/우 클러스터 실측폭 — 앞으로(>) 버튼 유무로 좌 폭이 가변이라 onLayout로 측정.
+  // 좌/우 클러스터 실측폭 — 지금은 [<] / [>] 한 칸씩이라 같지만, 클러스터 내용이 바뀌어도
+  // 가운데 pill이 맞춰지도록 onLayout으로 측정한다.
   const [leftW, setLeftW] = useState(44);
-  const [rightW, setRightW] = useState(58);
+  const [rightW, setRightW] = useState(44);
   // 중앙 컨테이너는 좌/우 클러스터 사이에 anchor(양쪽 GAP 균등). 펼침폭 = 그 컨테이너 폭.
   const centerInset = (w: number) => SIDE_PAD + w + GAP;
   const expandedW = Math.max(120, screenW - centerInset(leftW) - centerInset(rightW));
@@ -285,7 +298,7 @@ export default function MiniAppScreen() {
   // `currentUrl || startUrl`로 읽어 상세 도착 시점에 자연히 채워지게 한다
   // (effect로 setState하면 첫 페인트가 한 프레임 늦는다).
   const [navigatedUrl, setNavigatedUrl] = useState('');
-  const currentUrl = navigatedUrl || startUrl;
+  const currentUrl = navigatedUrl || initialUrl;
   const [pageTitle, setPageTitle] = useState(serviceName);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
@@ -316,6 +329,25 @@ export default function MiniAppScreen() {
     },
     [serviceName, collapsed],
   );
+
+  // 브리지 메시지 — /webview 셸과 같은 게이트. 권한은 메시지를 보낸 문서의 origin으로
+  // 매번 다시 판정한다(서버 소유 bridgeOrigins, 미수신·불일치면 전부 드롭). 1st-party
+  // 페이지(eskara 등)의 `web:open-url`은 외부 앱/브라우저로, `web:action`은
+  // 페이지에 허용된 액션(map·miniapp)만 performWebAction으로 실행한다.
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    const msg = parseWebMessage(event.nativeEvent.data);
+    if (!msg) return;
+    const granted = resolveWebviewCapabilities(
+      event.nativeEvent.url,
+      getBridgeOrigins(),
+    );
+    if (!granted.includes(msg.type)) return;
+    if (msg.type === 'web:open-url') {
+      void Linking.openURL(msg.url).catch(() => {});
+    } else if (msg.type === 'web:action') {
+      performWebAction(msg.actionType, msg.actionValue);
+    }
+  }, []);
 
   // ── 하단 바 collapse — WebView 스크롤 방향 토글 ──
   // onScroll은 JS 스레드 콜백(useAnimatedScrollHandler는 WebView에 못 붙음). 방향만 판정해
@@ -373,41 +405,43 @@ export default function MiniAppScreen() {
     webRef.current?.reload();
   }, []);
 
-  // 공유하기 — "미니앱 진입 링크"(universal link)를 OS 공유 시트로. 받은 사람이 앱이
-  // 있으면 그 미니앱이 바로 열림(Toss minion 링크 방식). webOrigin은 서버 설정에서
-  // 오므로, 아직 못 받았으면 현재 페이지 URL로 degrade — 하드코딩 폴백을 두면
-  // 서버가 SSOT라는 전제가 깨진다.
-  const handleShare = useCallback(async () => {
-    setMoreOpen(false);
-    const link =
-      webOrigin && miniAppId ? `${webOrigin}/p/m/${miniAppId}` : currentUrl;
-    if (!link) return;
-    try {
-      // iOS는 message+url을 별개 항목으로 취급해 URL이 두 번 노출됨 → 플랫폼당 하나만.
-      // iOS: url(링크 프리뷰), Android: message(url prop 무시되므로 텍스트로).
-      await Share.share(Platform.OS === 'ios' ? { url: link } : { message: link });
-    } catch {
-      // 사용자 취소 등 — 무시.
-    }
-  }, [webOrigin, miniAppId, currentUrl]);
+  // ── 비활성화된 더보기 메뉴 액션 — 새로고침만 노출(시트 참조). 다시 켤 때 이 블록,
+  //    위 import(Share, 아이콘 4종, getWebOrigin)와 webOrigin을 함께 되살린다. ──
+  // // 공유하기 — "미니앱 진입 링크"(universal link)를 OS 공유 시트로. 받은 사람이 앱이
+  // // 있으면 그 미니앱이 바로 열림(Toss minion 링크 방식). webOrigin은 서버 설정에서
+  // // 오므로, 아직 못 받았으면 현재 페이지 URL로 degrade — 하드코딩 폴백을 두면
+  // // 서버가 SSOT라는 전제가 깨진다.
+  // const handleShare = useCallback(async () => {
+  //   setMoreOpen(false);
+  //   const link =
+  //     webOrigin && miniAppId ? `${webOrigin}/p/m/${miniAppId}` : currentUrl;
+  //   if (!link) return;
+  //   try {
+  //     // iOS는 message+url을 별개 항목으로 취급해 URL이 두 번 노출됨 → 플랫폼당 하나만.
+  //     // iOS: url(링크 프리뷰), Android: message(url prop 무시되므로 텍스트로).
+  //     await Share.share(Platform.OS === 'ios' ? { url: link } : { message: link });
+  //   } catch {
+  //     // 사용자 취소 등 — 무시.
+  //   }
+  // }, [webOrigin, miniAppId, currentUrl]);
 
-  // 홈 화면에 추가 — Toss식 제네릭 런처 페이지를 외부 Safari로 연다(인앱 WebView/SFSafariVC는
-  // A2HS 불가). 페이지가 아이콘/이름을 쿼리로 받아 세팅하고, standalone 실행 시 skkuverse://m/<id>로
-  // 리다이렉트. 아이콘은 레지스트리 로고를 그대로 재사용 — 서버가 이미 절대 URL로 내려준다.
-  const handleAddToHome = useCallback(() => {
-    setMoreOpen(false);
-    if (!miniAppId || !webOrigin) return;
-    const icon = logoUri ?? `${webOrigin}/miniapps/${miniAppId}.png`;
-    const url =
-      `${webOrigin}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
-      `&title=${encodeURIComponent(serviceName || pageTitle)}` +
-      `&iconUrl=${encodeURIComponent(icon)}`;
-    void Linking.openURL(url).catch(() => {});
-  }, [miniAppId, webOrigin, logoUri, serviceName, pageTitle]);
+  // // 홈 화면에 추가 — Toss식 제네릭 런처 페이지를 외부 Safari로 연다(인앱 WebView/SFSafariVC는
+  // // A2HS 불가). 페이지가 아이콘/이름을 쿼리로 받아 세팅하고, standalone 실행 시 skkuverse://m/<id>로
+  // // 리다이렉트. 아이콘은 레지스트리 로고를 그대로 재사용 — 서버가 이미 절대 URL로 내려준다.
+  // const handleAddToHome = useCallback(() => {
+  //   setMoreOpen(false);
+  //   if (!miniAppId || !webOrigin) return;
+  //   const icon = logoUri ?? `${webOrigin}/miniapps/${miniAppId}.png`;
+  //   const url =
+  //     `${webOrigin}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
+  //     `&title=${encodeURIComponent(serviceName || pageTitle)}` +
+  //     `&iconUrl=${encodeURIComponent(icon)}`;
+  //   void Linking.openURL(url).catch(() => {});
+  // }, [miniAppId, webOrigin, logoUri, serviceName, pageTitle]);
 
-  // TODO: 설정/고객센터 화면 연결. 현재는 시트만 닫는 더미.
-  const handleSettings = useCallback(() => setMoreOpen(false), []);
-  const handleSupport = useCallback(() => setMoreOpen(false), []);
+  // // TODO: 설정/고객센터 화면 연결. 현재는 시트만 닫는 더미.
+  // const handleSettings = useCallback(() => setMoreOpen(false), []);
+  // const handleSupport = useCallback(() => setMoreOpen(false), []);
 
   return (
     <View style={styles.container}>
@@ -429,15 +463,16 @@ export default function MiniAppScreen() {
           ...(Platform.OS === 'ios'
             ? {
                 unstable_headerRightItems: () => [
-                  {
-                    type: 'button' as const,
-                    label: '',
-                    icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
-                    sharesBackground: true,
-                    accessibilityLabel: '공지',
-                    // 공지 배너 다시 띄우기(X로 닫았을 때 복구).
-                    onPress: () => setNoticeVisible(true),
-                  },
+                  // 알림 버튼 — 잠시 숨김. 되살릴 땐 ICON_BELL/BellIcon import 주석도 함께 해제.
+                  // {
+                  //   type: 'button' as const,
+                  //   label: '',
+                  //   icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
+                  //   sharesBackground: true,
+                  //   accessibilityLabel: '공지',
+                  //   // 공지 배너 다시 띄우기(X로 닫았을 때 복구).
+                  //   onPress: () => setNoticeVisible(true),
+                  // },
                   {
                     type: 'button' as const,
                     label: '',
@@ -451,9 +486,10 @@ export default function MiniAppScreen() {
             : {
                 headerRight: () => (
                   <View style={styles.rightGroup}>
+                    {/* 알림 버튼 — 잠시 숨김 (iOS 쪽 주석 참고).
                     <HeaderIconButton onPress={() => setNoticeVisible(true)} accessibilityLabel="공지">
                       <BellIcon size={22} color={SdsColors.grey700} />
-                    </HeaderIconButton>
+                    </HeaderIconButton> */}
                     <HeaderIconButton onPress={() => setMoreOpen(true)} accessibilityLabel="더보기">
                       <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
                     </HeaderIconButton>
@@ -466,12 +502,16 @@ export default function MiniAppScreen() {
       {/* startUrl은 레지스트리에서 온다 — 도착 전에 마운트하면 about:blank를 한 번
           로드하고 히스토리에 남아 뒤로가기가 빈 페이지로 간다. 그래서 URL이 생긴
           뒤에만 마운트한다. */}
-      {startUrl ? (
+      {initialUrl ? (
         <WebView
           ref={webRef}
-          source={{ uri: startUrl }}
+          source={{ uri: initialUrl }}
           style={styles.webview}
           onNavigationStateChange={onNavChange}
+          onMessage={handleMessage}
+          // 이 호스트가 받는 액션 목록을 페이지에 알린다 — 페이지는 목록에 있을 때만
+          // 버튼을 그린다. 알림일 뿐 권한이 아니다(권한은 메시지마다 게이트가 판정).
+          injectedJavaScriptBeforeContentLoaded={WEB_BRIDGE_ADVERTISEMENT_JS}
           onScroll={onScroll}
           javaScriptEnabled
           domStorageEnabled
@@ -535,17 +575,6 @@ export default function MiniAppScreen() {
               >
                 <CaretLeftIcon size={21} color={DOCK_ICON} />
               </Pressable>
-              {/* 앞으로 갈 히스토리가 생겼을 때만 [>] 노출 — 기본은 [<] 단독. */}
-              {canGoForward && (
-                <Pressable
-                  onPress={goForward}
-                  style={styles.navBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="앞으로"
-                >
-                  <CaretRightIcon size={21} color={DOCK_ICON} />
-                </Pressable>
-              )}
             </GlassSurface>
           </Animated.View>
 
@@ -555,11 +584,13 @@ export default function MiniAppScreen() {
             pointerEvents="box-none"
           >
             <Animated.View style={centerStyle}>
+              {/* 페이지 정보 시트 열기 — 잠시 막음. 되살릴 땐 아래 onPress·accessibilityRole
+                  주석만 해제(시트 본체와 infoOpen state는 그대로 살아 있다). */}
               <GlassSurface interactive style={styles.titlePill}>
                 <Pressable
-                  onPress={() => setInfoOpen(true)}
+                  // onPress={() => setInfoOpen(true)}
                   style={styles.titlePillBtn}
-                  accessibilityRole="button"
+                  // accessibilityRole="button"
                   accessibilityLabel="페이지 정보"
                 >
                   <ServiceLogo logoUri={logoUri} faviconUri={favicon} size={18} />
@@ -571,7 +602,29 @@ export default function MiniAppScreen() {
             </Animated.View>
           </View>
 
-          {/* 우 클러스터 — absolute 우측. */}
+          {/* 우 클러스터 — absolute 우측. [<]와 짝을 이루는 [>]: 항상 자리를 지키고, 앞으로 갈
+              히스토리가 없으면 [<]와 똑같이 비활성+흐리게. 조건부 렌더면 폭이 바뀌며 가운데
+              pill이 출렁인다. */}
+          <Animated.View
+            style={[styles.rightCluster, rightStyle]}
+            onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
+          >
+            <GlassSurface interactive style={styles.bottomNav}>
+              <Pressable
+                onPress={goForward}
+                disabled={!canGoForward}
+                style={[styles.navBtn, !canGoForward && styles.navBtnDisabled]}
+                accessibilityRole="button"
+                accessibilityLabel="앞으로"
+              >
+                <CaretRightIcon size={21} color={DOCK_ICON} />
+              </Pressable>
+            </GlassSurface>
+          </Animated.View>
+
+          {/* 저장 버튼 — 잠시 숨김. 기능이 없는 더미라 눌러도 반응이 없었다. 자리는 [>]가
+              쓰고 있으니, 되살릴 땐 [>] 클러스터에 합칠지 먼저 정하고 BookmarkSimpleIcon
+              import 주석도 함께 해제.
           <Animated.View
             style={[styles.rightCluster, rightStyle]}
             onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
@@ -583,11 +636,12 @@ export default function MiniAppScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="북마크"
               >
-                {/* TODO: 북마크 기능 추후 구현. */}
+                TODO: 북마크 기능 추후 구현.
                 <BookmarkSimpleIcon size={22} color={DOCK_ICON} />
               </Pressable>
             </GlassSurface>
           </Animated.View>
+          */}
         </View>
       </View>
 
@@ -651,12 +705,15 @@ export default function MiniAppScreen() {
         <Sheet.View style={styles.infoSheet}>
         <View style={styles.menuList}>
           <MenuRow icon={ArrowClockwiseIcon} label="새로고침" onPress={handleMenuRefresh} />
+          {/* 새로고침만 노출. 공유하기·홈 화면에 추가는 잠정 비활성화, 설정·고객센터는
+              연결 화면이 없는 더미라 숨김(누르면 시트만 닫혀 고장처럼 보임).
           <MenuRow icon={ShareNetworkIcon} label="공유하기" onPress={handleShare} />
           {miniAppId ? (
             <MenuRow icon={HouseIcon} label="홈 화면에 추가" onPress={handleAddToHome} />
           ) : null}
           <MenuRow icon={GearSixIcon} label="설정" onPress={handleSettings} />
           <MenuRow icon={HeadsetIcon} label="고객센터" onPress={handleSupport} />
+          */}
         </View>
         </Sheet.View>
       </Sheet>

@@ -50,6 +50,7 @@ crosses package boundaries.
 | [ota-update.md](how-to/ota-update.md) | Publishing an OTA update to the beta or production channel |
 | [firestore-debugging.md](how-to/firestore-debugging.md) | Firestore debugging, from the symptom table through REST server truth to emulator checks |
 | [add-notice-tab.md](how-to/add-notice-tab.md) | Cross-repo checklist for adding a notice tab (server categories.json to the tabsContract mirror) |
+| [add-view-on-map-button.md](how-to/add-view-on-map-button.md) | Giving a first-party web page a button that opens the campus map on a place (`web:action` `map`), and what a page may never ask for |
 
 ### reference
 

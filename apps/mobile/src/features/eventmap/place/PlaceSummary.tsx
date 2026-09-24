@@ -4,7 +4,7 @@
  * One skeleton for every kind of place, top to bottom:
  *
  * ```text
- * status     운영 중 · 22:00 종료
+ * status     운영 중 · 10/1(목) 22:00 종료
  * meta       주점존 A-1 · 경영대학 학생회
  * preview    대표 콘텐츠
  * photos     ▬ ▬ ▬ (the lower edge clips this rail)
@@ -25,7 +25,6 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
-  dayLabelOf,
   heroGallery,
   highlightBlock,
   pickI18nText,
@@ -41,18 +40,12 @@ import { Txt } from '@skkuverse/sds';
 import { PlaceActionsRow } from './PlaceActionsRow';
 import { PlaceGallery } from './PlaceGallery';
 import { PlaceHighlight } from './PlaceHighlight';
-import { formatDays, statusLineOf } from './placeFormat';
+import { statusLineOf } from './placeFormat';
 
 interface PlaceSummaryProps {
   place: MapOverlay;
   detail: PlaceDetail | null;
   now: number;
-  /**
-   * Every KST day the served places open on, from `festivalDaysOf`. What a
-   * place's 1일차/2일차 is counted against; an empty or one-day list means
-   * there is nothing worth saying and the status line stands alone.
-   */
-  festivalDays: readonly string[];
   onNavigateAway?: () => void;
 }
 
@@ -60,7 +53,6 @@ export function PlaceSummary({
   place,
   detail,
   now,
-  festivalDays,
   onNavigateAway,
 }: PlaceSummaryProps) {
   const { t, tpl } = useT();
@@ -80,19 +72,13 @@ export function PlaceSummary({
   // The summary owns the body's first photo rail; `PlaceBlocks` skips it by id
   // so it is not drawn twice in one sheet.
   const hero = heroGallery(placeBody(blocks));
-  const status = statusLineOf(place.hours, now, lang, t, tpl);
-  // Which festival day, appended to the status rather than given a row of its
-  // own: nine places run on one day only — the eight night bars and the
-  // t-shirt hand-out — and for them "종료" alone is missing the half of the
-  // answer that says whether to come back tomorrow.
-  const days = dayLabelOf(place.hours, festivalDays);
-  const statusText = days === null ? status.text : `${status.text} · ${formatDays(days, t, tpl)}`;
+  const status = statusLineOf(place.hours, now, t, tpl);
 
   return (
     <View style={styles.summary}>
       <View style={styles.heading}>
         <Txt typography="t7" color={SdsColors.grey600}>
-          {statusText}
+          {status.text}
         </Txt>
         {meta ? (
           // Two lines, not one: an operator is often a joint council

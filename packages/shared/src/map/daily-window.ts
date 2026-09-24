@@ -25,7 +25,7 @@ import type { DailyWindow } from '../types/map';
 
 const MS_PER_MINUTE = 60_000;
 const MS_PER_DAY = 86_400_000;
-const KST_OFFSET_MS = 9 * 60 * MS_PER_MINUTE;
+export const KST_OFFSET_MS = 9 * 60 * MS_PER_MINUTE;
 
 /** Milliseconds elapsed since the most recent KST midnight. */
 function msIntoKstDay(now: number): number {

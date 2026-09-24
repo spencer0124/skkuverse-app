@@ -41,8 +41,6 @@ interface PlaceSheetScrollProps {
   /** The place's sheet body from `usePlaceDetails`, or `null` for the overlay alone. */
   detail: PlaceDetail | null;
   now: number;
-  /** Every KST day the served places open on — the base a place's 1일차 counts from. */
-  festivalDays: readonly string[];
   /** Bottom padding of the scroll content, which already includes `bottomGap`. */
   bottomPadding: number;
   onNavigateAway?: () => void;
@@ -52,7 +50,6 @@ export function PlaceSheetScroll({
   place,
   detail,
   now,
-  festivalDays,
   bottomPadding,
   onNavigateAway,
 }: PlaceSheetScrollProps) {
@@ -78,7 +75,6 @@ export function PlaceSheetScroll({
         place={place}
         detail={detail}
         now={now}
-        festivalDays={festivalDays}
         onNavigateAway={onNavigateAway}
       />
 

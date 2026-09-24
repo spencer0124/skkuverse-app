@@ -65,16 +65,6 @@ export function SettingsScreen() {
             >
               <Text style={devStyles.devButtonText}>🪵 디버그 로그 (dev only)</Text>
             </TouchableOpacity>
-            {/* The place sheet's mock details resolve under __DEV__ only, so
-                the preview is offered there alone. */}
-            {__DEV__ ? (
-              <TouchableOpacity
-                style={[devStyles.devButton, devStyles.devButtonBrowser]}
-                onPress={() => router.push('/place-sheet-preview' as never)}
-              >
-                <Text style={devStyles.devButtonText}>축제 장소 시트 프리뷰 (dev only)</Text>
-              </TouchableOpacity>
-            ) : null}
           </>
         )}
       </ScrollView>

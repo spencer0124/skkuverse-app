@@ -22,6 +22,7 @@ export type ActionType =
   | 'webview'
   | 'external'
   | 'miniapp'
+  | 'map'
   | 'unknown';
 
 /** Everything the server may legitimately send. `'unknown'` is deliberately absent. */
@@ -31,6 +32,7 @@ const WIRE_ACTION_TYPES = [
   'webview',
   'external',
   'miniapp',
+  'map',
 ] as const;
 
 /**

@@ -312,6 +312,7 @@ export type HomeContentType =
   | 'profile'
   | 'settings'
   | 'hero'
+  | 'banner'
   | 'tile'
   | 'notice_more'
   | 'notice_row'

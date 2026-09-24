@@ -1,5 +1,7 @@
 /**
- * Origin gate for the generic /webview shell.
+ * Origin gate for the bridge, shared by both web shells: the generic /webview
+ * and the /mini-app shell (a first-party mini-app such as eskara posts
+ * `web:open-url` from inside it).
  *
  * The shell loads two very different kinds of page through one component:
  *
@@ -51,10 +53,16 @@ export type WebMessageType = WebToAppMessage['type'];
  * kept safe only by the fact that nothing untrusted had reached the screen yet.
  * Rerouting notice links here is precisely what would have ended that, so it
  * goes. Re-add it only alongside a path allowlist.
+ *
+ * `web:action` is NOT that hole reopened. It carries an action, not a path, and
+ * the only actions a page may ask for are `map` and `miniapp`, whose values are
+ * ids the app resolves itself (`resolveWebAction` in @skkuverse/shared). A page
+ * can name a place or a mini app through it, never a route or a URL.
  */
 export const FIRST_PARTY_CAPABILITIES: readonly WebMessageType[] = [
   'web:open-url',
   'web:map-select',
+  'web:action',
 ];
 
 /** No capabilities. */

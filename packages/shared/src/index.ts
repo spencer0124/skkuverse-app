@@ -97,6 +97,7 @@ export type {
   CampusSectionsResponse,
 } from './types/sdui';
 export { type ActionType, parseActionType } from './types/sdui';
+export { parseMapPlaceRef, type MapPlaceRef } from './map/place-ref';
 
 // ── Bus types ──
 export type {
@@ -182,6 +183,13 @@ export type {
 } from './app/parser';
 export { parseAppConfig } from './app/parser';
 export {
+  resolveWebAction,
+  WEB_ACTION_TYPES,
+  WEB_BRIDGE_ADVERTISEMENT_JS,
+  type WebAction,
+  type WebActionType,
+} from './app/web-action';
+export {
   setCachedAppConfig,
   getCachedAppConfig,
   getBridgeOrigins,
@@ -247,13 +255,12 @@ export {
   heroGallery,
   HIGHLIGHT_MAX,
   placeSections,
-  dayLabelOf,
-  festivalDaysOf,
-  kstDateKey,
+  formatKstDate,
+  formatKstDateTime,
+  formatKstTime,
+  formatTimeWindow,
 } from './map';
-export type { PlaceDays, PlaceSectionKey, PlaceBodyItem, PlaceImage } from './map';
-/** Development only: the place sheet preview screen's details. */
-export { MOCK_PLACE_DETAILS } from './map/mock/placeDetails';
+export type { PlaceSectionKey, PlaceBodyItem, PlaceImage } from './map';
 export type {
   PlaceKind,
   PlaceDetail,

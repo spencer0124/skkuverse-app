@@ -1,10 +1,8 @@
 /**
  * The festival place sheet's decisions.
  *
- * Three rules worth pinning, because each fails quietly in the UI:
+ * Two rules worth pinning, because each fails quietly in the UI:
  *
- * - A window's START decides its festival day. A 주점 open 18:00–00:00 ends on
- *   the next date, and counting that end would put every pub on both days.
  * - `facts` is always in the section list. Most served places have no
  *   detail, and dropping the section took their opening hours with it.
  * - An unknown block type drops alone. An exhaustive check here would blank a
@@ -13,25 +11,15 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  dayLabelOf,
-  festivalDaysOf,
   heroGallery,
   highlightBlock,
-  kstDateKey,
   placeBody,
   placeSections,
 } from '../placeDetail';
-import { MOCK_PLACE_DETAILS } from '../mock/placeDetails';
 import type { PlaceBlock, PlaceDetail } from '../../types/placeDetail';
 import type { I18nText } from '../../types/map';
 
 const ko = (s: string): I18nText => ({ ko: s, en: s });
-const w = (startAt: string, endAt: string) => ({ startAt, endAt });
-
-const DAY1_BAR = w('2026-08-27T18:00:00+09:00', '2026-08-28T00:00:00+09:00');
-const DAY2_BAR = w('2026-08-28T18:00:00+09:00', '2026-08-29T00:00:00+09:00');
-const DAY1_BOOTH = w('2026-08-27T11:00:00+09:00', '2026-08-27T18:00:00+09:00');
-const DAYS = ['2026-08-27', '2026-08-28'];
 
 function detail(overrides: Partial<PlaceDetail> = {}): PlaceDetail {
   return {
@@ -67,53 +55,6 @@ const imageBlock = (id: string, url: string): PlaceBlock => ({
   caption: null,
 });
 
-describe('kstDateKey', () => {
-  it('reads the KST calendar day, not the UTC one', () => {
-    // 2026-08-27 23:30 KST is still the 27th in Seoul and 14:30 UTC.
-    expect(kstDateKey(Date.parse('2026-08-27T23:30:00+09:00'))).toBe('2026-08-27');
-    // 2026-08-28 00:30 KST is the 28th in Seoul but still the 27th in UTC.
-    expect(kstDateKey(Date.parse('2026-08-28T00:30:00+09:00'))).toBe('2026-08-28');
-  });
-});
-
-describe('festivalDaysOf', () => {
-  it('collects start days only, ascending and unique', () => {
-    const places = [{ hours: [DAY2_BAR] }, { hours: [DAY1_BAR, DAY2_BAR] }, { hours: [DAY1_BOOTH] }];
-    expect(festivalDaysOf(places)).toEqual(DAYS);
-  });
-
-  it('does not add the day a midnight-crossing window ends on', () => {
-    expect(festivalDaysOf([{ hours: [DAY2_BAR] }])).toEqual(['2026-08-28']);
-  });
-
-  it('skips always-open places and unparseable bounds', () => {
-    expect(festivalDaysOf([{ hours: [] }, { hours: [w('garbage', 'garbage')] }])).toEqual([]);
-  });
-});
-
-describe('dayLabelOf', () => {
-  it('names the single day a place opens on', () => {
-    expect(dayLabelOf([DAY1_BAR], DAYS)).toEqual({ type: 'days', days: [1] });
-    expect(dayLabelOf([DAY2_BAR], DAYS)).toEqual({ type: 'days', days: [2] });
-  });
-
-  it('says every day when the place covers them all', () => {
-    expect(dayLabelOf([DAY1_BAR, DAY2_BAR], DAYS)).toEqual({ type: 'all', count: 2 });
-  });
-
-  it('is silent for a one-day festival, an always-open place, and an unknown day', () => {
-    expect(dayLabelOf([DAY1_BAR], ['2026-08-27'])).toBeNull();
-    expect(dayLabelOf([], DAYS)).toBeNull();
-    expect(dayLabelOf([w('2026-09-01T11:00:00+09:00', '2026-09-01T12:00:00+09:00')], DAYS)).toBeNull();
-  });
-
-  it('lists non-adjacent days in order', () => {
-    const days = ['2026-08-27', '2026-08-28', '2026-08-29'];
-    const day3 = w('2026-08-29T11:00:00+09:00', '2026-08-29T12:00:00+09:00');
-    expect(dayLabelOf([day3, DAY1_BOOTH], days)).toEqual({ type: 'days', days: [1, 3] });
-  });
-});
-
 describe('placeSections', () => {
   // The regression that matters: most served places have no detail, and
   // every one of them carries `hours` on the overlay wire. Returning an empty
@@ -129,12 +70,6 @@ describe('placeSections', () => {
 
   it('adds the body when there is one', () => {
     expect(placeSections(detail({ blocks: [textBlock('a')] }))).toEqual(['facts', 'blocks']);
-  });
-
-  it('starts every ESKARA mock with facts', () => {
-    for (const place of Object.values(MOCK_PLACE_DETAILS)) {
-      expect(placeSections(place)[0]).toBe('facts');
-    }
   });
 });
 
