@@ -36,15 +36,18 @@ export function useInstagramNavigate(onNavigateAway?: () => void) {
 async function openInstagram(action: PlaceInstagramAction, title: string): Promise<void> {
   const destination = instagramDestination(action.profileUrl, action.postUrl);
   if (destination) {
+    // Open the scheme outright instead of asking `canOpenURL` first. The ask is
+    // what the platforms gate (iOS `LSApplicationQueriesSchemes`, Android 11+
+    // `<queries>`), and both need a native build; the open itself is not gated,
+    // and it rejects when nothing handles the scheme (iOS `success == NO`,
+    // Android `ActivityNotFoundException`). So the rejection is the probe.
     try {
-      if (await Linking.canOpenURL('instagram://app')) {
-        await Linking.openURL(destination.nativeUrl);
-        return;
-      }
+      await Linking.openURL(destination.nativeUrl);
+      return;
     } catch {
-      // The installed app rejected the deep link. The in-app browser below is
-      // the deterministic fallback rather than losing the visitor to a blank
-      // system-browser tab.
+      // Instagram is absent, or rejected the deep link. The in-app browser
+      // below is the deterministic fallback rather than losing the visitor to
+      // a blank system-browser tab.
     }
   }
   openWebView({ url: destination?.webUrl ?? action.profileUrl, title });
