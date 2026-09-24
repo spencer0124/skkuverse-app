@@ -59,7 +59,13 @@ import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventListPanel } from '@/features/eventmap/EventListPanel';
 import { ListFacetSheet } from '@/features/eventmap/ListFacetSheet';
-import { GlassIconButton, Sheet, SHEET_FLOAT_INSET, type SheetRef } from '@skkuverse/sds';
+import {
+  GlassIconButton,
+  Sheet,
+  SHEET_FLOAT_INSET,
+  SHEET_HANDOFF_CLOSE,
+  type SheetRef,
+} from '@skkuverse/sds';
 import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapOverlayLayer } from './components/MapOverlayLayer';
@@ -434,7 +440,9 @@ export function CampusScreen() {
     handoff.current = state;
     if (close) {
       waitingModal.current = modal;
-      sheetRef.current?.close();
+      // Short, because the modal waits for it: the default spring made the
+      // hand-off read as a pause between the tap and the sheet that answers it.
+      sheetRef.current?.close(SHEET_HANDOFF_CLOSE);
     }
     // `present` is optional on a SheetRef — an inline sheet has none — and
     // every modal this hands off to is a modal, so the call always lands.

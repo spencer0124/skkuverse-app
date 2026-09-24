@@ -263,7 +263,13 @@ const PlaceMarker = React.memo(function PlaceMarker({
       }}
       // The density lever for a layer that really does put every marker on
       // screen at once, which the building layers never do.
-      isHideCollidedCaptions
+      //
+      // Except for a marker whose tap runs a chip. It names an AREA — the
+      // 푸드트럭 구역, standing over 17 trucks the collision ladder removed —
+      // so its caption is the whole point of it. The SDK hid that caption on
+      // iOS with no other marker within ~60 m (checked 2026-09-24 by logging
+      // every drawn marker near it); forcing it on is what made it appear.
+      isHideCollidedCaptions={tap?.kind !== 'chip'}
       zIndex={isSelected ? SELECTED_Z : 0}
       onTap={tap ? onTap : undefined}
     />

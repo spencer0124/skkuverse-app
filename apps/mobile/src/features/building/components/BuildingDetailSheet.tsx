@@ -29,6 +29,7 @@ import {
   ListRow,
   Sheet,
   SheetCloseButton,
+  SHEET_HANDOFF_RISE,
   Txt,
   type AccordionSection,
   type SheetRef,
@@ -204,7 +205,9 @@ export const BuildingDetailSheet = forwardRef<
       surface="glass"
       bottomGap={bottomGap}
       // The campus sheet closes before this rises (`sheetHandoff.ts`), so the
-      // sheet never stacks on another.
+      // sheet never stacks on another — and rises on a short timing, since it
+      // has already waited for that close.
+      animationConfigs={SHEET_HANDOFF_RISE}
       onDismiss={onDismiss}
     >
       {/* The X is a sibling of the scroll view, pinned: inside it, it would

@@ -1,4 +1,4 @@
-export { Sheet, type SheetProps, type SheetRef } from './Sheet';
+export { Sheet, type SheetAnimationConfig, type SheetProps, type SheetRef } from './Sheet';
 export { SheetHeader, type SheetHeaderProps } from './SheetHeader';
 export { SheetCloseButton } from './SheetCloseButton';
 export { SheetHandle } from './SheetHandle';
@@ -18,3 +18,4 @@ export {
   bottomCornerRadius,
   type SheetChrome,
 } from './chrome';
+export { SHEET_HANDOFF_CLOSE, SHEET_HANDOFF_RISE } from './motion';

@@ -29,6 +29,7 @@ import {
 import {
   Sheet,
   SheetCloseButton,
+  SHEET_HANDOFF_RISE,
   Txt,
   type SheetPosition,
   type SheetRef,
@@ -107,6 +108,9 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
         // The default 'switch' MINIMIZES BuildingDetailSheet and restores it when
         // this closes, resurfacing a sheet the user never asked for.
         stackBehavior="replace"
+        // It rises only after the campus sheet has gone down, so it arrives on
+        // a short timing rather than the default spring (`SHEET_HANDOFF_RISE`).
+        animationConfigs={SHEET_HANDOFF_RISE}
         onDismiss={onDismiss}
       >
         <SheetCardClip
