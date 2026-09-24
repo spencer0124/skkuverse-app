@@ -62,13 +62,14 @@ entry. `CampusScreen` reads the same query key rather than issuing a second.
 
 | Hook | Endpoint | staleTime | On failure |
 | --- | --- | --- | --- |
-| `useLayerOverlays(endpoint, enabled)` | the layer's own `endpoint` | 10 min | throws → the query is in error and the layer draws nothing |
+| `useLayerOverlays(endpoint, enabled)` | the layer's own `endpoint` | 1 min | throws → the query is in error and the layer draws nothing |
 
 The endpoint is read off the served layers (`layers.find(isFestivalLayer)?.endpoint`), never
 hardcoded: the route is named for the mechanism rather than the festival, so next year's event
 changes the layer set and not the URL — and this build has to know neither.
 
-`Cache-Control` on that route is `public, max-age=60`. The **window arithmetic needs no refetch at
+`Cache-Control` on that route is `public, max-age=60`, and the staleTime matches it: a longer one
+would hold an ops correction on the device after the edge already serves it. The **window arithmetic needs no refetch at
 all**: opening and closing times ride in the payload and the device re-derives, which is what keeps
 the map truthful on the dead network a festival actually has (§5).
 

@@ -36,6 +36,6 @@ export function usePlaceDetails(overlayEndpoint: string | null) {
     enabled: endpoint !== null,
     // The overlays' own staleness, so a pin and the sheet it opens refresh
     // together rather than a menu outliving the place it describes.
-    staleTime: 10 * 60_000,
+    staleTime: 60_000,
   });
 }

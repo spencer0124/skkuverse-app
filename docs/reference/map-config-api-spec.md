@@ -718,7 +718,7 @@ there is none, on this endpoint or any other. It was a plan, written as though i
 | Query | staleTime | Notes |
 | --- | --- | --- |
 | `['map', 'config']` | 5 min (gc 30 min) | Never throws — falls back to `DEFAULT_MAP_CONFIG` |
-| `['map', 'layer', 'overlays', endpoint]` | 10 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
+| `['map', 'layer', 'overlays', endpoint]` | 1 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
 
 Server-side `Cache-Control` is the other half and is the server's to state:
 `/map/overlays/campus` is a day (or `no-store` on its degraded fallback), `/map/overlays/event`
