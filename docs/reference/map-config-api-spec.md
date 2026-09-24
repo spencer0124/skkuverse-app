@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-24
 audience: public
 ---
 
@@ -717,17 +717,18 @@ there is none, on this endpoint or any other. It was a plan, written as though i
 
 | Query | staleTime | Notes |
 | --- | --- | --- |
-| `['map', 'config']` | 5 min (gc 30 min) | Never throws — falls back to `DEFAULT_MAP_CONFIG` |
+| `['map', 'config']` | 5 min (gc 30 min) | Throws; the hook serves the last good config, or `DEFAULT_MAP_CONFIG` if there is none (`hooks/fallback.ts`) |
 | `['map', 'layer', 'overlays', endpoint]` | 1 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
 
-Server-side `Cache-Control` is the other half and is the server's to state:
-`/map/overlays/campus` is a day (or `no-store` on its degraded fallback), `/map/overlays/event`
-is a minute. `/map/config` carries only Express's auto-generated `ETag` and `Vary`.
+Server-side `Cache-Control` is the other half and is the server's to state: see the overlay
+controller (`src/map/controllers/map-overlays.controller.ts` in skkuverse-server). The overlay
+staleTime is set no longer than the event route's `max-age`, so a correction the edge serves
+reaches the device on the next refetch. The overlay routes are also cached at the Cloudflare
+edge; `/map/config` is not, which is why its hook must never cache a failure as a success.
 
-A silent `eventmap-refresh` push invalidates the overlay key prefix and `['map','config']`
-(`apps/mobile/src/services/silent-push.ts`), which is the only thing that shortens the overlay
-staleTime mid-festival. Its honest value is bounded by the server's own 60s TTL, and it does
-nothing in the quit state.
+Nothing invalidates these queries in the background. The silent `eventmap-refresh` push that
+once did went with the snapshot tier, and the app now ignores data-only messages
+(`apps/mobile/src/hooks/useNotificationHandler.ts`).
 
 ## i18n
 

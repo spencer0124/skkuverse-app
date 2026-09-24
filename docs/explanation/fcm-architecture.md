@@ -3,7 +3,7 @@ title: FCM Notifications Architecture
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-19
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -185,9 +185,9 @@ contract is [miniapp-notification-payload.md](../reference/miniapp-notification-
 | --- | --- | --- | --- |
 | `notice` | Banner and sound | A notice reaches its subscribed tabs | live |
 | `miniapp` | Banner and sound | A mini app announces something to its subscribers | not yet |
-| `eventmap-refresh` | **Silent** | Invalidates the cached event-map manifest on the device | not yet |
+| `eventmap-refresh` | **Silent** | Retired: the event-map snapshot it invalidated is gone, and the app ignores it | none |
 
-The device half of all three already runs in the app, which is the intended order: an app that
+The device half of both live types already runs in the app, which is the intended order: an app that
 cannot route a payload it will one day receive is the failure worth avoiding, and the reverse costs
 nothing.
 

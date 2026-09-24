@@ -34,7 +34,7 @@ version. The feed a notification is recorded in comes from the amendment in
 | `type` | Visible | Purpose |
 | --- | --- | --- |
 | `miniapp` | Banner and sound | A mini app announces something to its subscribers |
-| `eventmap-refresh` | Silent, no banner | Invalidates the cached event-map manifest on the device |
+| `eventmap-refresh` | Silent, no banner | Retired: the event-map snapshot it invalidated is gone, and the app ignores data-only messages |
 
 Both are scoped the same way, and the scoping is the security boundary rather than a
 convenience. The caller never chooses a topic. The server derives `miniapp:<miniAppId>` from the
