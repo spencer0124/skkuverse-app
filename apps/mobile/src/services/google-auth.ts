@@ -4,7 +4,6 @@ import {
   signInWithCredential,
   linkWithCredential,
   signOut,
-  signInAnonymously,
   updateProfile,
   reload,
 } from '@react-native-firebase/auth';
@@ -19,6 +18,7 @@ import { authStore } from '@skkuverse/shared';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import { unregisterDevice } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { anonymousSession } from '@/services/anon-session-instance';
 import { GOOGLE_WEB_CLIENT_ID } from '../../config/constants';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
@@ -202,13 +202,11 @@ export async function signOutFromGoogle() {
     await GoogleSignin.signOut();
     await signOut(getAuth());
 
-    try {
-      await signInAnonymously(getAuth());
-    } catch (err) {
-      console.warn('[google-auth] Anonymous re-sign-in failed', err);
-      logHandledError('notifications/signout-anon-resign-in', err);
-      // Next app launch: useAppInit retries anon sign-in at line ~121.
-    }
+    // Never rejects; a failure is logged as auth/anon-signin and retried in
+    // the background. Going through the session rather than calling
+    // signInAnonymously directly keeps a foreground retry from racing this
+    // one into a second anonymous account.
+    await anonymousSession.ensure();
   } finally {
     authStore.getState().setSigningOut(false);
   }

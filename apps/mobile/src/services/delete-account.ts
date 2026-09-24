@@ -1,7 +1,6 @@
 import { getApp } from '@react-native-firebase/app';
 import {
   getAuth,
-  signInAnonymously,
   signOut,
 } from '@react-native-firebase/auth';
 import {
@@ -11,6 +10,7 @@ import {
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { authStore, useSettingsStore } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
+import { anonymousSession } from '@/services/anon-session-instance';
 
 const REGION = 'asia-northeast3';
 
@@ -68,12 +68,9 @@ export async function deleteAccount(
       logHandledError('delete-account/firebase-signout', err);
     }
 
-    try {
-      await signInAnonymously(getAuth());
-    } catch (err) {
-      logHandledError('delete-account/anon-resignin', err);
-      // useAppInit cold-start retry path recovers on next launch.
-    }
+    // Never rejects; see signOutFromGoogle for why this goes through the
+    // session.
+    await anonymousSession.ensure();
 
     useSettingsStore.getState().resetUserScopedState();
   } finally {

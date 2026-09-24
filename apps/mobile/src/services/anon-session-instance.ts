@@ -14,6 +14,9 @@ export const anonymousSession = createAnonymousSession({
   hasUser: () => getAuth().currentUser !== null,
   signIn: () => signInAnonymously(getAuth()),
   onFirstFailure: (err) => logHandledError('auth/anon-signin', err),
+  // How long a caller waits before moving on signed out. On a cold start this
+  // is splash time; the attempt itself keeps running past it.
+  timeoutMs: 8_000,
   setTimer: (fn, ms) => setTimeout(fn, ms),
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
   random: Math.random,

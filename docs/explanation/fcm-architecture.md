@@ -229,6 +229,10 @@ The fix for a bug where switching between anonymous and Google auth left
   and `handleSignIn` in `apps/mobile/app/login.tsx` follow the same pattern:
   `unregisterDevice` **before** signing in, and `await initializeFirestoreNotifications`
   **after**. That lets the rule's claim path succeed and closes the initialisation race.
+  The unregister is skipped only on a device that provably has no document, meaning the
+  notification prompt was never answered and there is no token
+  (`signInWithDeviceMigration` in `apps/mobile/src/services/auth-flow.ts`). A null token
+  alone is not that proof, because an APNs timeout at launch stores null over a good one.
 - **Rule semantics.** A devices document is **owner-only while active, and claimable by any
   authenticated user while inactive**. The security trade-off is explained in the SECURITY
   TRADE comment in `apps/mobile/firestore.rules`, and the cases are in

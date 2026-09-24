@@ -28,8 +28,8 @@ export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
  *      can claim the doc under the new uid via Firestore rule path b
  *      ("active==false" claim). Without this the iOS anon→Google transition
  *      leaves the doc stuck under the anon uid and breaks
- *      syncPreferencesToDevices fan-out. Skipped without an fcmToken, since
- *      no device doc can exist to claim.
+ *      syncPreferencesToDevices fan-out. Skipped on a device that never
+ *      answered the notification prompt, since no doc can exist to claim.
  *
  *   B. Google sign-in (delegates to google-auth.signInWithGoogle which
  *      handles linkWithCredential vs signInWithCredential + domain check)
@@ -73,13 +73,21 @@ export async function signInWithDeviceMigration(
   await anonymousSession.pause();
   let result: FirebaseAuthTypes.UserCredential;
   try {
-    // Phase A runs only when a device doc can exist. Every writer of
-    // devices/{id} sets fcmToken (MMKV-persisted) first, so no token means no
-    // doc — the same predicate phase C uses below. On a fresh install the
-    // unregister was always a permission-denied write against a missing doc,
-    // costing a forced App Check attestation before the Google sheet opened and
-    // hanging offline, since a Firestore write settles only on server ack.
-    if (deviceId && useNotificationStore.getState().fcmToken) {
+    // Phase A runs unless this device provably has no doc. A doc is only
+    // written after the notification prompt was answered and a token fetched,
+    // so the proof is every persisted signal still at its install default.
+    // fcmToken alone is not enough: an APNs timeout at launch stores null over
+    // a good token while the doc lives on, and skipping here would leave that
+    // doc active under the anonymous uid, unclaimable by the Google one. On a
+    // fresh install the unregister was a guaranteed permission-denied write
+    // against a missing doc, costing a forced App Check attestation before the
+    // Google sheet opened and hanging offline, since a Firestore write settles
+    // only on server ack.
+    const { fcmToken, isTokenRegistered, permissionStatus } =
+      useNotificationStore.getState();
+    const mayHaveDoc =
+      fcmToken !== null || isTokenRegistered || permissionStatus !== 'notDetermined';
+    if (deviceId && mayHaveDoc) {
       try {
         await unregisterDevice(deviceId);
       } catch (err) {

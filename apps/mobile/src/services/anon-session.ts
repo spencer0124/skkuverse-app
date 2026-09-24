@@ -1,5 +1,5 @@
 /**
- * Cold-start anonymous sign-in that never blocks launch, plus the retry that
+ * Anonymous sign-in that never blocks the caller, plus the retry that
  * recovers it.
  *
  * ── Why it must not block ────────────────────────────────────────────────
@@ -17,6 +17,10 @@
  * does not count against that quota — `signInWithGoogle` takes the
  * `signInWithCredential` branch when there is no current user.
  *
+ * Every anonymous sign-in goes through here: cold start, and the re-sign-in
+ * after a Google sign-out or an account deletion. A second caller of
+ * `signInAnonymously` would race this one and could create two accounts.
+ *
  * ── The race this module exists to close ─────────────────────────────────
  *
  * `signInAnonymously` with a Google user signed in REPLACES that user with a
@@ -24,6 +28,8 @@
  * sign the student out. So every attempt re-checks `hasUser()` immediately
  * before calling, and the Google flow calls `pause()` — which also waits out an
  * attempt already in flight — before opening the sheet, then `resume()`.
+ * Pauses nest: two overlapping sign-in flows (a double tap) must both finish
+ * before retries resume.
  *
  * ── Deliberately import-free ─────────────────────────────────────────────
  *
@@ -50,6 +56,8 @@ export interface AnonymousSessionDeps {
   signIn: () => Promise<unknown>;
   /** Called once per process, on the first failed attempt. */
   onFirstFailure: (err: unknown) => void;
+  /** How long `ensure()` waits on its attempt before resolving anyway. */
+  timeoutMs: number;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
   /** Returns [0, 1). Injected for deterministic tests. */
@@ -58,17 +66,21 @@ export interface AnonymousSessionDeps {
 
 export interface AnonymousSession {
   /**
-   * Makes the first attempt and resolves once it settles or `timeoutMs`
-   * elapses, whichever comes first. Never rejects. A timed-out attempt keeps
-   * running, and schedules the retry itself if it then fails.
+   * Signs in anonymously unless someone is signed in, resolving once the
+   * attempt settles or `timeoutMs` elapses, whichever comes first. Never
+   * rejects. A timed-out attempt keeps running, and schedules the retry itself
+   * if it then fails.
    * @returns whether a user exists when it resolves.
    */
-  start: (timeoutMs: number) => Promise<boolean>;
-  /** Retry now if signed out — the app returning to the foreground. */
+  ensure: () => Promise<boolean>;
+  /**
+   * Retry now if signed out — the app returning to the foreground. A no-op
+   * until the first `ensure()`, which runs after App Check is initialized.
+   */
   onForeground: () => void;
-  /** Stop scheduling and wait out an attempt in flight. */
+  /** Stop scheduling and wait out an attempt in flight. Nests. */
   pause: () => Promise<void>;
-  /** Undo `pause()`; schedules a retry only if still signed out. */
+  /** Undo one `pause()`; the last one re-arms, and only if still signed out. */
   resume: () => void;
 }
 
@@ -81,7 +93,8 @@ export function createAnonymousSession(deps: AnonymousSessionDeps): AnonymousSes
   let inFlight: Promise<boolean> | null = null;
   let timer: unknown = null;
   let retryIndex = 0;
-  let paused = false;
+  let pauseDepth = 0;
+  let started = false;
   let reported = false;
 
   function cancelTimer() {
@@ -92,46 +105,62 @@ export function createAnonymousSession(deps: AnonymousSessionDeps): AnonymousSes
   }
 
   function schedule() {
-    if (paused || timer !== null || deps.hasUser()) return;
-    const ms = retryDelay(retryIndex, deps.random);
-    retryIndex++;
+    if (pauseDepth > 0 || timer !== null || deps.hasUser()) return;
     timer = deps.setTimer(() => {
+      // Advanced on firing, not on arming: a timer cancelled by pause() or
+      // onForeground() must not push the backoff a step further.
       timer = null;
+      retryIndex++;
       void attempt();
-    }, ms);
+    }, retryDelay(retryIndex, deps.random));
   }
 
   function attempt(): Promise<boolean> {
     if (inFlight) return inFlight;
     // The guard against replacing a Google user. Checked here, not at
     // scheduling time, because a sign-in can land while the timer waits.
-    if (paused || deps.hasUser()) return Promise.resolve(deps.hasUser());
+    if (pauseDepth > 0 || deps.hasUser()) return Promise.resolve(deps.hasUser());
 
-    const run = deps.signIn().then(
-      () => {
-        retryIndex = 0;
-        return true;
-      },
-      (err: unknown) => {
-        if (!reported) {
-          reported = true;
-          deps.onFirstFailure(err);
-        }
-        return false;
-      },
-    );
-    inFlight = run.then((ok) => {
-      inFlight = null;
-      if (!ok) schedule();
-      return ok;
-    });
+    // Promise.resolve().then(...) so a synchronous throw from signIn becomes a
+    // rejection like any other, and inFlight is always cleared. That defers
+    // the call by a microtask, so the guard is repeated at the moment of the
+    // call — a pause() issued in the same tick must still win.
+    inFlight = Promise.resolve()
+      .then(() => {
+        if (pauseDepth > 0 || deps.hasUser()) return;
+        return deps.signIn();
+      })
+      .then(
+        () => {
+          retryIndex = 0;
+          return deps.hasUser();
+        },
+        (err: unknown) => {
+          if (!reported) {
+            reported = true;
+            try {
+              deps.onFirstFailure(err);
+            } catch {
+              // Logging must never wedge the scheduler.
+            }
+          }
+          return false;
+        },
+      )
+      .then((ok) => {
+        inFlight = null;
+        if (!ok) schedule();
+        return ok;
+      });
     return inFlight;
   }
 
   return {
-    start(timeoutMs) {
+    ensure() {
+      started = true;
+      cancelTimer();
       return new Promise<boolean>((resolve) => {
-        const handle = deps.setTimer(() => resolve(deps.hasUser()), timeoutMs);
+        const handle = deps.setTimer(() => resolve(deps.hasUser()), deps.timeoutMs);
         void attempt().then((ok) => {
           deps.clearTimer(handle);
           resolve(ok);
@@ -140,19 +169,19 @@ export function createAnonymousSession(deps: AnonymousSessionDeps): AnonymousSes
     },
 
     onForeground() {
-      if (paused || inFlight || deps.hasUser()) return;
+      if (!started || pauseDepth > 0 || inFlight || deps.hasUser()) return;
       cancelTimer();
       void attempt();
     },
 
     async pause() {
-      paused = true;
+      pauseDepth++;
       cancelTimer();
       if (inFlight) await inFlight;
     },
 
     resume() {
-      paused = false;
+      pauseDepth = Math.max(0, pauseDepth - 1);
       schedule();
     },
   };

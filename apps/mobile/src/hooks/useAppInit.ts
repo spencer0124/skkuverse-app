@@ -41,11 +41,6 @@ import { onBookmarksChanged } from '@/services/firestore-bookmarks';
 import { withRetry } from '@/utils/with-retry';
 import { anonymousSession } from '@/services/anon-session-instance';
 
-// How long launch waits on the first anonymous sign-in before moving on
-// signed out. The attempt keeps running past this; only the splash stops
-// waiting for it. Below InitGate's 10s OTA budget so the two do not stack.
-const ANON_SIGNIN_TIMEOUT_MS = 8_000;
-
 // Verbose Firestore logging in dev builds so write-stream stalls become
 // visible (otherwise the SDK silently parks mutations on certain timings).
 // No-op in release builds.
@@ -152,7 +147,7 @@ export function useAppInit() {
         // per-IP sign-up quota behind a shared NAT, offline) leaves the app
         // signed out, which onAuthStateChanged already handles, and retries in
         // the background. See services/anon-session.ts.
-        await anonymousSession.start(ANON_SIGNIN_TIMEOUT_MS);
+        await anonymousSession.ensure();
 
         // 3. Force-create API client singleton (interceptors attached)
         getApiClient();

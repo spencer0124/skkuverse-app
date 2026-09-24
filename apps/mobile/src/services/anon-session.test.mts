@@ -18,7 +18,7 @@ function harness(opts: { user?: boolean } = {}) {
   let signInCalls = 0;
   // Each signIn call takes the next queued outcome; an unqueued call hangs
   // until settled by hand through `pending`.
-  const outcomes: Array<'ok' | 'fail'> = [];
+  const outcomes: Array<'ok' | 'fail' | 'throw'> = [];
   const pending: Array<{ resolve: () => void; reject: (e: unknown) => void }> = [];
 
   const session = createAnonymousSession({
@@ -31,6 +31,7 @@ function harness(opts: { user?: boolean } = {}) {
         return Promise.resolve();
       }
       if (next === 'fail') return Promise.reject(new Error('quota'));
+      if (next === 'throw') throw new Error('sync');
       return new Promise<void>((resolve, reject) => {
         pending.push({
           resolve: () => {
@@ -42,6 +43,7 @@ function harness(opts: { user?: boolean } = {}) {
       });
     },
     onFirstFailure: (err) => failures.push(err),
+    timeoutMs: 8_000,
     setTimer: (fn, ms) => {
       const t = { id: nextId++, fn, ms };
       timers.push(t);
@@ -66,7 +68,7 @@ function harness(opts: { user?: boolean } = {}) {
     setUser: (v: boolean) => {
       user = v;
     },
-    /** Fire the earliest timer. */
+    /** Fire the oldest scheduled timer. */
     fire: () => {
       const t = timers.shift();
       assert.ok(t, 'expected a scheduled timer');
@@ -80,14 +82,14 @@ const flush = () => new Promise((r) => setImmediate(r));
 describe('anonymous session', () => {
   test('existing session: never signs in, resolves true', async () => {
     const h = harness({ user: true });
-    assert.equal(await h.session.start(8_000), true);
+    assert.equal(await h.session.ensure(), true);
     assert.equal(h.signInCalls, 0);
   });
 
   test('first attempt succeeds: nothing scheduled, nothing logged', async () => {
     const h = harness();
     h.outcomes.push('ok');
-    assert.equal(await h.session.start(8_000), true);
+    assert.equal(await h.session.ensure(), true);
     await flush();
     assert.equal(h.signInCalls, 1);
     assert.equal(h.timers.length, 0, 'no retry and the start timeout cleared');
@@ -97,7 +99,7 @@ describe('anonymous session', () => {
   test('failure never rejects, schedules a retry, and the retry recovers', async () => {
     const h = harness();
     h.outcomes.push('fail', 'ok');
-    assert.equal(await h.session.start(8_000), false);
+    assert.equal(await h.session.ensure(), false);
     await flush();
     assert.equal(h.failures.length, 1);
     assert.equal(h.timers.length, 1);
@@ -112,7 +114,7 @@ describe('anonymous session', () => {
   test('logs only the first failure of the process', async () => {
     const h = harness();
     h.outcomes.push('fail', 'fail', 'fail');
-    await h.session.start(8_000);
+    await h.session.ensure();
     await flush();
     h.fire();
     await flush();
@@ -125,7 +127,7 @@ describe('anonymous session', () => {
   test('backs off through the schedule', async () => {
     const h = harness();
     h.outcomes.push('fail', 'fail', 'fail');
-    await h.session.start(8_000);
+    await h.session.ensure();
     await flush();
     const seen = [h.timers[0].ms];
     h.fire();
@@ -142,7 +144,7 @@ describe('anonymous session', () => {
   test('a retry that fires after a sign-in elsewhere does not call signIn', async () => {
     const h = harness();
     h.outcomes.push('fail');
-    await h.session.start(8_000);
+    await h.session.ensure();
     await flush();
     h.setUser(true); // Google sign-in landed while the timer waited
     h.fire();
@@ -152,7 +154,7 @@ describe('anonymous session', () => {
 
   test('pause waits out an attempt in flight and suppresses its retry', async () => {
     const h = harness();
-    const started = h.session.start(8_000);
+    const started = h.session.ensure();
     // The start timeout fires first: launch moves on, the attempt keeps going.
     const startTimeout = h.timers.shift()!;
     startTimeout.fn();
@@ -185,7 +187,7 @@ describe('anonymous session', () => {
 
   test('a timed-out first attempt schedules its own retry when it fails', async () => {
     const h = harness();
-    const started = h.session.start(8_000);
+    const started = h.session.ensure();
     h.timers.shift()!.fn();
     assert.equal(await started, false);
     assert.equal(h.timers.length, 0);
@@ -199,7 +201,7 @@ describe('anonymous session', () => {
   test('foreground retries at once, replacing the pending timer', async () => {
     const h = harness();
     h.outcomes.push('fail', 'ok');
-    await h.session.start(8_000);
+    await h.session.ensure();
     await flush();
     assert.equal(h.timers.length, 1);
 
@@ -211,13 +213,106 @@ describe('anonymous session', () => {
 
   test('foreground is a no-op while an attempt is in flight or when signed in', async () => {
     const h = harness();
-    void h.session.start(8_000);
+    void h.session.ensure();
     h.session.onForeground();
+    await flush();
     assert.equal(h.signInCalls, 1, 'single flight');
 
     const g = harness({ user: true });
     g.session.onForeground();
     assert.equal(g.signInCalls, 0);
+  });
+
+  test('pauses nest: one resume of two pauses keeps retries off', async () => {
+    const h = harness();
+    await h.session.pause();
+    await h.session.pause(); // a double-tapped sign-in
+    h.session.resume();
+    assert.equal(h.timers.length, 0, 'the first flow is still on screen');
+    h.session.onForeground();
+    assert.equal(h.signInCalls, 0);
+    h.session.resume();
+    assert.equal(h.timers.length, 1);
+  });
+
+  test('resume without a pause does not go negative', async () => {
+    const h = harness();
+    h.session.resume();
+    h.session.resume();
+    await h.session.pause();
+    assert.equal(await h.session.ensure(), false);
+    await flush();
+    assert.equal(h.signInCalls, 0, 'a single pause must still hold');
+  });
+
+  test('foreground before the first ensure is a no-op', async () => {
+    const h = harness();
+    h.session.onForeground(); // AppState 'active' during cold start, pre App Check
+    await flush();
+    assert.equal(h.signInCalls, 0);
+  });
+
+  test('a cancelled timer does not advance the backoff', async () => {
+    const h = harness();
+    h.outcomes.push('fail');
+    await h.session.ensure();
+    await flush();
+    assert.equal(h.timers[0].ms, RETRY_DELAYS_MS[0]);
+    await h.session.pause(); // cancels it
+    h.session.resume();
+    assert.equal(h.timers[0].ms, RETRY_DELAYS_MS[0], 'still the first step');
+  });
+
+  test('an attempt that succeeds during a pause schedules nothing', async () => {
+    const h = harness();
+    const started = h.session.ensure();
+    h.timers.shift()!.fn(); // launch timeout
+    await started;
+    const pausing = h.session.pause();
+    h.pending[0].resolve();
+    await pausing;
+    h.session.resume();
+    assert.equal(h.timers.length, 0);
+    assert.equal(h.failures.length, 0);
+  });
+
+  test('a synchronous throw from signIn is a failure, not an escape', async () => {
+    const h = harness();
+    h.outcomes.push('throw', 'ok');
+    assert.equal(await h.session.ensure(), false);
+    await flush();
+    assert.equal(h.failures.length, 1);
+    h.fire();
+    await flush();
+    assert.equal(h.signInCalls, 2, 'inFlight was cleared, so the retry ran');
+  });
+
+  test('ensure while paused makes no attempt', async () => {
+    const h = harness();
+    await h.session.pause();
+    assert.equal(await h.session.ensure(), false);
+    assert.equal(h.signInCalls, 0);
+  });
+
+  test('ensure after a sign-out re-signs in and replaces a pending retry', async () => {
+    const h = harness();
+    h.outcomes.push('fail', 'ok');
+    await h.session.ensure();
+    await flush();
+    assert.equal(h.timers.length, 1);
+    assert.equal(await h.session.ensure(), true);
+    await flush();
+    assert.equal(h.timers.length, 0);
+    assert.equal(h.signInCalls, 2);
+  });
+
+  test('a pause in the same tick as an attempt still prevents the call', async () => {
+    const h = harness();
+    void h.session.ensure();
+    await h.session.pause(); // before the deferred signIn runs
+    assert.equal(h.signInCalls, 0);
+    h.session.resume();
+    assert.equal(h.timers.length, 1, 'still signed out, so the retry re-arms');
   });
 });
 
