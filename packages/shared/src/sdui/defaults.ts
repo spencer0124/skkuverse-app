@@ -16,9 +16,10 @@
  * with the server only ever surfaces when nobody is looking.** Keeping this
  * empty is what makes that class of bug unrepresentable.
  *
- * The consequence to keep in mind: `useCampusSections` still never throws, so
- * a dead API and a server that legitimately has nothing to show are now
- * indistinguishable to the caller. That is the intended trade for this surface.
+ * The consequence to keep in mind: `useCampusSections` hands these to its
+ * caller when the API dies, so a dead API and a server that legitimately has
+ * nothing to show are indistinguishable by `data`. That is the intended trade
+ * for this surface.
  */
 
 import type { CampusSectionsResponse } from '../types/sdui';

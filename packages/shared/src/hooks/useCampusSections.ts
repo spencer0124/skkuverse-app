@@ -2,8 +2,9 @@
  * Campus sections query hook.
  *
  * Fetches SDUI sections from `GET /ui/home/campus` via TanStack Query.
- * On API failure, returns DEFAULT_CAMPUS_SECTIONS — queryFn never throws,
- * so `isError` is never true.
+ * On API failure with no good feed to keep, returns DEFAULT_CAMPUS_SECTIONS.
+ * The queryFn throws rather than returning them, so a failure is never cached
+ * over a good feed — see `dataOrFallback`.
  *
  * Those defaults are now empty (see `sdui/defaults.ts`), which means a caller
  * cannot tell a dead API from a server with nothing to show. That is deliberate
@@ -19,6 +20,7 @@ import { safeGet } from '../api/safe-request';
 import { ApiEndpoints } from '../api/endpoints';
 import { parseCampusResponse } from '../sdui/parser';
 import { DEFAULT_CAMPUS_SECTIONS } from '../sdui/defaults';
+import { dataOrFallback } from './fallback';
 import type { CampusSectionsResponse } from '../types/sdui';
 
 export const CAMPUS_SECTIONS_KEY = ['campus', 'sections'] as const;
@@ -48,14 +50,10 @@ export function useCampusSections({ enabled = true }: UseCampusSectionsOptions =
         return result.data;
       }
 
-      // API failure → fallback to defaults (never throw)
       if (__DEV__) {
-        console.debug(
-          '[campus] API failed, using defaults:',
-          result.failure,
-        );
+        console.debug('[campus] API failed:', result.failure);
       }
-      return DEFAULT_CAMPUS_SECTIONS;
+      throw result.failure;
     },
     staleTime: 60_000,
   });
@@ -65,6 +63,7 @@ export function useCampusSections({ enabled = true }: UseCampusSectionsOptions =
 
   return {
     ...query,
+    data: dataOrFallback(query, DEFAULT_CAMPUS_SECTIONS),
     refresh,
   };
 }
