@@ -10,7 +10,7 @@
  * on either side, which would look like a working list with no tabs.
  *
  * Captured 2026-09-24 from skkuverse-server `dev` (lists, with 일자 and 운영
- * both checklists and dates as labels) over the ESKARA 2026 sheet, with an activation open. The overlay
+ * a single-choice date and 운영 a checklist) over the ESKARA 2026 sheet, with an activation open. The overlay
  * fixture keeps the two festival layers whose lists are populated; booths have
  * no place until the council sends them.
  *
@@ -38,7 +38,7 @@ describe('the live lists, parsed whole', () => {
   it('reads each list the server authored, and none on the others', () => {
     expect(listOf('eskara26_view_bar').facets.map((f) => f.id)).toEqual(['day']);
     expect(listOf('eskara26_view_booth').facets.map((f) => [f.id, f.select])).toEqual([
-      ['day', 'optional'],
+      ['day', 'required'],
       ['org', 'optional'],
     ]);
     expect(listOf('eskara26_view_booth').sort).toEqual({ key: 'order', scopeFacetId: 'day' });
@@ -47,12 +47,14 @@ describe('the live lists, parsed whole', () => {
     expect(withList).toEqual(['eskara26_view_bar', 'eskara26_view_booth', 'eskara26_view_food']);
   });
 
-  it('opens every list on 전체: both checklists fully checked', () => {
-    expect(defaultFacetSelection(listOf('eskara26_view_booth'))).toEqual({
-      day: ['day1', 'day2'],
+  it('opens a booth list on today\'s day and on 운영 전체', () => {
+    const booth = listOf('eskara26_view_booth');
+    expect(defaultFacetSelection(booth, Date.parse('2026-09-24T12:00:00+09:00'))).toEqual({
+      day: ['day1'],
       org: ['council', 'club'],
     });
-    expect(listOf('eskara26_view_bar').facets[0]!.options.map((o) => o.label)).toEqual(['10/1(목)', '10/2(금)']);
+    expect(defaultFacetSelection(booth, Date.parse('2026-10-02T19:00:00+09:00')).day).toEqual(['day2']);
+    expect(booth.facets[0]!.options.map((o) => o.label)).toEqual(['10/1(목)', '10/2(금)']);
   });
 });
 

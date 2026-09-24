@@ -104,7 +104,8 @@ export function EventListPanel({
                 .filter((o) => held.includes(o.id))
                 .map((o) => o.label)
                 .join(', ');
-          // Green only for a choice the user made — never for 전체 or a default.
+          // Green whenever the list is narrowed — anything but 전체. A single
+          // choice (일자) has no 전체, so it is always green.
           const engaged = isFacetNarrowed(facet, held);
           return (
             <Pressable

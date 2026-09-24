@@ -1026,7 +1026,9 @@ export function CampusScreen() {
    *
    * The pick is tied to the store's chip OBJECT, not its id: every narrowing
    * writes a fresh one, so tapping 주점 again — or coming back to it later —
-   * opens on 전체 rather than wherever the last visit left it.
+   * opens on its default (전체, and today's 일자) rather than wherever the last
+   * visit left it. Until the user picks, the default is re-read on the clock,
+   * so a list left open across the 06:00 cut-over moves to the new day.
    */
   const narrowedList = narrowedChip?.list ?? null;
   const [facetPick, setFacetPick] = useState<{
@@ -1036,8 +1038,8 @@ export function CampusScreen() {
   const facetSelection = useMemo<FacetSelection>(() => {
     if (!narrowedList) return {};
     if (facetPick && facetPick.chip === activeChip) return facetPick.selection;
-    return defaultFacetSelection(narrowedList);
-  }, [narrowedList, facetPick, activeChip]);
+    return defaultFacetSelection(narrowedList, now);
+  }, [narrowedList, facetPick, activeChip, now]);
   const handleSelectFacet = useCallback(
     (facetId: string, held: readonly string[]) => {
       setFacetPick({ chip: activeChip, selection: { ...facetSelection, [facetId]: held } });

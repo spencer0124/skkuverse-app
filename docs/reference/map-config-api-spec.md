@@ -482,14 +482,16 @@ interface MapChipList {
 }
 ```
 
-- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 전체`,
-  `운영: 총학생회`. A chip turns green only when the user has made a choice, never for 전체 or a
-  default. Tapping it opens the option sheet.
-- **`optional`** (일자, 운영 in ESKARA 2026): a checklist headed by 전체. It opens on 전체, which is
-  no filter. Tapping an option under 전체 picks that option alone. Unchecking the last option falls
-  back to 전체, and checking every option collapses into 전체, so "nothing selected" cannot exist.
-  **`required`**: a single choice, opening on its first option.
-- **No time-dependent default.** A list opens the same way before and during the festival.
+- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 10/1(목)`,
+  `운영: 전체`. A chip is green whenever it narrows the list, which means anything but 전체. A
+  single choice has no 전체, so 일자 is always green. Tapping a chip opens the option sheet.
+- **`required`** (일자): a single choice with no 전체. It opens on the day that is on now, otherwise
+  the nearest one to come, otherwise the last, and flips at the next day's 06:00 cut-over. Picking
+  closes the sheet. 일자 is single because a plot holds a different pub each night, so two days at
+  once would stack two places on one pin.
+- **`optional`** (운영): a checklist headed by 전체, which it opens on. Tapping an option under
+  전체 picks that option alone. Unchecking the last option falls back to 전체, and checking every
+  option collapses into 전체, so "nothing selected" cannot exist.
 - **Filter:** keep an overlay when, for every facet not on 전체, `overlay.facets[facet.id]` shares an
   option with what is checked.
 - **Sort,** then by `id`. `order` with a scope sorts by the first checked option of that facet the

@@ -180,16 +180,23 @@ describe("a chip's list — the server decides, the app matches ids", () => {
   };
 
   describe('defaultFacetSelection', () => {
-    it('opens a checklist on every option — 전체 — whatever the date', () => {
-      const bothMulti: MapChipList = {
-        ...LIST,
-        facets: LIST.facets.map((f) => ({ ...f, select: 'optional' as const })),
-      };
-      expect(defaultFacetSelection(bothMulti)).toEqual({ day: ['day1', 'day2'], org: ['council', 'club'] });
+    const at = (iso: string) => Date.parse(iso);
+
+    it('opens 운영 on 전체 and 일자 on the day that is on now', () => {
+      expect(defaultFacetSelection(LIST, at('2026-10-02T19:00:00+09:00'))).toEqual({
+        day: ['day2'],
+        org: ['council', 'club'],
+      });
     });
 
-    it('opens a single choice on its first option', () => {
-      expect(defaultFacetSelection(LIST)).toEqual({ day: ['day1'], org: ['council', 'club'] });
+    it('opens on the nearest day to come before the festival, and on the last one after it', () => {
+      expect(defaultFacetSelection(LIST, at('2026-09-24T12:00:00+09:00')).day).toEqual(['day1']);
+      expect(defaultFacetSelection(LIST, at('2026-10-05T12:00:00+09:00')).day).toEqual(['day2']);
+    });
+
+    it('flips to the next day at its cut-over, not at midnight', () => {
+      expect(defaultFacetSelection(LIST, at('2026-10-02T05:59:00+09:00')).day).toEqual(['day1']);
+      expect(defaultFacetSelection(LIST, at('2026-10-02T06:00:00+09:00')).day).toEqual(['day2']);
     });
   });
 
@@ -300,11 +307,11 @@ describe('toggleChecklist — no tap is refused, and nothing-selected cannot exi
     expect(toggleChecklist(DAY, ['day1'], null)).toEqual(ALL);
   });
 
-  it('counts only a real choice as narrowed', () => {
+  it('counts anything but 전체 as narrowed', () => {
     expect(isFacetNarrowed(DAY, ALL)).toBe(false);
     expect(isFacetNarrowed(DAY, ['day1'])).toBe(true);
+    // A single choice has no 전체, so it always narrows.
     const single = { ...DAY, select: 'required' as const };
-    expect(isFacetNarrowed(single, ['day1'])).toBe(false);
-    expect(isFacetNarrowed(single, ['day2'])).toBe(true);
+    expect(isFacetNarrowed(single, ['day1'])).toBe(true);
   });
 });

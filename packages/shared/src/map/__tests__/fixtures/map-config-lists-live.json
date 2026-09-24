@@ -314,7 +314,7 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "optional",
+              "select": "required",
               "options": [
                 {
                   "id": "day1",
@@ -368,7 +368,7 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "optional",
+              "select": "required",
               "options": [
                 {
                   "id": "day1",
@@ -439,7 +439,7 @@
             {
               "id": "day",
               "label": "일자",
-              "select": "optional",
+              "select": "required",
               "options": [
                 {
                   "id": "day1",

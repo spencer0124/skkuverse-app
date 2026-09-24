@@ -96,20 +96,32 @@ export function sortPlaces(markers: readonly MapOverlay[]): MapOverlay[] {
 export type FacetSelection = Readonly<Record<string, readonly string[]>>;
 
 /**
- * Where a list opens: always the whole list. A checklist (`optional`) opens
- * with every option checked, which is 전체; a single choice (`required`) on
- * its first option.
+ * Where a list opens.
  *
- * Deliberately not "today": a default that moves with the clock makes the same
- * tap show different rows on different days, and the user asked for 전체.
+ *  - A checklist (`optional`, 운영) on 전체: every option checked.
+ *  - A single choice (`required`, 일자) on the option that is on NOW, else the
+ *    nearest one still to come, else the last. So before the festival it is
+ *    the first day, it flips at the second day's cut-over, and after the
+ *    festival it stays on the last day. A facet with no windows opens on its
+ *    first option.
  */
-export function defaultFacetSelection(list: MapChipList): FacetSelection {
+export function defaultFacetSelection(list: MapChipList, now: number): FacetSelection {
   const out: Record<string, readonly string[]> = {};
   for (const facet of list.facets) {
-    out[facet.id] =
-      facet.select === 'optional'
-        ? facet.options.map((o) => o.id)
-        : facet.options.slice(0, 1).map((o) => o.id);
+    if (facet.select === 'optional') {
+      out[facet.id] = facet.options.map((o) => o.id);
+      continue;
+    }
+    const timed = facet.options.flatMap((option) =>
+      option.window
+        ? [{ id: option.id, start: Date.parse(option.window.startAt), end: Date.parse(option.window.endAt) }]
+        : [],
+    );
+    const current = timed.find((o) => now >= o.start && now < o.end);
+    const next = [...timed].filter((o) => o.start > now).sort((a, b) => a.start - b.start)[0];
+    const last = [...timed].sort((a, b) => b.end - a.end)[0];
+    const pick = (current ?? next ?? last)?.id ?? facet.options[0]?.id;
+    out[facet.id] = pick ? [pick] : [];
   }
   return out;
 }
@@ -143,13 +155,11 @@ export function toggleChecklist(
 }
 
 /**
- * Whether a facet holds something other than where it opens — a choice the
- * user made, which the filter row shows as engaged.
+ * Whether a facet is narrowing the list — anything but 전체 — which the filter
+ * row shows as engaged. A single choice has no 전체, so it always is.
  */
 export function isFacetNarrowed(facet: MapChipList['facets'][number], held: readonly string[]): boolean {
-  return facet.select === 'optional'
-    ? !isWholeFacet(facet, held)
-    : held[0] !== undefined && held[0] !== facet.options[0]?.id;
+  return facet.select === 'required' || !isWholeFacet(facet, held);
 }
 
 /**
