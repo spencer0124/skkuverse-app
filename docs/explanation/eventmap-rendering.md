@@ -171,6 +171,11 @@ here decides which day a place is on. The app used to infer that from the dates 
 one stray date renumbered every place. See
 [map-config-api-spec.md § Chip lists](../reference/map-config-api-spec.md#chip-lists).
 
+The map follows the same selection. A place the filters take out is hidden from its layer
+**before** the pin collision ladder runs, because pub plots hold a different pub each night. If the
+hidden night's pub stayed in the ladder, it would still win the shared plot and leave the visible
+night's pub undrawn.
+
 While a chip's layers hold any place, the list stays mounted even when a tab has no rows. The tab
 shows an empty line rather than the sheet falling back to the feed, which would take the tabs with
 it.

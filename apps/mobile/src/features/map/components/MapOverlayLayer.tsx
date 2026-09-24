@@ -299,6 +299,16 @@ interface MapOverlayLayerProps {
    */
   selectedPlaceId: string | null;
   onMarkerTap: (tap: MarkerTap) => void;
+  /**
+   * Places the narrowed chip's list filters have taken out — a 2일차 pub while
+   * 1일차 is selected — so the map shows what the list lists.
+   *
+   * Removed BEFORE the collision ladder, not after. Pub plots hold a different
+   * pub each night, so a hidden night's pub left in the ladder would still win
+   * the shared coordinate and leave the visible night's pub undrawn. Event
+   * place ids are layer-set prefixed, so they never meet a building id.
+   */
+  hiddenIds?: ReadonlySet<string>;
 }
 
 export function MapOverlayLayer({
@@ -306,11 +316,18 @@ export function MapOverlayLayer({
   collisionPeers,
   selectedPlaceId,
   onMarkerTap,
+  hiddenIds,
 }: MapOverlayLayerProps) {
   const { data: overlays } = useLayerOverlays(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  const all = useMemo(() => overlays ?? [], [overlays]);
+  const all = useMemo(
+    () =>
+      hiddenIds && hiddenIds.size > 0
+        ? (overlays ?? []).filter((o) => !hiddenIds.has(o.id))
+        : (overlays ?? []),
+    [overlays, hiddenIds],
+  );
 
   // A booth changes state on the device's clock rather than on a refetch: the
   // payload is identical either side of a boundary, so this hook owns the timer

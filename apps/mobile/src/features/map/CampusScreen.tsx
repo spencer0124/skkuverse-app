@@ -189,6 +189,9 @@ const LOCATE_ANCHOR_SNAP_INDEX = 1;
  */
 const EVENT_LIST_SNAP_INDEX = 1;
 
+/** One shared empty set, so an unfiltered map keeps a stable prop. */
+const NO_IDS: ReadonlySet<string> = new Set();
+
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<NaverMapViewRef>(null);
@@ -1057,6 +1060,17 @@ export function CampusScreen() {
   );
 
   /**
+   * The places the list filters took out, hidden from the map as well, so the
+   * pins and the rows describe the same view: 주점 on 2일차 shows 2일차's pubs
+   * on both. Empty while nothing is narrowed or the chip has no list.
+   */
+  const filteredOutIds = useMemo<ReadonlySet<string>>(() => {
+    if (!narrowedList) return NO_IDS;
+    const kept = new Set(filterByFacets(layerPlaces, narrowedList, facetSelection));
+    return new Set(layerPlaces.filter((p) => !kept.has(p)).map((p) => p.id));
+  }, [layerPlaces, narrowedList, facetSelection]);
+
+  /**
    * What the campus sheet shows: the event list while a chip has narrowed the
    * map, the server's campus feed otherwise.
    *
@@ -1411,6 +1425,7 @@ export function CampusScreen() {
                   collisionPeers={collisionPeers}
                   selectedPlaceId={selectedPlaceId}
                   onMarkerTap={handleMarkerTap}
+                  hiddenIds={filteredOutIds}
                 />
               );
             })}
