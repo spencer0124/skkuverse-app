@@ -124,7 +124,6 @@ export type {
   DaySchedule,
   ScheduleEntry,
   ScheduleNotice,
-  CampusEta,
 } from './types/bus';
 export { hexToColor, isBusGroupVisible } from './types/bus';
 
@@ -217,7 +216,6 @@ export {
   parseBusGroup,
   parseRealtimeData,
   parseSmartSchedule,
-  parseCampusEta,
 } from './bus';
 
 // ── Map parsers + defaults ──
@@ -353,8 +351,6 @@ export {
   REALTIME_DATA_KEY,
   useSmartSchedule,
   SMART_SCHEDULE_KEY,
-  useCampusEta,
-  CAMPUS_ETA_KEY,
   useMainNotice,
   MAIN_NOTICE_KEY,
   type NoticePlacement,

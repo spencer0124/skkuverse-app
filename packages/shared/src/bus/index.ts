@@ -3,5 +3,4 @@ export {
   parseBusGroup,
   parseRealtimeData,
   parseSmartSchedule,
-  parseCampusEta,
 } from './parser';

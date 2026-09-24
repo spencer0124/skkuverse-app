@@ -36,7 +36,6 @@ export type {
   DaySchedule,
   ScheduleEntry,
   ScheduleNotice,
-  CampusEta,
 } from './bus';
 export { hexToColor, isBusGroupVisible } from './bus';
 

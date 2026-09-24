@@ -95,7 +95,6 @@ export interface RouteBadge {
 }
 
 export interface HeroCard {
-  etaEndpoint: string;
   showUntilMinutesBefore: number;
 }
 
@@ -192,15 +191,6 @@ export interface SmartSchedule {
   days: DaySchedule[];
   resumeDate?: string;
   message?: string;
-}
-
-// ── Campus ETA ──
-
-export interface CampusEta {
-  /** Duration in milliseconds, null if unavailable */
-  inja: number | null;
-  /** Duration in milliseconds, null if unavailable */
-  jain: number | null;
 }
 
 // ── Utility functions ──

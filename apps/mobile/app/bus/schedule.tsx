@@ -6,8 +6,7 @@
  * 2. useState for selectedServiceIndex (default from config.screen.defaultServiceId)
  * 3. useSmartSchedule(currentService.endpoint) → SmartSchedule
  * 4. groupDaysByWeek(schedule.days) → WeekGroup[] for week navigation
- * 5. useCampusEta(!!config.screen.heroCard) → CampusEta (conditional)
- * 6. useMinuteTicker() — re-render every minute for live ETA
+ * 5. useMinuteTicker() — re-render every minute for live ETA
  *
  * Design source: shuttle-v3.html
  */
@@ -21,7 +20,6 @@ import NativeSegmentedControl from '@react-native-segmented-control/segmented-co
 import {
   useBusConfig,
   useSmartSchedule,
-  useCampusEta,
   useEngagementStore,
   useT,
   SdsColors,
@@ -111,9 +109,6 @@ export default function ScheduleScreen() {
 
   // Smart schedule data
   const { data: schedule, isError: scheduleError, refetch: refetchSchedule } = useSmartSchedule(currentService?.endpoint);
-
-  // Campus ETA (conditional — only if heroCard exists)
-  useCampusEta(!!screenConfig?.heroCard);
 
   // Minute ticker for live ETA updates
   const tick = useMinuteTicker();
