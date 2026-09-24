@@ -123,6 +123,17 @@ describe('selectVisibleOverlays', () => {
     ]);
   });
 
+  it('skips an overlay whose tap runs a chip: it is a way into a list, not a row in it', () => {
+    const withZone = [
+      ...markers,
+      place({ id: 'food-zone', layerId: 'eskara26_booth', tap: { kind: 'chip', chipId: 'view' } }),
+    ];
+    expect(ids(selectVisibleOverlays({ markers: withZone, layers, state: state(), now: NOW }))).toEqual([
+      'b1',
+      'r1',
+    ]);
+  });
+
   it('preserves input order, so a sort applied upstream survives', () => {
     expect(ids(selectVisibleOverlays({ markers, layers, state: state(), now: NOW }))).toEqual([
       'b1',

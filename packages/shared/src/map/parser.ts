@@ -80,7 +80,7 @@ const MARKER_SHAPES = ['pin', 'dot', 'dotThenPin'] as const;
  * The tap kinds this build knows how to route. A kind outside the set leaves the
  * marker drawn but inert — see parseMarkerTap.
  */
-const TAP_KINDS = ['skku_building', 'event'] as const;
+const TAP_KINDS = ['skku_building', 'event', 'chip'] as const;
 /**
  * The chip actions this build can dispatch. A kind outside the set drops the
  * whole chip — see parseChip.
@@ -524,6 +524,13 @@ function parseMarkerTap(raw: unknown): MarkerTap | null {
   const t = raw as Record<string, unknown>;
   const kind = asMember(t.kind, TAP_KINDS);
   if (!kind) return null;
+  if (kind === 'chip') {
+    // Runs a chip rather than opening a place. Which chip is checked where the
+    // tap lands, against the chips this build actually holds.
+    const chipId = t.chipId;
+    if (typeof chipId !== 'string' || chipId === '') return null;
+    return { kind, chipId };
+  }
   const placeId = t.placeId;
   if (typeof placeId !== 'string' || placeId === '') return null;
   return { kind, placeId };

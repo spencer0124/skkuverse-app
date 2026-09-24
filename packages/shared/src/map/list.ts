@@ -52,6 +52,9 @@ export interface VisibleOverlaysInput {
  * An inert overlay (`tap: null`) is not listed either. A row is a way to a
  * place, and a background zone or a label-only overlay has nowhere to go —
  * listing it would open an all-but-empty sheet.
+ *
+ * Nor is an overlay whose tap runs a chip. It is a way INTO a list — the
+ * 푸드트럭 구역 opens the trucks' — not a place in one.
  */
 export function selectVisibleOverlays({
   markers,
@@ -64,7 +67,9 @@ export function selectVisibleOverlays({
     if (isLayerVisible(layer, state, now)) visible.add(layer.id);
   }
   if (visible.size === 0) return [];
-  return markers.filter((m) => m.tap !== null && visible.has(m.layerId));
+  return markers.filter(
+    (m) => m.tap !== null && m.tap.kind !== 'chip' && visible.has(m.layerId),
+  );
 }
 
 /**

@@ -1303,9 +1303,17 @@ export function CampusScreen() {
           handleSelectPlace(tap.placeId);
           return;
         }
+        // A shape that stands for a list — the 푸드트럭 구역 — runs its chip,
+        // exactly as the chip row would. A chip this build was not served opens
+        // nothing, the same as a place id that resolves to no marker.
+        case 'chip': {
+          const chip = mapConfig?.chips.find((c) => c.id === tap.chipId);
+          if (chip) handleChipPress(chip);
+          return;
+        }
       }
     },
-    [placesById, handleSelectPlace, presentOverSheet],
+    [placesById, handleSelectPlace, presentOverSheet, mapConfig, handleChipPress],
   );
 
   // A list row is the same way into a pin that the pin itself is, plus the
@@ -1318,9 +1326,9 @@ export function CampusScreen() {
     (place: MapOverlay) => {
       moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
       // Every listed place is an event marker, so `tap` is non-null and carries
-      // the place's own id. Falling back to `id` keeps this total anyway: the two
-      // are the same string for an event marker.
-      handleSelectPlace(place.tap?.placeId ?? place.id);
+      // the place's own id (a chip tap is never listed). Falling back to `id`
+      // keeps this total anyway: the two are the same string for an event marker.
+      handleSelectPlace(place.tap && place.tap.kind !== 'chip' ? place.tap.placeId : place.id);
     },
     [moveTo, cameraDefaults, handleSelectPlace],
   );

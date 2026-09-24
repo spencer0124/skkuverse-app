@@ -196,7 +196,8 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
  * falls back to `place.id`, and the one `resolvePinCollisions` matches on.
  */
 function placeIdOf(marker: MarkerOverlay): string {
-  return marker.tap?.placeId ?? marker.id;
+  // A chip tap addresses no place, so its marker is selected by its own id.
+  return marker.tap && marker.tap.kind !== 'chip' ? marker.tap.placeId : marker.id;
 }
 
 /**

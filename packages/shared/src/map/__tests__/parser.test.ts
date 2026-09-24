@@ -355,6 +355,17 @@ describe('parseOverlayData — tap and window', () => {
     expect(out[0]?.tap).toBeNull();
   });
 
+  it('reads a chip tap, which runs a chip instead of opening a place', () => {
+    // The 푸드트럭 구역: a shape standing for a list rather than one place.
+    const out = parseOne({ tap: { kind: 'chip', chipId: 'eskara26_view_food' } });
+    expect(out[0]?.tap).toEqual({ kind: 'chip', chipId: 'eskara26_view_food' });
+  });
+
+  it('makes a chip tap with no chip id inert rather than guessing', () => {
+    expect(parseOne({ tap: { kind: 'chip', chipId: '' } })[0]?.tap).toBeNull();
+    expect(parseOne({ tap: { kind: 'chip', placeId: 'x' } })[0]?.tap).toBeNull();
+  });
+
   it('accepts tap: null, which is how a backdrop is drawn', () => {
     // A 통제 구간 outline and the degraded building fallback both ship this. The
     // renderer must read it as "draw, do not wire onTap".

@@ -404,10 +404,16 @@ export interface MapConfig {
  *
  * This replaced a bare `skkuId?: number`, which could only ever address a
  * building.
+ *
+ * `chip` addresses no place: the tap runs that chip exactly as the chip row
+ * would — its layers, camera and list. It is for a shape that stands for a
+ * whole list, like the festival's 푸드트럭 구역, whose trucks have no spots of
+ * their own. It is never a list row, and it opens no sheet.
  */
 export type MarkerTap =
   | { kind: 'skku_building'; placeId: string }
-  | { kind: 'event'; placeId: string };
+  | { kind: 'event'; placeId: string }
+  | { kind: 'chip'; chipId: string };
 
 /**
  * Every language the server holds, not the one matching `Accept-Language`.
