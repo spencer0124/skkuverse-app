@@ -18,16 +18,14 @@
 
 import React from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { bottomCornerRadius, sheetChromeAt } from '@skkuverse/sds';
+import { bottomCornerRadius, sheetChromeAt, useSheetMotion } from '@skkuverse/sds';
 
 /** `SheetHandle`'s height (`packages/sds/src/components/sheet/SheetHandle.tsx`). */
 export const SHEET_HANDLE_HEIGHT = 22;
 
 interface SheetCardClipProps {
-  animatedIndex: SharedValue<number>;
-  animatedPosition: SharedValue<number>;
   /** The sheet's `snapPoints.length - 1`. */
   lastIndex: number;
   /** The floating card's bottom gap — the `bottomGap` handed to `Sheet`. */
@@ -36,8 +34,6 @@ interface SheetCardClipProps {
 }
 
 export function SheetCardClip({
-  animatedIndex,
-  animatedPosition,
   lastIndex,
   bottomGap,
   children,
@@ -47,6 +43,9 @@ export function SheetCardClip({
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const bodyHeight = Math.max(windowHeight - insets.top - SHEET_HANDLE_HEIGHT, 0);
+  // gorhom's own values, so the cut sees the same frame as the body's translate
+  // and the glass edge it follows. See `useSheetMotion`.
+  const { animatedIndex, animatedPosition } = useSheetMotion();
 
   const clip = useAnimatedStyle(() => {
     const { progress, radius } = sheetChromeAt(animatedIndex.get(), lastIndex);

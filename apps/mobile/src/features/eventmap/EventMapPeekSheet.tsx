@@ -17,7 +17,6 @@
 
 import React, { forwardRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
 import {
   pickI18nText,
   SdsColors,
@@ -89,11 +88,6 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
     const { t } = useT();
     const lang = useSettingsStore((s) => s.appLanguage);
 
-    // Owned here rather than inside `Sheet`, so the clip below reads the same
-    // position the card's background is drawn from.
-    const animatedIndex = useSharedValue(-1);
-    const animatedPosition = useSharedValue(0);
-
     // Room under the last row once the sheet attaches and runs to the screen's
     // bottom edge. `bottomGap` already clears the home indicator in both
     // callers; the band below the floating card is `SheetCardClip`'s job.
@@ -115,16 +109,12 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
         // gorhom's cheaper `detached` card instead.
         surface="glass"
         bottomGap={bottomGap}
-        animatedIndex={animatedIndex}
-        animatedPosition={animatedPosition}
         // The default 'switch' MINIMIZES BuildingDetailSheet and restores it when
         // this closes, resurfacing a sheet the user never asked for.
         stackBehavior="replace"
         onDismiss={onDismiss}
       >
         <SheetCardClip
-          animatedIndex={animatedIndex}
-          animatedPosition={animatedPosition}
           lastIndex={DETENTS.length - 1}
           bottomGap={bottomGap}
         >

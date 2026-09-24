@@ -3,7 +3,7 @@ title: The bottom sheet system
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-23
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -334,6 +334,25 @@ its own `height` and `paddingBottom` off `animatedPosition` on every frame of
 every drag, in production, today. If it ever does become a problem, the escape
 is to freeze the geometry below the middle detent, where it is nearly constant
 anyway, so only the final segment commits layout.
+
+### Read gorhom's position, not the copy
+
+The card's top edge is the body's `translateY`, which gorhom drives from its own
+internal `animatedPosition`. The bottom edge is a height computed from a
+position. The two edges only agree when both read the **same** shared value.
+
+The `animatedPosition` and `animatedIndex` a caller hands to `Sheet` are copies.
+Gorhom fills them in a `useAnimatedReaction`, and Reanimated does not order a
+style that reads a copy after the reaction that writes it. On any frame where the
+style runs first, the height uses the previous frame's position while the
+translate uses this one's, so the bottom edge overshoots by the finger's
+movement in one frame. On a drag that reads as the bottom edge shaking.
+
+So everything below the sheet that tracks the card's edges — the background and
+`SheetCardClip` — reads `useSheetMotion()`, which returns gorhom's internal
+values through `useBottomSheetInternal()`. The copies are for things outside the
+sheet, where the provider does not resolve: the locate button, and the body's
+own side inset, whose few points hide a frame of lag.
 
 ## Matching the tab bar, and not matching it
 

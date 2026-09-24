@@ -64,13 +64,13 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
 } from 'react-native-reanimated';
-import type { SharedValue } from 'react-native-reanimated';
 import { GlassView } from 'expo-glass-effect';
 import { SdsColors } from '@skkuverse/shared';
 import { useBottomSheetInternal } from '@gorhom/bottom-sheet';
 import { GLASS_AVAILABLE, glassFloatShadow } from '../glass';
 import { bottomCornerRadius, sheetChromeAt, SHEET_FLOAT_INSET } from './chrome';
 import { AttachedSheetBackground, SHEET_BACKGROUND_A11Y } from './AttachedSheetBackground';
+import { useSheetMotion } from './useSheetMotion';
 
 /** Needed so the radii reach the native `cornerConfiguration` every frame. */
 const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
@@ -96,8 +96,6 @@ interface ExpandableSheetBackgroundProps {
   style?: StyleProp<ViewStyle>;
   /** Supplied by gorhom. */
   pointerEvents?: ViewProps['pointerEvents'];
-  animatedIndex: SharedValue<number>;
-  animatedPosition: SharedValue<number>;
   /** `snapPoints.length - 1`. */
   lastIndex: number;
   /**
@@ -117,12 +115,14 @@ interface ExpandableSheetBackgroundProps {
 export function ExpandableSheetBackground({
   style,
   pointerEvents,
-  animatedIndex,
-  animatedPosition,
   lastIndex,
   floatBottomGap = SHEET_FLOAT_INSET,
 }: ExpandableSheetBackgroundProps) {
   const { animatedLayoutState } = useBottomSheetInternal();
+  // gorhom's own values, not the copies `Sheet` was handed: the bottom edge is
+  // a height computed from the position, and it has to see the same frame the
+  // body's translate does or it shakes. See `useSheetMotion`.
+  const { animatedIndex, animatedPosition } = useSheetMotion();
   const [measured, setMeasured] = useState(false);
 
   // Gorhom reports a container height of 0 for the frames before its first

@@ -2,6 +2,7 @@ export { Sheet, type SheetProps, type SheetRef } from './Sheet';
 export { SheetHeader, type SheetHeaderProps } from './SheetHeader';
 export { SheetCloseButton } from './SheetCloseButton';
 export { SheetHandle } from './SheetHandle';
+export { useSheetMotion, type SheetMotion } from './useSheetMotion';
 export {
   type SheetDetent,
   type SheetPosition,

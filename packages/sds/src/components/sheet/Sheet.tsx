@@ -172,9 +172,12 @@ export interface SheetProps {
    * opened from somewhere that has no state to spare, which is most of them.
    */
   open?: boolean;
-  /** Written by gorhom. Supply one to drive something outside the sheet. */
+  /**
+   * Written by gorhom. Supply one to drive something OUTSIDE the sheet — it is
+   * a copy that can trail the body by a frame. Inside, use `useSheetMotion`.
+   */
   animatedIndex?: SharedValue<number>;
-  /** Written by gorhom. Supply one to drive something outside the sheet. */
+  /** As `animatedIndex`: for outside the sheet only. */
   animatedPosition?: SharedValue<number>;
   onChange?: (index: number) => void;
   onClose?: () => void;
@@ -250,8 +253,9 @@ function SheetRoot(
   }, [open]);
 
   // gorhom writes into whichever shared values it is handed. Owning a pair when
-  // the caller supplies none keeps the background and the card's inset reading
-  // the same source either way.
+  // the caller supplies none gives the card's inset below a source either way.
+  // These are copies that can trail the body by a frame, which the inset's few
+  // points hide; anything tracking the card's edges uses `useSheetMotion`.
   const ownIndex = useSharedValue(-1);
   const ownPosition = useSharedValue(0);
   const index = animatedIndex ?? ownIndex;
@@ -289,8 +293,6 @@ function SheetRoot(
           <ExpandableSheetBackground
             style={bgStyle}
             pointerEvents={pointerEvents}
-            animatedIndex={index}
-            animatedPosition={sheetTop}
             lastIndex={resolved.lastIndex}
             floatBottomGap={bottomGap}
           />
@@ -307,7 +309,7 @@ function SheetRoot(
       }
       return <AttachedSheetBackground style={bgStyle} pointerEvents={pointerEvents} />;
     },
-    [travels, floatsStatically, index, sheetTop, resolved.lastIndex, bottomGap],
+    [travels, floatsStatically, resolved.lastIndex, bottomGap],
   );
 
   const renderBackdrop = useCallback(
