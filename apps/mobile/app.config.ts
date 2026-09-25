@@ -102,7 +102,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "스꾸버스",
   slug: "skkubus",
   owner: "seungyongcho",
-  version: "3.6.1",
+  version: "3.6.2",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: "skkuverse",
