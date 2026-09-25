@@ -4,6 +4,7 @@ import {
   parseMiniAppDetail,
   MINIAPP_REGISTRY_VERSION,
 } from '../schema';
+import { DEFAULT_SHELL } from '@skkuverse/miniapp/protocol';
 
 /**
  * The registry moved server-side, so there is no bundled JSON left to assert
@@ -271,31 +272,50 @@ describe('parseMiniAppDetail', () => {
     }
   });
 
-  it('omits `shell` entirely when the server sends none', () => {
-    expect(parseMiniAppDetail(validDetail)).not.toHaveProperty('shell');
-  });
+  describe('shell', () => {
+    const shellOf = (shell: unknown) =>
+      parseMiniAppDetail({ ...validDetail, shell })?.shell;
 
-  it('keeps a recognized `bar` value', () => {
-    for (const bar of ['top', 'bottom', 'hide'] as const) {
-      expect(
-        parseMiniAppDetail({ ...validDetail, shell: { bar } })?.shell,
-      ).toEqual({ bar });
-    }
-  });
-
-  it('drops an unrecognized `bar` value rather than coercing it', () => {
-    // Absent means "bottom" — a bad value must not silently hide chrome.
-    for (const shell of [{ bar: 'left' }, { bar: true }, { bottomBar: false }]) {
-      const parsed = parseMiniAppDetail({ ...validDetail, shell });
-      expect(parsed).not.toHaveProperty('shell');
-    }
-  });
-
-  it('drops unknown shell keys, keeping `bar`', () => {
-    const parsed = parseMiniAppDetail({
-      ...validDetail,
-      shell: { bar: 'top', extra: 1 },
+    it('is the protocol default when the server sends none', () => {
+      // An opt-out surface: a server that never mentions `shell` keeps every
+      // mini-app on the default bottom bar and opaque header.
+      expect(parseMiniAppDetail(validDetail)?.shell).toEqual(DEFAULT_SHELL);
     });
-    expect(parsed?.shell).toEqual({ bar: 'top' });
+
+    it('keeps a complete, valid shell as sent', () => {
+      const shell = { bar: 'top', header: 'overlay', statusBar: 'light', background: '#101820' };
+      expect(shellOf(shell)).toEqual(shell);
+    });
+
+    it('fills the fields a partial shell leaves out from the default', () => {
+      expect(shellOf({ bar: 'top' })).toEqual({ ...DEFAULT_SHELL, bar: 'top' });
+      expect(shellOf({ header: 'overlay' })).toEqual({ ...DEFAULT_SHELL, header: 'overlay' });
+    });
+
+    it("reads the registry's old `hide` as the protocol's `none`", () => {
+      // A cached v2 detail, or a server predating the protocol shell, still says hide.
+      expect(shellOf({ bar: 'hide' })?.bar).toBe('none');
+      expect(shellOf({ bar: 'none' })?.bar).toBe('none');
+    });
+
+    it('drops each bad field on its own, keeping the valid ones', () => {
+      expect(
+        shellOf({ bar: 'left', header: 'overlay', statusBar: 42, background: 'red' }),
+      ).toEqual({ ...DEFAULT_SHELL, header: 'overlay' });
+    });
+
+    it('falls back to the default for a shell that is not an object', () => {
+      for (const shell of [null, 'top', 42, true, ['top']]) {
+        expect(shellOf(shell)).toEqual(DEFAULT_SHELL);
+      }
+    });
+
+    it('drops unknown shell keys', () => {
+      expect(shellOf({ bar: 'top', extra: 1 })).toEqual({ ...DEFAULT_SHELL, bar: 'top' });
+    });
+
+    it('normalises the background to upper case', () => {
+      expect(shellOf({ background: '#abcdef' })?.background).toBe('#ABCDEF');
+    });
   });
 });

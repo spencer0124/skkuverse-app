@@ -16,6 +16,13 @@
  * join key, the deep-link path (`/m/<id>`), the cache key, and the analytics id,
  * so it must survive renames and translations.
  */
+import {
+  DEFAULT_SHELL,
+  mergeShell,
+  parseShellFields,
+  type ShellBar,
+  type ShellConfig,
+} from '@skkuverse/miniapp/protocol';
 
 /** Bump only on BREAKING schema changes (removed/renamed/retyped field). */
 export const MINIAPP_REGISTRY_VERSION = 1;
@@ -69,22 +76,14 @@ export interface MiniAppNoticeBanner {
 }
 
 /**
- * Where the mini-app shell puts its chrome. `bottom` (the default) is today's
- * [<] pill [>] bar; `top` moves the service pill into the native header and
- * drops the bottom bar and nav buttons; `hide` drops the pill everywhere as
- * well, leaving only the native `<` back and `…` buttons.
+ * The shell the app draws around a mini-app: where the name pill goes (`bar`),
+ * whether the page runs under a transparent header (`header`), the status bar
+ * icon colour and the background behind the WebView. The shape and its parser
+ * are the miniapp protocol's (`@skkuverse/miniapp/protocol`, source of truth in
+ * skkuverse-miniapp), so the server, the SDK and this app read one definition.
  */
-export type MiniAppShellBar = 'top' | 'bottom' | 'hide';
-
-/**
- * Shell chrome for the mini-app WebView screen. An absent or unrecognized
- * `bar` means `bottom` — this is an opt-out surface, not an opt-in one, so a
- * server that never mentions `shell` keeps every existing mini-app looking
- * exactly as it does today.
- */
-export interface MiniAppShell {
-  bar?: MiniAppShellBar;
-}
+export type MiniAppShell = ShellConfig;
+export type MiniAppShellBar = ShellBar;
 
 /** Per-service detail — heavier content, needed when opening the mini-app. */
 export interface MiniAppDetail {
@@ -97,7 +96,12 @@ export interface MiniAppDetail {
   description?: string;
   relatedLinks: MiniAppLink[];
   noticeBanner?: MiniAppNoticeBanner;
-  shell?: MiniAppShell;
+  /**
+   * Always complete: a field the server omits or garbles falls back to
+   * `DEFAULT_SHELL`, so a mini-app with no `shell` at all opens with the
+   * default bottom bar and an opaque header.
+   */
+  shell: MiniAppShell;
 }
 
 const HTTP_RE = /^https?:\/\//;
@@ -202,22 +206,20 @@ function parseNoticeBanner(raw: unknown): MiniAppNoticeBanner | undefined {
   return title && subtitle ? { title, subtitle } : undefined;
 }
 
-const SHELL_BARS: ReadonlySet<string> = new Set(['top', 'bottom', 'hide']);
-
 /**
- * `bar` survives only when it's one of the three recognized strings; a bad
- * value (e.g. `"left"` or a stray boolean) is dropped rather than coerced,
- * since absent means `bottom` and a miscoerced value would hide chrome the
- * server never meant to hide. An empty result becomes `undefined` so
- * `parseMiniAppDetail` can omit the key entirely, matching `noticeBanner`'s
- * all-or-nothing shape.
+ * A complete shell from whatever the server sent. Each field is validated on
+ * its own by the protocol's `parseShellFields` and a bad one falls back to the
+ * default rather than taking the whole shell with it — a miscoerced value would
+ * hide chrome the server never meant to hide.
+ *
+ * `bar: 'hide'` is the registry's name for what the protocol calls `none`, from
+ * before the shell moved into the protocol. A cached detail or an older server
+ * may still send it.
  */
-function parseShell(raw: unknown): MiniAppShell | undefined {
+function parseShell(raw: unknown): MiniAppShell {
   const obj = asRecord(raw);
-  if (!obj) return undefined;
-  return typeof obj.bar === 'string' && SHELL_BARS.has(obj.bar)
-    ? { bar: obj.bar as MiniAppShellBar }
-    : undefined;
+  const fields = parseShellFields(obj?.bar === 'hide' ? { ...obj, bar: 'none' } : raw);
+  return mergeShell(DEFAULT_SHELL, fields);
 }
 
 /**
@@ -234,7 +236,6 @@ export function parseMiniAppDetail(raw: unknown): MiniAppDetail | null {
   if (!id || !SLUG_RE.test(id) || !startUrl) return null;
   const description = asString(obj.description);
   const noticeBanner = parseNoticeBanner(obj.noticeBanner);
-  const shell = parseShell(obj.shell);
   return {
     version:
       typeof obj.version === 'number' ? obj.version : MINIAPP_REGISTRY_VERSION,
@@ -244,6 +245,6 @@ export function parseMiniAppDetail(raw: unknown): MiniAppDetail | null {
     ...(description ? { description } : {}),
     relatedLinks: parseLinks(obj.relatedLinks),
     ...(noticeBanner ? { noticeBanner } : {}),
-    ...(shell ? { shell } : {}),
+    shell: parseShell(obj.shell),
   };
 }

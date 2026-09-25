@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { NOTIFY_METHODS } from '@skkuverse/miniapp/protocol';
 import {
+  bridgedOrigin,
+  resolveMiniAppCapabilities,
   resolveWebviewCapabilities,
   FIRST_PARTY_CAPABILITIES,
 } from './capabilities.ts';
@@ -119,4 +122,36 @@ test('grants web:haptic to a first-party page only', () => {
     resolveWebviewCapabilities('https://www.skku.edu/notice.do', ALLOWED).includes('web:haptic'),
     false,
   );
+});
+
+test('bridgedOrigin returns the matched origin, or null', () => {
+  assert.equal(
+    bridgedOrigin('https://webview.skkuuniverse.com/a?b#c', ALLOWED),
+    'https://webview.skkuuniverse.com',
+  );
+  assert.equal(bridgedOrigin('https://evil.test/', ALLOWED), null);
+  assert.equal(bridgedOrigin('data:text/html,x', ['null']), null);
+  assert.equal(bridgedOrigin(undefined, ALLOWED), null);
+});
+
+// ── Mini-app shell: the miniapp protocol's methods over the same gate ──
+
+const MINIAPP_ALLOWED = ['https://eskara.miniapp.skkuverse.com'];
+
+test('grants every miniapp notify method to an allowlisted mini-app origin', () => {
+  const caps = resolveMiniAppCapabilities('https://eskara.miniapp.skkuverse.com/booths', MINIAPP_ALLOWED);
+  assert.deepEqual([...caps], [...NOTIFY_METHODS]);
+});
+
+test('grants a mini-app page nothing off the allowlist, or with none fetched', () => {
+  for (const [url, allowed] of [
+    ['https://third-party.example/', MINIAPP_ALLOWED],
+    ['https://eskara.miniapp.skkuverse.com.evil.test/', MINIAPP_ALLOWED],
+    ['http://eskara.miniapp.skkuverse.com/', MINIAPP_ALLOWED],
+    ['https://eskara.miniapp.skkuverse.com/', []],
+    [undefined, MINIAPP_ALLOWED],
+    ['about:blank', ['null']],
+  ] as const) {
+    assert.deepEqual([...resolveMiniAppCapabilities(url, allowed)], [], `should not grant: ${url}`);
+  }
 });

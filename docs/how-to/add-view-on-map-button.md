@@ -3,13 +3,21 @@ title: Add a View-on-Map Button to a Web Page
 type: how-to
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-24
+last-updated: 2026-09-25
 audience: internal
 ---
 
 # Add a View-on-Map Button to a Web Page
 
 > How to give a first-party web page (a mini app, or a page in `/webview`) a button that closes the page and opens the app's campus map on one place, with its sheet up. Read this before wiring a new button, or when an existing one does nothing.
+
+> [!IMPORTANT]
+> **Inside the mini app shell, this is `openMapPlace()` now.** Since 2026-09-25 `app/mini-app.tsx`
+> speaks the miniapp protocol (`@skkuverse/miniapp`), not `@skkuverse/bridge`, so a mini app page
+> sends `map.openPlace { place }` through the SDK's `openMapPlace(place)`. The gate, the allowlist,
+> the grammar and everything after step 1 below are unchanged. The `web:action` message this page
+> walks through is what pages in `/webview` send. See
+> [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9.
 
 > [!NOTE]
 > This crosses **two repositories**. The page lives in the web repo (the ESKARA site is
@@ -38,7 +46,7 @@ page ── web:action { actionType: 'map', actionValue: 'event:<placeId>' } ─
 | Message union (cross-repo contract) | `packages/bridge/src/types.ts` |
 | Page allowlist and feature-detection script | `packages/shared/src/app/web-action.ts` |
 | Place reference grammar, shared with `skkuverse://map?place=` | `packages/shared/src/map/place-ref.ts` |
-| Handlers in both shells | `app/webview.tsx`, `app/mini-app.tsx` → `features/webview/web-action.ts` |
+| Handlers in both shells | `app/webview.tsx` (`web:action`), `app/mini-app.tsx` (`map.openPlace`, via `features/mini-app/dispatch.ts`) → `features/webview/web-action.ts` |
 | Closing the shell and handing the place to the map | `src/lib/open-map-place.ts` |
 | The why, and the list of what a page may ask for | [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9 |
 

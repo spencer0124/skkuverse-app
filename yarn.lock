@@ -2912,6 +2912,18 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
+"@skkuverse/miniapp@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@skkuverse/miniapp/-/miniapp-0.2.0.tgz#94bec37064e5d7b353ac163933c23236acf46700"
+  integrity sha512-X7kCmv8advT9mcthK2uWFlR/P9ZDcxV4DbXd84Bn3wWT/h1GuT1ygAWeuAhCyamOzLxBML7qL2pKsVQCcdtrHQ==
+  dependencies:
+    "@skkuverse/tokens" "^0.1.0"
+
+"@skkuverse/tokens@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@skkuverse/tokens/-/tokens-0.1.0.tgz#691a41788fcd31a1ceac3a6e02dc6ca27577baf4"
+  integrity sha512-579PJd0THQN1hBcHMm0eYwalbq7aGKXeJr3pvKCJ53HqIT3AfW6T/wjt4+ITe1rLoWUXOW14sB0EJ4ngzfgSlA==
+
 "@standard-schema/spec@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@standard-schema/spec/-/spec-1.1.0.tgz#a79b55dbaf8604812f52d140b2c9ab41bc150bb8"

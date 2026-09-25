@@ -425,6 +425,22 @@ export function logSduiContentSelect(params: { content_type: SduiContentType; it
   logSelectContent(params.content_type, params.item_id);
 }
 
+// ── Mini-app pages ─────────────────────────────────────────────────
+
+/**
+ * An event a mini-app page reports through the miniapp protocol's
+ * `analytics.track`. One GA4 event name for all of them, with the page's own
+ * name as a param: a page names its events freely, and letting each become a
+ * top-level event would spend the property's event-name quota on strings the
+ * app never reviewed. The page's params are not forwarded for the same reason.
+ */
+export function logMiniAppEvent(params: { miniAppId: string; event: string }) {
+  logEvent('miniapp_event', {
+    miniapp_id: truncate(params.miniAppId),
+    event: truncate(params.event),
+  });
+}
+
 // ── Custom typed wrappers (funnel / state change) ──────────────────
 
 /**

@@ -3,13 +3,24 @@
  * 외부 웹페이지를 react-native-webview로 렌더한다.
  *
  * 상단: 네이티브 헤더 — 좌 [‹ back(=미니앱 종료)] ……… 우 [⋯ 더보기].
- * 서비스 pill 위치는 레지스트리 detail.shell.bar가 정한다:
- *   'bottom'(기본) — 하단 바 [<] / 서비스 pill / [>].
- *   'top'          — 하단 바 없이 pill이 헤더 좌측, back 옆으로: ‹ [로고 서비스명] … ⋯
- *   'hide'         — pill 없이 헤더의 ‹ / ⋯만.
+ * 셸은 레지스트리 detail.shell(= miniapp 프로토콜의 ShellConfig)이 정한다:
+ *   bar       'bottom'(기본) — 하단 바 [<] / 서비스 pill / [>].
+ *             'top'          — 하단 바 없이 pill이 헤더 좌측, back 옆으로: ‹ [로고 서비스명] … ⋯
+ *             'none'         — pill 없이 헤더의 ‹ / ⋯만.
+ *   header    'opaque'(기본) — 불투명 헤더 아래에서 페이지 시작.
+ *             'overlay'      — 투명 헤더 밑, 화면 맨 위(y=0)부터 페이지 시작.
+ *   statusBar / background — 상태바 아이콘 색, WebView 뒤 배경색.
+ * 페이지는 `shell.set`으로 header/statusBar/background를 런타임에 바꿀 수 있다.
+ *
+ * 브리지: miniapp 프로토콜(`@skkuverse/miniapp/protocol`, 원본은 skkuverse-miniapp).
+ * 로드 전에 `window.skkuverse`(권한 목록 + viewport)를 주입하고, 메시지는
+ * features/mini-app/dispatch.ts가 처리, 응답/이벤트는 hostDeliverScript로 보낸다.
+ * 권한은 메시지를 보낸 문서의 origin으로 매번 판정한다(서버 소유 bridgeOrigins).
+ * /webview 셸은 여전히 v1 `@skkuverse/bridge`를 쓴다 — 이 화면만 프로토콜이 다르다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   BackHandler,
   Image,
   Linking,
@@ -21,7 +32,9 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,25 +66,35 @@ import {
 } from 'phosphor-react-native';
 import {
   SdsColors,
-  WEB_BRIDGE_ADVERTISEMENT_JS,
   getBridgeOrigins,
   // getWebOrigin, — 공유/홈추가 메뉴 비활성화
   resolveMiniAppUrl,
   useMiniAppDetail,
   useMiniAppIndex,
   type MiniAppLogo,
-  type MiniAppShellBar,
 } from '@skkuverse/shared';
-import { GlassSurface, Sheet, Txt } from '@skkuverse/sds';
-import { parseWebMessage } from '@skkuverse/bridge';
+import { GLASS_AVAILABLE, GlassIconButton, GlassSurface, Sheet, Txt } from '@skkuverse/sds';
+import {
+  DEFAULT_SHELL,
+  hostBootstrapScript,
+  hostDeliverScript,
+  mergeShell,
+  sameViewport,
+  type HostMessage,
+  type ShellPatch,
+  type Viewport,
+} from '@skkuverse/miniapp/protocol';
 import { defaultHeaderOptions } from '@/lib/header-options';
 import { normalizeWebUrl } from '@/lib/web-url';
 import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { faviconUrl } from '@/features/mini-app/protocol';
-import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
+import { dispatchMiniAppMessage, pageOrigin, type MiniAppEffects } from '@/features/mini-app/dispatch';
+import { computeViewport } from '@/features/mini-app/viewport';
+import { resolveMiniAppCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
 import { openAppFirst } from '@/features/webview/open-external';
 import { playWebHaptic } from '@/features/webview/haptic';
+import { logMiniAppEvent } from '@/services/analytics';
 import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
@@ -86,6 +109,8 @@ const displayUrl = (u: string) => u.replace(/^https?:\/\//, '').replace(/\/+$/, 
 // 스크롤 다운 → 좌/우 클러스터 축소·페이드, 중앙 pill 컴팩트화. 스크롤 업 → 역재생.
 const COLLAPSE_TIMING = { duration: 240, easing: Easing.out(Easing.cubic) } as const;
 const BAR_H = 46; // 클러스터/pill 공통 높이(펼침) — 정렬 기준
+const BAR_PAD_TOP = 8; // 하단 바 윗여백(styles.bottomBar.paddingTop)
+const BAR_MIN_PAD_BOTTOM = 10; // 홈 인디케이터가 없는 기기에서의 하단 바 아랫여백
 const COMPACT_W = 150; // collapsed 중앙 pill 폭(로고 + 잘린 이름)
 const COMPACT_H = 36; // collapsed 중앙 pill 높이
 const GAP = 12; // 중앙 pill ↔ 좌/우 클러스터 간격
@@ -95,6 +120,8 @@ const CENTER_DROP = 16; // 가운데 pill 하강 거리 — 높이가 중앙 기
 const PULL = 28; // 접힐 때 좌/우 클러스터가 가운데로 끌려가는 가로 거리(합쳐지는 느낌)
 const HEADER_PILL_SIDE_RESERVE = 140; // 헤더 pill 최대폭 계산용 — 좌 back[‹]·우[⋯] 버튼 여유폭
 const HEADER_PILL_H = 44; // 헤더 pill 높이 — iOS 26 시스템 bar button 글래스 캡슐(‹ / ⋯)과 동일
+const FLOATING_BTN = 40; // glass 없는 overlay 헤더의 back·⋯ 원형 버튼 지름
+const NOTICE_TOP = 12; // 상단 공지 배너 — 콘텐츠 영역 위쪽 여백
 
 // iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
 // SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
@@ -289,14 +316,22 @@ export default function MiniAppScreen() {
 
   // 레지스트리 상세 — 시작 URL·인증 배지·소개·관련 링크·공지 배너·셸 설정의 단일 출처.
   const { data: detail } = useMiniAppDetail(miniAppId);
-  // 셸 바 모드 — 'bottom'(기본): 오늘의 [< >] pill 바 그대로. 'top': 바·[< >] 없이
-  // 서비스 pill이 네이티브 헤더 좌측(back 옆)으로 옮겨간다. 'hide': pill도 없이 헤더의
-  // ‹/⋯만 남는다. 값이 없거나 서버가 셋 중 하나가 아닌 값을 보내면 parseMiniAppDetail이
-  // 이미 걸러내므로(=shell 자체가 undefined) 기본값 하나만 두면 된다.
-  // 상세가 아직 없으면 null — 어느 모드인지 모르는 동안엔 아무 바도 그리지 않는다.
+  // 셸 — 레지스트리 셸(parseMiniAppDetail이 항상 완전한 ShellConfig로 채워 둔다) 위에
+  // 페이지가 `shell.set`으로 보낸 패치를 덮는다. bar는 레이아웃이라 패치 대상이 아니다.
+  const [shellPatch, setShellPatch] = useState<ShellPatch>({});
+  const shell = useMemo(
+    () => mergeShell(detail?.shell ?? DEFAULT_SHELL, shellPatch),
+    [detail?.shell, shellPatch],
+  );
+  // 상세가 아직 없으면 bar는 null — 어느 모드인지 모르는 동안엔 아무 바도 그리지 않는다.
   // 'bottom'을 가정해 먼저 그리면 'top' 미니앱을 열 때 하단 바가 번쩍였다 사라진다.
-  const bar: MiniAppShellBar | null = detail ? (detail.shell?.bar ?? 'bottom') : null;
+  const bar = detail ? shell.bar : null;
   const isBottomBar = bar === 'bottom';
+  // overlay — 투명 헤더, WebView가 y=0부터. 페이지가 --sv-inset-top으로 스스로 비켜선다.
+  const isOverlay = shell.header === 'overlay';
+  // Liquid Glass가 없는(iOS 26 미만, Android) overlay 헤더에서는 시스템 back/⋯가 페이지 위에
+  // 배경 없이 떠 안 보일 수 있다 → GlassSurface 폴백(흰 원+그림자) 버튼으로 직접 그린다.
+  const floatingHeaderButtons = isOverlay && !GLASS_AVAILABLE;
   // 인덱스 엔트리 — 표시 이름과 로고. 홈 그리드가 이미 캐시해둔 쿼리를 재사용.
   const { data: index } = useMiniAppIndex();
   const entry = useMemo(
@@ -321,6 +356,23 @@ export default function MiniAppScreen() {
   // const webOrigin = getWebOrigin();
 
   const webRef = useRef<WebView>(null);
+
+  // ── Viewport — 페이지가 콘텐츠를 둘 수 있는 영역(--sv-* CSS 변수, getViewport()) ──
+  const headerHeight = useHeaderHeight();
+  // 하단 바가 덮는 높이 중 기기 안전영역(insets.bottom) 밖의 부분.
+  const bottomBarHeight =
+    BAR_PAD_TOP + BAR_H + Math.max(insets.bottom, BAR_MIN_PAD_BOTTOM) - insets.bottom;
+  const viewport = useMemo(
+    () =>
+      computeViewport({
+        shell,
+        insets: { top: insets.top, bottom: insets.bottom, left: insets.left, right: insets.right },
+        headerHeight,
+        bottomBarHeight,
+        glassAvailable: GLASS_AVAILABLE,
+      }),
+    [shell, insets.top, insets.bottom, insets.left, insets.right, headerHeight, bottomBarHeight],
+  );
 
   // ── 하단 바 collapse 상태 ──
   // collapsed: 0 = 펼침, 1 = 접힘. onScroll(JS 스레드)에서 .value를 withTiming으로 갈아끼우면
@@ -414,27 +466,64 @@ export default function MiniAppScreen() {
     [serviceName, collapsed],
   );
 
-  // 브리지 메시지 — /webview 셸과 같은 게이트. 권한은 메시지를 보낸 문서의 origin으로
-  // 매번 다시 판정한다(서버 소유 bridgeOrigins, 미수신·불일치면 전부 드롭). 1st-party
-  // 페이지(eskara 등)의 `web:open-url`은 외부 앱/브라우저로(`appUrl`이 있으면 그 앱을
-  // 먼저 시도), `web:action`은 페이지에 허용된 액션(map·miniapp)만 performWebAction으로,
-  // `web:haptic`은 햅틱 한 번으로 실행한다.
-  const handleMessage = useCallback((event: WebViewMessageEvent) => {
-    const msg = parseWebMessage(event.nativeEvent.data);
-    if (!msg) return;
-    const granted = resolveWebviewCapabilities(
-      event.nativeEvent.url,
-      getBridgeOrigins(),
-    );
-    if (!granted.includes(msg.type)) return;
-    if (msg.type === 'web:open-url') {
-      void openAppFirst(msg, (url) => Linking.openURL(url));
-    } else if (msg.type === 'web:action') {
-      performWebAction(msg.actionType, msg.actionValue);
-    } else if (msg.type === 'web:haptic') {
-      playWebHaptic(msg.style);
-    }
+  // ── 브리지(miniapp 프로토콜) ──
+  // 응답/이벤트 전달 — hostDeliverScript가 페이지 안에서 location.origin을 다시 확인하므로
+  // 그사이 다른 사이트로 이동했으면 아무것도 전달되지 않는다.
+  const deliver = useCallback((origin: string, message: HostMessage) => {
+    webRef.current?.injectJavaScript(hostDeliverScript(origin, message));
   }, []);
+
+  const effects = useMemo<MiniAppEffects>(
+    () => ({
+      haptic: playWebHaptic,
+      // `appUrl`이 있으면 그 앱을 먼저 시도하고, 없거나 실패하면 웹 주소로.
+      openLink: (target) => void openAppFirst(target, (url) => Linking.openURL(url)),
+      // map·miniapp만 — resolveWebAction이 값의 문법까지 다시 검사한다.
+      performAction: performWebAction,
+      track: (event) => {
+        if (miniAppId) logMiniAppEvent({ miniAppId, event });
+      },
+      ready: () => {},
+      setShell: (patch) => setShellPatch((prev) => ({ ...prev, ...patch })),
+      deliver,
+    }),
+    [miniAppId, deliver],
+  );
+
+  // 권한은 메시지를 보낸 문서의 origin으로 매번 다시 판정한다(서버 소유 bridgeOrigins,
+  // 미수신·불일치면 전부 드롭 — 요청이면 'denied' 응답). /webview와 같은 게이트.
+  const handleMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      const { data, url } = event.nativeEvent;
+      dispatchMiniAppMessage({ data, url }, resolveMiniAppCapabilities(url, getBridgeOrigins()), effects);
+    },
+    [effects],
+  );
+
+  // 로드 전 주입 — `window.skkuverse`(권한 목록·viewport)와 --sv-* CSS 변수. 권한 목록은
+  // 시작 URL의 origin으로 정한다. 알림일 뿐 권한이 아니다: 실제 허용은 메시지마다 게이트가
+  // 판정하므로, 다른 origin으로 이동한 페이지가 같은 목록을 봐도 아무것도 통과하지 않는다.
+  // viewport는 현재 값을 따라가므로 이후 새로 로드되는 문서는 처음부터 최신 값을 받는다.
+  const advertisedCapabilities = useMemo(
+    () => resolveMiniAppCapabilities(initialUrl, getBridgeOrigins()),
+    [initialUrl],
+  );
+  const bootstrapScript = useMemo(
+    () => hostBootstrapScript({ capabilities: advertisedCapabilities, viewport }),
+    [advertisedCapabilities, viewport],
+  );
+
+  // 이미 로드된 페이지에는 바뀐 viewport를 `viewport.changed`로 보낸다(회전, 헤더 높이,
+  // shell.set). 같은 값이면 보내지 않는다. 첫 값은 부트스트랩이 이미 실어 보냈다.
+  // (currentUrl이 바뀔 때도 돌지만 그때는 viewport가 같아 아무것도 보내지 않는다.)
+  const deliveredViewport = useRef<Viewport | null>(null);
+  useEffect(() => {
+    const prev = deliveredViewport.current;
+    deliveredViewport.current = viewport;
+    if (!prev || sameViewport(prev, viewport)) return;
+    const origin = pageOrigin(currentUrl);
+    if (origin) deliver(origin, { event: 'viewport.changed', data: viewport });
+  }, [viewport, currentUrl, deliver]);
 
   // ── 하단 바 collapse — WebView 스크롤 방향 토글 ──
   // onScroll은 JS 스레드 콜백(useAnimatedScrollHandler는 WebView에 못 붙음). 방향만 판정해
@@ -541,8 +630,96 @@ export default function MiniAppScreen() {
       <HeaderPill logo={shellLogo} faviconUri={favicon} name={pillName} maxWidth={headerPillMaxW} />
     ) : null;
 
+  // 헤더 좌/우 아이템. 두 갈래:
+  //  - 보통(불투명 헤더, 또는 Liquid Glass가 있는 overlay): 네이티브 back + (bar==='top'이면)
+  //    그 옆 서비스 pill, 우측 [⋯]. iOS 26에선 시스템이 glass 캡슐을 그린다.
+  //  - floatingHeaderButtons(glass 없는 overlay): 투명 헤더 위 시스템 버튼은 배경이 없어
+  //    페이지 색에 묻힌다 → back·⋯를 GlassSurface 폴백(흰 원+그림자) 버튼으로 직접 그린다.
+  const headerItems = floatingHeaderButtons
+    ? {
+        headerBackVisible: false,
+        headerLeft: () => (
+          <View style={styles.floatingLeft}>
+            <GlassIconButton
+              icon={<CaretLeftIcon size={20} color={SdsColors.grey900} weight="bold" />}
+              label="뒤로"
+              onPress={() => router.back()}
+              size={FLOATING_BTN}
+            />
+            {headerPill}
+          </View>
+        ),
+        headerRight: () => (
+          <GlassIconButton
+            icon={<DotsThreeIcon size={22} color={SdsColors.grey900} weight="bold" />}
+            label="더보기"
+            onPress={() => setMoreOpen(true)}
+            size={FLOATING_BTN}
+          />
+        ),
+      }
+    : {
+        // bar==='top'일 때만 서비스 pill을 헤더 좌측, 네이티브 back 바로 옆에 꽂는다.
+        // headerBackVisible: true — 좌측 커스텀 아이템이 back을 대체하지 않고 나란히
+        // 서게 한다(iOS leftItemsSupplementBackButton, Android backButtonInCustomView).
+        // iOS: unstable_headerLeftItems의 custom 아이템. pill이 자체 GlassSurface를
+        //   가지므로 hidesSharedBackground로 네이티브 glass 캡슐을 끈다(이중 glass 방지).
+        // Android: headerLeft JSX. unstable_headerLeftItems는 iOS 전용이다.
+        ...(headerPill
+          ? Platform.OS === 'ios'
+            ? {
+                headerBackVisible: true,
+                unstable_headerLeftItems: () => [
+                  { type: 'custom' as const, element: headerPill, hidesSharedBackground: true },
+                ],
+              }
+            : { headerBackVisible: true, headerLeft: () => headerPill }
+          : {}),
+        // 우상단 [⋯](알림은 숨김 중). iOS는 네이티브 UIBarButtonItem을 sharesBackground:true로
+        // Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
+        // ⋯ 탭 → 더보기 액션 시트(새로고침).
+        ...(Platform.OS === 'ios'
+          ? {
+              unstable_headerRightItems: () => [
+                // 알림 버튼 — 잠시 숨김. 되살릴 땐 ICON_BELL/BellIcon import 주석도 함께 해제.
+                // {
+                //   type: 'button' as const,
+                //   label: '',
+                //   icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
+                //   sharesBackground: true,
+                //   accessibilityLabel: '공지',
+                //   // 공지 배너 다시 띄우기(X로 닫았을 때 복구).
+                //   onPress: () => setNoticeVisible(true),
+                // },
+                {
+                  type: 'button' as const,
+                  label: '',
+                  icon: { type: 'image' as const, source: ICON_MORE, tinted: false },
+                  sharesBackground: true,
+                  accessibilityLabel: '더보기',
+                  onPress: () => setMoreOpen(true),
+                },
+              ],
+            }
+          : {
+              headerRight: () => (
+                <View style={styles.rightGroup}>
+                  {/* 알림 버튼 — 잠시 숨김 (iOS 쪽 주석 참고).
+                  <HeaderIconButton onPress={() => setNoticeVisible(true)} accessibilityLabel="공지">
+                    <BellIcon size={22} color={SdsColors.grey700} />
+                  </HeaderIconButton> */}
+                  <HeaderIconButton onPress={() => setMoreOpen(true)} accessibilityLabel="더보기">
+                    <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
+                  </HeaderIconButton>
+                </View>
+              ),
+            }),
+      };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: shell.background }]}>
+      {/* 상태바 아이콘 색 — 셸(과 shell.set)이 정한다. 화면을 떠나면 루트의 dark로 돌아간다. */}
+      <StatusBar style={shell.statusBar === 'light' ? 'light' : 'dark'} />
       {/* 네이티브 헤더 — 버스/공지와 동일 메트릭. 좌: native back(=미니앱 종료, glass 캡슐)
           + (bar==='top'이면) 그 옆에 서비스 pill. 제목 텍스트는 없다. 우: [⋯] glass 캡슐
           (고정폭 — RN screens headerRight 왜곡 방지). */}
@@ -551,65 +728,16 @@ export default function MiniAppScreen() {
           ...defaultHeaderOptions,
           headerShown: true,
           title: '',
-          // bar==='top'일 때만 서비스 pill을 헤더 좌측, 네이티브 back 바로 옆에 꽂는다.
-          // headerBackVisible: true — 좌측 커스텀 아이템이 back을 대체하지 않고 나란히
-          // 서게 한다(iOS leftItemsSupplementBackButton, Android backButtonInCustomView).
-          // iOS: unstable_headerLeftItems의 custom 아이템. pill이 자체 GlassSurface를
-          //   가지므로 hidesSharedBackground로 네이티브 glass 캡슐을 끈다(이중 glass 방지).
-          // Android: headerLeft JSX. unstable_headerLeftItems는 iOS 전용이다.
-          ...(headerPill
-            ? Platform.OS === 'ios'
-              ? {
-                  headerBackVisible: true,
-                  unstable_headerLeftItems: () => [
-                    { type: 'custom' as const, element: headerPill, hidesSharedBackground: true },
-                  ],
-                }
-              : { headerBackVisible: true, headerLeft: () => headerPill }
+          // overlay — 헤더를 투명하게 띄우고 WebView를 y=0부터 깐다. 페이지가 viewport
+          // (--sv-inset-top)로 상태바·헤더 아래로 비켜선다.
+          ...(isOverlay
+            ? { headerTransparent: true, headerStyle: { backgroundColor: 'transparent' } }
             : {}),
+          ...headerItems,
           // iOS 엣지 스와이프 핸드오프: 웹뷰 히스토리 있으면 화면 pop 제스처 OFF →
           // WKWebView가 스와이프를 소유(웹뷰 back). 루트면 ON → 스와이프 = 미니앱 종료.
           // (한 인식기만 활성 — WebView allowsBackForwardNavigationGestures와 배타적.)
           gestureEnabled: !canGoBack,
-          // 우상단 [⋯](알림은 숨김 중). iOS는 네이티브 UIBarButtonItem을 sharesBackground:true로
-          // Liquid Glass 캡슐에 그룹핑(홈/공지 헤더와 동일 API). Android는 JSX 폴백.
-          // ⋯ 탭 → 더보기 액션 시트(새로고침).
-          ...(Platform.OS === 'ios'
-            ? {
-                unstable_headerRightItems: () => [
-                  // 알림 버튼 — 잠시 숨김. 되살릴 땐 ICON_BELL/BellIcon import 주석도 함께 해제.
-                  // {
-                  //   type: 'button' as const,
-                  //   label: '',
-                  //   icon: { type: 'image' as const, source: ICON_BELL, tinted: false },
-                  //   sharesBackground: true,
-                  //   accessibilityLabel: '공지',
-                  //   // 공지 배너 다시 띄우기(X로 닫았을 때 복구).
-                  //   onPress: () => setNoticeVisible(true),
-                  // },
-                  {
-                    type: 'button' as const,
-                    label: '',
-                    icon: { type: 'image' as const, source: ICON_MORE, tinted: false },
-                    sharesBackground: true,
-                    accessibilityLabel: '더보기',
-                    onPress: () => setMoreOpen(true),
-                  },
-                ],
-              }
-            : {
-                headerRight: () => (
-                  <View style={styles.rightGroup}>
-                    {/* 알림 버튼 — 잠시 숨김 (iOS 쪽 주석 참고).
-                    <HeaderIconButton onPress={() => setNoticeVisible(true)} accessibilityLabel="공지">
-                      <BellIcon size={22} color={SdsColors.grey700} />
-                    </HeaderIconButton> */}
-                    <HeaderIconButton onPress={() => setMoreOpen(true)} accessibilityLabel="더보기">
-                      <DotsThreeIcon size={22} color={SdsColors.grey700} weight="bold" />
-                    </HeaderIconButton>
-                  </View>
-                ),
-              }),
         }}
       />
 
@@ -620,30 +748,45 @@ export default function MiniAppScreen() {
         <WebView
           ref={webRef}
           source={{ uri: initialUrl }}
-          style={styles.webview}
+          // 배경색을 WebView 자체에도 — 첫 페인트 전 흰 번쩍임과 오버스크롤 색을 셸에 맞춘다.
+          style={[styles.webview, { backgroundColor: shell.background }]}
           onNavigationStateChange={onNavChange}
           onMessage={handleMessage}
-          // 이 호스트가 받는 액션 목록을 페이지에 알린다 — 페이지는 목록에 있을 때만
-          // 버튼을 그린다. 알림일 뿐 권한이 아니다(권한은 메시지마다 게이트가 판정).
-          injectedJavaScriptBeforeContentLoaded={WEB_BRIDGE_ADVERTISEMENT_JS}
+          // `window.skkuverse`(프로토콜 버전·권한 목록·viewport)와 --sv-* CSS 변수를 페이지
+          // 스크립트보다 먼저 심는다. 목록은 알림일 뿐 권한이 아니다(메시지마다 게이트가 판정).
+          injectedJavaScriptBeforeContentLoaded={bootstrapScript}
           // 하단 바가 없으면 접을 것도 없다 — 스크롤마다 collapse 계산을 돌리지 않는다.
           onScroll={isBottomBar ? onScroll : undefined}
           javaScriptEnabled
           domStorageEnabled
           startInLoadingState
+          // 기본 로딩 뷰는 흰 배경이다 — 어두운 셸에서 번쩍이지 않게 셸 배경으로 그린다.
+          renderLoading={() => (
+            <View style={[styles.loading, { backgroundColor: shell.background }]}>
+              <ActivityIndicator color={shell.statusBar === 'light' ? '#FFFFFF' : SdsColors.grey500} />
+            </View>
+          )}
           // iOS: 웹뷰 히스토리 있을 때만 엣지 스와이프 = 웹뷰 back/forward (Android no-op).
           // gestureEnabled={!canGoBack}와 짝 — 정확히 한 제스처 인식기만 활성.
           allowsBackForwardNavigationGestures={canGoBack}
-          contentInset={{ bottom: isBottomBar ? 66 : 0 }}
+          // 인셋은 페이지가 viewport(--sv-inset-*)로 직접 처리한다. 스크롤뷰가 안전영역·헤더만큼
+          // 또 밀면 두 번 비켜서므로 OS의 자동 조정을 끈다. 하단 바 몫이던 예전
+          // contentInset(bottom 66)도 같은 이유로 없앴다 — 이제 contentSafeArea.bottom이다.
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
         />
       ) : (
-        <View style={styles.webview} />
+        <View style={[styles.webview, { backgroundColor: shell.background }]} />
       )}
 
       {/* 상단 공지 배너 — 레지스트리 detail.noticeBanner가 있는 미니앱에만. GLASS_AVAILABLE이면
           Liquid Glass, 아니면 흰 박스+shadow 폴백(GlassSurface 내부 분기). 탭하면 닫힘. */}
       {detail?.noticeBanner && noticeVisible && (
-        <View style={styles.topNotice} pointerEvents="box-none">
+        <View
+          // overlay 헤더면 WebView가 헤더 밑에서 시작하므로 배너를 헤더 아래로 내린다.
+          style={[styles.topNotice, isOverlay && { top: headerHeight + NOTICE_TOP }]}
+          pointerEvents="box-none"
+        >
           <GlassSurface interactive style={styles.topNoticePill}>
             <View style={styles.topNoticeInner}>
               <View style={styles.topNoticeText}>
@@ -671,11 +814,11 @@ export default function MiniAppScreen() {
       {/* 하단 — 좌 [<] / 중앙 서비스명 pill / 우 [>]. iOS 26 Safari식 collapse:
           스크롤 다운 시 좌/우는 transform으로 축소·페이드(레이아웃 비용 0), 중앙 pill은
           단독 중앙 컨테이너 안에서 width만 애니메이트(flex 재배치 jank 회피).
-          bar==='bottom'일 때만 렌더한다(위 WebView contentInset도 같은 조건) — 'top'은
-          pill이 헤더로 옮겨가고, 'hide'는 pill 자체가 없고, 상세 도착 전(null)엔 모드를
+          bar==='bottom'일 때만 렌더한다(viewport의 contentSafeArea.bottom도 같은 조건) — 'top'은
+          pill이 헤더로 옮겨가고, 'none'은 pill 자체가 없고, 상세 도착 전(null)엔 모드를
           모르므로 그리지 않는다. */}
       {isBottomBar && (
-        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, BAR_MIN_PAD_BOTTOM) }]}>
           {/* barRow — 패딩 없는 고정 높이 행. 세 클러스터 모두 여기 안에서 top:0/bottom:0로
               수직 정렬(안전영역 패딩은 바깥 bottomBar가 전담 → 정렬 어긋남 방지). */}
           <View style={styles.barRow}>
@@ -839,12 +982,23 @@ export default function MiniAppScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: SdsColors.background },
+  container: { flex: 1 },
   webview: { flex: 1 },
+  loading: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // glass 없는 overlay 헤더의 좌측 — [back 원형 버튼] + (bar==='top'이면) 서비스 pill.
+  floatingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   // 상단 공지 배너 — 헤더 아래 떠서 콘텐츠 위를 덮음(좌우 여백 + 가운데 정렬).
   topNotice: {
     position: 'absolute',
-    top: 12,
+    top: NOTICE_TOP,
     left: 16,
     right: 16,
     alignItems: 'center',
@@ -886,7 +1040,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: 8,
+    paddingTop: BAR_PAD_TOP,
   },
   // 패딩 없는 고정 높이 행 — 세 클러스터의 공통 정렬 컨텍스트(top:0/bottom:0 = 동일 높이).
   barRow: {

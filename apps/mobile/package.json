@@ -31,6 +31,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "@skkuverse/bridge": "*",
+    "@skkuverse/miniapp": "^0.2.0",
     "@skkuverse/sds": "*",
     "@skkuverse/shared": "*",
     "@tanstack/react-query": "^5.95.2",

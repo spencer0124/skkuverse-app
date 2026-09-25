@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-24
+last-updated: 2026-09-25
 audience: internal
 ---
 
@@ -498,12 +498,12 @@ now carry a `never` exhaustiveness guard.
 > The 2026 ESKARA pages live on their own origin, `eskara.miniapp.skkuverse.com`, which the server
 > refuses as a `webview` value, so a map button into them is a **`miniapp`** action
 > (`eskara-2026/eskara/<page>`, §7.3) and opens inside the mini app shell. Both shells run the same
-> bridge gate: `handleMessage` re-resolves
-> `resolveWebviewCapabilities(event.nativeEvent.url, getBridgeOrigins())` **per message**, against
-> the document that actually posted it rather than once at open time, so a page's `web:open-url`
-> and `web:action` behave the same in either shell
-> ([ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9). The way back — a page
-> opening the map on a place — is a `map` action sent as `web:action`; the runbook is
+> origin gate, re-resolved from `event.nativeEvent.url` **per message**, against the document that
+> actually posted it rather than once at open time. They speak different message sets: `/webview`
+> takes `@skkuverse/bridge`'s `web:open-url` and `web:action`, and the mini app shell takes the
+> miniapp protocol's `link.open`, `map.openPlace` and `miniapp.open`, which end in the same
+> handlers ([ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9). The way back — a
+> page opening the map on a place — is a `map` action (`openMapPlace()` from a mini app); the runbook is
 > [add-view-on-map-button.md](../how-to/add-view-on-map-button.md).
 
 `content` is handled by the sheet that renders the button, not by `handleSduiAction` — that
