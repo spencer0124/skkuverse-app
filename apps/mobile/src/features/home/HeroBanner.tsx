@@ -8,8 +8,8 @@ import Animated, {
   withDelay,
   withTiming,
   Easing,
+  cancelAnimation,
 } from 'react-native-reanimated';
-import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { FloatingEmoji, type EmojiSpec } from '@/components/FloatingEmoji';
 import { logHomeContentSelect } from '@/services/analytics';
@@ -18,6 +18,9 @@ import { handleSduiAction } from '@/sdui/action-handler';
 // Cycle: morph (~2.7s) → 5s idle hold → snap reset → loop.
 const ACTIVE_DURATION = 2700;
 const IDLE_HOLD = 5000;
+// As a carousel page: "스꾸 버스" holds this long after the page becomes
+// current, so the morph starts once the slide-in has settled, not during it.
+const REPLAY_DELAY = 400;
 
 // Animation flow:
 //   0–SPREAD_START   : "스꾸 버스" held tight (1-space gap, both slots
@@ -69,7 +72,7 @@ function easedPhase(
 // Web has subhead and wordmark at the same fontSize (104px desktop). Match
 // that here for visual symmetry — banner uses 18dp for both (slim layout
 // targeting ~AI공지 grid tile height).
-const HEADING_FONT = 18;
+const HEADING_FONT = 21;
 const SLOT_HEIGHT = HEADING_FONT;
 // One space character width at fontSize 28 bold WantedSans.
 const SLOT_GAP = HEADING_FONT * 0.28;
@@ -113,12 +116,31 @@ interface HeroBannerProps {
    * content is already vertically centred, so it sits mid-card at any height.
    */
   fill?: boolean;
+  /**
+   * Whether this banner is the carousel's current page. Each time it turns
+   * true the "스꾸 버스 → 성균관 유니버스" morph plays once from the start; while
+   * false the banner rests on "스꾸 버스", ready for its next turn. Absent means
+   * the banner is always on screen (standalone, or the carousel's only page),
+   * and the morph loops on its own clock as it always has.
+   */
+  active?: boolean;
 }
 
-export function HeroBanner({ fill = false }: HeroBannerProps = {}) {
+export function HeroBanner({ fill = false, active }: HeroBannerProps = {}) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
+    if (active !== undefined) {
+      cancelAnimation(progress);
+      progress.value = 0;
+      if (active) {
+        progress.value = withDelay(
+          REPLAY_DELAY,
+          withTiming(1, { duration: ACTIVE_DURATION, easing: Easing.linear }),
+        );
+      }
+      return;
+    }
     progress.value = withRepeat(
       withSequence(
         withTiming(1, {
@@ -130,7 +152,7 @@ export function HeroBanner({ fill = false }: HeroBannerProps = {}) {
       -1,
       false,
     );
-  }, [progress]);
+  }, [active, progress]);
 
   // SPREAD phase uses TOSS_SPRING (56% overshoot) — slots fly outward, settle
   // back. translate = TIGHT * (1 − eased): at eased=0 → TIGHT, at eased=1 → 0.
@@ -255,9 +277,6 @@ export function HeroBanner({ fill = false }: HeroBannerProps = {}) {
       <FloatingEmoji spec={EMOJIS[2]} />
       <FloatingEmoji spec={EMOJIS[3]} />
 
-      <View style={styles.chevronWrap} pointerEvents="none">
-        <CaretRightIcon size={18} color={SdsColors.grey500} weight="bold" />
-      </View>
     </Pressable>
   );
 }
@@ -322,12 +341,5 @@ const styles = StyleSheet.create({
     color: SdsColors.brandDark,
     letterSpacing: -HEADING_FONT * 0.03,
     textAlign: 'center',
-  },
-  chevronWrap: {
-    position: 'absolute',
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
   },
 });

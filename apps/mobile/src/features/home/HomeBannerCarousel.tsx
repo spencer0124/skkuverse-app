@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
+  VirtualizedList,
   useWindowDimensions,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -33,6 +33,20 @@ const DEFAULT_ONLY: readonly HomeBannerItem[] = [{ type: 'default' }];
 
 const SLOT_MARGIN = 16;
 
+/**
+ * Virtual page count for the endless loop. The list starts in the middle, so
+ * there are ~5,000 pages of runway either way — about seven hours of 5-second
+ * auto-advance, or a lot of swiping — and only the pages near the viewport are
+ * ever mounted. Reaching an end jumps back to the middle without animation.
+ */
+const LOOP_PAGES = 10_000;
+
+interface Slide {
+  /** Virtual position in the loop; the page shown is `pages[index % n]`. */
+  index: number;
+  page: HomeBannerItem;
+}
+
 function useAppActive(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
@@ -42,14 +56,21 @@ function useAppActive(): boolean {
   return active;
 }
 
+/** The virtual index nearest the middle of the loop that shows `pageIndex`. */
+function middleOf(n: number, pageIndex = 0): number {
+  return Math.floor(LOOP_PAGES / 2 / n) * n + pageIndex;
+}
+
 /**
  * The home screen's top banner slot, driven by the `banner_carousel` section of
  * `GET /ui/home`: server images plus, where the server placed it, the app's
  * built-in `HeroBanner`.
  *
- * A plain `ScrollView horizontal pagingEnabled`, the same pager the intro uses,
- * rather than react-native-pager-view: a native module would need a new
- * runtimeVersion, and this ships as an OTA update.
+ * An endless loop that only ever advances to the right (1 → 2 → 1 → 2 …): a
+ * paging VirtualizedList over a long run of virtual pages, each showing
+ * `pages[index % n]`. Nothing ever rewinds across the strip or swaps clones
+ * mid-swipe, and a drag works in both directions. A plain RN list rather than
+ * a pager module, because this ships as an OTA update.
  *
  * Auto-advance stops whenever it would move something the user is not looking
  * at or is holding: while a finger is on it, while the home tab is not focused,
@@ -58,29 +79,34 @@ function useAppActive(): boolean {
  */
 export function HomeBannerCarousel({ section }: Props) {
   const pages = section.items.length > 0 ? section.items : DEFAULT_ONLY;
+  const n = pages.length;
+  const looping = n > 1;
   const pageKey = useMemo(
     () => pages.map((p) => (p.type === 'image' ? p.id : 'default')).join('|'),
     [pages],
   );
 
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<VirtualizedList<Slide>>(null);
   const { width: windowWidth } = useWindowDimensions();
   const [width, setWidth] = useState(0);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => (looping ? middleOf(n) : 0));
   const [dragging, setDragging] = useState(false);
 
   const focused = useIsFocused();
   const appActive = useAppActive();
   const reducedMotion = useReducedMotion();
 
-  // A refetch that changes the pages starts the rotation over from the first.
-  useEffect(() => {
-    setIndex(0);
-    scrollRef.current?.scrollTo({ x: 0, animated: false });
-  }, [pageKey]);
+  // A refetch that changes the pages starts over from the first. Reset during
+  // render rather than in an effect: the list is keyed on pageKey, and it must
+  // remount with the new index as its initialScrollIndex, not the old one.
+  const [seenPageKey, setSeenPageKey] = useState(pageKey);
+  if (seenPageKey !== pageKey) {
+    setSeenPageKey(pageKey);
+    setIndex(looping ? middleOf(n) : 0);
+  }
 
   const canRotate =
-    pages.length > 1 &&
+    looping &&
     section.autoRotateSec > 0 &&
     width > 0 &&
     focused &&
@@ -94,22 +120,27 @@ export function HomeBannerCarousel({ section }: Props) {
   useEffect(() => {
     if (!canRotate) return undefined;
     const timer = setTimeout(() => {
-      const next = (index + 1) % pages.length;
-      scrollRef.current?.scrollTo({ x: next * width, animated: true });
+      const next = index + 1;
+      if (next >= LOOP_PAGES - 1) {
+        // The end of the runway: the same page, back in the middle.
+        const back = middleOf(n, next % n);
+        listRef.current?.scrollToOffset({ offset: back * width, animated: false });
+        setIndex(back);
+        return;
+      }
+      listRef.current?.scrollToOffset({ offset: next * width, animated: true });
       setIndex(next);
     }, section.autoRotateSec * 1000);
     return () => clearTimeout(timer);
-  }, [canRotate, index, pages.length, section.autoRotateSec, width]);
+  }, [canRotate, index, n, section.autoRotateSec, width]);
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
       const next = Math.round(e.nativeEvent.layout.width);
-      if (next === width) return;
-      setWidth(next);
-      // Keep the current page in view across a width change (rotation, split view).
-      scrollRef.current?.scrollTo({ x: index * next, animated: false });
+      // The list is keyed on width, so it remounts at `index` for the new size.
+      if (next !== width) setWidth(next);
     },
-    [index, width],
+    [width],
   );
 
   const onMomentumScrollEnd = useCallback(
@@ -117,9 +148,18 @@ export function HomeBannerCarousel({ section }: Props) {
       setDragging(false);
       if (width === 0) return;
       const landed = Math.round(e.nativeEvent.contentOffset.x / width);
-      setIndex(Math.min(Math.max(landed, 0), pages.length - 1));
+      setIndex(Math.min(Math.max(landed, 0), (looping ? LOOP_PAGES : 1) - 1));
     },
-    [pages.length, width],
+    [looping, width],
+  );
+
+  const getItem = useCallback(
+    (_: unknown, i: number): Slide => ({ index: i, page: pages[i % n] as HomeBannerItem }),
+    [pages, n],
+  );
+  const getItemLayout = useCallback(
+    (_: unknown, i: number) => ({ length: width, offset: width * i, index: i }),
+    [width],
   );
 
   // An explicit height, not `aspectRatio` on the slot: Yoga resolved that
@@ -128,35 +168,53 @@ export function HomeBannerCarousel({ section }: Props) {
   // estimate, so the card does not grow from zero.
   const height = (width || windowWidth - SLOT_MARGIN * 2) / section.aspectRatio;
 
+  const renderItem = useCallback(
+    ({ item }: { item: Slide }) => (
+      <View style={{ width, height }}>
+        {item.page.type === 'image' ? (
+          <ImagePage item={item.page} />
+        ) : (
+          // Replays its morph each time it becomes the current page. As the
+          // only page it is always current, so it keeps its standalone loop.
+          <HeroBanner fill active={looping ? item.index === index : undefined} />
+        )}
+      </View>
+    ),
+    [height, index, looping, width],
+  );
+
   return (
     <View style={[styles.slot, { height }]} onLayout={onLayout}>
       {width > 0 && (
-        <ScrollView
-          ref={scrollRef}
+        <VirtualizedList<Slide>
+          key={`${pageKey}:${width}`}
+          ref={listRef}
+          data={pages}
+          getItemCount={() => (looping ? LOOP_PAGES : 1)}
+          getItem={getItem}
+          getItemLayout={getItemLayout}
+          keyExtractor={(item) => String(item.index)}
+          renderItem={renderItem}
+          extraData={index}
+          initialScrollIndex={index}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          windowSize={3}
           horizontal
           pagingEnabled
-          scrollEnabled={pages.length > 1}
+          scrollEnabled={looping}
           showsHorizontalScrollIndicator={false}
           onScrollBeginDrag={() => setDragging(true)}
           // A drag that settles without momentum never fires the momentum end.
           onScrollEndDrag={() => setDragging(false)}
           onMomentumScrollEnd={onMomentumScrollEnd}
-        >
-          {pages.map((page) => (
-            <View
-              key={page.type === 'image' ? page.id : 'default'}
-              style={{ width, height }}
-            >
-              {page.type === 'image' ? <ImagePage item={page} /> : <HeroBanner fill />}
-            </View>
-          ))}
-        </ScrollView>
+        />
       )}
 
-      {pages.length > 1 && (
+      {looping && (
         <View style={styles.counter} pointerEvents="none">
           <Text style={styles.counterText}>
-            {index + 1} / {pages.length}
+            {(index % n) + 1} / {n}
           </Text>
         </View>
       )}
