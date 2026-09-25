@@ -12,6 +12,7 @@ export const ApiEndpoints = {
   homeTransitList: () => '/ui/home/transitlist',
   homeScroll: () => '/ui/home/scroll',
   homeCampus: () => '/ui/home/campus',
+  homeLayout: () => '/ui/home',
 
   // ── Building ──
   buildingList: () => '/building/list',

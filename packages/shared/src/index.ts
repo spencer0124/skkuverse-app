@@ -386,3 +386,4 @@ export {
 
 // ── Mini-app registry (2-tier SSOT: index + per-service detail, joined by id) ──
 export * from './miniapps';
+export * from './home';

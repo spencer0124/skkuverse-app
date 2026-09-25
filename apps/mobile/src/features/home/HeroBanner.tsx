@@ -105,7 +105,17 @@ const EMOJIS: readonly EmojiSpec[] = [
   { ch: '\u{23F0}', left: '87%', top: '50%', size: 16, rot: 10, delay: 2000 },
 ];
 
-export function HeroBanner() {
+interface HeroBannerProps {
+  /**
+   * Fill the parent instead of drawing a standalone 96-high card. Used as the
+   * `default` page of the home banner carousel, which sets the height from the
+   * server's aspect ratio and owns the margins and the rounded clip; the
+   * content is already vertically centred, so it sits mid-card at any height.
+   */
+  fill?: boolean;
+}
+
+export function HeroBanner({ fill = false }: HeroBannerProps = {}) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -203,6 +213,7 @@ export function HeroBanner() {
     <Pressable
       style={({ pressed }) => [
         styles.card,
+        fill ? styles.cardFill : styles.cardStandalone,
         { opacity: pressed ? 0.85 : 1 },
       ]}
       onPress={() => {
@@ -253,14 +264,19 @@ export function HeroBanner() {
 
 const styles = StyleSheet.create({
   card: {
-    height: 96,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
     backgroundColor: SdsColors.brandLight,
     paddingHorizontal: 20,
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  cardStandalone: {
+    height: 96,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+  },
+  cardFill: {
+    flex: 1,
   },
   subhead: {
     fontFamily: 'WantedSans',

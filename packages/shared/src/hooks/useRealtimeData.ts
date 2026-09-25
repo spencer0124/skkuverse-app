@@ -10,6 +10,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { safeGet } from '../api/safe-request';
+import { API_TIMEOUT_MS } from '../api/timeouts';
 import { parseRealtimeData } from '../bus/parser';
 import type { RealtimeData } from '../types/bus';
 
@@ -22,7 +23,11 @@ export function useRealtimeData(
   return useQuery<RealtimeData>({
     queryKey: [...REALTIME_DATA_KEY, dataEndpoint],
     queryFn: async () => {
-      const result = await safeGet(dataEndpoint!, parseRealtimeData);
+      // Short enough that a stalled poll and its retry finish before the next
+      // interval is due — see the invariant in api/timeouts.ts.
+      const result = await safeGet(dataEndpoint!, parseRealtimeData, {
+        timeout: API_TIMEOUT_MS.realtime,
+      });
 
       if (result.ok) {
         return result.data;

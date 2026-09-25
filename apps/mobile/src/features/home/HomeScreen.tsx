@@ -3,18 +3,18 @@ import {
   Platform,
   View,
   ScrollView,
-  Pressable,
   StyleSheet,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useHeaderHeight } from '@react-navigation/elements';
-// import { CaretRightIcon } from 'phosphor-react-native';  // 미니앱 섹션 헤더 전용 (더보기 버튼)
+// import { CaretRightIcon } from 'phosphor-react-native';  // 하단 배너 전용
 import {
   SdsColors,
+  useHomeLayout,
   useMiniAppIndex,
-  useT,
+  type HomeSection,
+  type MiniAppIndexEntry,
 } from '@skkuverse/shared';
-// import { Txt } from '@skkuverse/sds';  // 미니앱 섹션 헤더 전용
+import { Txt } from '@skkuverse/sds';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
@@ -24,9 +24,31 @@ import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
 import { HeroBanner } from './HeroBanner';
+import { HomeBannerCarousel } from './HomeBannerCarousel';
+
+// Logo is a remote image (`{uri}`) or an emoji. A null logo (the server sent
+// one this build cannot use) draws 🧩 rather than an empty tile.
+function toTile(app: MiniAppIndexEntry): TossfaceGridItem {
+  return {
+    id: app.id,
+    title: app.shortName ?? app.name,
+    ...(app.homeLogo?.kind === 'remote'
+      ? { imageSource: { uri: app.homeLogo.uri } }
+      : {
+          emoji: app.homeLogo?.kind === 'emoji' ? app.homeLogo.emoji : '\u{1F9E9}',
+        }),
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: app.id });
+      openMiniAppById(app.id);
+    },
+  };
+}
+
+type RenderedSection =
+  | { type: 'banner'; key: string; section: Extract<HomeSection, { type: 'banner_carousel' }> }
+  | { type: 'grid'; key: string; title?: string; items: TossfaceGridItem[] };
 
 export function HomeScreen() {
-  const { t } = useT();
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -41,30 +63,38 @@ export function HomeScreen() {
   const headerHeight = useHeaderHeight();
   const scrollTopInset = Platform.OS === 'ios' ? headerHeight + 16 : 16;
 
-  // 홈 그리드 = 서버 레지스트리(SSOT). 예전엔 여기가 공지/ESKARA/건물지도/건물코드를
-  // 하드코딩한 정적 배열이었지만, 이제 그 타일들도 레지스트리 항목으로 옮겨갔다.
-  // 이름/shortName/로고/순서 전부 서버에서 오고, `hidden: true`인 항목은 홈
-  // 그리드에서만 걸러진다 — 딥링크·지도 버튼·미니앱 셸에서는 그대로 열린다.
-  // 로고는 원격 이미지(`{uri}`) 또는 이모지 — 번들 require() 맵은 제거됨. 로고가
-  // null(서버가 쓸 수 없는 로고를 보냄)이면 빈 칸 대신 🧩로 그린다.
+  // Home = server-driven sections (GET /ui/home), drawn in the server's order:
+  // the banner carousel and titled mini-app grids. Grids carry ids only; names
+  // and logos are joined from the mini-app registry, and an id the registry
+  // does not (yet) know is skipped. A grid left with no tiles is dropped whole,
+  // title included.
+  //
+  // With no layout at all (first launch offline, or a server predating
+  // /ui/home) the screen falls back to what it drew before: the built-in
+  // banner over one flat grid of every non-hidden registry entry.
+  const { data: layout } = useHomeLayout();
   const { data: miniApps } = useMiniAppIndex();
-  const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
-    () =>
-      (miniApps ?? [])
-        .filter((app) => !app.hidden)
-        .map((app) => ({
-          id: app.id,
-          title: app.shortName ?? app.name,
-          ...(app.homeLogo?.kind === 'remote'
-            ? { imageSource: { uri: app.homeLogo.uri } }
-            : {
-                emoji: app.homeLogo?.kind === 'emoji' ? app.homeLogo.emoji : '\u{1F9E9}',
-              }),
-          onPress: () => {
-            logHomeContentSelect({ content_type: 'tile', item_id: app.id });
-            openMiniAppById(app.id);
-          },
-        })),
+  const sections = useMemo<RenderedSection[] | null>(() => {
+    if (!layout) return null;
+    const byId = new Map((miniApps ?? []).map((app) => [app.id, app]));
+    const out: RenderedSection[] = [];
+    for (const section of layout.sections) {
+      if (section.type === 'banner_carousel') {
+        out.push({ type: 'banner', key: section.id, section });
+        continue;
+      }
+      const items = section.miniAppIds
+        .map((id) => byId.get(id))
+        .filter((app): app is MiniAppIndexEntry => app !== undefined)
+        .map(toTile);
+      if (items.length > 0) {
+        out.push({ type: 'grid', key: section.id, title: section.title, items });
+      }
+    }
+    return out;
+  }, [layout, miniApps]);
+  const fallbackItems = useMemo(
+    () => (miniApps ?? []).filter((app) => !app.hidden).map(toTile),
     [miniApps],
   );
 
@@ -78,85 +108,31 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero Banner (auto-playing intro animation) ── */}
-        <HeroBanner />
-
-        {/* ── ESKARA 축제 배너 ── 축제 기간 한정 (2026-09-24). 누르면 그리드의
-            ESKARA 타일과 같은 미니앱이 열린다. 이미지는 공식 캐러셀 3장을 이어
-            붙인 것(assets/images/eskara-banner.jpg). 축제가 끝나면 이 블록과
-            eskaraBanner 스타일, Pressable·Image import를 함께 걷어낸다. */}
-        <Pressable
-          onPress={() => {
-            logHomeContentSelect({ content_type: 'banner', item_id: 'eskara' });
-            openMiniAppById('eskara-2026');
-          }}
-          style={({ pressed }) => [styles.eskaraBanner, { opacity: pressed ? 0.85 : 1 }]}
-          accessibilityRole="button"
-          accessibilityLabel={t('home.tile.eskara')}
-        >
-          <Image
-            source={require('../../../assets/images/eskara-banner.jpg')}
-            style={styles.eskaraBannerImage}
-            contentFit="cover"
-          />
-        </Pressable>
-
-        {/* ── Grid Menu (registry-driven) ──
-            정적 타일(공지/ESKARA/건물지도/건물코드)은 서버 레지스트리로 옮겨갔다.
-            아래 두 항목은 예전 정적 그리드에서 이미 주석 처리돼 있던 것으로,
-            되살릴 일이 생기면 참고하도록 여기 보류해 둔다:
-            {
-              id: 'original_series',
-              title: t('home.tile.originalSeries'),
-              emoji: '\u{1F3AC}',
-              onPress: () => {
-                logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
-                router.push('/video-gallery' as never);
-              },
-            },
-            {
-              id: 'lost_found',
-              title: t('lostAndFound.title'),
-              emoji: '\u{1F9F3}',
-              onPress: () => {
-                logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
-                handleSduiAction({
-                  actionType: 'webview',
-                  actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
-                  webviewTitle: t('lostAndFound.title'),
-                  webviewColor: '003626',
-                });
-              },
-            },
-        */}
-        <View style={styles.gridWrap}>
-          <TossfaceButtonGrid items={miniAppItems} />
-        </View>
-
-        {/* ── 미니앱 섹션 ── 임시 비노출 (2026-08-01). 되살릴 때 위쪽
-            useMiniAppIndex/miniAppItems 블록과 Pressable·CaretRightIcon·Txt
-            import도 함께 복구할 것.
-        <View style={styles.miniAppsSection}>
-          <View style={styles.sectionHeader}>
-            <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-              미니앱
-            </Txt>
-            <Pressable
-              style={({ pressed }) => [
-                styles.sectionMoreBtn,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              hitSlop={8}
-            >
-              <Txt typography="t7" color={SdsColors.grey500}>
-                더보기
-              </Txt>
-              <CaretRightIcon size={12} color={SdsColors.grey400} />
-            </Pressable>
-          </View>
-          <TossfaceButtonGrid items={miniAppItems} />
-        </View>
-        */}
+        {sections ? (
+          sections.map((section) =>
+            section.type === 'banner' ? (
+              <HomeBannerCarousel key={section.key} section={section.section} />
+            ) : (
+              <View key={section.key} style={styles.gridWrap}>
+                {section.title ? (
+                  <View style={styles.sectionHeader}>
+                    <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                      {section.title}
+                    </Txt>
+                  </View>
+                ) : null}
+                <TossfaceButtonGrid items={section.items} />
+              </View>
+            ),
+          )
+        ) : (
+          <>
+            <HeroBanner />
+            <View style={styles.gridWrap}>
+              <TossfaceButtonGrid items={fallbackItems} />
+            </View>
+          </>
+        )}
 
         {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
         <DeptNoticesSection />
@@ -195,39 +171,18 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
 
-  /* ── ESKARA 축제 배너 ── HeroBanner 카드와 같은 가로 여백·모서리 */
-  eskaraBanner: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  eskaraBannerImage: {
-    width: '100%',
-    // 원본 비율(2400×1251) 그대로 — 가운데 타이틀이 잘리지 않게.
-    aspectRatio: 2400 / 1251,
-  },
-
   /* ── Grid wrap ── */
   gridWrap: {
     marginBottom: 24,
   },
 
-  /* ── 미니앱 섹션 ── */
-  miniAppsSection: {
-    marginBottom: 28,
-  },
+  /* ── Mini-app section heading ── */
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     marginBottom: 12,
-  },
-  sectionMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
   },
 
   /* ── Bottom Banner ── */

@@ -6,6 +6,7 @@ import {
   attachRetryInterceptor,
   attachAuthInterceptor,
 } from './interceptors';
+import { API_TIMEOUT_MS } from './timeouts';
 
 /**
  * Creates a fully-configured axios instance with the interceptor chain.
@@ -21,7 +22,9 @@ import {
 export function createApiClient(): AxiosInstance {
   const client = axios.create({
     baseURL: ApiConfig.baseUrl,
-    timeout: 10_000,
+    // GETs get a shorter `read` timeout from the safeGet* wrappers; this
+    // default covers everything else. See ./timeouts.ts.
+    timeout: API_TIMEOUT_MS.write,
   });
 
   // Request interceptor: platform headers
