@@ -23,8 +23,12 @@ import {
   type MiniAppIndexEntry,
 } from './schema';
 
-const INDEX_CACHE_KEY = 'miniapp:index:v1';
-const detailCacheKey = (id: string) => `miniapp:detail:v1:${id}`;
+// v2: the payload gained `homeLogo`/`shellLogo` (replacing `logo`) and
+// `shell.bar` (replacing `bottomBar`/`backForward`). A v1 blob still parses,
+// but with null logos and no `bar`, so it would paint the wrong logo and the
+// default bottom bar until the refetch lands. Bumping drops it instead.
+const INDEX_CACHE_KEY = 'miniapp:index:v2';
+const detailCacheKey = (id: string) => `miniapp:detail:v2:${id}`;
 
 // ── Last-known-good cache ──
 // Cached blobs are re-parsed through the same tolerant parsers used on live

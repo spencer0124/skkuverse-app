@@ -55,9 +55,11 @@ export function HomeScreen() {
         .map((app) => ({
           id: app.id,
           title: app.shortName ?? app.name,
-          ...(app.logo?.kind === 'remote'
-            ? { imageSource: { uri: app.logo.uri } }
-            : { emoji: app.logo?.kind === 'emoji' ? app.logo.emoji : '\u{1F9E9}' }),
+          ...(app.homeLogo?.kind === 'remote'
+            ? { imageSource: { uri: app.homeLogo.uri } }
+            : {
+                emoji: app.homeLogo?.kind === 'emoji' ? app.homeLogo.emoji : '\u{1F9E9}',
+              }),
           onPress: () => {
             logHomeContentSelect({ content_type: 'tile', item_id: app.id });
             openMiniAppById(app.id);

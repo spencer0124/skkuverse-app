@@ -8,6 +8,7 @@ export {
   type MiniAppLink,
   type MiniAppNoticeBanner,
   type MiniAppShell,
+  type MiniAppShellBar,
   type MiniAppDetail,
 } from './schema';
 export {

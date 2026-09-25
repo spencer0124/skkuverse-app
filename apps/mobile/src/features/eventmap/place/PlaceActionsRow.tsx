@@ -108,7 +108,7 @@ export function PlaceActionsRow({
               <MiniAppLogoIcon
                 logo={
                   miniApps?.find((m) => m.id === parseMiniAppTarget(action.actionValue)?.id)
-                    ?.logo
+                    ?.shellLogo
                 }
               />
             ) : undefined

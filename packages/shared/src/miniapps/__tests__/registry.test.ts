@@ -20,7 +20,8 @@ const validEntry = {
   name: '인사캠 총학생회',
   shortName: '인사캠 총학',
   order: 10,
-  logo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc.png' },
+  homeLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-home.png' },
+  shellLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-shell.png' },
 };
 
 describe('parseMiniAppIndex', () => {
@@ -32,7 +33,8 @@ describe('parseMiniAppIndex', () => {
       id: 'hssc',
       name: '인사캠 총학생회',
       shortName: '인사캠 총학',
-      logo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc.png' },
+      homeLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-home.png' },
+      shellLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-shell.png' },
     });
   });
 
@@ -65,10 +67,10 @@ describe('parseMiniAppIndex', () => {
     expect(parsed.miniApps.map((m) => m.id)).toEqual(['hssc', 'good2']);
   });
 
-  it('keeps an entry whose logo is unusable, with logo null', () => {
+  it('keeps an entry whose homeLogo is unusable, with homeLogo null', () => {
     // A missing logo is a cosmetic problem; dropping the tile would hide a
     // working mini-app over an image.
-    for (const logo of [
+    for (const homeLogo of [
       undefined,
       null,
       { kind: 'bundled', key: 'hssc' },
@@ -80,19 +82,57 @@ describe('parseMiniAppIndex', () => {
     ]) {
       const parsed = parseMiniAppIndex({
         version: 1,
-        miniApps: [{ ...validEntry, logo }],
+        miniApps: [{ ...validEntry, homeLogo }],
       });
       expect(parsed.miniApps).toHaveLength(1);
-      expect(parsed.miniApps[0].logo).toBeNull();
+      expect(parsed.miniApps[0].homeLogo).toBeNull();
     }
   });
 
-  it('parses an emoji logo', () => {
+  it('keeps an entry whose shellLogo is unusable, with shellLogo null', () => {
+    for (const shellLogo of [
+      undefined,
+      null,
+      { kind: 'bundled', key: 'hssc' },
+      { kind: 'remote', uri: 'javascript:alert(1)' },
+    ]) {
+      const parsed = parseMiniAppIndex({
+        version: 1,
+        miniApps: [{ ...validEntry, shellLogo }],
+      });
+      expect(parsed.miniApps).toHaveLength(1);
+      expect(parsed.miniApps[0].shellLogo).toBeNull();
+    }
+  });
+
+  it('parses homeLogo and shellLogo independently — one unusable does not null the other', () => {
     const parsed = parseMiniAppIndex({
       version: 1,
-      miniApps: [{ ...validEntry, logo: { kind: 'emoji', emoji: '😋' } }],
+      miniApps: [
+        {
+          ...validEntry,
+          homeLogo: { kind: 'emoji', emoji: '🌊' },
+          shellLogo: { kind: 'remote', uri: 'javascript:alert(1)' },
+        },
+      ],
     });
-    expect(parsed.miniApps[0].logo).toEqual({ kind: 'emoji', emoji: '😋' });
+    expect(parsed.miniApps[0].homeLogo).toEqual({ kind: 'emoji', emoji: '🌊' });
+    expect(parsed.miniApps[0].shellLogo).toBeNull();
+  });
+
+  it('parses an emoji logo for both homeLogo and shellLogo', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [
+        {
+          ...validEntry,
+          homeLogo: { kind: 'emoji', emoji: '😋' },
+          shellLogo: { kind: 'emoji', emoji: '😋' },
+        },
+      ],
+    });
+    expect(parsed.miniApps[0].homeLogo).toEqual({ kind: 'emoji', emoji: '😋' });
+    expect(parsed.miniApps[0].shellLogo).toEqual({ kind: 'emoji', emoji: '😋' });
   });
 
   it('returns an empty registry for a malformed envelope instead of throwing', () => {
@@ -235,31 +275,27 @@ describe('parseMiniAppDetail', () => {
     expect(parseMiniAppDetail(validDetail)).not.toHaveProperty('shell');
   });
 
-  it('keeps a boolean shell field', () => {
-    expect(
-      parseMiniAppDetail({ ...validDetail, shell: { bottomBar: false } })
-        ?.shell,
-    ).toEqual({ bottomBar: false });
-    expect(
-      parseMiniAppDetail({ ...validDetail, shell: { backForward: false } })
-        ?.shell,
-    ).toEqual({ backForward: false });
+  it('keeps a recognized `bar` value', () => {
+    for (const bar of ['top', 'bottom', 'hide'] as const) {
+      expect(
+        parseMiniAppDetail({ ...validDetail, shell: { bar } })?.shell,
+      ).toEqual({ bar });
+    }
   });
 
-  it('drops a non-boolean shell field rather than coercing it to false', () => {
-    // Absent means "shown" — a bad value must not silently hide chrome.
-    const parsed = parseMiniAppDetail({
-      ...validDetail,
-      shell: { bottomBar: 'no' },
-    });
-    expect(parsed).not.toHaveProperty('shell');
+  it('drops an unrecognized `bar` value rather than coercing it', () => {
+    // Absent means "bottom" — a bad value must not silently hide chrome.
+    for (const shell of [{ bar: 'left' }, { bar: true }, { bottomBar: false }]) {
+      const parsed = parseMiniAppDetail({ ...validDetail, shell });
+      expect(parsed).not.toHaveProperty('shell');
+    }
   });
 
-  it('drops unknown shell keys, keeping the recognized ones', () => {
+  it('drops unknown shell keys, keeping `bar`', () => {
     const parsed = parseMiniAppDetail({
       ...validDetail,
-      shell: { backForward: false, extra: 1 },
+      shell: { bar: 'top', extra: 1 },
     });
-    expect(parsed?.shell).toEqual({ backForward: false });
+    expect(parsed?.shell).toEqual({ bar: 'top' });
   });
 });

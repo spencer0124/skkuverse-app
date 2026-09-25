@@ -37,8 +37,15 @@ export interface MiniAppIndexEntry {
   /** Short label for the home grid tile; falls back to `name`. */
   shortName?: string;
   order: number;
-  /** null when the server sent no usable logo — the tile still renders. */
-  logo: MiniAppLogo | null;
+  /**
+   * Logo for the home grid tile. The server always sends both `homeLogo` and
+   * `shellLogo` (it has already applied its own fallback), but each is parsed
+   * independently and null when unusable — one being unusable never nulls the
+   * other.
+   */
+  homeLogo: MiniAppLogo | null;
+  /** Logo for the mini-app shell (header pill, map pill, info sheet). */
+  shellLogo: MiniAppLogo | null;
   /**
    * Kept off the home grid, but still resolvable by deep links, map buttons
    * and the mini-app shell (which still reads its name/logo).
@@ -62,16 +69,21 @@ export interface MiniAppNoticeBanner {
 }
 
 /**
- * Shell chrome toggles for the mini-app WebView screen. A key absent from the
- * payload means "shown" — this is an opt-out surface, not an opt-in one, so a
+ * Where the mini-app shell puts its chrome. `bottom` (the default) is today's
+ * [<] pill [>] bar; `top` moves the service pill into the native header and
+ * drops the bottom bar and nav buttons; `hide` drops the pill everywhere as
+ * well, leaving only the native `<` back and `…` buttons.
+ */
+export type MiniAppShellBar = 'top' | 'bottom' | 'hide';
+
+/**
+ * Shell chrome for the mini-app WebView screen. An absent or unrecognized
+ * `bar` means `bottom` — this is an opt-out surface, not an opt-in one, so a
  * server that never mentions `shell` keeps every existing mini-app looking
  * exactly as it does today.
  */
 export interface MiniAppShell {
-  /** `false` hides the whole bottom bar (nav cluster + service-name pill). */
-  bottomBar?: boolean;
-  /** `false` hides only the [<] [>] buttons; the centre pill still shows. */
-  backForward?: boolean;
+  bar?: MiniAppShellBar;
 }
 
 /** Per-service detail — heavier content, needed when opening the mini-app. */
@@ -143,7 +155,8 @@ function parseIndexEntry(
     name,
     ...(shortName ? { shortName } : {}),
     order: typeof obj.order === 'number' ? obj.order : fallbackOrder,
-    logo: parseLogo(obj.logo),
+    homeLogo: parseLogo(obj.homeLogo),
+    shellLogo: parseLogo(obj.shellLogo),
     ...(obj.hidden === true ? { hidden: true } : {}),
   };
 }
@@ -189,20 +202,22 @@ function parseNoticeBanner(raw: unknown): MiniAppNoticeBanner | undefined {
   return title && subtitle ? { title, subtitle } : undefined;
 }
 
+const SHELL_BARS: ReadonlySet<string> = new Set(['top', 'bottom', 'hide']);
+
 /**
- * A key survives only when its value is a real boolean; a bad value (e.g.
- * `"no"`) is dropped rather than coerced, since absent means "shown" and a
- * miscoerced `false` would hide chrome the server never meant to hide. An
- * empty result becomes `undefined` so `parseMiniAppDetail` can omit the key
- * entirely, matching `noticeBanner`'s all-or-nothing shape.
+ * `bar` survives only when it's one of the three recognized strings; a bad
+ * value (e.g. `"left"` or a stray boolean) is dropped rather than coerced,
+ * since absent means `bottom` and a miscoerced value would hide chrome the
+ * server never meant to hide. An empty result becomes `undefined` so
+ * `parseMiniAppDetail` can omit the key entirely, matching `noticeBanner`'s
+ * all-or-nothing shape.
  */
 function parseShell(raw: unknown): MiniAppShell | undefined {
   const obj = asRecord(raw);
   if (!obj) return undefined;
-  const shell: MiniAppShell = {};
-  if (typeof obj.bottomBar === 'boolean') shell.bottomBar = obj.bottomBar;
-  if (typeof obj.backForward === 'boolean') shell.backForward = obj.backForward;
-  return Object.keys(shell).length > 0 ? shell : undefined;
+  return typeof obj.bar === 'string' && SHELL_BARS.has(obj.bar)
+    ? { bar: obj.bar as MiniAppShellBar }
+    : undefined;
 }
 
 /**
