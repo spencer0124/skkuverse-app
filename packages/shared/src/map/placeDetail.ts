@@ -120,6 +120,28 @@ export function heroGallery(body: readonly PlaceBodyItem[]): Extract<PlaceBodyIt
   return null;
 }
 
+/** A poster's shape, for a lone photo whose own has not loaded yet. */
+export const SOLO_IMAGE_DEFAULT_ASPECT = 4 / 5;
+
+/**
+ * A lone photo's box: its own aspect, as wide as allowed, never taller than
+ * `maxHeight`.
+ *
+ * A gallery of one is a pub's poster, not a strip to page across, so it is
+ * drawn whole rather than cropped into the rail's landscape thumbnail. The wire
+ * carries no size, so `aspect` is the loaded image's own — until then the
+ * default, which every 2026 poster is within a few percent of.
+ */
+export function soloImageSize(
+  aspect: number,
+  maxWidth: number,
+  maxHeight: number,
+): { width: number; height: number } {
+  const ratio = Number.isFinite(aspect) && aspect > 0 ? aspect : SOLO_IMAGE_DEFAULT_ASPECT;
+  const width = Math.min(maxWidth, maxHeight * ratio);
+  return { width, height: width / ratio };
+}
+
 /**
  * Whether a place's sheet opens at its tallest detent rather than its lowest.
  *

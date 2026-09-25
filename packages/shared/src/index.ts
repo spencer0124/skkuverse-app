@@ -268,6 +268,8 @@ export {
   highlightBlock,
   placeBody,
   heroGallery,
+  soloImageSize,
+  SOLO_IMAGE_DEFAULT_ASPECT,
   HIGHLIGHT_MAX,
   placeSections,
   placeSheetOpensTall,

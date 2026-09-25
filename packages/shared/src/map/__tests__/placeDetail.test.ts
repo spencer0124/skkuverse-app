@@ -16,6 +16,8 @@ import {
   placeBody,
   placeSections,
   placeSheetOpensTall,
+  SOLO_IMAGE_DEFAULT_ASPECT,
+  soloImageSize,
 } from '../placeDetail';
 import type { PlaceBlock, PlaceDetail } from '../../types/placeDetail';
 import type { I18nText, MapOverlay } from '../../types/map';
@@ -140,6 +142,26 @@ describe('heroGallery', () => {
   it('takes the first gallery, whatever else is around it', () => {
     const body = placeBody([textBlock('a'), imageBlock('i1', 'one.png'), textBlock('b'), imageBlock('i2', 'two.png')]);
     expect(heroGallery(body)?.id).toBe('i1');
+  });
+});
+
+describe('soloImageSize — a lone photo keeps its own shape', () => {
+  it('fills the width when the height allows it', () => {
+    expect(soloImageSize(4 / 5, 320, 440)).toEqual({ width: 320, height: 400 });
+  });
+
+  it('narrows a tall image to the height cap instead of cropping it', () => {
+    const { width, height } = soloImageSize(1 / 3, 320, 440);
+    expect(height).toBeCloseTo(440);
+    expect(width).toBeCloseTo(440 / 3);
+  });
+
+  it('keeps a landscape image at the full width', () => {
+    expect(soloImageSize(4 / 3, 320, 440)).toEqual({ width: 320, height: 240 });
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])('falls back to a poster for aspect %s', (aspect) => {
+    expect(soloImageSize(aspect, 320, 440)).toEqual(soloImageSize(SOLO_IMAGE_DEFAULT_ASPECT, 320, 440));
   });
 });
 
