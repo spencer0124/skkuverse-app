@@ -92,6 +92,7 @@ const DROP = 8; // 좌/우 클러스터가 접힐 때 아래로 내려가는 거
 const CENTER_DROP = 16; // 가운데 pill 하강 거리 — 높이가 중앙 기준으로 줄어 더 크게 줘야 체감됨
 const PULL = 28; // 접힐 때 좌/우 클러스터가 가운데로 끌려가는 가로 거리(합쳐지는 느낌)
 const HEADER_PILL_SIDE_RESERVE = 140; // 헤더 pill 최대폭 계산용 — 좌 back[‹]·우[⋯] 버튼 여유폭
+const HEADER_PILL_H = 44; // 헤더 pill 높이 — iOS 26 시스템 bar button 글래스 캡슐(‹ / ⋯)과 동일
 
 // iOS `unstable_headerRightItems`는 SF Symbol 또는 ImageSource만 받으므로 phosphor
 // SVG를 GREY_700으로 baked한 PNG 사용(scripts/export-header-icons.mjs). tinted:false로
@@ -189,7 +190,8 @@ function ServicePillLabel({
  * headerTitle 자리가 아닌 이유: iOS 26 + react-native-screens 4.19에서 커스텀
  * headerTitle 뷰는 네비바 밖에 배치돼 잘려 보이지 않는다(문자열 title과 좌/우 커스텀
  * 아이템은 정상). 하단 bar pill과 같은 GlassSurface 캡슐이지만 스크롤에 반응해 접히는
- * 대신 고정된 컴팩트 크기(높이 36)를 유지한다. 누를 동작이 없으므로 interactive는
+ * 대신 헤더 시스템 버튼(‹ / ⋯)과 같은 높이(HEADER_PILL_H)로 고정된다 — 하단 바의 접힌
+ * 크기(36)를 쓰면 옆의 44pt 시스템 캡슐보다 작아 보인다. 누를 동작이 없으므로 interactive는
  * 끈다. `maxWidth`는 back·더보기 버튼과 겹치지 않도록 호출부(화면 폭 - 여유폭)가 넘긴다.
  */
 function HeaderPill({
@@ -206,7 +208,7 @@ function HeaderPill({
   return (
     <GlassSurface style={[styles.headerPill, { maxWidth }]}>
       <View style={styles.headerPillInner}>
-        <ServicePillLabel logo={logo} faviconUri={faviconUri} name={name} />
+        <ServicePillLabel logo={logo} faviconUri={faviconUri} name={name} logoSize={20} />
       </View>
     </GlassSurface>
   );
@@ -948,16 +950,16 @@ const styles = StyleSheet.create({
     color: SdsColors.grey800,
   },
   // 헤더 pill(bar==='top', 헤더 좌측 back 옆) — 하단 titlePill과 같은 캡슐이지만 스크롤에
-  // 반응하지 않는 고정 컴팩트 크기. maxWidth는 호출부(headerPillMaxW)가 계산해 넘긴다.
+  // 반응하지 않는 고정 크기(헤더 시스템 버튼 높이). maxWidth는 호출부(headerPillMaxW)가 계산해 넘긴다.
   headerPill: {
-    height: 36,
-    borderRadius: 18,
+    height: HEADER_PILL_H,
+    borderRadius: HEADER_PILL_H / 2,
     overflow: 'hidden',
     alignSelf: 'center',
   },
   headerPillInner: {
     flex: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
