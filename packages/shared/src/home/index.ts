@@ -11,5 +11,6 @@ export {
   type HomeBannerDefault,
   type HomeMiniAppGrid,
 } from './schema';
+export { defaultHomeLayout } from './defaults';
 export { getCachedHomeLayout, fetchHomeLayout } from './repository';
 export { useHomeLayout, HOME_LAYOUT_KEY } from './hooks';

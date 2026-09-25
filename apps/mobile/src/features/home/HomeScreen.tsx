@@ -9,8 +9,10 @@ import { useHeaderHeight } from '@react-navigation/elements';
 // import { CaretRightIcon } from 'phosphor-react-native';  // 하단 배너 전용
 import {
   SdsColors,
+  defaultHomeLayout,
   useHomeLayout,
   useMiniAppIndex,
+  useT,
   type HomeSection,
   type MiniAppIndexEntry,
 } from '@skkuverse/shared';
@@ -23,7 +25,6 @@ import { openMiniAppById } from '@/features/mini-app/open';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
-import { HeroBanner } from './HeroBanner';
 import { HomeBannerCarousel } from './HomeBannerCarousel';
 
 // Logo is a remote image (`{uri}`) or an emoji. A null logo (the server sent
@@ -49,6 +50,7 @@ type RenderedSection =
   | { type: 'grid'; key: string; title?: string; items: TossfaceGridItem[] };
 
 export function HomeScreen() {
+  const { t } = useT();
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -70,12 +72,11 @@ export function HomeScreen() {
   // title included.
   //
   // With no layout at all (first launch offline, or a server predating
-  // /ui/home) the screen falls back to what it drew before: the built-in
-  // banner over one flat grid of every non-hidden registry entry.
-  const { data: layout } = useHomeLayout();
+  // /ui/home) it draws the bundled copy of today's server layout instead.
+  const { data: fetched } = useHomeLayout();
   const { data: miniApps } = useMiniAppIndex();
-  const sections = useMemo<RenderedSection[] | null>(() => {
-    if (!layout) return null;
+  const layout = useMemo(() => fetched ?? defaultHomeLayout(t), [fetched, t]);
+  const sections = useMemo<RenderedSection[]>(() => {
     const byId = new Map((miniApps ?? []).map((app) => [app.id, app]));
     const out: RenderedSection[] = [];
     for (const section of layout.sections) {
@@ -93,10 +94,6 @@ export function HomeScreen() {
     }
     return out;
   }, [layout, miniApps]);
-  const fallbackItems = useMemo(
-    () => (miniApps ?? []).filter((app) => !app.hidden).map(toTile),
-    [miniApps],
-  );
 
   return (
     <View style={styles.container}>
@@ -108,30 +105,21 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {sections ? (
-          sections.map((section) =>
-            section.type === 'banner' ? (
-              <HomeBannerCarousel key={section.key} section={section.section} />
-            ) : (
-              <View key={section.key} style={styles.gridWrap}>
-                {section.title ? (
-                  <View style={styles.sectionHeader}>
-                    <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-                      {section.title}
-                    </Txt>
-                  </View>
-                ) : null}
-                <TossfaceButtonGrid items={section.items} />
-              </View>
-            ),
-          )
-        ) : (
-          <>
-            <HeroBanner />
-            <View style={styles.gridWrap}>
-              <TossfaceButtonGrid items={fallbackItems} />
+        {sections.map((section) =>
+          section.type === 'banner' ? (
+            <HomeBannerCarousel key={section.key} section={section.section} />
+          ) : (
+            <View key={section.key} style={styles.gridWrap}>
+              {section.title ? (
+                <View style={styles.sectionHeader}>
+                  <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                    {section.title}
+                  </Txt>
+                </View>
+              ) : null}
+              <TossfaceButtonGrid items={section.items} />
             </View>
-          </>
+          ),
         )}
 
         {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}

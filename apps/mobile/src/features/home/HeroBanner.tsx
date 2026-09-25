@@ -98,14 +98,14 @@ const LEFT_TIGHT_TRANSLATE = (RIGHT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
 const RIGHT_TIGHT_TRANSLATE = -(LEFT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
 
 // Right-zone emoji cluster — organic scatter around 📢 anchor (the largest,
-// focal). Sizes graduated (28→16) so the eye reads anchor first then drifts
+// focal). Sizes graduated (38→22) so the eye reads anchor first then drifts
 // to peripherals; rotations spread ±20° for "tossed in" feel instead of
 // uniform corners.
 const EMOJIS: readonly EmojiSpec[] = [
-  { ch: '\u{1F4E2}', left: '56%', top: '28%', size: 28, rot: -12, delay: 0 },
-  { ch: '\u{1F68C}', left: '78%', top: '8%', size: 20, rot: 16, delay: 800 },
-  { ch: '\u{1F5FA}', left: '70%', top: '60%', size: 18, rot: -22, delay: 1400 },
-  { ch: '\u{23F0}', left: '87%', top: '50%', size: 16, rot: 10, delay: 2000 },
+  { ch: '\u{1F4E2}', left: '61%', top: '26%', size: 38, rot: -12, delay: 0 },
+  { ch: '\u{1F68C}', left: '82%', top: '6%', size: 27, rot: 16, delay: 800 },
+  { ch: '\u{1F5FA}', left: '75%', top: '58%', size: 24, rot: -22, delay: 1400 },
+  { ch: '\u{23F0}', left: '89%', top: '46%', size: 22, rot: 10, delay: 2000 },
 ];
 
 interface HeroBannerProps {
