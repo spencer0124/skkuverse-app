@@ -117,6 +117,31 @@ describe('parseMiniAppIndex', () => {
       MINIAPP_REGISTRY_VERSION,
     );
   });
+
+  it('keeps `hidden: true`, keeping the entry in the registry', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [{ ...validEntry, hidden: true }],
+    });
+    expect(parsed.miniApps).toHaveLength(1);
+    expect(parsed.miniApps[0].hidden).toBe(true);
+  });
+
+  it('omits `hidden` when absent', () => {
+    const parsed = parseMiniAppIndex({ version: 1, miniApps: [validEntry] });
+    expect(parsed.miniApps[0]).not.toHaveProperty('hidden');
+  });
+
+  it('drops a non-true `hidden` value rather than coercing it, keeping the entry', () => {
+    for (const hidden of ['yes', 1, false]) {
+      const parsed = parseMiniAppIndex({
+        version: 1,
+        miniApps: [{ ...validEntry, hidden }],
+      });
+      expect(parsed.miniApps).toHaveLength(1);
+      expect(parsed.miniApps[0]).not.toHaveProperty('hidden');
+    }
+  });
 });
 
 describe('parseMiniAppDetail', () => {

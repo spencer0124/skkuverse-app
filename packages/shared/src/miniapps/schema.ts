@@ -39,6 +39,11 @@ export interface MiniAppIndexEntry {
   order: number;
   /** null when the server sent no usable logo — the tile still renders. */
   logo: MiniAppLogo | null;
+  /**
+   * Kept off the home grid, but still resolvable by deep links, map buttons
+   * and the mini-app shell (which still reads its name/logo).
+   */
+  hidden?: boolean;
 }
 
 export interface MiniAppIndex {
@@ -139,6 +144,7 @@ function parseIndexEntry(
     ...(shortName ? { shortName } : {}),
     order: typeof obj.order === 'number' ? obj.order : fallbackOrder,
     logo: parseLogo(obj.logo),
+    ...(obj.hidden === true ? { hidden: true } : {}),
   };
 }
 
