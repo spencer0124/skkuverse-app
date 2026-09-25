@@ -3,7 +3,7 @@ title: Mini App Platform Plan
 type: plan
 status: draft
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-26
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -19,6 +19,24 @@ audience: internal
 > This is a **product** document, covering what and why. What the app has to provide, and how
 > backward compatibility is guaranteed, is its companion,
 > [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md).
+
+> [!NOTE]
+> **Status, 2026-09-26.** The SDK section below describes a hosted
+> `<script src="https://skkuverse.com/miniapp-sdk/v1.js">`, LIFF-style. That script is **not
+> built or served yet** — an IIFE build seed exists in skkuverse-miniapp, but nothing is
+> deployed at that URL. What exists today is the npm package `@skkuverse/miniapp`: first-party
+> mini apps bundle it directly, rather than loading it from a `<script>` tag, and the app's mini
+> app shell (`app/mini-app.tsx`) speaks its `@skkuverse/miniapp/protocol` subpath. The hosted
+> script remains the plan for phase 2's third-party mini apps, where an old bundle can no
+> longer be rebuilt on demand — see the amendment to decision 3 in
+> [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §3.
+>
+> The shell and viewport contract (what a mini app declares in `public/skkuverse.json`, the
+> `--sv-*` CSS variables, `shell.set`) and the outside-the-app browser gate
+> (`MiniappRoot` blocking a plain browser unless `browser="allow"`) are both defined in the
+> protocol's own reference: [skkuverse-miniapp
+> `docs/reference/protocol.md`](https://github.com/spencer0124/skkuverse-miniapp/blob/main/docs/reference/protocol.md).
+> The app side of the shell is [explanation/miniapp-shell.md](../explanation/miniapp-shell.md).
 
 ## Context
 

@@ -3,7 +3,7 @@ title: Docs Index & Conventions
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-30
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -50,7 +50,7 @@ crosses package boundaries.
 | [ota-update.md](how-to/ota-update.md) | Publishing an OTA update to the beta or production channel |
 | [firestore-debugging.md](how-to/firestore-debugging.md) | Firestore debugging, from the symptom table through REST server truth to emulator checks |
 | [add-notice-tab.md](how-to/add-notice-tab.md) | Cross-repo checklist for adding a notice tab (server categories.json to the tabsContract mirror) |
-| [add-view-on-map-button.md](how-to/add-view-on-map-button.md) | Giving a first-party web page a button that opens the campus map on a place (`web:action` `map`), and what a page may never ask for |
+| [add-view-on-map-button.md](how-to/add-view-on-map-button.md) | Giving a first-party web page a button that opens the campus map on a place (`web:action` `map` in `/webview`, `map.openPlace` in the mini-app shell), and what a page may never ask for |
 
 ### reference
 
@@ -79,6 +79,7 @@ crosses package boundaries.
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 | [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
 | [bottom-sheet-system.md](explanation/bottom-sheet-system.md) | The one sheet component. Its detents, the float-vs-attach rule behind glass or opaque, and the native constraints the card works within |
+| [miniapp-shell.md](explanation/miniapp-shell.md) | How `app/mini-app.tsx` hosts a registered mini app on the miniapp protocol: injection, the per-message origin gate, dispatch, the shell and the viewport |
 
 ### decisions (ADR)
 

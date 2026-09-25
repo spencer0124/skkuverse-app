@@ -3,7 +3,7 @@ title: Bridge Package (@skkuverse/bridge)
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-24
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -23,6 +23,14 @@ audience: internal
 
 - 발신: [skkuverse-web](https://github.com/spencer0124/skkuverse-web) `apps/webview` 각 페이지
 - 수신: apps/mobile의 webview 래퍼 컴포넌트
+
+> [!NOTE]
+> **이 패키지는 이제 `app/webview.tsx` 전용이다(2026-09-25).** 등록된 미니앱을 여는
+> `app/mini-app.tsx`는 더 이상 이 v1 브리지를 쓰지 않고, npm `@skkuverse/miniapp`의
+> `@skkuverse/miniapp/protocol`을 쓴다 — 셸 주입, 메시지 셋, origin 판정 모두 별도
+> 계약이다. 자세한 내용은
+> [docs/explanation/miniapp-shell.md](../../docs/explanation/miniapp-shell.md)와
+> [ADR 0006](../../docs/decisions/0006-miniapp-webview-push-architecture.md) §9 참고.
 
 발신 측이 별도 레포로 나갔으므로 `types.ts`는 이제 **레포를 넘는 계약**이다. skkuverse-web이 이 파일을 byte 단위로 vendoring하고, umbrella의 `contracts/manifest.json`에 `bridge.message-types`로 등록돼 소비자 CI에서 해시로 검증된다 ([umbrella ADR 0002](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0002-pull-based-config-contracts.md)).
 
