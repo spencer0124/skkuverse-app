@@ -40,6 +40,7 @@ export function defaultHomeLayout(t: (key: TranslationKey) => string): HomeLayou
       {
         type: 'miniapp_grid',
         id: 'main',
+        title: t('home.tile.eskara'),
         miniAppIds: ['eskara-2026', 'mukja', 'playlist', 'booth-box'],
       },
       {
