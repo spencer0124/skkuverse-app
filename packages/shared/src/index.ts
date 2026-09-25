@@ -25,6 +25,7 @@ export { ApiEndpoints } from './api/endpoints';
 // ── API client ──
 export { createApiClient, getApiClient, resetApiClient } from './api/client';
 export { ApiConfig } from './api/config';
+export { API_TIMEOUT_MS } from './api/timeouts';
 
 // ── Safe request wrappers ──
 export {
