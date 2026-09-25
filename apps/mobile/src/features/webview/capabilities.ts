@@ -58,11 +58,15 @@ export type WebMessageType = WebToAppMessage['type'];
  * the only actions a page may ask for are `map` and `miniapp`, whose values are
  * ids the app resolves itself (`resolveWebAction` in @skkuverse/shared). A page
  * can name a place or a mini app through it, never a route or a URL.
+ *
+ * `web:haptic` plays one impact from a fixed set of three styles — the setlist
+ * mini app's counter uses it. It can buzz the phone and nothing else.
  */
 export const FIRST_PARTY_CAPABILITIES: readonly WebMessageType[] = [
   'web:open-url',
   'web:map-select',
   'web:action',
+  'web:haptic',
 ];
 
 /** No capabilities. */

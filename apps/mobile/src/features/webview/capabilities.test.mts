@@ -107,3 +107,16 @@ test('never grants web:navigate', () => {
   );
   assert.equal(caps.includes('web:navigate'), false);
 });
+
+test('grants web:haptic to a first-party page only', () => {
+  // The setlist mini app's counter buzzes the phone through it. A notice
+  // source page must not be able to.
+  assert.equal(
+    resolveWebviewCapabilities('https://webview.skkuuniverse.com/', ALLOWED).includes('web:haptic'),
+    true,
+  );
+  assert.equal(
+    resolveWebviewCapabilities('https://www.skku.edu/notice.do', ALLOWED).includes('web:haptic'),
+    false,
+  );
+});

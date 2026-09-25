@@ -25,7 +25,14 @@ export type WebToAppMessage =
   | { type: 'web:navigate'; path: string }
   | { type: 'web:analytics'; event: string; params?: Record<string, unknown> }
   | { type: 'web:haptic'; style: 'light' | 'medium' | 'heavy' }
-  | { type: 'web:open-url'; url: string }
+  /**
+   * Open a URL outside the page. `url` is always the web address. `appUrl`, when
+   * set, is an app's own scheme (`spotify:track:…`, `youtube://…`) that the host
+   * tries first, falling back to `url` when nothing on the device handles it.
+   * A host that predates `appUrl` ignores it and opens `url`, so a page can send
+   * it unconditionally.
+   */
+  | { type: 'web:open-url'; url: string; appUrl?: string }
   | { type: 'web:map-select'; payload: MapSelectPayload }
   /**
    * Ask the app to perform an action, in the server's actionType/actionValue

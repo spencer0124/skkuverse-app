@@ -24,9 +24,36 @@ for (const [label, payload] of [
   });
 }
 
-test('still parses the older messages it never checked the payload of', () => {
-  const msg = parseWebMessage(JSON.stringify({ type: 'web:open-url', url: 'https://x.test' }));
-  assert.equal(msg?.type, 'web:open-url');
+// `web:open-url` reaches `Linking.openURL`, and `web:haptic`'s style picks the
+// impact to play — both now have their fields checked too.
+
+test('parses a web:open-url with and without an appUrl', () => {
+  assert.deepEqual(parseWebMessage(JSON.stringify({ type: 'web:open-url', url: 'https://x.test' })), {
+    type: 'web:open-url',
+    url: 'https://x.test',
+  });
+  const withApp = { type: 'web:open-url', url: 'https://open.spotify.com/track/x', appUrl: 'spotify:track:x' };
+  assert.deepEqual(parseWebMessage(JSON.stringify(withApp)), withApp);
+});
+
+for (const [label, payload] of [
+  ['a missing url', { type: 'web:open-url' }],
+  ['an empty url', { type: 'web:open-url', url: '' }],
+  ['an empty appUrl', { type: 'web:open-url', url: 'https://x.test', appUrl: '' }],
+  ['a non-string appUrl', { type: 'web:open-url', url: 'https://x.test', appUrl: 1 }],
+] as const) {
+  test(`refuses a web:open-url with ${label}`, () => {
+    assert.equal(parseWebMessage(JSON.stringify(payload)), null);
+  });
+}
+
+test('parses each web:haptic style and refuses any other', () => {
+  for (const style of ['light', 'medium', 'heavy']) {
+    assert.equal(parseWebMessage(JSON.stringify({ type: 'web:haptic', style }))?.type, 'web:haptic');
+  }
+  for (const style of ['rigid', '', undefined, 3]) {
+    assert.equal(parseWebMessage(JSON.stringify({ type: 'web:haptic', style })), null);
+  }
 });
 
 test('refuses an unknown type', () => {

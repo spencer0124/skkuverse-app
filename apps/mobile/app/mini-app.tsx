@@ -70,6 +70,8 @@ import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { faviconUrl } from '@/features/mini-app/protocol';
 import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
+import { openAppFirst } from '@/features/webview/open-external';
+import { playWebHaptic } from '@/features/webview/haptic';
 import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
@@ -414,8 +416,9 @@ export default function MiniAppScreen() {
 
   // 브리지 메시지 — /webview 셸과 같은 게이트. 권한은 메시지를 보낸 문서의 origin으로
   // 매번 다시 판정한다(서버 소유 bridgeOrigins, 미수신·불일치면 전부 드롭). 1st-party
-  // 페이지(eskara 등)의 `web:open-url`은 외부 앱/브라우저로, `web:action`은
-  // 페이지에 허용된 액션(map·miniapp)만 performWebAction으로 실행한다.
+  // 페이지(eskara 등)의 `web:open-url`은 외부 앱/브라우저로(`appUrl`이 있으면 그 앱을
+  // 먼저 시도), `web:action`은 페이지에 허용된 액션(map·miniapp)만 performWebAction으로,
+  // `web:haptic`은 햅틱 한 번으로 실행한다.
   const handleMessage = useCallback((event: WebViewMessageEvent) => {
     const msg = parseWebMessage(event.nativeEvent.data);
     if (!msg) return;
@@ -425,9 +428,11 @@ export default function MiniAppScreen() {
     );
     if (!granted.includes(msg.type)) return;
     if (msg.type === 'web:open-url') {
-      void Linking.openURL(msg.url).catch(() => {});
+      void openAppFirst(msg, (url) => Linking.openURL(url));
     } else if (msg.type === 'web:action') {
       performWebAction(msg.actionType, msg.actionValue);
+    } else if (msg.type === 'web:haptic') {
+      playWebHaptic(msg.style);
     }
   }, []);
 

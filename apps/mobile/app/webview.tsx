@@ -40,6 +40,8 @@ import { AdaptiveBanner } from '@/features/ads/AdaptiveBanner';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
+import { openAppFirst } from '@/features/webview/open-external';
+import { playWebHaptic } from '@/features/webview/haptic';
 
 /** Host shown as the header title when neither a param nor a page title exists. */
 function hostOf(url: string): string {
@@ -125,7 +127,10 @@ export default function WebViewScreen() {
 
     switch (msg.type) {
       case 'web:open-url':
-        void Linking.openURL(msg.url).catch(() => {});
+        void openAppFirst(msg, (url) => Linking.openURL(url));
+        break;
+      case 'web:haptic':
+        playWebHaptic(msg.style);
         break;
       case 'web:map-select':
         // TODO: show place info bottom sheet. Reachable only from the
