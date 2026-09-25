@@ -11,8 +11,9 @@
  *
  * A gallery of ONE is drawn whole instead: a pub's poster, at its own aspect,
  * as wide as the sheet allows up to `SOLO_MAX_WIDTH` and never taller than
- * `SOLO_MAX_HEIGHT`. Cropped into the rail's landscape thumbnail, a portrait
- * poster lost ~40% of itself; a strip of one had nothing to page across anyway.
+ * `SOLO_MAX_HEIGHT`, centred in the column. Cropped into the rail's landscape
+ * thumbnail, a portrait poster lost ~40% of itself; a strip of one had nothing
+ * to page across anyway.
  *
  * A plain React Native `ScrollView`, not one of gorhom's: a gorhom scrollable
  * cannot nest inside another (`Sheet.tsx`), and a horizontal one would not help
@@ -271,9 +272,9 @@ const styles = StyleSheet.create({
     backgroundColor: SdsColors.grey100,
   },
   caption: { width: THUMB_WIDTH, marginTop: SdsSpacing.xs },
-  solo: { alignSelf: 'flex-start' },
+  solo: { alignSelf: 'center' },
   soloImage: { borderRadius: SdsRadius.md, backgroundColor: SdsColors.grey100 },
-  soloCaption: { marginTop: SdsSpacing.xs },
+  soloCaption: { marginTop: SdsSpacing.xs, textAlign: 'center' },
   viewer: { flex: 1, backgroundColor: '#000' },
   viewerPage: { justifyContent: 'center', alignItems: 'center' },
   viewerCaption: {
