@@ -17,10 +17,11 @@ import {
   placeSections,
   placeSheetOpensTall,
   SOLO_IMAGE_DEFAULT_ASPECT,
+  soleInstagram,
   soloImageSize,
 } from '../placeDetail';
-import type { PlaceBlock, PlaceDetail } from '../../types/placeDetail';
-import type { I18nText, MapOverlay } from '../../types/map';
+import type { PlaceAction, PlaceBlock, PlaceDetail } from '../../types/placeDetail';
+import type { I18nText, MapOverlay, MarkerAction } from '../../types/map';
 
 const ko = (s: string): I18nText => ({ ko: s, en: s });
 
@@ -142,6 +143,44 @@ describe('heroGallery', () => {
   it('takes the first gallery, whatever else is around it', () => {
     const body = placeBody([textBlock('a'), imageBlock('i1', 'one.png'), textBlock('b'), imageBlock('i2', 'two.png')]);
     expect(heroGallery(body)?.id).toBe('i1');
+  });
+});
+
+describe('soleInstagram — a lone Instagram sits beside the title', () => {
+  const instagram: PlaceAction = {
+    type: 'instagram',
+    id: 'instagram',
+    label: ko('인스타그램'),
+    profileUrl: 'https://www.instagram.com/skku_pa_stel/',
+    postUrl: null,
+  };
+  const link: PlaceAction = { type: 'link', id: 'guide', label: ko('안내'), url: 'https://example.com' };
+  const marker = (actionType: MarkerAction['actionType']): MarkerAction => ({
+    id: actionType,
+    label: ko(actionType),
+    actionType,
+    actionValue: 'x',
+  });
+
+  it('takes a pub whose only action is its Instagram', () => {
+    expect(soleInstagram([], [instagram])).toBe(instagram);
+  });
+
+  it('is null without an Instagram', () => {
+    expect(soleInstagram([], [])).toBeNull();
+    expect(soleInstagram([], [link])).toBeNull();
+  });
+
+  it('leaves the Instagram in the row when a link shares it', () => {
+    expect(soleInstagram([], [instagram, link])).toBeNull();
+  });
+
+  it('leaves it in the row beside a navigable marker action', () => {
+    expect(soleInstagram([marker('miniapp')], [instagram])).toBeNull();
+  });
+
+  it('ignores a content action, which the row never draws', () => {
+    expect(soleInstagram([marker('content')], [instagram])).toBe(instagram);
   });
 });
 

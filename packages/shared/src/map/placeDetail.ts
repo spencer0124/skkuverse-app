@@ -11,8 +11,15 @@
  * enter here, or the vitest suites stop being able to load it.
  */
 
-import type { PlaceBlock, PlaceBlockType, PlaceDetail } from '../types/placeDetail';
-import type { I18nText, MapOverlay } from '../types/map';
+import type {
+  PlaceAction,
+  PlaceBlock,
+  PlaceBlockType,
+  PlaceDetail,
+  PlaceInstagramAction,
+} from '../types/placeDetail';
+import type { I18nText, MapOverlay, MarkerAction } from '../types/map';
+import type { ActionType } from '../types/sdui';
 
 // ── Detail flow ───────────────────────────────────────────────────────────
 
@@ -118,6 +125,34 @@ export function placeBody(blocks: readonly PlaceBlock[]): PlaceBodyItem[] {
 export function heroGallery(body: readonly PlaceBodyItem[]): Extract<PlaceBodyItem, { type: 'gallery' }> | null {
   for (const item of body) if (item.type === 'gallery') return item;
   return null;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────
+
+/** Marker actions that go somewhere. `content` is prose, rendered elsewhere. */
+export const NAVIGABLE_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
+  'route',
+  'webview',
+  'external',
+  'miniapp',
+]);
+
+/**
+ * The place's Instagram, when it is the only action the sheet would draw.
+ *
+ * Every 2026 pub has exactly one action, its Instagram, and a whole row for one
+ * pill pushed the menu and poster down by a row. Alone, it sits beside the
+ * title instead, and wraps under it when the title fills the line. With any
+ * other action beside it, the row stays, so no action ever moves out of the
+ * row it shares.
+ */
+export function soleInstagram(
+  actions: readonly MarkerAction[],
+  detailActions: readonly PlaceAction[],
+): PlaceInstagramAction | null {
+  if (actions.some((a) => NAVIGABLE_ACTION_TYPES.has(a.actionType))) return null;
+  if (detailActions.some((a) => a.type !== 'instagram')) return null;
+  return detailActions.find((a): a is PlaceInstagramAction => a.type === 'instagram') ?? null;
 }
 
 /** A poster's shape, for a lone photo whose own has not loaded yet. */

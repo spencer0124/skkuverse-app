@@ -22,6 +22,7 @@ import {
   placeSheetOpensTall,
   SdsColors,
   SdsSpacing,
+  soleInstagram,
   useSettingsStore,
   useT,
   type MapOverlay,
@@ -35,6 +36,7 @@ import {
   type SheetPosition,
   type SheetRef,
 } from '@skkuverse/sds';
+import { InstagramInlineButton } from './place/PlaceActionsRow';
 import { PlaceSheetScroll } from './place/PlaceSheetScroll';
 import { SheetCardClip } from './SheetCardClip';
 
@@ -96,6 +98,7 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
     // bottom edge. `bottomGap` already clears the home indicator in both
     // callers; the band below the floating card is `SheetCardClip`'s job.
     const bottomPadding = CONTENT_BOTTOM_PAD + bottomGap;
+    const instagram = place ? soleInstagram(place.actions, detail?.actions ?? []) : null;
 
     return (
       <Sheet
@@ -127,18 +130,19 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
           lastIndex={DETENTS.length - 1}
           bottomGap={bottomGap}
         >
-          {/* The title and X stay pinned together while the sheet body scrolls. */}
+          {/* The title and X stay pinned together while the sheet body scrolls.
+              A lone Instagram wraps with the title: beside a short one, on a
+              line of its own under one that fills the width. */}
           <View style={styles.header}>
             {place ? (
-              <Txt
-                typography="t5"
-                fontWeight="bold"
-                color={SdsColors.grey900}
-                numberOfLines={2}
-                style={styles.headerTitle}
-              >
-                {pickI18nText(place.text, lang)}
-              </Txt>
+              <View style={styles.headerTitle}>
+                <Txt typography="t5" fontWeight="bold" color={SdsColors.grey900} numberOfLines={2}>
+                  {pickI18nText(place.text, lang)}
+                </Txt>
+                {instagram ? (
+                  <InstagramInlineButton action={instagram} onNavigateAway={onNavigateAway} />
+                ) : null}
+              </View>
             ) : null}
             <SheetCloseButton label={t('common.close')} />
           </View>
@@ -171,6 +175,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  headerTitle: { flex: 1, paddingTop: 5 },
+  headerTitle: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: SdsSpacing.sm,
+    rowGap: SdsSpacing.xs,
+    paddingTop: 5,
+  },
   empty: { flex: 1 },
 });

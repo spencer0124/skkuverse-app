@@ -17,6 +17,10 @@
  * A row with nothing to say is not drawn, which is the whole difference between
  * a pub and a toilet: a toilet is only its live status.
  *
+ * A lone Instagram is not drawn here at all: it sits beside the title in the
+ * sheet's header (`EventMapPeekSheet`, `soleInstagram`), so the actions row is
+ * skipped rather than drawn empty.
+ *
  * The operator's `org` leads the metadata line when the detail names one, and
  * the server's `subtitle` stands in otherwise — a food truck names no operator,
  * and its subtitle (야끼소바 · 오꼬노미야끼) is the line worth reading.
@@ -30,6 +34,7 @@ import {
   pickI18nText,
   placeBody,
   SdsColors,
+  soleInstagram,
   SdsSpacing,
   useSettingsStore,
   useT,
@@ -73,6 +78,7 @@ export function PlaceSummary({
   // so it is not drawn twice in one sheet.
   const hero = heroGallery(placeBody(blocks));
   const status = statusLineOf(place.hours, now, t, tpl);
+  const inlineInstagram = soleInstagram(place.actions, detail?.actions ?? []);
 
   return (
     <View style={styles.summary}>
@@ -90,11 +96,13 @@ export function PlaceSummary({
         ) : null}
       </View>
 
-      <PlaceActionsRow
-        actions={place.actions}
-        detailActions={detail?.actions ?? []}
-        onNavigateAway={onNavigateAway}
-      />
+      {inlineInstagram ? null : (
+        <PlaceActionsRow
+          actions={place.actions}
+          detailActions={detail?.actions ?? []}
+          onNavigateAway={onNavigateAway}
+        />
+      )}
 
       {highlight ? <PlaceHighlight block={highlight} /> : null}
 

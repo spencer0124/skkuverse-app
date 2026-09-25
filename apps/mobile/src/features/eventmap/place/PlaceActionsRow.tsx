@@ -20,6 +20,10 @@
  * press, and the server's label is only ever "인스타그램", which the logo
  * already says.
  *
+ * An Instagram with nothing beside it leaves the row for the sheet's title, as
+ * `InstagramInlineButton` (`soleInstagram` decides). Every pub is exactly that,
+ * and a row for one pill cost the collapsed card a row of its menu and poster.
+ *
  * Both handlers dismiss the sheet before they navigate — a portal ordering
  * constraint, see `navigate.ts`.
  */
@@ -29,6 +33,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { InstagramLogoIcon, LinkSimpleIcon } from 'phosphor-react-native';
 import {
+  NAVIGABLE_ACTION_TYPES,
   parseMiniAppTarget,
   pickI18nText,
   SdsColors,
@@ -36,18 +41,15 @@ import {
   useMiniAppIndex,
   useSettingsStore,
   useT,
-  type ActionType,
   type MarkerAction,
   type MiniAppLogo,
   type PlaceAction,
+  type PlaceInstagramAction,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
 import { SHEET_GUTTER } from './layout';
 import { useInstagramNavigate, usePlaceNavigate } from './navigate';
-
-/** Actions that go somewhere. `content` is prose, rendered elsewhere. */
-const NAVIGABLE: ReadonlySet<ActionType> = new Set(['route', 'webview', 'external', 'miniapp']);
 
 export function PlaceActionsRow({
   actions,
@@ -66,7 +68,7 @@ export function PlaceActionsRow({
 
   const instagram = detailActions.find((a) => a.type === 'instagram');
   const links = detailActions.filter((a) => a.type === 'link');
-  const legacy = actions.filter((a) => NAVIGABLE.has(a.actionType));
+  const legacy = actions.filter((a) => NAVIGABLE_ACTION_TYPES.has(a.actionType));
 
   if (!instagram && links.length === 0 && legacy.length === 0) return null;
 
@@ -123,6 +125,39 @@ export function PlaceActionsRow({
         />
       ))}
     </ScrollView>
+  );
+}
+
+/**
+ * A place's lone Instagram, beside its title: the logo and one short word.
+ *
+ * Smaller than a row pill, since it rides the title's line rather than a row
+ * of its own. The logo is still what says it goes somewhere.
+ */
+export function InstagramInlineButton({
+  action,
+  onNavigateAway,
+}: {
+  action: PlaceInstagramAction;
+  onNavigateAway?: () => void;
+}) {
+  const { t } = useT();
+  const lang = useSettingsStore((s) => s.appLanguage);
+  const openInstagram = useInstagramNavigate(onNavigateAway);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('eventmap.instagram')}
+      hitSlop={8}
+      onPress={() => openInstagram(action, pickI18nText(action.label, lang))}
+      style={({ pressed }) => [styles.inlinePill, pressed && styles.pressed]}
+    >
+      <InstagramLogoIcon size={14} color={SdsColors.grey800} />
+      <Txt typography="t7" fontWeight="semiBold" color={SdsColors.grey800} numberOfLines={1}>
+        {t('eventmap.instagram.inline')}
+      </Txt>
+    </Pressable>
   );
 }
 
@@ -208,5 +243,14 @@ const styles = StyleSheet.create({
   // pushing the icon out of the pill.
   linkLabel: { flexShrink: 1 },
   miniAppLogo: { width: ICON_SIZE, height: ICON_SIZE, borderRadius: 4 },
+  inlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: SdsRadius.full,
+    backgroundColor: SdsColors.grey50,
+  },
   pressed: { opacity: 0.72 },
 });

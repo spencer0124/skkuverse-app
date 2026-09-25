@@ -41,6 +41,8 @@ export {
   placeBody,
   heroGallery,
   soloImageSize,
+  soleInstagram,
+  NAVIGABLE_ACTION_TYPES,
   SOLO_IMAGE_DEFAULT_ASPECT,
   HIGHLIGHT_MAX,
   placeSections,
