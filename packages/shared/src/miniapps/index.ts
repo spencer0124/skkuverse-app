@@ -7,6 +7,7 @@ export {
   type MiniAppIndex,
   type MiniAppLink,
   type MiniAppNoticeBanner,
+  type MiniAppShell,
   type MiniAppDetail,
 } from './schema';
 export {

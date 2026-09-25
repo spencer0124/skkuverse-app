@@ -38,9 +38,11 @@ import {
   useT,
   type ActionType,
   type MarkerAction,
+  type MiniAppLogo,
   type PlaceAction,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
+import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
 import { SHEET_GUTTER } from './layout';
 import { useInstagramNavigate, usePlaceNavigate } from './navigate';
 
@@ -103,10 +105,10 @@ export function PlaceActionsRow({
           label={pickI18nText(action.label, lang)}
           icon={
             action.actionType === 'miniapp' ? (
-              <MiniAppLogo
-                uri={
+              <MiniAppLogoIcon
+                logo={
                   miniApps?.find((m) => m.id === parseMiniAppTarget(action.actionValue)?.id)
-                    ?.logo?.uri
+                    ?.logo
                 }
               />
             ) : undefined
@@ -130,10 +132,18 @@ function LinkGlyph() {
   return <LinkSimpleIcon size={ICON_SIZE} color={SdsColors.grey800} weight="bold" />;
 }
 
-/** The mini app's registry logo, or the link glyph when there is none to show. */
-function MiniAppLogo({ uri }: { uri: string | undefined }) {
+/**
+ * The mini app's registry logo — remote image or emoji — or the link glyph
+ * when there is none to show, or the remote image fails to load.
+ */
+function MiniAppLogoIcon({ logo }: { logo: MiniAppLogo | null | undefined }) {
+  const uri = logo?.kind === 'remote' ? logo.uri : undefined;
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [uri]);
+
+  if (logo?.kind === 'emoji') {
+    return <MiniAppEmojiLogo emoji={logo.emoji} size={ICON_SIZE} />;
+  }
   if (!uri || failed) return <LinkGlyph />;
   return (
     <Image

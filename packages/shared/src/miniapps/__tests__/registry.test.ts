@@ -75,6 +75,8 @@ describe('parseMiniAppIndex', () => {
       { kind: 'remote' },
       { kind: 'remote', uri: 'javascript:alert(1)' },
       { kind: 'remote', uri: '/miniapps/hssc.png' },
+      { kind: 'emoji' },
+      { kind: 'emoji', emoji: '' },
     ]) {
       const parsed = parseMiniAppIndex({
         version: 1,
@@ -83,6 +85,14 @@ describe('parseMiniAppIndex', () => {
       expect(parsed.miniApps).toHaveLength(1);
       expect(parsed.miniApps[0].logo).toBeNull();
     }
+  });
+
+  it('parses an emoji logo', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [{ ...validEntry, logo: { kind: 'emoji', emoji: '😋' } }],
+    });
+    expect(parsed.miniApps[0].logo).toEqual({ kind: 'emoji', emoji: '😋' });
   });
 
   it('returns an empty registry for a malformed envelope instead of throwing', () => {
@@ -194,5 +204,37 @@ describe('parseMiniAppDetail', () => {
       expect(() => parseMiniAppDetail(raw)).not.toThrow();
       expect(parseMiniAppDetail(raw)).toBeNull();
     }
+  });
+
+  it('omits `shell` entirely when the server sends none', () => {
+    expect(parseMiniAppDetail(validDetail)).not.toHaveProperty('shell');
+  });
+
+  it('keeps a boolean shell field', () => {
+    expect(
+      parseMiniAppDetail({ ...validDetail, shell: { bottomBar: false } })
+        ?.shell,
+    ).toEqual({ bottomBar: false });
+    expect(
+      parseMiniAppDetail({ ...validDetail, shell: { backForward: false } })
+        ?.shell,
+    ).toEqual({ backForward: false });
+  });
+
+  it('drops a non-boolean shell field rather than coercing it to false', () => {
+    // Absent means "shown" — a bad value must not silently hide chrome.
+    const parsed = parseMiniAppDetail({
+      ...validDetail,
+      shell: { bottomBar: 'no' },
+    });
+    expect(parsed).not.toHaveProperty('shell');
+  });
+
+  it('drops unknown shell keys, keeping the recognized ones', () => {
+    const parsed = parseMiniAppDetail({
+      ...validDetail,
+      shell: { backForward: false, extra: 1 },
+    });
+    expect(parsed?.shell).toEqual({ backForward: false });
   });
 });

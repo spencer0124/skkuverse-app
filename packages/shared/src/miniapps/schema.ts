@@ -20,11 +20,14 @@
 /** Bump only on BREAKING schema changes (removed/renamed/retyped field). */
 export const MINIAPP_REGISTRY_VERSION = 1;
 
-/** Logo source. Server-hosted only — bundled `require()` logos are gone. */
-export interface MiniAppLogo {
-  kind: 'remote';
-  uri: string;
-}
+/**
+ * Logo source. Server-hosted image (`remote`), or an emoji rendered inline
+ * (`emoji`) for a mini-app that has no icon asset. Bundled `require()` logos
+ * are gone either way.
+ */
+export type MiniAppLogo =
+  | { kind: 'remote'; uri: string }
+  | { kind: 'emoji'; emoji: string };
 
 /** Index entry — only what the home grid + deep-link resolution need. */
 export interface MiniAppIndexEntry {
@@ -53,6 +56,19 @@ export interface MiniAppNoticeBanner {
   subtitle: string;
 }
 
+/**
+ * Shell chrome toggles for the mini-app WebView screen. A key absent from the
+ * payload means "shown" — this is an opt-out surface, not an opt-in one, so a
+ * server that never mentions `shell` keeps every existing mini-app looking
+ * exactly as it does today.
+ */
+export interface MiniAppShell {
+  /** `false` hides the whole bottom bar (nav cluster + service-name pill). */
+  bottomBar?: boolean;
+  /** `false` hides only the [<] [>] buttons; the centre pill still shows. */
+  backForward?: boolean;
+}
+
 /** Per-service detail — heavier content, needed when opening the mini-app. */
 export interface MiniAppDetail {
   version: number;
@@ -64,6 +80,7 @@ export interface MiniAppDetail {
   description?: string;
   relatedLinks: MiniAppLink[];
   noticeBanner?: MiniAppNoticeBanner;
+  shell?: MiniAppShell;
 }
 
 const HTTP_RE = /^https?:\/\//;
@@ -86,9 +103,19 @@ function asHttpUrl(v: unknown): string | undefined {
 
 function parseLogo(raw: unknown): MiniAppLogo | null {
   const obj = asRecord(raw);
-  if (!obj || obj.kind !== 'remote') return null;
-  const uri = asHttpUrl(obj.uri);
-  return uri ? { kind: 'remote', uri } : null;
+  if (!obj) return null;
+  switch (obj.kind) {
+    case 'remote': {
+      const uri = asHttpUrl(obj.uri);
+      return uri ? { kind: 'remote', uri } : null;
+    }
+    case 'emoji': {
+      const emoji = asString(obj.emoji);
+      return emoji ? { kind: 'emoji', emoji } : null;
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -157,6 +184,22 @@ function parseNoticeBanner(raw: unknown): MiniAppNoticeBanner | undefined {
 }
 
 /**
+ * A key survives only when its value is a real boolean; a bad value (e.g.
+ * `"no"`) is dropped rather than coerced, since absent means "shown" and a
+ * miscoerced `false` would hide chrome the server never meant to hide. An
+ * empty result becomes `undefined` so `parseMiniAppDetail` can omit the key
+ * entirely, matching `noticeBanner`'s all-or-nothing shape.
+ */
+function parseShell(raw: unknown): MiniAppShell | undefined {
+  const obj = asRecord(raw);
+  if (!obj) return undefined;
+  const shell: MiniAppShell = {};
+  if (typeof obj.bottomBar === 'boolean') shell.bottomBar = obj.bottomBar;
+  if (typeof obj.backForward === 'boolean') shell.backForward = obj.backForward;
+  return Object.keys(shell).length > 0 ? shell : undefined;
+}
+
+/**
  * Parse `GET /miniapps/:id`. Returns null when the payload has no usable
  * `startUrl` — the shell exists to load that URL, so there is nothing to show
  * without it. A non-http scheme counts as absent: `startUrl` is handed straight
@@ -170,6 +213,7 @@ export function parseMiniAppDetail(raw: unknown): MiniAppDetail | null {
   if (!id || !SLUG_RE.test(id) || !startUrl) return null;
   const description = asString(obj.description);
   const noticeBanner = parseNoticeBanner(obj.noticeBanner);
+  const shell = parseShell(obj.shell);
   return {
     version:
       typeof obj.version === 'number' ? obj.version : MINIAPP_REGISTRY_VERSION,
@@ -179,5 +223,6 @@ export function parseMiniAppDetail(raw: unknown): MiniAppDetail | null {
     ...(description ? { description } : {}),
     relatedLinks: parseLinks(obj.relatedLinks),
     ...(noticeBanner ? { noticeBanner } : {}),
+    ...(shell ? { shell } : {}),
   };
 }

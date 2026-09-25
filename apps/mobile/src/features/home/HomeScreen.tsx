@@ -141,7 +141,11 @@ export function HomeScreen() {
   //     (miniApps ?? []).map((app) => ({
   //       id: app.id,
   //       title: app.shortName ?? app.name,
-  //       imageSource: app.logo ? { uri: app.logo.uri } : undefined,
+  //       ...(app.logo?.kind === 'remote'
+  //         ? { imageSource: { uri: app.logo.uri } }
+  //         : app.logo?.kind === 'emoji'
+  //           ? { emoji: app.logo.emoji }
+  //           : {}),
   //       onPress: () => {
   //         logHomeContentSelect({ content_type: 'tile', item_id: app.id });
   //         openMiniAppById(app.id);

@@ -56,6 +56,7 @@ import {
   resolveMiniAppUrl,
   useMiniAppDetail,
   useMiniAppIndex,
+  type MiniAppLogo,
 } from '@skkuverse/shared';
 import { GlassSurface, Sheet, Txt } from '@skkuverse/sds';
 import { parseWebMessage } from '@skkuverse/bridge';
@@ -65,6 +66,7 @@ import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { faviconUrl } from '@/features/mini-app/protocol';
 import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
+import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
 
 /** 하단 바 아이콘 색 — 전부 검정으로 통일. */
 const DOCK_ICON = SdsColors.grey900;
@@ -113,29 +115,35 @@ function Favicon({ uri, size }: { uri: string | null; size: number }) {
 }
 
 /**
- * 서비스 로고 — 레지스트리 로고(서버 호스팅 URL)를 우선 표시, 없으면 파비콘(네트워크),
- * 둘 다 없거나 로딩 실패 시 Globe 아이콘으로 최종 폴백.
+ * 서비스 로고 — 레지스트리 로고를 우선 표시(원격 이미지 또는 이모지), 로고가 아예
+ * 없거나 원격 이미지 로딩에 실패하면 파비콘(네트워크)으로, 그마저 없거나 실패하면
+ * Globe 아이콘으로 최종 폴백.
  *
  * 번들 require() 로고는 제거됨 — 레지스트리가 서버 소유가 되면서 로고도
- * `logo.uri`(skkuverse.com/miniapps/<id>.png)로 내려온다. 미니앱 추가에 앱
- * 릴리스가 필요 없다는 게 이 전환의 목적이므로, 로고만 번들로 남기면 그 목적이 깨진다.
+ * `{ kind: 'remote', uri }`(skkuverse.com/miniapps/<id>.png) 또는
+ * `{ kind: 'emoji', emoji }`로 내려온다. 미니앱 추가에 앱 릴리스가 필요 없다는 게
+ * 이 전환의 목적이므로, 로고만 번들로 남기면 그 목적이 깨진다.
  */
 function ServiceLogo({
-  logoUri,
+  logo,
   faviconUri,
   size,
 }: {
-  logoUri?: string;
+  logo: MiniAppLogo | null;
   faviconUri: string | null;
   size: number;
 }) {
+  const uri = logo?.kind === 'remote' ? logo.uri : undefined;
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [logoUri]);
+  useEffect(() => setFailed(false), [uri]);
 
-  if (logoUri && !failed) {
+  if (logo?.kind === 'emoji') {
+    return <MiniAppEmojiLogo emoji={logo.emoji} size={size} />;
+  }
+  if (uri && !failed) {
     return (
       <Image
-        source={{ uri: logoUri }}
+        source={{ uri }}
         style={{ width: size, height: size, borderRadius: size * 0.22 }}
         resizeMode="contain"
         onError={() => setFailed(true)}
@@ -217,8 +225,12 @@ export default function MiniAppScreen() {
   const miniAppId = params.id;
   const insets = useSafeAreaInsets();
 
-  // 레지스트리 상세 — 시작 URL·인증 배지·소개·관련 링크·공지 배너의 단일 출처.
+  // 레지스트리 상세 — 시작 URL·인증 배지·소개·관련 링크·공지 배너·셸 설정의 단일 출처.
   const { data: detail } = useMiniAppDetail(miniAppId);
+  // 하단 바 노출 여부 — 값이 없으면(undefined) "보임"이 기본. showNav는 showBar에
+  // 종속(바 자체가 없으면 [< >]도 당연히 없음).
+  const showBar = detail?.shell?.bottomBar !== false;
+  const showNav = showBar && detail?.shell?.backForward !== false;
   // 인덱스 엔트리 — 표시 이름과 로고. 홈 그리드가 이미 캐시해둔 쿼리를 재사용.
   const { data: index } = useMiniAppIndex();
   const entry = useMemo(
@@ -236,7 +248,7 @@ export default function MiniAppScreen() {
   // startUrl은 여전히 이 미니앱의 "홈"이다.
   const initialUrl = startUrl ? resolveMiniAppUrl(startUrl, params.path) : '';
   const serviceName = entry?.name ?? '';
-  const logoUri = entry?.logo?.uri;
+  const logo = entry?.logo ?? null;
   // 공유/홈추가 링크가 가리키는 웹 도메인 — 서버 설정(GET /app/config). 아직 못
   // 받았으면 null이고, 해당 메뉴는 degrade하거나 숨는다.
   // 두 메뉴가 비활성화된 동안 주석 처리(더보기 시트 참조).
@@ -255,7 +267,9 @@ export default function MiniAppScreen() {
   const [leftW, setLeftW] = useState(44);
   const [rightW, setRightW] = useState(44);
   // 중앙 컨테이너는 좌/우 클러스터 사이에 anchor(양쪽 GAP 균등). 펼침폭 = 그 컨테이너 폭.
-  const centerInset = (w: number) => SIDE_PAD + w + GAP;
+  // [< >]가 숨겨지면([showNav]=false) 클러스터 자체가 없으니 인셋도 SIDE_PAD만 남아
+  // 가운데 pill이 전체 폭을 그대로 차지한다.
+  const centerInset = (w: number) => (showNav ? SIDE_PAD + w + GAP : SIDE_PAD);
   const expandedW = Math.max(120, screenW - centerInset(leftW) - centerInset(rightW));
 
   // 좌/우 클러스터 — 접힐 때 가운데로 끌려가며(좌→우하단, 우→좌하단) 축소+페이드해서
@@ -428,16 +442,19 @@ export default function MiniAppScreen() {
   // // 홈 화면에 추가 — Toss식 제네릭 런처 페이지를 외부 Safari로 연다(인앱 WebView/SFSafariVC는
   // // A2HS 불가). 페이지가 아이콘/이름을 쿼리로 받아 세팅하고, standalone 실행 시 skkuverse://m/<id>로
   // // 리다이렉트. 아이콘은 레지스트리 로고를 그대로 재사용 — 서버가 이미 절대 URL로 내려준다.
+  // // (로고가 이모지 kind면 재사용할 절대 URL이 없으니 그대로 서버 기본 아이콘으로 폴백된다.)
   // const handleAddToHome = useCallback(() => {
   //   setMoreOpen(false);
   //   if (!miniAppId || !webOrigin) return;
-  //   const icon = logoUri ?? `${webOrigin}/miniapps/${miniAppId}.png`;
+  //   const icon =
+  //     (logo?.kind === 'remote' ? logo.uri : undefined) ??
+  //     `${webOrigin}/miniapps/${miniAppId}.png`;
   //   const url =
   //     `${webOrigin}/m/shortcut?id=${encodeURIComponent(miniAppId)}` +
   //     `&title=${encodeURIComponent(serviceName || pageTitle)}` +
   //     `&iconUrl=${encodeURIComponent(icon)}`;
   //   void Linking.openURL(url).catch(() => {});
-  // }, [miniAppId, webOrigin, logoUri, serviceName, pageTitle]);
+  // }, [miniAppId, webOrigin, logo, serviceName, pageTitle]);
 
   // // TODO: 설정/고객센터 화면 연결. 현재는 시트만 닫는 더미.
   // const handleSettings = useCallback(() => setMoreOpen(false), []);
@@ -519,7 +536,7 @@ export default function MiniAppScreen() {
           // iOS: 웹뷰 히스토리 있을 때만 엣지 스와이프 = 웹뷰 back/forward (Android no-op).
           // gestureEnabled={!canGoBack}와 짝 — 정확히 한 제스처 인식기만 활성.
           allowsBackForwardNavigationGestures={canGoBack}
-          contentInset={{ bottom: 66 }}
+          contentInset={{ bottom: showBar ? 66 : 0 }}
         />
       ) : (
         <View style={styles.webview} />
@@ -555,95 +572,106 @@ export default function MiniAppScreen() {
 
       {/* 하단 — 좌 [< >] / 중앙 서비스명 pill / 우 [북마크]. iOS 26 Safari식 collapse:
           스크롤 다운 시 좌/우는 transform으로 축소·페이드(레이아웃 비용 0), 중앙 pill은
-          단독 중앙 컨테이너 안에서 width만 애니메이트(flex 재배치 jank 회피). */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        {/* barRow — 패딩 없는 고정 높이 행. 세 클러스터 모두 여기 안에서 top:0/bottom:0로
-            수직 정렬(안전영역 패딩은 바깥 bottomBar가 전담 → 정렬 어긋남 방지). */}
-        <View style={styles.barRow}>
-          {/* 좌 클러스터 — absolute 좌측. onLayout으로 실측폭 → expandedW 계산. */}
-          <Animated.View
-            style={[styles.leftCluster, leftStyle]}
-            onLayout={(ev) => setLeftW(ev.nativeEvent.layout.width)}
-          >
-            <GlassSurface interactive style={styles.bottomNav}>
-              <Pressable
-                onPress={goBack}
-                disabled={!canGoBack}
-                style={[styles.navBtn, !canGoBack && styles.navBtnDisabled]}
-                accessibilityRole="button"
-                accessibilityLabel="뒤로"
+          단독 중앙 컨테이너 안에서 width만 애니메이트(flex 재배치 jank 회피).
+          detail.shell.bottomBar가 false면 바 전체를 렌더하지 않는다(서버가 이 미니앱의
+          하단 바를 원치 않는 경우 — 위 WebView contentInset도 같은 조건으로 0이 된다). */}
+      {showBar && (
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          {/* barRow — 패딩 없는 고정 높이 행. 세 클러스터 모두 여기 안에서 top:0/bottom:0로
+              수직 정렬(안전영역 패딩은 바깥 bottomBar가 전담 → 정렬 어긋남 방지). */}
+          <View style={styles.barRow}>
+            {/* 좌 클러스터 — absolute 좌측. onLayout으로 실측폭 → expandedW 계산.
+                detail.shell.backForward가 false면 [< >] 둘 다 숨기고, 가운데 pill이
+                centerInset(showNav=false)를 통해 전체 폭을 차지한다. */}
+            {showNav && (
+              <Animated.View
+                style={[styles.leftCluster, leftStyle]}
+                onLayout={(ev) => setLeftW(ev.nativeEvent.layout.width)}
               >
-                <CaretLeftIcon size={21} color={DOCK_ICON} />
-              </Pressable>
-            </GlassSurface>
-          </Animated.View>
+                <GlassSurface interactive style={styles.bottomNav}>
+                  <Pressable
+                    onPress={goBack}
+                    disabled={!canGoBack}
+                    style={[styles.navBtn, !canGoBack && styles.navBtnDisabled]}
+                    accessibilityRole="button"
+                    accessibilityLabel="뒤로"
+                  >
+                    <CaretLeftIcon size={21} color={DOCK_ICON} />
+                  </Pressable>
+                </GlassSurface>
+              </Animated.View>
+            )}
 
-          {/* 중앙 컨테이너 — 좌/우 클러스터 사이에 anchor. 안쪽 pill 폭만 애니메이트. */}
-          <View
-            style={[styles.centerContainer, { left: centerInset(leftW), right: centerInset(rightW) }]}
-            pointerEvents="box-none"
-          >
-            <Animated.View style={centerStyle}>
-              {/* 페이지 정보 시트 열기 — 잠시 막음. 되살릴 땐 아래 onPress·accessibilityRole
-                  주석만 해제(시트 본체와 infoOpen state는 그대로 살아 있다). */}
-              <GlassSurface interactive style={styles.titlePill}>
+            {/* 중앙 컨테이너 — 좌/우 클러스터 사이에 anchor. 안쪽 pill 폭만 애니메이트. */}
+            <View
+              style={[styles.centerContainer, { left: centerInset(leftW), right: centerInset(rightW) }]}
+              pointerEvents="box-none"
+            >
+              <Animated.View style={centerStyle}>
+                {/* 페이지 정보 시트 열기 — 잠시 막음. 되살릴 땐 아래 onPress·accessibilityRole
+                    주석만 해제(시트 본체와 infoOpen state는 그대로 살아 있다). */}
+                <GlassSurface interactive style={styles.titlePill}>
+                  <Pressable
+                    // onPress={() => setInfoOpen(true)}
+                    style={styles.titlePillBtn}
+                    // accessibilityRole="button"
+                    accessibilityLabel="페이지 정보"
+                  >
+                    <ServiceLogo logo={logo} faviconUri={favicon} size={18} />
+                    <Text style={styles.titleText} numberOfLines={1}>
+                      {serviceName || pageTitle}
+                    </Text>
+                  </Pressable>
+                </GlassSurface>
+              </Animated.View>
+            </View>
+
+            {/* 우 클러스터 — absolute 우측. [<]와 짝을 이루는 [>]: 항상 자리를 지키고, 앞으로 갈
+                히스토리가 없으면 [<]와 똑같이 비활성+흐리게. 조건부 렌더면 폭이 바뀌며 가운데
+                pill이 출렁인다. shell.backForward=false로 둘 다 숨기는 건 미니앱 단위 설정이라
+                바뀌는 건 상세가 처음 도착할 때 한 번뿐이다(캐시된 상세가 있으면 그마저 없음). */}
+            {showNav && (
+              <Animated.View
+                style={[styles.rightCluster, rightStyle]}
+                onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
+              >
+                <GlassSurface interactive style={styles.bottomNav}>
+                  <Pressable
+                    onPress={goForward}
+                    disabled={!canGoForward}
+                    style={[styles.navBtn, !canGoForward && styles.navBtnDisabled]}
+                    accessibilityRole="button"
+                    accessibilityLabel="앞으로"
+                  >
+                    <CaretRightIcon size={21} color={DOCK_ICON} />
+                  </Pressable>
+                </GlassSurface>
+              </Animated.View>
+            )}
+
+            {/* 저장 버튼 — 잠시 숨김. 기능이 없는 더미라 눌러도 반응이 없었다. 자리는 [>]가
+                쓰고 있으니, 되살릴 땐 [>] 클러스터에 합칠지 먼저 정하고 BookmarkSimpleIcon
+                import 주석도 함께 해제.
+            <Animated.View
+              style={[styles.rightCluster, rightStyle]}
+              onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
+            >
+              <GlassSurface interactive style={styles.aiBtn}>
                 <Pressable
-                  // onPress={() => setInfoOpen(true)}
-                  style={styles.titlePillBtn}
-                  // accessibilityRole="button"
-                  accessibilityLabel="페이지 정보"
+                  onPress={() => {}}
+                  style={styles.aiBtnInner}
+                  accessibilityRole="button"
+                  accessibilityLabel="북마크"
                 >
-                  <ServiceLogo logoUri={logoUri} faviconUri={favicon} size={18} />
-                  <Text style={styles.titleText} numberOfLines={1}>
-                    {serviceName || pageTitle}
-                  </Text>
+                  TODO: 북마크 기능 추후 구현.
+                  <BookmarkSimpleIcon size={22} color={DOCK_ICON} />
                 </Pressable>
               </GlassSurface>
             </Animated.View>
+            */}
           </View>
-
-          {/* 우 클러스터 — absolute 우측. [<]와 짝을 이루는 [>]: 항상 자리를 지키고, 앞으로 갈
-              히스토리가 없으면 [<]와 똑같이 비활성+흐리게. 조건부 렌더면 폭이 바뀌며 가운데
-              pill이 출렁인다. */}
-          <Animated.View
-            style={[styles.rightCluster, rightStyle]}
-            onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
-          >
-            <GlassSurface interactive style={styles.bottomNav}>
-              <Pressable
-                onPress={goForward}
-                disabled={!canGoForward}
-                style={[styles.navBtn, !canGoForward && styles.navBtnDisabled]}
-                accessibilityRole="button"
-                accessibilityLabel="앞으로"
-              >
-                <CaretRightIcon size={21} color={DOCK_ICON} />
-              </Pressable>
-            </GlassSurface>
-          </Animated.View>
-
-          {/* 저장 버튼 — 잠시 숨김. 기능이 없는 더미라 눌러도 반응이 없었다. 자리는 [>]가
-              쓰고 있으니, 되살릴 땐 [>] 클러스터에 합칠지 먼저 정하고 BookmarkSimpleIcon
-              import 주석도 함께 해제.
-          <Animated.View
-            style={[styles.rightCluster, rightStyle]}
-            onLayout={(ev) => setRightW(ev.nativeEvent.layout.width)}
-          >
-            <GlassSurface interactive style={styles.aiBtn}>
-              <Pressable
-                onPress={() => {}}
-                style={styles.aiBtnInner}
-                accessibilityRole="button"
-                accessibilityLabel="북마크"
-              >
-                TODO: 북마크 기능 추후 구현.
-                <BookmarkSimpleIcon size={22} color={DOCK_ICON} />
-              </Pressable>
-            </GlassSurface>
-          </Animated.View>
-          */}
         </View>
-      </View>
+      )}
 
       {/* 페이지 정보 시트 — [로고(우하단 인증 배지) · 서비스명] + (서비스별 소개 문구). */}
       <Sheet
@@ -656,7 +684,7 @@ export default function MiniAppScreen() {
         <View style={styles.infoRow}>
           {/* 로고 + (인증 미니앱이면) 우하단 인증 체크 배지(흰 링으로 분리). */}
           <View style={styles.infoLogoWrap}>
-            <ServiceLogo logoUri={logoUri} faviconUri={favicon} size={40} />
+            <ServiceLogo logo={logo} faviconUri={favicon} size={40} />
             {detail?.verified ? (
               <View style={styles.infoBadge}>
                 <SealCheckIcon size={18} weight="fill" color={VERIFIED_COLOR} />
