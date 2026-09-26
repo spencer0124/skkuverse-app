@@ -51,14 +51,14 @@
  */
 
 import { isOpenNow, nextOpeningAfter } from './window';
-import type { TimeWindow } from '../types/map';
+import type { OpeningWindow } from '../types/map';
 
 /** The minimum the ladder needs. `MapOverlay`'s marker arm satisfies it. */
 export interface PinCandidate {
   id: string;
   lat: number;
   lng: number;
-  hours: TimeWindow[];
+  hours: OpeningWindow[];
   order: number;
   pinPriority: number;
 }

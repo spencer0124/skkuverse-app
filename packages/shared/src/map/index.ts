@@ -17,6 +17,7 @@ export { isFestivalLayer, withoutFestival } from './festival';
 export { formatKstDate, formatKstDateTime, formatKstTime, formatTimeWindow } from './kst-format';
 export { resolvePinCollisions, type PinCandidate } from './pins';
 export {
+  currentOpenRun,
   isOpenNow,
   nextOpeningAfter,
   nextWindowBoundaryAfter,

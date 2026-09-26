@@ -67,7 +67,9 @@ export function FactsSection({ place, detail }: { place: MapOverlay; detail: Pla
  */
 function HoursFactRow({ hours }: { hours: MapOverlay['hours'] }) {
   const { t } = useT();
-  const text = hours.length === 0 ? t('eventmap.hours.always') : formatHoursLines(hours, t).join('\n');
+  const lang = useSettingsStore((s) => s.appLanguage);
+  const text =
+    hours.length === 0 ? t('eventmap.hours.always') : formatHoursLines(hours, t, lang).join('\n');
 
   return (
     <FactRow

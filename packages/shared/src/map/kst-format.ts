@@ -18,7 +18,7 @@
  */
 
 import type { TranslationKey } from '../i18n/translations';
-import type { TimeWindow } from '../types/map';
+import type { OpeningWindow } from '../types/map';
 import { KST_OFFSET_MS } from './daily-window';
 import { toEpochMs } from './window';
 
@@ -60,14 +60,19 @@ export function formatKstDateTime(epochMs: number, t: Translate): string {
 }
 
 /**
- * `"M/D(요일) HH:MM–HH:MM"`, or `null` for a window that does not parse.
+ * `"M/D(요일) HH:MM–HH:MM"`, `"M/D(요일) HH:MM~"` when the end is unannounced,
+ * or `null` for a window that does not parse.
  *
  * The START decides the date, so a 주점 open 18:00–00:00 is dated by the
- * evening it began on rather than the next day its end falls on.
+ * evening it began on rather than the next day its end falls on. An open end is
+ * `~` with nothing after it — the way the organisers write it — rather than an
+ * invented closing time.
  */
-export function formatTimeWindow(w: TimeWindow, t: Translate): string | null {
+export function formatTimeWindow(w: OpeningWindow, t: Translate): string | null {
   const start = toEpochMs(w.startAt);
+  if (start === null) return null;
+  if (w.endAt === null) return `${formatKstDateTime(start, t)}~`;
   const end = toEpochMs(w.endAt);
-  if (start === null || end === null) return null;
+  if (end === null) return null;
   return `${formatKstDateTime(start, t)}–${formatKstTime(end)}`;
 }

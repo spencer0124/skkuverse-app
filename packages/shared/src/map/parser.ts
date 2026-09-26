@@ -31,6 +31,7 @@ import type {
   MarkerField,
   MarkerTap,
   LatLng,
+  OpeningWindow,
   TimeWindow,
 } from '../types/map';
 import {
@@ -372,7 +373,7 @@ function parseFacetOption(raw: unknown): MapChipFacetOption | null {
   if (typeof o.label !== 'string' || o.label === '') return null;
   // A malformed window costs only the "open on today" default; the option
   // itself still filters, so it is kept with `null`.
-  const window = parseHours([o.window])[0] ?? null;
+  const window = parseBoundedWindow(o.window);
   return { id: o.id, label: o.label, window };
 }
 
@@ -556,30 +557,47 @@ function parseI18nText(raw: unknown): I18nText | null {
 }
 
 /**
- * Opening hours, dropping any window that is not fully bounded.
+ * Opening hours, dropping any window without a real start.
  *
- * **Both bounds are required and a half-bounded window is dropped, not
- * repaired.** The wire has exactly one way to say "no limit" — the empty array —
- * and admitting a one-ended window here would quietly restore the second way,
- * which is the ambiguity that forced a `status` field to exist in the first
- * place. An unparseable bound is the same case: `Date.parse` returning `NaN`
- * makes every comparison false, so the window would silently never be open.
+ * **The start is required; the end may be `null`** — an end the organiser has
+ * not announced. That is not a second way to say "no limit", because the start
+ * still gates the window. A window with no start WOULD be, and is dropped, not
+ * repaired: the wire has exactly one way to say "no limit" — the empty array —
+ * and a start-less window would quietly restore the second way, which is the
+ * ambiguity that forced a `status` field to exist in the first place. An
+ * unparseable bound is dropped the same way: `Date.parse` returning `NaN` makes
+ * every comparison false, so the window would silently never be open. An end
+ * that is present but unparseable drops the window too, rather than reading as
+ * unannounced.
  *
  * A place whose every window is malformed lands on `[]`, which reads as ALWAYS
  * OPEN rather than never. That is the deliberate direction: an ops typo shows a
  * booth that is always listed as open, which somebody notices and reports; the
  * other way it vanishes from the map with nothing to report.
  */
-function parseHours(raw: unknown): TimeWindow[] {
+function parseHours(raw: unknown): OpeningWindow[] {
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
+  return raw.flatMap((entry): OpeningWindow[] => {
     if (!entry || typeof entry !== 'object') return [];
     const w = entry as Record<string, unknown>;
     const { startAt, endAt } = w;
     if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt))) return [];
+    if (endAt == null) return [{ startAt, endAt: null, label: parseI18nText(w.label) }];
     if (typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt))) return [];
-    return [{ startAt, endAt }];
+    return [{ startAt, endAt, label: parseI18nText(w.label) }];
   });
+}
+
+/**
+ * A day option's span — BOTH bounds required, unlike a place's hours: a day
+ * always ends, and "open on today" is decided against its end.
+ */
+function parseBoundedWindow(raw: unknown): TimeWindow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { startAt, endAt } = raw as Record<string, unknown>;
+  if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt))) return null;
+  if (typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt))) return null;
+  return { startAt, endAt };
 }
 
 /** Card rows. A row missing either half is dropped; a half-drawn row says nothing. */

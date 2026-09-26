@@ -61,18 +61,24 @@ describe('formatKstDate', () => {
 describe('formatTimeWindow', () => {
   it('dates a window by its start', () => {
     expect(
-      formatTimeWindow({ startAt: '2026-10-02T12:00:00+09:00', endAt: '2026-10-02T22:00:00+09:00' }, t),
+      formatTimeWindow({ startAt: '2026-10-02T12:00:00+09:00', endAt: '2026-10-02T22:00:00+09:00', label: null }, t),
     ).toBe('10/2(금) 12:00–22:00');
   });
 
   it('keeps a midnight-crossing window on the evening it began', () => {
     expect(
-      formatTimeWindow({ startAt: '2026-10-01T09:00:00.000Z', endAt: '2026-10-01T15:00:00.000Z' }, t),
+      formatTimeWindow({ startAt: '2026-10-01T09:00:00.000Z', endAt: '2026-10-01T15:00:00.000Z', label: null }, t),
     ).toBe('10/1(목) 18:00–00:00');
   });
 
+  it('prints an unannounced end as a bare ~', () => {
+    expect(formatTimeWindow({ startAt: '2026-10-02T14:00:00+09:00', endAt: null, label: null }, t)).toBe(
+      '10/2(금) 14:00~',
+    );
+  });
+
   it('is null when a bound does not parse', () => {
-    expect(formatTimeWindow({ startAt: 'garbage', endAt: '2026-10-01T15:00:00.000Z' }, t)).toBeNull();
-    expect(formatTimeWindow({ startAt: '2026-10-01T09:00:00.000Z', endAt: '' }, t)).toBeNull();
+    expect(formatTimeWindow({ startAt: 'garbage', endAt: '2026-10-01T15:00:00.000Z', label: null }, t)).toBeNull();
+    expect(formatTimeWindow({ startAt: '2026-10-01T09:00:00.000Z', endAt: '', label: null }, t)).toBeNull();
   });
 });

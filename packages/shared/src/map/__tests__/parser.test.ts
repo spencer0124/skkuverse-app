@@ -388,9 +388,9 @@ describe('parseOverlayData — tap and window', () => {
     expect(parseOne({ hours: undefined })[0]?.hours).toEqual([]);
   });
 
-  it('keeps a fully bounded window verbatim', () => {
+  it('keeps a fully bounded window, with a null label when none is authored', () => {
     const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: '2026-09-16T11:00:00.000Z' }];
-    expect(parseOne({ hours })[0]?.hours).toEqual(hours);
+    expect(parseOne({ hours })[0]?.hours).toEqual([{ ...hours[0], label: null }]);
   });
 
   it('keeps every window of a place open on two days', () => {
@@ -403,9 +403,28 @@ describe('parseOverlayData — tap and window', () => {
     expect(parseOne({ hours })[0]?.hours).toHaveLength(2);
   });
 
-  it('drops a half-bounded window rather than admitting a second way to say "no limit"', () => {
-    const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: null }];
+  it('keeps an unannounced end as null — the start still gates it', () => {
+    const hours = [
+      { startAt: '2026-10-02T03:00:00.000Z', endAt: '2026-10-02T05:00:00.000Z', label: { ko: '단체 입장' } },
+      { startAt: '2026-10-02T05:00:00.000Z', endAt: null, label: { ko: '개별 입장', en: 'Individual entry' } },
+    ];
+    expect(parseOne({ hours })[0]?.hours).toEqual([
+      {
+        startAt: '2026-10-02T03:00:00.000Z',
+        endAt: '2026-10-02T05:00:00.000Z',
+        label: { ko: '단체 입장', en: '단체 입장' },
+      },
+      { startAt: '2026-10-02T05:00:00.000Z', endAt: null, label: { ko: '개별 입장', en: 'Individual entry' } },
+    ]);
+  });
+
+  it('drops a window without a start rather than admitting a second way to say "no limit"', () => {
+    const hours = [{ startAt: null, endAt: '2026-09-16T07:00:00.000Z' }];
     expect(parseOne({ hours })[0]?.hours).toEqual([]);
+  });
+
+  it('drops a present but unparseable end rather than reading it as unannounced', () => {
+    expect(parseOne({ hours: [{ startAt: '2026-09-16T07:00:00.000Z', endAt: 'late' }] })[0]?.hours).toEqual([]);
   });
 
   it('drops an unparseable bound rather than carrying NaN into the comparison', () => {
@@ -421,7 +440,7 @@ describe('parseOverlayData — tap and window', () => {
       geometry: { type: 'Polygon', coordinates: [RING] },
       hours,
     });
-    expect(out[0]?.hours).toEqual(hours);
+    expect(out[0]?.hours).toEqual([{ ...hours[0], label: null }]);
   });
 });
 
@@ -963,6 +982,16 @@ describe('parseMapConfig — a chip list, which only ever degrades toward showin
   it('keeps an option whose window is malformed, with no window', () => {
     const out = listOf({
       facets: [{ ...DAY, options: [{ id: 'day1', label: '1일차', window: { startAt: 'soon' } }] }],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+    expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);
+  });
+
+  it("refuses an open-ended day window — a day always ends, unlike a place's hours", () => {
+    const out = listOf({
+      facets: [
+        { ...DAY, options: [{ id: 'day1', label: '1일차', window: { startAt: '2026-09-30T21:00:00.000Z', endAt: null } }] },
+      ],
       sort: { key: 'order', scopeFacetId: 'day' },
     });
     expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);

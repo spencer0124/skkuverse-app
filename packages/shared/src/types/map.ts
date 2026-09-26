@@ -437,17 +437,34 @@ export interface I18nText {
 }
 
 /**
- * One interval a place is open.
+ * A fully bounded interval — a `day` facet option's span. Both bounds are real.
  *
- * **Both bounds are real, and half-bounded is not expressible.** That is the
- * server's rule, not a narrowing applied here: you write two windows, or none.
- * Allowing one open end would give the field a second way to say "no limit",
- * which is exactly the ambiguity that made a `status` field load-bearing before
- * — both-bounds-null had to mean an always-on 화장실 AND a rain-cancelled bar.
+ * Not a place's opening hours: those are `OpeningWindow`, whose end may be
+ * unannounced. The two are kept apart so a day's bounds can never be null.
  */
 export interface TimeWindow {
   startAt: string;
   endAt: string;
+}
+
+/**
+ * One interval a place is open.
+ *
+ * **The start is always real; the end is `null` when it has not been
+ * announced** — the 팔찌 배부 booths close when the artist stage does. That is
+ * not a second way to say "no limit": the start still gates the window, so the
+ * place reads closed until then, and `hours: []` stays the one spelling of
+ * always open. (Both-bounds-null used to mean an always-on 화장실 AND a
+ * rain-cancelled bar, which is what made a `status` field load-bearing.) A
+ * window without a start is dropped by the parser.
+ *
+ * `label` names the window when one place runs differently across its windows
+ * — the 성균인 booth's 단체 입장 then 개별 입장. `null` otherwise.
+ */
+export interface OpeningWindow {
+  startAt: string;
+  endAt: string | null;
+  label: I18nText | null;
 }
 
 /** One card row, in authored order, carrying its own label. */
@@ -533,7 +550,7 @@ interface OverlayBase {
    * a booth open on both festival days had to be TWO documents, and the list
    * showed every place twice with nothing to tell the rows apart.
    */
-  hours: TimeWindow[];
+  hours: OpeningWindow[];
   /** Card rows in authored order. Empty for a building. */
   fields: MarkerField[];
   /** Sheet buttons in authored order. Empty for a building. */

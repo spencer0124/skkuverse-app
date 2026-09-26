@@ -1,7 +1,7 @@
 /**
  * Opening hours, derived on the device.
  *
- * The marker wire carries `hours: TimeWindow[]` and deliberately **no
+ * The marker wire carries `hours: OpeningWindow[]` and deliberately **no
  * `status`**. Status was only ever a cache of the arithmetic below, and caching
  * it forced one both-bounds-null pair to mean two opposite things depending on
  * a sibling field — an always-on 화장실 and a rain-cancelled truck. A
@@ -21,7 +21,7 @@
  * Contract: skkuverse-server `docs/reference/map-markers-api.md` §3.
  */
 
-import type { TimeWindow } from '../types/map';
+import type { OpeningWindow } from '../types/map';
 
 /** ISO instant → epoch ms, or null when absent or unparseable. */
 export function toEpochMs(iso: string | null | undefined): number | null {
@@ -34,11 +34,12 @@ export function toEpochMs(iso: string | null | undefined): number | null {
  * Is this one window open at `now`?
  *
  * Half-open `[startAt, endAt)`, matching the server, so a place whose `endAt` is
- * exactly `now` reads closed on both sides. An unparseable bound is treated as
- * absent on that side alone — the parser already drops malformed windows, so
- * this is the belt on a rule the wire is supposed to have kept.
+ * exactly `now` reads closed on both sides. A `null` end is unannounced and
+ * bounds nothing. An unparseable bound is treated as absent on that side alone
+ * — the parser already drops malformed windows, so this is the belt on a rule
+ * the wire is supposed to have kept.
  */
-function isWindowOpen(w: TimeWindow, now: number): boolean {
+function isWindowOpen(w: OpeningWindow, now: number): boolean {
   const start = toEpochMs(w.startAt);
   const end = toEpochMs(w.endAt);
   if (start !== null && now < start) return false;
@@ -52,14 +53,14 @@ function isWindowOpen(w: TimeWindow, now: number): boolean {
  * The whole rule, and the server states the same one:
  *
  * ```text
- * hours.length === 0 || hours.some(w => now >= w.startAt && now < w.endAt)
+ * hours.length === 0 || hours.some(w => now >= w.startAt && (w.endAt === null || now < w.endAt))
  * ```
  *
  * **Empty means always open.** It is not "unknown" and not "closed" — a place
  * with no windows is a 화장실, and the only other thing it could have meant was
  * removed from the wire so this one could be unambiguous.
  */
-export function isOpenNow(hours: readonly TimeWindow[], now: number): boolean {
+export function isOpenNow(hours: readonly OpeningWindow[], now: number): boolean {
   if (hours.length === 0) return true;
   return hours.some((w) => isWindowOpen(w, now));
 }
@@ -73,7 +74,7 @@ export function isOpenNow(hours: readonly TimeWindow[], now: number): boolean {
  * already open, so step 1 has answered and this is never consulted for it.
  */
 export function nextOpeningAfter(
-  hours: readonly TimeWindow[],
+  hours: readonly OpeningWindow[],
   now: number,
 ): number | null {
   let earliest: number | null = null;
@@ -94,7 +95,7 @@ export function nextOpeningAfter(
  * served. There is no manifest left to carry such a hint in any case.
  */
 export function nextWindowBoundaryAfter(
-  hours: readonly TimeWindow[],
+  hours: readonly OpeningWindow[],
   now: number,
 ): number | null {
   let earliest: number | null = null;
@@ -106,6 +107,33 @@ export function nextWindowBoundaryAfter(
     }
   }
   return earliest;
+}
+
+/**
+ * The run of windows open at `now`, and when it ends — or `null` when nothing is
+ * open (an always-open place included: it has no run to end).
+ *
+ * A RUN, not a window: windows that touch (`next.startAt === endAt`) are one
+ * stretch of being open. The 성균인 팔찌 booth is 단체 입장 12:00–14:00 then
+ * 개별 입장 14:00~, and reading the first window alone would tell a visitor at
+ * 13:00 that it closes at 14:00. `until` is `null` when the run ends in an
+ * unannounced end.
+ */
+export function currentOpenRun(
+  hours: readonly OpeningWindow[],
+  now: number,
+): { until: number | null } | null {
+  const active = hours.find((w) => toEpochMs(w.startAt) !== null && isWindowOpen(w, now));
+  if (!active) return null;
+  let until = toEpochMs(active.endAt);
+  // Bounded by the window count, so a malformed chain cannot spin.
+  for (let i = 0; until !== null && i < hours.length; i++) {
+    const end = until;
+    const next = hours.find((w) => toEpochMs(w.startAt) === end);
+    if (!next) break;
+    until = toEpochMs(next.endAt);
+  }
+  return { until };
 }
 
 /**

@@ -7,12 +7,15 @@
  */
 
 import {
+  currentOpenRun,
   formatKstDateTime,
   formatTimeWindow,
   isOpenNow,
   nextOpeningAfter,
+  pickI18nText,
   SdsColors,
-  type TimeWindow,
+  type AppLanguage,
+  type OpeningWindow,
   type TranslationKey,
 } from '@skkuverse/shared';
 
@@ -43,7 +46,7 @@ export const STATUS_STYLE: Record<Openness, { color: string; backgroundColor: st
  * wire removed: an empty `hours` is ALWAYS OPEN and nothing else, and a
  * cancelled place is not served at all.
  */
-export function opennessOf(hours: readonly TimeWindow[], now: number): Openness {
+export function opennessOf(hours: readonly OpeningWindow[], now: number): Openness {
   if (isOpenNow(hours, now)) return 'open';
   return nextOpeningAfter(hours, now) === null ? 'closed' : 'upcoming';
 }
@@ -61,20 +64,30 @@ export function opennessOf(hours: readonly TimeWindow[], now: number): Openness 
  * date is the half of the answer the time cannot give.
  */
 export function formatHours(
-  hours: readonly TimeWindow[],
+  hours: readonly OpeningWindow[],
   t: (key: TranslationKey) => string,
+  lang: AppLanguage,
   always: string,
 ): string {
   if (hours.length === 0) return always;
-  return formatHoursLines(hours, t).join(', ');
+  return formatHoursLines(hours, t, lang).join(', ');
 }
 
-/** One dated line per window — the sheet's hours row. A window that does not parse is skipped. */
+/**
+ * One dated line per window — the sheet's hours row. A window that does not
+ * parse is skipped. A labelled window leads with its label (`단체 입장 · …`), so
+ * a place that runs differently across its windows says which is which.
+ */
 export function formatHoursLines(
-  hours: readonly TimeWindow[],
+  hours: readonly OpeningWindow[],
   t: (key: TranslationKey) => string,
+  lang: AppLanguage,
 ): string[] {
-  return hours.flatMap((w) => formatTimeWindow(w, t) ?? []);
+  return hours.flatMap((w) => {
+    const time = formatTimeWindow(w, t);
+    if (time === null) return [];
+    return w.label ? `${pickI18nText(w.label, lang)} · ${time}` : time;
+  });
 }
 
 /**
@@ -86,21 +99,21 @@ export function formatHoursLines(
  * at 02:00 between the two nights would not say which evening.
  */
 export function statusLineOf(
-  hours: readonly TimeWindow[],
+  hours: readonly OpeningWindow[],
   now: number,
   t: (key: TranslationKey) => string,
   tpl: (key: TranslationKey, ...args: (string | number)[]) => string,
 ): { text: string; color: string } {
   if (hours.length === 0) return { text: t('eventmap.hours.always'), color: SdsColors.brand };
 
-  const active = hours.find((window) => {
-    const start = Date.parse(window.startAt);
-    const end = Date.parse(window.endAt);
-    return Number.isFinite(start) && Number.isFinite(end) && start <= now && now < end;
-  });
-  if (active) {
+  // The RUN, not the window: touching windows are one stretch of being open.
+  const run = currentOpenRun(hours, now);
+  if (run) {
     return {
-      text: tpl('eventmap.status.openUntil', formatKstDateTime(Date.parse(active.endAt), t)),
+      text:
+        run.until === null
+          ? t('eventmap.status.openNoEnd')
+          : tpl('eventmap.status.openUntil', formatKstDateTime(run.until, t)),
       color: SdsColors.brand,
     };
   }

@@ -156,6 +156,7 @@ export type {
   I18nText,
   DailyWindow,
   LayerDefaultVisibility,
+  OpeningWindow,
   TimeWindow,
 } from './types/map';
 
@@ -237,6 +238,7 @@ export {
   isFestivalLayer,
   withoutFestival,
   resolvePinCollisions,
+  currentOpenRun,
   isOpenNow,
   nextOpeningAfter,
   nextWindowBoundaryAfter,

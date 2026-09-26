@@ -29,11 +29,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { nextDailyBoundaryAfter } from '../map/daily-window';
 import { MAX_TIMEOUT_MS, nextWindowBoundaryAfter } from '../map/window';
-import type { DailyWindow, TimeWindow } from '../types/map';
+import type { DailyWindow, OpeningWindow } from '../types/map';
 
 /** Anything carrying opening hours. Every `MapOverlay` fits. */
 interface HasHours {
-  hours: TimeWindow[];
+  hours: OpeningWindow[];
 }
 
 /**

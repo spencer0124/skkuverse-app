@@ -62,7 +62,7 @@ export function PlaceCard({ place, now, variant = 'full' }: PlaceCardProps) {
       ) : null}
 
       <Txt typography="t7" color={SdsColors.grey500}>
-        {formatHours(place.hours, t, t('eventmap.hours.always'))}
+        {formatHours(place.hours, t, lang, t('eventmap.hours.always'))}
       </Txt>
 
       {compact
