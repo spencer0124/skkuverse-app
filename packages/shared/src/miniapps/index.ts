@@ -14,6 +14,7 @@ export {
 export {
   parseMiniAppTarget,
   resolveMiniAppUrl,
+  miniAppTargetForUrl,
   type MiniAppTarget,
 } from './target';
 export {

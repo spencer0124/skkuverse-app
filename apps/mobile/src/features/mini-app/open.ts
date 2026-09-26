@@ -15,7 +15,9 @@
  *
  * Arbitrary URLs do NOT belong here — that is `features/webview/open.ts`. The
  * old `openInAppBrowser()` wrapper that quietly routed them into this shell is
- * gone on purpose.
+ * gone on purpose. The one crossing is the other way round and narrow:
+ * `openWebView` sends a URL here only when its origin is a first-party mini
+ * app's (server-listed, one owner each), as the id it maps to.
  */
 import { router } from 'expo-router';
 import type { MiniAppTarget } from '@skkuverse/shared';

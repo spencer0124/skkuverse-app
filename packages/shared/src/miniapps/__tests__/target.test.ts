@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMiniAppTarget, resolveMiniAppUrl } from '../target';
+import { miniAppTargetForUrl, parseMiniAppTarget, resolveMiniAppUrl } from '../target';
 
 /**
  * The cases that matter are the ones that would let the shell frame a page on a
@@ -70,5 +70,49 @@ describe('resolveMiniAppUrl', () => {
 
   it('falls back to startUrl when startUrl itself does not parse', () => {
     expect(resolveMiniAppUrl('not a url', '/x')).toBe('not a url');
+  });
+});
+
+describe('miniAppTargetForUrl', () => {
+  const origins = {
+    'https://eskara.miniapp.skkuverse.com': 'eskara-2026',
+    'https://mukja.mini.skkuverse.com': 'mukja',
+  };
+
+  it.each([
+    [
+      'a page under a start path',
+      'https://eskara.miniapp.skkuverse.com/eskara/entry',
+      { id: 'eskara-2026', path: '/eskara/entry' },
+    ],
+    ['the root', 'https://mukja.mini.skkuverse.com/', { id: 'mukja', path: '/' }],
+    [
+      'a query and a hash',
+      'https://eskara.miniapp.skkuverse.com/eskara/lineup?day=2#top',
+      { id: 'eskara-2026', path: '/eskara/lineup?day=2#top' },
+    ],
+    [
+      'a path the target grammar refuses, as the start page',
+      'https://mukja.mini.skkuverse.com//evil.com/x',
+      { id: 'mukja' },
+    ],
+  ])('routes %s to its mini app', (_label, url, expected) => {
+    expect(miniAppTargetForUrl(url, origins)).toEqual(expected);
+  });
+
+  it.each([
+    ['an unlisted origin', 'https://student.skku.edu/student/notice2.do'],
+    ['the webview SPA, which is not a mini app', 'https://webview.skkuverse.com/eskara'],
+    ['http on a listed host', 'http://mukja.mini.skkuverse.com/'],
+    ['a listed host on another port', 'https://mukja.mini.skkuverse.com:8443/'],
+    ['a host that merely ends with a listed one', 'https://x.mukja.mini.skkuverse.com/'],
+    ['a non-web URL', 'mailto:help@skkuverse.com'],
+    ['an unparseable string', 'not a url'],
+  ])('leaves %s alone', (_label, url) => {
+    expect(miniAppTargetForUrl(url, origins)).toBeNull();
+  });
+
+  it('routes nothing when the server sent no origins', () => {
+    expect(miniAppTargetForUrl('https://mukja.mini.skkuverse.com/', {})).toBeNull();
   });
 });

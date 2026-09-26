@@ -186,6 +186,7 @@ export type {
   PlatformConfig,
   WebviewConfig,
   WebConfig,
+  MiniAppsConfig,
   AppConfig,
 } from './app/parser';
 export { parseAppConfig } from './app/parser';
@@ -201,6 +202,7 @@ export {
   getCachedAppConfig,
   getBridgeOrigins,
   getWebOrigin,
+  getMiniAppOrigins,
   resetAppConfigMemo,
 } from './app/config-cache';
 

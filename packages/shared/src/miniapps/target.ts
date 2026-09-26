@@ -68,3 +68,35 @@ export function resolveMiniAppUrl(startUrl: string, path: string | undefined): s
     return startUrl;
   }
 }
+
+/**
+ * The mini app that owns `url`, and the page on it — or null when `url` is not
+ * on a first-party mini-app origin.
+ *
+ * The reverse of the rule above ("an origin does not name a mini app"), and
+ * only safe because of what `origins` holds: the server lists an origin there
+ * only when exactly one registered mini app owns all of it (skkuverse-server
+ * `FIRST_PARTY_MINIAPP_ORIGINS`). `openWebView` uses this so a link to such a
+ * page opens in that mini app's shell, where its bridge exists, rather than in
+ * /webview, where the page's SDK shows its "open in the app" gate.
+ *
+ * A path the target grammar refuses (`//evil.com`) opens the start page.
+ *
+ * @param origins `getMiniAppOrigins()` — first-party origin → mini-app id.
+ */
+export function miniAppTargetForUrl(
+  url: string,
+  origins: Readonly<Record<string, string>>,
+): MiniAppTarget | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+  // An origin is `scheme://host[:port]`, so it can never name a prototype key.
+  const id = origins[parsed.origin];
+  if (!id) return null;
+  return parseMiniAppTarget(`${id}${parsed.pathname}${parsed.search}${parsed.hash}`) ?? { id };
+}

@@ -34,6 +34,15 @@ an SDUI `external` target — goes through `app/webview.tsx`, which still speaks
 `resolveWebviewCapabilities` for `/webview`, `resolveMiniAppCapabilities` for `/mini-app`. This
 document covers the second door only; the first is `packages/bridge/README.md` and ADR 0006 §9.
 
+One URL crosses from the first door to the second: a URL whose origin belongs to a first-party
+mini app. `openWebView` looks it up in `getMiniAppOrigins()` (GET /app/config `miniapps.origins`,
+server-owned, one mini app per origin) and opens that mini app's shell at the URL's path instead
+(`miniAppTargetForUrl`). Without this, a place-detail link or a banner pointing at, say,
+`eskara.miniapp.skkuverse.com/eskara/entry` would load in `/webview`, where the page's
+`MiniappRoot` finds no `window.skkuverse` and shows its "open in the app" page. The rule is the
+one App Links and Universal Links use: the host that owns a URL decides where it opens, not the
+action that linked to it.
+
 ## What a page finds before its own script runs
 
 Before content loads, the screen builds `hostBootstrapScript({ capabilities, viewport })` and
