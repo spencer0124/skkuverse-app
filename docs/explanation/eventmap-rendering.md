@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-09-25
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -512,7 +512,7 @@ all: the parser keeps it for contract fidelity, but a button that does nothing i
 missing one. A `miniapp` pill leads with the mini app's registry logo instead of the link glyph, so it
 reads as "opens inside skkuverse"; the parser drops a `miniapp` action whose value is not a target.
 
-**The peek sheet dismisses itself before it navigates.** `usePlaceNavigate`
+**The peek sheet dismisses itself before an in-app push.** `usePlaceNavigate`
 (`apps/mobile/src/features/eventmap/place/navigate.ts`) calls
 `useBottomSheetModal().dismiss()` and only then `handleSduiAction`. This is not polish; without it
 the destination arrives damaged.
@@ -537,9 +537,17 @@ once and preserving `restoreTo`.
 Both refs are raised together at the button rather than chained, because `onDismiss` does not fire
 until the close animation ends and that is not guaranteed to precede the return focus. The sheet
 returns at its low detent — restoring the exact one needs gorhom's private `minimize()`/`restore()`,
-which is a separate question. And an action whose URL is not web (`mailto:`, `tel:`) goes to
-`Linking.openURL` instead of pushing, so no focus event arrives and the arm survives until some
-later unrelated focus; the fix for that is for `openWebView` to report whether it navigated.
+which is a separate question.
+
+**Leaving for another app keeps the sheet up.** Opening Instagram, or an action whose URL is not web
+(`mailto:`, `tel:`), pushes nothing, so there is nothing to protect — and nothing to restore from: an
+app switch backgrounds the app without blurring the navigator, so no focus event would arrive. A
+sheet dismissed for one stayed gone, with the campus sheet held down beside it and the arm left to
+fire on some later, unrelated focus. So `useInstagramNavigate` tries the app first with the sheet
+still presented and runs the dismiss-and-push only as its webview fallback
+(`openInstagramAppFirst`), and `usePlaceNavigate` skips the dismiss for a non-web URL. The gap was
+latent until Instagram started opening natively (`eea351d`); before that every tap fell back to the
+webview, whose round trip restores.
 
 The same constraint is why `BuildingDetailSheet` dismisses before pushing `/map/hssc`, and why
 `NoticeDetailScreen`'s original-notice link hands off to the system browser rather than pushing.

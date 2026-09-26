@@ -1,7 +1,7 @@
 /**
  * `web:open-url` with an app to try first.
  *
- * The same probe as `openInstagram` in `features/eventmap/place/navigate.ts`:
+ * The same probe as `openInstagramAppFirst` in `features/eventmap/place/instagram.ts`:
  * open the app's scheme outright instead of asking `canOpenURL` first. The ask
  * is what the platforms gate (iOS `LSApplicationQueriesSchemes`, Android 11+
  * `<queries>`), and both need a native build; the open itself is not gated,
@@ -9,7 +9,7 @@
  * and `url` — the web address — is what it falls back to.
  *
  * The fallback stays external (`Linking.openURL`), not the in-app /webview
- * screen `openInstagram` uses: `web:open-url` has always meant "leave the page",
+ * screen `openInstagramAppFirst` falls back to: `web:open-url` has always meant "leave the page",
  * and pushing a second webview over a mini app would stack two browsers.
  *
  * Dependency-free — the opener is passed in — so `node --test` can drive the

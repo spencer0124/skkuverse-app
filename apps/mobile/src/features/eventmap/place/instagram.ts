@@ -62,3 +62,35 @@ export function instagramDestination(profileUrl: string, postUrl: string | null)
     nativeUrl: `instagram://user?username=${encodeURIComponent(username)}`,
   };
 }
+
+/**
+ * Try the Instagram app, and only when it will not open run `fallback`.
+ *
+ * The split is what the place sheet depends on: `fallback` is the in-app push,
+ * the one path that has to take the sheet down first. Opening Instagram leaves
+ * the app instead, and the sheet stays up for the way back — no navigator
+ * focus follows an app switch, so a sheet dismissed for it would never return.
+ *
+ * The open is tried outright rather than asked about with `canOpenURL`: the ask
+ * is what the platforms gate (iOS `LSApplicationQueriesSchemes`, Android 11+
+ * `<queries>`), and both need a native build; the open itself is not gated, and
+ * it rejects when nothing handles the scheme. So the rejection is the probe.
+ *
+ * Dependency-free — the opener is passed in — so `node --test` can drive both
+ * paths without a React Native runtime.
+ */
+export async function openInstagramAppFirst(
+  nativeUrl: string | null,
+  open: (url: string) => Promise<unknown>,
+  fallback: () => void,
+): Promise<void> {
+  if (nativeUrl) {
+    try {
+      await open(nativeUrl);
+      return;
+    } catch {
+      // Instagram is absent, or rejected the deep link.
+    }
+  }
+  fallback();
+}
