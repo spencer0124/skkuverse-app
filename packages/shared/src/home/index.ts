@@ -3,6 +3,7 @@ export {
   DEFAULT_BANNER_ASPECT_RATIO,
   DEFAULT_AUTO_ROTATE_SEC,
   parseHomeLayout,
+  parseBannerCarousel,
   type HomeLayout,
   type HomeSection,
   type HomeBannerCarousel,

@@ -16,6 +16,7 @@ import type {
   CampusSectionsResponse,
 } from '../types/sdui';
 import { parseActionType } from '../types/sdui';
+import { parseBannerCarousel, type HomeBannerImage } from '../home/schema';
 
 // ── Item parsers ──
 
@@ -74,6 +75,15 @@ function parseSection(raw: Record<string, unknown>): SduiSection {
         actionType: parseActionType(raw.actionType as string),
         actionValue: raw.actionValue as string,
       };
+
+    case 'banner_carousel': {
+      const carousel = parseBannerCarousel(raw);
+      if (!carousel) return { type: 'unknown', id, originalType: type };
+      return {
+        ...carousel,
+        items: carousel.items.filter((i): i is HomeBannerImage => i.type === 'image'),
+      };
+    }
 
     case 'spacer':
       return {

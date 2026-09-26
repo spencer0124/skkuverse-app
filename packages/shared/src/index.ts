@@ -92,6 +92,7 @@ export type {
   SduiSectionTitle,
   SduiNotice,
   SduiBanner,
+  SduiBannerCarousel,
   SduiSpacer,
   SduiUnknown,
   SduiButtonItem,

@@ -9,6 +9,7 @@
  */
 
 import { asMember } from '../utils/allowlist';
+import type { HomeBannerImage } from '../home/schema';
 
 // ── Action types ──
 
@@ -94,6 +95,20 @@ export interface SduiBanner {
   actionValue: string;
 }
 
+/**
+ * Auto-rotating image banners. Same wire shape as the home screen's carousel
+ * (`home/schema.ts`), images only: the campus feed has no built-in banner for
+ * a `default` item to stand for, so the parser drops any it is sent.
+ */
+export interface SduiBannerCarousel {
+  type: 'banner_carousel';
+  id: string;
+  aspectRatio: number;
+  /** 0 = no auto-rotation. */
+  autoRotateSec: number;
+  items: HomeBannerImage[];
+}
+
 export interface SduiSpacer {
   type: 'spacer';
   id: string;
@@ -113,6 +128,7 @@ export type SduiSection =
   | SduiSectionTitle
   | SduiNotice
   | SduiBanner
+  | SduiBannerCarousel
   | SduiSpacer
   | SduiUnknown;
 

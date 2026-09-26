@@ -116,25 +116,35 @@ function parseBannerItem(raw: unknown): HomeBannerItem | null {
   return item;
 }
 
+/**
+ * One `banner_carousel` section, or null when it has no id. Exported for the
+ * campus feed (`GET /ui/home/campus`), whose carousel the server builds from
+ * the same rules and sends in the same shape.
+ */
+export function parseBannerCarousel(raw: unknown): HomeBannerCarousel | null {
+  const obj = asRecord(raw);
+  const id = asString(obj?.id);
+  if (!obj || !id) return null;
+  const items = Array.isArray(obj.items)
+    ? obj.items.map(parseBannerItem).filter((i): i is HomeBannerItem => i !== null)
+    : [];
+  return {
+    type: 'banner_carousel',
+    id,
+    aspectRatio: inRange(obj.aspectRatio, ASPECT_RATIO_MIN, ASPECT_RATIO_MAX)
+      ? obj.aspectRatio
+      : DEFAULT_BANNER_ASPECT_RATIO,
+    autoRotateSec: parseAutoRotateSec(obj.autoRotateSec),
+    items,
+  };
+}
+
 function parseSection(raw: unknown): HomeSection | null {
   const obj = asRecord(raw);
   const id = asString(obj?.id);
   if (!obj || !id) return null;
 
-  if (obj.type === 'banner_carousel') {
-    const items = Array.isArray(obj.items)
-      ? obj.items.map(parseBannerItem).filter((i): i is HomeBannerItem => i !== null)
-      : [];
-    return {
-      type: 'banner_carousel',
-      id,
-      aspectRatio: inRange(obj.aspectRatio, ASPECT_RATIO_MIN, ASPECT_RATIO_MAX)
-        ? obj.aspectRatio
-        : DEFAULT_BANNER_ASPECT_RATIO,
-      autoRotateSec: parseAutoRotateSec(obj.autoRotateSec),
-      items,
-    };
-  }
+  if (obj.type === 'banner_carousel') return parseBannerCarousel(obj);
 
   if (obj.type === 'miniapp_grid') {
     const miniAppIds = Array.isArray(obj.miniAppIds)
