@@ -56,7 +56,10 @@ the rest.
    crash on that screen. Only an ad that reported the reward and then
    closed revives the run; the page accepts `host:revive` up to the engine's `MAX_REVIVES`.
 5. **Final.** The moment the crash is final, a signed-in player with a nickname is written to
-   the board if this is their best, and their line slides into place.
+   the board if this is their best, and their line slides into place. The panel rises showing
+   where the player stood before the run, and a beat later the line moves — so a beaten best
+   climbs on screen at once, to the rank it will take, rather than waiting for the write that
+   waits for the revive offer to end.
 6. **Next.** Settles the run as it stands and sends `host:reset`, which takes the page back to
    its title. If the run could go on the board once the player signs in or picks a nickname,
    "next" first offers that in `RankPromptSheet` — once per screen, and again only after a new

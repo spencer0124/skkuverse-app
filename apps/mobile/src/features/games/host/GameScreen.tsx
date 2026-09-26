@@ -42,6 +42,8 @@ const BOARD_LIMIT = 5;
 const NO_BEST = 0;
 /** How long a run that just went on the board stays on screen before the game moves on. */
 const SETTLE_VIEW_MS = 1800;
+/** How long the result panel shows the player's old place before their line moves. */
+const PROMOTE_DELAY_MS = 450;
 /** The floating buttons at the top right. */
 const ACTION_SIZE = 40;
 /** A `host:reset` the page has not acknowledged (`game:phase ready`) this soon is sent once more. */
@@ -315,40 +317,60 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   const openBoard = () => router.push({ pathname: '/games/[id]/leaderboard', params: { id: gameId } } as never);
 
   // ── The player's line on the board ──
-  // Their best while the run is open; the new best, at its new rank, once it
-  // is written; and while it cannot be written (signed out, no nickname) a
-  // ghost where this score would rank. One key throughout, so it moves.
+  // The panel rises showing where the player stood before this run; a beat
+  // later (`promoted`) the line moves to where this run puts them — so a new
+  // best climbs on screen rather than appearing already in place. That is the
+  // written best at its rank; before the write (which waits for the revive
+  // offer to end) a best this run beats, at the rank it will take; and while
+  // it cannot be written (signed out, no nickname) a ghost where it would
+  // rank. One key throughout, so it moves.
   const over = session.over;
   const submitted = session.submission.status === 'submitted' ? session.submission : null;
-  const showGhost = !!over && !submitted && !auto.myBest && over.score > 0;
-  const ghostRank = useRankOf(gameId, showGhost ? over!.score : null);
-  const prevRank = useRef<number | null>(null);
+  const pending = session.submission.status === 'idle' || session.submission.status === 'submitting';
+  // The best as it stood at the crash: the board's own copy is re-read once
+  // the new one is written, which would take away the line's starting place.
+  const [before, setBefore] = useState<typeof auto.myBest>(null);
   useEffect(() => {
-    if (session.phase === 'crashed' && session.submission.status === 'idle') prevRank.current = auto.myBest?.rank ?? null;
+    if (session.phase === 'crashed' && session.submission.status === 'idle') setBefore(auto.myBest);
   }, [session.phase, session.submission.status, auto.myBest]);
+  const beats = !!over && !!before && pending && isBetter(game.score.order, over.score, before.entry.score);
+  const showGhost = !!over && !submitted && !auto.myBest && over.score > 0;
+  const predicted = useRankOf(gameId, showGhost || beats ? over!.score : null);
+
+  const [promoted, setPromoted] = useState(false);
+  useEffect(() => {
+    if (!panelVisible) {
+      setPromoted(false);
+      return;
+    }
+    const id = setTimeout(() => setPromoted(true), PROMOTE_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [panelVisible, over]);
 
   const me: MyLine | null = useMemo(() => {
     if (!over) return null;
+    const was: MyLine | null = before && { kind: 'entry', entry: before.entry, rank: before.rank };
+    if (!promoted) return was;
     const p = profile.status === 'ready' ? profile.profile : null;
     const prefix = emailPrefixOf(email);
-    if (submitted && uid && p?.nickname && prefix) {
-      return {
-        kind: 'entry',
-        entry: { uid, nickname: p.nickname, emailPrefix: prefix, campus: p.campus, score: over.score },
-        rank: submitted.rank ?? auto.myBest?.rank ?? 1,
-      };
-    }
+    const fresh = (rank: number): MyLine | null =>
+      uid && p?.nickname && prefix
+        ? { kind: 'entry', entry: { uid, nickname: p.nickname, emailPrefix: prefix, campus: p.campus, score: over.score }, rank }
+        : null;
+    if (submitted) return fresh(submitted.rank ?? predicted.data ?? before?.rank ?? 1) ?? was;
+    if (beats && predicted.data) return fresh(predicted.data) ?? was;
     if (auto.myBest) return { kind: 'entry', entry: auto.myBest.entry, rank: auto.myBest.rank };
-    if (showGhost && ghostRank.data) return { kind: 'ghost', uid: uid ?? 'me', score: over.score, rank: ghostRank.data };
+    if (showGhost && predicted.data) return { kind: 'ghost', uid: uid ?? 'me', score: over.score, rank: predicted.data };
     return null;
-  }, [over, submitted, uid, profile, email, auto.myBest, showGhost, ghostRank.data]);
+  }, [over, before, promoted, submitted, beats, uid, profile, email, auto.myBest, showGhost, predicted.data]);
 
   const boardNote = (() => {
-    if (submitted) {
-      const before = prevRank.current;
-      const now = submitted.rank;
-      if (before === null) return t('game.newEntry');
-      if (now !== null && now < before) return tpl('game.rankUp', before - now);
+    // Said as the line moves: once written, or ahead of it for a beaten best.
+    const now = submitted ? submitted.rank : beats ? (predicted.data ?? null) : undefined;
+    if (now !== undefined) {
+      if (!promoted) return null;
+      if (!before) return t('game.newEntry');
+      if (now !== null && now < before.rank) return tpl('game.rankUp', before.rank - now);
       return null;
     }
     if (session.submission.status === 'failed') {
