@@ -53,6 +53,13 @@ const HSSC_FALLBACK = {
   zoom: 15.8,
 };
 
+/**
+ * How far out the camera may pull. A client constant rather than a wire field:
+ * a camera limit is app UX, not layer content. Must stay below every campus's
+ * `defaultZoom`, or the first frame would be clamped.
+ */
+const MIN_CAMERA_ZOOM = 14;
+
 const LAYER_GROUPS = {
   BUILDING: true,
   TRANSIT: true,
@@ -108,6 +115,7 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         // and ride the sheet. `MapCompass` draws it instead.
         isShowCompass={false}
         isExtentBoundedInKorea
+        minZoom={MIN_CAMERA_ZOOM}
         mapType="Basic"
         locale={lang}
         layerGroups={LAYER_GROUPS}

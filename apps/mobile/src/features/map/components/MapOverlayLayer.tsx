@@ -271,6 +271,8 @@ const PlaceMarker = React.memo(function PlaceMarker({
       // every drawn marker near it); forcing it on is what made it appear.
       isHideCollidedCaptions={tap?.kind !== 'chip'}
       zIndex={isSelected ? SELECTED_Z : 0}
+      minZoom={layerStyle?.minZoom}
+      maxZoom={layerStyle?.maxZoom}
       onTap={tap ? onTap : undefined}
     />
   );
@@ -443,6 +445,8 @@ export function MapOverlayLayer({
               }}
               isHideCollidedCaptions
               globalZIndex={layer.style?.zIndex ?? LABEL_Z_INDEX}
+              minZoom={layer.style?.minZoom}
+              maxZoom={layer.style?.maxZoom}
               onTap={onTap}
             />
           );
@@ -506,6 +510,13 @@ export function MapOverlayLayer({
             // prints the number a second time beside its own dot. The name is
             // the `building_labels` layer's job, which is the whole reason the
             // two are separate layers.
+            //
+            // Zoom bounds are the layer's, as on every other kind. The server
+            // gives this layer a higher floor than `building_labels`, so zooming
+            // out drops the numbers first and the names after them. Unset
+            // falls through to the SDK's own 0–21 default.
+            minZoom={layer.style?.minZoom}
+            maxZoom={layer.style?.maxZoom}
             onTap={onTap}
           >
             <NumberDotMarker label={label} size={dotSize} />
