@@ -8,9 +8,13 @@
  * that one block, never the screen. That is what lets the server add a section
  * type that already-released builds simply skip.
  *
- * Mini-app grids carry ids only. Names and logos are joined from the mini-app
- * registry (`useMiniAppIndex`), which the home screen already holds.
+ * A grid's tiles each carry a `kind` naming where the tile's text and icon come
+ * from: `miniapp` (joined from the mini-app registry, `useMiniAppIndex`), `game`
+ * (a game bundled into the app, resolved by the app) or `link` (text, icon and
+ * action inline). The kind is an OPEN set: a tile of a kind this build does not
+ * know is dropped alone, never the grid.
  */
+import { parseLogo, type MiniAppLogo } from '../miniapps/schema';
 import { parseActionType, type ActionType } from '../types/sdui';
 
 /** Bump only on BREAKING schema changes (removed/renamed/retyped field). */
@@ -56,14 +60,25 @@ export interface HomeBannerCarousel {
   items: HomeBannerItem[];
 }
 
-export interface HomeMiniAppGrid {
-  type: 'miniapp_grid';
+export type HomeTile =
+  | { kind: 'miniapp'; id: string }
+  | { kind: 'game'; id: string }
+  | {
+      kind: 'link';
+      id: string;
+      title: string;
+      icon: MiniAppLogo;
+      action: { actionType: ActionType; actionValue: string };
+    };
+
+export interface HomeTileGrid {
+  type: 'tile_grid';
   id: string;
   title?: string;
-  miniAppIds: string[];
+  tiles: HomeTile[];
 }
 
-export type HomeSection = HomeBannerCarousel | HomeMiniAppGrid;
+export type HomeSection = HomeBannerCarousel | HomeTileGrid;
 
 export interface HomeLayout {
   version: number;
@@ -139,6 +154,35 @@ export function parseBannerCarousel(raw: unknown): HomeBannerCarousel | null {
   };
 }
 
+function parseTile(raw: unknown): HomeTile | null {
+  const obj = asRecord(raw);
+  const id = asString(obj?.id);
+  if (!obj || !id) return null;
+  switch (obj.kind) {
+    case 'miniapp':
+    case 'game':
+      return { kind: obj.kind, id };
+    case 'link': {
+      const title = asString(obj.title);
+      const icon = parseLogo(obj.icon);
+      const actionType = parseActionType(obj.actionType);
+      const actionValue = asString(obj.actionValue);
+      // Unlike a banner, a tile that cannot be pressed has nothing left to show.
+      if (!title || !icon || actionType === 'unknown' || !actionValue) return null;
+      return { kind: 'link', id, title, icon, action: { actionType, actionValue } };
+    }
+    default:
+      // A tile kind newer than this build.
+      return null;
+  }
+}
+
+function parseGrid(obj: Record<string, unknown>, id: string, tiles: HomeTile[]): HomeTileGrid | null {
+  if (tiles.length === 0) return null;
+  const title = asString(obj.title);
+  return { type: 'tile_grid', id, ...(title ? { title } : {}), tiles };
+}
+
 function parseSection(raw: unknown): HomeSection | null {
   const obj = asRecord(raw);
   const id = asString(obj?.id);
@@ -146,13 +190,22 @@ function parseSection(raw: unknown): HomeSection | null {
 
   if (obj.type === 'banner_carousel') return parseBannerCarousel(obj);
 
-  if (obj.type === 'miniapp_grid') {
-    const miniAppIds = Array.isArray(obj.miniAppIds)
-      ? obj.miniAppIds.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  if (obj.type === 'tile_grid') {
+    const tiles = Array.isArray(obj.tiles)
+      ? obj.tiles.map(parseTile).filter((t): t is HomeTile => t !== null)
       : [];
-    if (miniAppIds.length === 0) return null;
-    const title = asString(obj.title);
-    return { type: 'miniapp_grid', id, ...(title ? { title } : {}), miniAppIds };
+    return parseGrid(obj, id, tiles);
+  }
+
+  // TODO(remove once skkuverse-server serves `tile_grid`): the section this
+  // replaced, still read so this build can ship before the server switches.
+  if (obj.type === 'miniapp_grid') {
+    const tiles = Array.isArray(obj.miniAppIds)
+      ? obj.miniAppIds
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+          .map((miniAppId): HomeTile => ({ kind: 'miniapp', id: miniAppId }))
+      : [];
+    return parseGrid(obj, id, tiles);
   }
 
   // A section type newer than this build.

@@ -14,7 +14,9 @@ import {
   useMiniAppIndex,
   useT,
   type HomeSection,
+  type HomeTile,
   type MiniAppIndexEntry,
+  type MiniAppLogo,
 } from '@skkuverse/shared';
 import { Txt } from '@skkuverse/sds';
 import {
@@ -22,6 +24,7 @@ import {
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
 import { openMiniAppById } from '@/features/mini-app/open';
+import { handleSduiAction } from '@/sdui/action-handler';
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
@@ -45,18 +48,33 @@ function gameTile(id: NativeGameId, title: string): TossfaceGridItem {
 
 // Logo is a remote image (`{uri}`) or an emoji. A null logo (the server sent
 // one this build cannot use) draws 🧩 rather than an empty tile.
+function logoProps(logo: MiniAppLogo | null): Pick<TossfaceGridItem, 'emoji' | 'imageSource'> {
+  return logo?.kind === 'remote'
+    ? { imageSource: { uri: logo.uri } }
+    : { emoji: logo?.kind === 'emoji' ? logo.emoji : '\u{1F9E9}' };
+}
+
 function toTile(app: MiniAppIndexEntry): TossfaceGridItem {
   return {
     id: app.id,
     title: app.shortName ?? app.name,
-    ...(app.homeLogo?.kind === 'remote'
-      ? { imageSource: { uri: app.homeLogo.uri } }
-      : {
-          emoji: app.homeLogo?.kind === 'emoji' ? app.homeLogo.emoji : '\u{1F9E9}',
-        }),
+    ...logoProps(app.homeLogo),
     onPress: () => {
       logHomeContentSelect({ content_type: 'tile', item_id: app.id });
       openMiniAppById(app.id);
+    },
+  };
+}
+
+/** A tile that brings its own text, icon and action: an app screen, a page. */
+function linkTile(tile: Extract<HomeTile, { kind: 'link' }>): TossfaceGridItem {
+  return {
+    id: tile.id,
+    title: tile.title,
+    ...logoProps(tile.icon),
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: tile.id });
+      handleSduiAction(tile.action);
     },
   };
 }
@@ -82,10 +100,12 @@ export function HomeScreen() {
   const scrollTopInset = Platform.OS === 'ios' ? headerHeight + 16 : 16;
 
   // Home = server-driven sections (GET /ui/home), drawn in the server's order:
-  // the banner carousel and titled mini-app grids. Grids carry ids only; names
-  // and logos are joined from the mini-app registry, and an id the registry
-  // does not (yet) know is skipped. A grid left with no tiles is dropped whole,
-  // title included.
+  // the banner carousel and titled tile grids. Each tile names where its text
+  // and icon come from: a `miniapp` is joined from the mini-app registry, a
+  // `game` from the games bundled into this build, and a `link` carries its own.
+  // A tile this build cannot resolve (an id the registry does not know, a game
+  // it does not ship) is skipped, and a grid left with no tiles is dropped
+  // whole, title included.
   //
   // With no layout at all (first launch offline, or a server predating
   // /ui/home) it draws the bundled copy of today's server layout instead.
@@ -100,18 +120,26 @@ export function HomeScreen() {
         out.push({ type: 'banner', key: section.id, section });
         continue;
       }
-      const items = section.miniAppIds
-        .map((id) => byId.get(id))
-        .filter((app): app is MiniAppIndexEntry => app !== undefined)
-        .map(toTile);
+      const items: TossfaceGridItem[] = [];
+      const gameIds: NativeGameId[] = [];
+      for (const tile of section.tiles) {
+        if (tile.kind === 'game') {
+          if (!isNativeGameId(tile.id)) continue;
+          items.push(gameTile(tile.id, t(NATIVE_GAMES[tile.id].titleKey)));
+          gameIds.push(tile.id);
+        } else if (tile.kind === 'miniapp') {
+          const app = byId.get(tile.id);
+          if (app) items.push(toTile(app));
+        } else {
+          items.push(linkTile(tile));
+        }
+      }
       if (items.length > 0) {
-        // Only games whose tile is actually drawn count as placed here.
-        const gameIds = section.miniAppIds.filter(isNativeGameId).filter((id) => byId.has(id));
         out.push({ type: 'grid', key: section.id, title: section.title, items, gameIds });
       }
     }
     return out;
-  }, [layout, miniApps]);
+  }, [layout, miniApps, t]);
   const unplacedGames = useMemo(() => {
     const placed = new Set(sections.flatMap((s) => (s.type === 'grid' ? s.gameIds : [])));
     return NATIVE_GAME_IDS.filter((id) => !placed.has(id));
@@ -155,8 +183,8 @@ export function HomeScreen() {
           ),
         )}
 
-        {/* The in-app games the server's grids do not hold get a grid of
-            their own, fixed in the app. */}
+        {/* The in-app games the server's grids do not place get a grid of
+            their own, fixed in the app, so none is ever unreachable. */}
         {unplacedGames.length > 0 && (
           <View style={styles.gridWrap}>
             <View style={styles.sectionHeader}>

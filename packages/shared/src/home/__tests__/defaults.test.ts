@@ -5,7 +5,8 @@ import { parseHomeLayout } from '../schema';
 
 /**
  * The bundled default is drawn exactly like a server response, so it must be
- * one: re-serialized to the wire shape and parsed back, nothing may be lost.
+ * one: re-serialized to the wire shape (actions flattened) and parsed back,
+ * nothing may be lost.
  */
 describe('defaultHomeLayout', () => {
   it.each(['ko', 'en', 'zh'] as const)('is a layout the parser accepts unchanged (%s)', (lang) => {
@@ -22,7 +23,12 @@ describe('defaultHomeLayout', () => {
                   : item,
               ),
             }
-          : section,
+          : {
+              ...section,
+              tiles: section.tiles.map((tile) =>
+                tile.kind === 'link' ? { ...tile, action: undefined, ...tile.action } : tile,
+              ),
+            },
       ),
     };
     expect(parseHomeLayout(JSON.parse(JSON.stringify(wire)))).toEqual(layout);

@@ -180,8 +180,10 @@ screen's cards are.
 2. Have the page speak `@skkuverse/game-host`, including `host:reset`. It can read the safe area
    from the `--inset-*` CSS variables the host sets.
 3. Add the id to `NATIVE_GAME_IDS` (`ids.ts`), an entry to `NATIVE_GAMES` (`registry.ts`), its
-   overlay, and its screen names to `SCREEN_NAMES` in `app/_layout.tsx`. Use the id the mini-app
-   registry already has, so its home tile and `/m/<id>` link open the native screen.
+   overlay, and its screen names to `SCREEN_NAMES` in `app/_layout.tsx`. A game replacing a web
+   mini app keeps that mini app's id, so its `/m/<id>` link opens the native screen. To place it
+   on home, add a `{ "kind": "game", "id": "<id>" }` tile to a grid in skkuverse-server's
+   `home-layout.json`; a game no grid places still gets the app's own mini-games grid.
 4. In `firestore.rules`, add the id to `isGameId`, and its cases to `isPlausible`,
    `maxEntryScore`, `maxRevives` and `isImprovement`, with rules tests. Add the id to `GAME_IDS`
    in `functions/src/games/claimRun.ts`.

@@ -8,7 +8,8 @@
  * cached one, replaces this entirely. Update it alongside the server file when
  * the layout changes for long enough to matter; a stale copy only shows in the
  * offline-first-launch case, and the grids are still joined against the
- * registry, so an id the registry drops is skipped here too.
+ * registry, so an id the registry drops is skipped here too, and a game this
+ * build does not ship is skipped the same way.
  *
  * Text comes from the app's own translations, because the server localizes
  * its copy per request and this one has to cover every language at once.
@@ -38,16 +39,25 @@ export function defaultHomeLayout(t: (key: TranslationKey) => string): HomeLayou
         ],
       },
       {
-        type: 'miniapp_grid',
+        type: 'tile_grid',
         id: 'main',
-        title: t('home.tile.eskara'),
-        miniAppIds: ['eskara-2026', 'inja', 'mukja', 'playlist', 'booth-box'],
+        tiles: [
+          { kind: 'miniapp', id: 'eskara-2026' },
+          { kind: 'miniapp', id: 'inja' },
+          { kind: 'miniapp', id: 'timetable' },
+          { kind: 'miniapp', id: 'playlist' },
+        ],
       },
       {
-        type: 'miniapp_grid',
+        type: 'tile_grid',
         id: 'games',
         title: t('home.section.miniGames'),
-        miniAppIds: ['subway-typing', 'wave-run'],
+        tiles: [
+          { kind: 'game', id: 'subway-typing' },
+          { kind: 'game', id: 'wave-run' },
+          { kind: 'miniapp', id: 'mukja' },
+          { kind: 'miniapp', id: 'booth-box' },
+        ],
       },
     ],
   };

@@ -122,7 +122,8 @@ function asHttpUrl(v: unknown): string | undefined {
   return typeof v === 'string' && HTTP_RE.test(v) ? v : undefined;
 }
 
-function parseLogo(raw: unknown): MiniAppLogo | null {
+/** Also parses a home `link` tile's icon, which the server sends in this shape. */
+export function parseLogo(raw: unknown): MiniAppLogo | null {
   const obj = asRecord(raw);
   if (!obj) return null;
   switch (obj.kind) {

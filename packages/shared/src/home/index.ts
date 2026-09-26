@@ -10,7 +10,8 @@ export {
   type HomeBannerItem,
   type HomeBannerImage,
   type HomeBannerDefault,
-  type HomeMiniAppGrid,
+  type HomeTileGrid,
+  type HomeTile,
 } from './schema';
 export { defaultHomeLayout } from './defaults';
 export { getCachedHomeLayout, fetchHomeLayout } from './repository';

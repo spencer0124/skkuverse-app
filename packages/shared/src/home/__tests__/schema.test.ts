@@ -28,7 +28,24 @@ const carousel = {
   items: [image, { type: 'default' }],
 };
 
-const grid = { type: 'miniapp_grid', id: 'games', title: '미니게임', miniAppIds: ['wave-run'] };
+const grid = {
+  type: 'tile_grid',
+  id: 'games',
+  title: '미니게임',
+  tiles: [
+    { kind: 'game', id: 'wave-run' },
+    { kind: 'miniapp', id: 'mukja' },
+  ],
+};
+
+const link = {
+  kind: 'link',
+  id: 'campus-map',
+  title: '캠퍼스 지도',
+  icon: { kind: 'emoji', emoji: '\u{1F5FA}\u{FE0F}' },
+  actionType: 'route',
+  actionValue: '/(tabs)/campus',
+};
 
 describe('parseHomeLayout', () => {
   it('parses the server payload', () => {
@@ -108,14 +125,77 @@ describe('parseHomeLayout', () => {
     expect(layout?.sections[0]).toMatchObject({ autoRotateSec: 0 });
   });
 
-  it('drops a grid with no ids and omits a blank title', () => {
+  it('drops a grid with no tiles and omits a blank title', () => {
     const layout = parseHomeLayout({
       version: 1,
       sections: [
-        { ...grid, miniAppIds: [] },
-        { ...grid, id: 'main', title: '', miniAppIds: ['mukja', 3] },
+        { ...grid, tiles: [] },
+        { ...grid, id: 'main', title: '', tiles: [{ kind: 'miniapp', id: 'mukja' }, 3] },
       ],
     });
-    expect(layout?.sections).toEqual([{ type: 'miniapp_grid', id: 'main', miniAppIds: ['mukja'] }]);
+    expect(layout?.sections).toEqual([
+      { type: 'tile_grid', id: 'main', tiles: [{ kind: 'miniapp', id: 'mukja' }] },
+    ]);
+  });
+
+  it('parses a link tile, nesting its action', () => {
+    const layout = parseHomeLayout({ version: 1, sections: [{ ...grid, tiles: [link] }] });
+    expect(layout?.sections[0]).toMatchObject({
+      tiles: [
+        {
+          kind: 'link',
+          id: 'campus-map',
+          title: '캠퍼스 지도',
+          icon: link.icon,
+          action: { actionType: 'route', actionValue: '/(tabs)/campus' },
+        },
+      ],
+    });
+  });
+
+  it('drops a tile of an unknown kind or with nothing to press, keeping the rest', () => {
+    const layout = parseHomeLayout({
+      version: 1,
+      sections: [
+        {
+          ...grid,
+          tiles: [
+            { kind: 'screen', id: 'campus' },
+            { kind: 'game' },
+            { ...link, id: 'a', title: undefined },
+            { ...link, id: 'b', icon: { kind: 'svg', src: 'x' } },
+            { ...link, id: 'c', actionType: 'teleport' },
+            { ...link, id: 'd', actionValue: '' },
+            { kind: 'game', id: 'wave-run' },
+          ],
+        },
+      ],
+    });
+    expect(layout?.sections[0]).toMatchObject({ tiles: [{ kind: 'game', id: 'wave-run' }] });
+  });
+
+  it('drops a grid whose every tile is unusable', () => {
+    const layout = parseHomeLayout({
+      version: 1,
+      sections: [{ ...grid, tiles: [{ kind: 'screen', id: 'campus' }] }],
+    });
+    expect(layout?.sections).toEqual([]);
+  });
+
+  it('still reads the older miniapp_grid as mini-app tiles', () => {
+    const layout = parseHomeLayout({
+      version: 1,
+      sections: [{ type: 'miniapp_grid', id: 'main', miniAppIds: ['inja', 3, 'mukja'] }],
+    });
+    expect(layout?.sections).toEqual([
+      {
+        type: 'tile_grid',
+        id: 'main',
+        tiles: [
+          { kind: 'miniapp', id: 'inja' },
+          { kind: 'miniapp', id: 'mukja' },
+        ],
+      },
+    ]);
   });
 });
