@@ -176,10 +176,13 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
     return () => sub.remove();
   }, []);
 
-  // No ad can play: the offer ends at once rather than counting down to nothing.
+  // No ad loaded when the run crashed: no offer at all — never a button that
+  // spins while one loads. The load keeps retrying behind it for the next crash.
   useEffect(() => {
-    if (session.offer === 'open' && ad.status === 'failed') dispatch({ type: 'offerUnavailable' });
-  }, [session.offer, ad.status]);
+    if (session.offer === 'open' && ad.status !== 'ready') dispatch({ type: 'offerUnavailable' });
+    // Decided once, as the offer opens: an ad already on screen reloads behind it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.offer]);
   // A crash retries an ad that failed to load for the last one.
   useEffect(() => {
     if (session.phase === 'crashed' && ad.status === 'failed') ad.reload();
@@ -409,7 +412,6 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
               <ReviveOffer
                 offer={session.offer === 'open' || session.offer === 'watching' ? session.offer : 'closed'}
                 enabled={canRevive(session, ad.status === 'ready')}
-                adLoading={ad.status === 'loading'}
                 paused={!appActive || !focused}
                 onRevive={revive}
                 onExpire={() => dispatch({ type: 'offerExpired' })}

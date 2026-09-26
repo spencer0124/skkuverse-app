@@ -49,10 +49,11 @@ the rest.
    offer, and "next" at the bottom. A game without revives sends none left, so its run is final
    at once.
 4. **Revive** (wave-run). While revives are left, the offer is a button whose fill drains over `REVIVE_WINDOW_MS`;
-   when it is empty the button is spent and the crash is final. No ad to play makes the offer
-   unavailable, and the crash final at once. A failed load is retried a few times with backoff
-   (`useRewardedRevive`) before it counts as "no ad" — the button waits with a spinner meanwhile —
-   because a single miss at mount otherwise hid the offer for every crash on that screen. Only an ad that reported the reward and then
+   when it is empty the button is spent and the crash is final. The offer is shown only when an
+   ad is already loaded at the crash; otherwise it is unavailable — no button, never one that
+   spins while an ad loads — and the crash final at once. A failed load is retried a few times
+   with backoff behind the game (`useRewardedRevive`), so one miss at mount does not cost every
+   crash on that screen. Only an ad that reported the reward and then
    closed revives the run; the page accepts `host:revive` up to the engine's `MAX_REVIVES`.
 5. **Final.** The moment the crash is final, a signed-in player with a nickname is written to
    the board if this is their best, and their line slides into place.

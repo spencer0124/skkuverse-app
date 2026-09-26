@@ -8,7 +8,6 @@ interface Props {
   offer: 'open' | 'watching' | 'closed';
   /** An ad is loaded and the offer is open. */
   enabled: boolean;
-  adLoading: boolean;
   /** Hold the countdown (the app is in the background, or a sheet is over the game). */
   paused: boolean;
   onRevive(): void;
@@ -19,7 +18,7 @@ interface Props {
  * The chance to continue: a button whose colour drains away in ten seconds. When it runs out the button is spent and
  * the run is final; the player never has to decline it.
  */
-export function ReviveOffer({ offer, enabled, adLoading, paused, onRevive, onExpire }: Props) {
+export function ReviveOffer({ offer, enabled, paused, onRevive, onExpire }: Props) {
   const { t } = useT();
   return (
     <DrainButton
@@ -28,7 +27,7 @@ export function ReviveOffer({ offer, enabled, adLoading, paused, onRevive, onExp
       running={offer === 'open' && !paused}
       done={offer === 'closed'}
       enabled={enabled}
-      busy={offer === 'watching' || (offer === 'open' && adLoading)}
+      busy={offer === 'watching'}
       onPress={onRevive}
       onExpire={onExpire}
     />

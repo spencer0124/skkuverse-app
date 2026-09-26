@@ -28,7 +28,7 @@ export interface ArmedRun {
  * - `watching`: the ad is on screen; the countdown holds.
  * - `closed`: over (ran out, the ad earned nothing, or none left) — the crash
  *   is final, and the offer is shown spent.
- * - `unavailable`: no ad could play — the crash is final, and no offer is shown.
+ * - `unavailable`: no ad was loaded when it crashed — the crash is final, and no offer is shown.
  * - `none`: no crash on screen.
  */
 export type Offer = 'none' | 'open' | 'watching' | 'closed' | 'unavailable';
