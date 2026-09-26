@@ -166,7 +166,8 @@ opacity**, because it would take the glass with it.
 A related trap is recorded next door in
 [campus-map-reconciliation.md](campus-map-reconciliation.md): a `GlassView`
 renders fully transparent under a Reanimated parent carrying an `entering`
-layout animation. Gorhom's sheet body is a Reanimated `Animated.View`, so this
+layout animation — Reanimated mounts a view with `entering` at opacity 0 until its first
+frame, even when the animation itself only moves it. Gorhom's sheet body is a Reanimated `Animated.View`, so this
 was the main risk when the work started. It turns out an animated `style` is not
 the same thing as `entering`, and the glass renders here — but that was
 established by putting a throwaway `GlassView` in the background slot and
