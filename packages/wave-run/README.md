@@ -21,6 +21,7 @@ audience: internal
 | `src/game/bound.ts` | The score ceiling the leaderboard rules mirror |
 | `src/game/loop.ts` | The frame loop, driven by the host after a crash |
 | `src/game/render/` | Canvas drawing and the day/night palette |
+| `src/sound/` | 8-bit sound: ZzFX tones rendered in the page, and the cue for each moment |
 | `src/main.ts` | Page entry: canvas, input, and the `@skkuverse/game-host` channel |
 | `scripts/build-embed.mjs` | Builds the page into `apps/mobile/src/features/games/wave-run/html.generated.ts` |
 | `scripts/skyline-art.mjs` | Regenerates the skyline PNGs |

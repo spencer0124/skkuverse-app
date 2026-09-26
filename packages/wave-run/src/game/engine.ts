@@ -33,6 +33,10 @@ export interface RecordedInput {
 
 export type GameEvent =
   | { type: 'jump'; double: boolean }
+  /** Ducking in the air: the runner starts to plunge. */
+  | { type: 'dive' }
+  /** Back on the ground; `hard` when it came down in a dive. */
+  | { type: 'land'; hard: boolean }
   | { type: 'milestone'; score: number }
   | { type: 'crash'; into: ObstacleKind };
 
@@ -116,10 +120,13 @@ function applyInput(s: GameState, input: Input): void {
       p.jumpHeld = false;
       releaseJump(p);
       break;
-    case 'duck':
+    case 'duck': {
       p.duckHeld = true;
+      const diving = p.speedDrop;
       pressDuck(p);
+      if (p.speedDrop && !diving) s.events.push({ type: 'dive' });
       break;
+    }
     case 'duckEnd':
       p.duckHeld = false;
       releaseDuck(p);
@@ -141,7 +148,10 @@ export function step(s: GameState, inputs: readonly Input[] = []): void {
     applyInput(s, input);
   }
 
+  const airborne = s.player.jumping;
+  const diving = s.player.speedDrop;
   updatePlayer(s.player);
+  if (airborne && !s.player.jumping) s.events.push({ type: 'land', hard: diving });
   updateObstacles(s, s.speed, s.tick >= s.graceUntil);
 
   const mine = playerBoxes(s.player);

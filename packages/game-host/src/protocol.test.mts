@@ -14,10 +14,12 @@ describe('parseGameMessage (web → app)', () => {
       type: 'game:haptic',
       style: 'heavy',
     });
-    assert.deepEqual(parseGameMessage('{"type":"game:haptic","style":"error"}'), {
-      type: 'game:haptic',
-      style: 'error',
-    });
+    for (const style of ['soft', 'rigid', 'error', 'success']) {
+      assert.deepEqual(parseGameMessage(`{"type":"game:haptic","style":"${style}"}`), {
+        type: 'game:haptic',
+        style,
+      });
+    }
     assert.deepEqual(
       parseGameMessage('{"type":"game:over","score":120,"ticks":3000,"hit":"bus","revives":1,"revivesLeft":1}'),
       { type: 'game:over', score: 120, ticks: 3000, hit: 'bus', revives: 1, revivesLeft: 1 },

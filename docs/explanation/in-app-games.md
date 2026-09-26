@@ -78,15 +78,21 @@ A page may ignore it, as the typing game does to keep its clock running.
 ## Sound and haptics
 
 A page plays its own sound, through Web Audio inside the web view: a key click has to land with
-the key, and a round trip over the bridge would make it late. The files are part of the page,
-inlined like its images, and the audio session is `ambient`, so the ring/silent switch silences
-them and the player's own music keeps playing. A game whose registry entry has `sound` gets a
-sound button beside the trophy; the setting is one for every game (`soundPref.ts`), sent as
-`host:sound` after `host:init` and on each change.
+the key, and a round trip over the bridge would make it late. The audio session is `ambient`, so
+the ring/silent switch silences it and the player's own music keeps playing. A game whose
+registry entry has `sound` gets a sound button beside the trophy; the setting is one for every
+game (`soundPref.ts`), sent as `host:sound` after `host:init` and on each change.
+
+The two games make their sound differently. The typing game plays short files, inlined into the
+page like its images. The runner renders 8-bit tones with ZzFX in the page itself
+(`packages/wave-run/src/sound/`), so it carries no audio files; its sounds hang off the engine's
+events, which a tick only reports and never reads back, so sound cannot change a run or its replay.
 
 Haptics go the other way: the page posts `game:haptic` and the host plays it (`host/haptic.ts`).
 `error` is a short, hard tap for a slip, not the notification pattern, which would still be
-buzzing at the next slip.
+buzzing at the next slip. `success` is that notification pattern, kept for a moment that comes at
+most once a run (the runner passing the best). The runner sends at most one haptic a tick, the
+strongest, and none for an ordinary jump, which comes every second.
 
 ## Which way a score counts
 
