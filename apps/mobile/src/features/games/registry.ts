@@ -55,6 +55,8 @@ export interface NativeGame {
   revives: boolean;
   /** The page takes typed text, so the web view lets its input raise the keyboard. */
   keyboard: boolean;
+  /** The page makes sound, so the screen offers a sound on/off button (`host:sound`). */
+  sound: boolean;
   /** Colour behind the page and the chrome around it. */
   background: string;
   /** Laid over the page behind the result cards. */
@@ -73,6 +75,7 @@ export const NATIVE_GAMES: Record<NativeGameId, NativeGame> = {
     Overlay: WaveRunOverlay,
     revives: true,
     keyboard: false,
+    sound: false,
     background: '#073E32',
     scrim: 'rgba(4,32,26,0.5)',
     homeEmoji: '\u{1F3C4}',
@@ -93,6 +96,7 @@ export const NATIVE_GAMES: Record<NativeGameId, NativeGame> = {
     Overlay: SubwayTypingOverlay,
     revives: false,
     keyboard: true,
+    sound: true,
     background: SUBWAY_TYPING_BACKGROUND,
     scrim: 'rgba(0,0,0,0.4)',
     homeEmoji: '\u{1F687}',

@@ -15,7 +15,8 @@
  * inside the page bundle alike.
  */
 
-export type HapticStyle = 'light' | 'medium' | 'heavy';
+/** `error` is a short, hard tap for a slip — not the notification pattern, which is too long to repeat. */
+export type HapticStyle = 'light' | 'medium' | 'heavy' | 'error';
 export type GamePhase = 'ready' | 'running' | 'paused' | 'crashed';
 
 /** Page → host. */
@@ -51,10 +52,12 @@ export type HostMessage =
   /** Back to the title, with no run started: the player closed the result. */
   | { type: 'host:reset' }
   | { type: 'host:pause' }
-  | { type: 'host:resume' };
+  | { type: 'host:resume' }
+  /** The player's sound setting, sent after `host:init` and on every change. */
+  | { type: 'host:sound'; on: boolean };
 
 const PHASES: readonly GamePhase[] = ['ready', 'running', 'paused', 'crashed'];
-const HAPTICS: readonly HapticStyle[] = ['light', 'medium', 'heavy'];
+const HAPTICS: readonly HapticStyle[] = ['light', 'medium', 'heavy', 'error'];
 
 /** A non-negative integer that survives JSON exactly — a score is submitted as is. */
 const isCount = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
@@ -129,6 +132,8 @@ export function parseHostMessage(m: unknown): HostMessage | null {
     case 'host:pause':
     case 'host:resume':
       return { type: m.type };
+    case 'host:sound':
+      return typeof m.on === 'boolean' ? { type: m.type, on: m.on } : null;
     default:
       return null;
   }

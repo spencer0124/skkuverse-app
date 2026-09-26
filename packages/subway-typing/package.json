@@ -7,7 +7,8 @@
   "scripts": {
     "test": "vitest run",
     "build:embed": "node scripts/build-embed.mjs",
-    "art": "python3 scripts/metro-glyph.py"
+    "art": "python3 scripts/metro-glyph.py",
+    "sfx": "python3 scripts/sfx.py"
   },
   "dependencies": {
     "@skkuverse/game-host": "*",

@@ -4,11 +4,12 @@ import { TOTAL_KEYS } from '../bound';
 import { LINES, ROUTE, STOP_COUNT } from '../data/route';
 import { BACKGROUND, CHROME_HEIGHT, TITLE_HEIGHT } from '../layout';
 import { gameReducer, initialGame, totalMs } from '../lib/game';
-import { isStaleCommit, isTypo, judge, type Judgement } from '../lib/judge';
+import { isStaleCommit, isTypo, judge, slipKind, type Judgement } from '../lib/judge';
 import { accuracy, formatTime, keyCount, keysPerMinute } from '../lib/stats';
 import { PRIMARY, SdsColors } from './colors';
 import { onHost, post } from './host';
 import { RouteStrip } from './RouteStrip';
+import { setSoundOn, sfx, unlockSound } from './sound';
 import { StationPrompt } from './StationPrompt';
 import { useVisualViewport } from './useVisualViewport';
 
@@ -20,6 +21,9 @@ const reduce = gameReducer(STOP_COUNT);
 const KEYS_BY = Array.from({ length: STOP_COUNT + 1 }, (_, n) => keyCount(ROUTE.slice(0, n).map((s) => s.name)));
 
 const nameAt = (i: number) => ROUTE[i]?.name ?? '';
+
+/** How long a 천지인 key that may still become the right one gets before it counts as a slip. */
+const MAYBE_SLIP_MS = 250;
 
 /** Room at the top for the host's floating buttons, and on the title for its title block. */
 const topPad = (extra: number) => `calc(var(--inset-top, 0px) + ${extra}px)`;
@@ -44,6 +48,9 @@ export default function Game() {
   const kpmEl = useRef<HTMLSpanElement>(null);
   const prev = useRef<Judgement>(judge('', nameAt(0)));
   const justArrived = useRef(false);
+  // A slip is felt once — shake, sound and a tap — until the field is right again.
+  const slipFelt = useRef(false);
+  const maybeSlip = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const target = ROUTE[state.at];
   const judgement = useMemo(() => judge(value, target?.name ?? ''), [value, target]);
@@ -56,16 +63,24 @@ export default function Game() {
   // draw, so only going back to the title needs anything from the page.
   useEffect(() => {
     const off = onHost((m) => {
+      if (m.type === 'host:sound') {
+        setSoundOn(m.on);
+        return;
+      }
       // A restart the player did not tap on the page could not raise the
       // keyboard, so it goes back to the title like a reset.
       if (m.type !== 'host:reset' && m.type !== 'host:restart') return;
       input.current?.blur();
+      clearSlip();
       dispatch({ type: 'reset' });
       setValue('');
       post({ type: 'game:phase', phase: 'ready' });
     });
     post({ type: 'game:ready' });
-    return off;
+    return () => {
+      off();
+      clearSlip();
+    };
   }, []);
 
   // The clock and the live speed repaint every frame. They write straight to
@@ -91,6 +106,7 @@ export default function Game() {
   useEffect(() => {
     if (state.phase !== 'finished') return;
     const ms = Math.round(totalMs(state));
+    sfx.finish();
     post({ type: 'game:haptic', style: 'medium' });
     post({
       type: 'game:over',
@@ -109,7 +125,24 @@ export default function Game() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
 
+  function clearSlip() {
+    if (maybeSlip.current) clearTimeout(maybeSlip.current);
+    maybeSlip.current = null;
+    slipFelt.current = false;
+  }
+
+  function feelSlip() {
+    if (maybeSlip.current) clearTimeout(maybeSlip.current);
+    maybeSlip.current = null;
+    slipFelt.current = true;
+    setShake((n) => n + 1);
+    sfx.slip();
+    post({ type: 'game:haptic', style: 'error' });
+  }
+
   const start = () => {
+    // Inside the tap, the only moment iOS lets audio open.
+    unlockSound();
     // Commit synchronously so the input exists before focus() is called: iOS
     // raises the keyboard only for a focus made inside the tap itself. The
     // restart button calls this mid-run too; the input stays mounted then, so
@@ -120,6 +153,7 @@ export default function Game() {
     });
     prev.current = judge('', nameAt(0));
     justArrived.current = false;
+    clearSlip();
     input.current?.focus();
     post({ type: 'game:start' });
     post({ type: 'game:phase', phase: 'running' });
@@ -141,7 +175,25 @@ export default function Game() {
     if (next) dispatch({ type: 'key', now });
     const j = judge(next, target.name);
     if (isTypo(prev.current, j)) dispatch({ type: 'typo' });
-    if (j.status === 'wrong' && prev.current.status !== 'wrong') setShake((n) => n + 1);
+
+    // A slip is felt at once, or — for a 천지인 key that may be on its way to
+    // the right one — only if it is still there a moment later.
+    const slip = slipKind(next, target.name);
+    let slipped = false;
+    if (slip === null) clearSlip();
+    else if (!slipFelt.current) {
+      if (slip === 'now') {
+        feelSlip();
+        slipped = true;
+      } else {
+        if (maybeSlip.current) clearTimeout(maybeSlip.current);
+        maybeSlip.current = setTimeout(feelSlip, MAYBE_SLIP_MS);
+      }
+    }
+    // Every key clicks: higher as the name fills in, low for one that does
+    // not move it on. A slip or an arrival has its own sound instead.
+    if (j.status === 'ok' && j.goodKeys > prev.current.goodKeys) sfx.key(j.goodKeys);
+    else if (j.status !== 'done' && !slipped && j.typed !== prev.current.typed) sfx.keyOff();
 
     if (j.status === 'done') {
       // The last station: the keyboard goes down so the host's result panel
@@ -151,7 +203,13 @@ export default function Game() {
       setValue('');
       justArrived.current = true;
       prev.current = judge('', nameAt(state.at + 1));
-      if (state.at + 1 < STOP_COUNT) post({ type: 'game:haptic', style: 'light' });
+      if (state.at === TRANSFER_AT) {
+        sfx.transfer();
+        post({ type: 'game:haptic', style: 'medium' });
+      } else if (state.at + 1 < STOP_COUNT) {
+        sfx.arrive();
+        post({ type: 'game:haptic', style: 'light' });
+      }
       return;
     }
     prev.current = j;

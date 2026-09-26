@@ -26,6 +26,8 @@ audience: internal
 | `src/index.ts` | What the app imports: the format, the floor, the layout |
 | `src/page/` | The page: React, `host.ts` for the `@skkuverse/game-host` channel |
 | `src/assets/metro.png` | Tossface's 🚇, cut from the app's font by `scripts/metro-glyph.py` |
+| `src/assets/sfx/` | The sound effects, cut from Kenney's CC0 packs by `scripts/sfx.py` (credits in `LICENSE.txt`) |
+| `src/page/sound.ts` | Plays them through Web Audio; a slip, a station, the change at 금정 and the finish each have their own <!-- conventions:allow-korean: a station's name --> |
 | `scripts/build-embed.mjs` | Builds the page into `apps/mobile/src/features/games/subway-typing/html.generated.ts` |
 
 ## Commands
@@ -34,6 +36,7 @@ audience: internal
 yarn workspace @skkuverse/subway-typing test          # route, judging, reducer, floor
 yarn workspace @skkuverse/subway-typing build:embed   # rebuild the committed page
 yarn workspace @skkuverse/subway-typing art           # re-cut the train (needs fontTools)
+yarn workspace @skkuverse/subway-typing sfx           # re-cut the sounds (needs ffmpeg)
 ```
 
 Rebuild and commit the page after any change here. CI rebuilds it and fails on a difference.

@@ -73,3 +73,58 @@ export function isStaleCommit(value: string, previous: string, next: string): bo
   if (!value || !previous.endsWith(value)) return false;
   return judge(value, next).status === 'wrong';
 }
+
+/**
+ * On the 천지인 keypad a key is reached by passing through others: ㅊ is ㅈ
+ * pressed again, ㅑ is ㅣ then ㆍ then ㆍ. For each two-set key, the keys that
+ * can stand in the field on the way to it.
+ */
+const CHEONJIIN_ON_THE_WAY: Record<string, readonly string[]> = {
+  ㅋ: ['ㄱ'],
+  ㄲ: ['ㄱ', 'ㅋ'],
+  ㄹ: ['ㄴ'],
+  ㅌ: ['ㄷ'],
+  ㄸ: ['ㄷ', 'ㅌ'],
+  ㅍ: ['ㅂ'],
+  ㅃ: ['ㅂ', 'ㅍ'],
+  ㅎ: ['ㅅ'],
+  ㅆ: ['ㅅ', 'ㅎ'],
+  ㅊ: ['ㅈ'],
+  ㅉ: ['ㅈ', 'ㅊ'],
+  ㅁ: ['ㅇ'],
+  ㅏ: ['ㅣ'],
+  ㅑ: ['ㅣ', 'ㅏ'],
+  ㅐ: ['ㅣ', 'ㅏ'],
+  ㅒ: ['ㅣ', 'ㅏ', 'ㅑ'],
+  ㅔ: ['ㅓ'],
+  ㅖ: ['ㅕ'],
+  ㅜ: ['ㅡ'],
+  ㅠ: ['ㅡ', 'ㅜ'],
+};
+
+/** The dot strokes (ㆍ, ᆢ) a 천지인 keyboard shows before they join a vowel. */
+const CHEONJIIN_DOTS = new Set(['ㆍ', 'ᆢ', '·', '‥', ':']);
+
+/**
+ * How to react to a wrong field: `now` for a slip, `maybe` for a field that
+ * may only be on its way to the right key on a 천지인 keypad (so the slip is
+ * felt only if it is still there a moment later), `null` when nothing is wrong.
+ *
+ * `maybe` needs everything before the last key to be right: a 천지인 key only
+ * ever replaces the one just pressed.
+ */
+export function slipKind(input: string, target: string): 'now' | 'maybe' | null {
+  if (judge(input, target).status !== 'wrong') return null;
+  const got = toKeys(input);
+  const want = toKeys(target);
+  const last = got.length - 1;
+  if (!isKeyPrefix(got.slice(0, last), want)) return 'now';
+  const key = got[last]!;
+  if (CHEONJIIN_DOTS.has(key)) return 'maybe';
+  const aim = want[last];
+  if (aim === undefined) return 'now';
+  if (CHEONJIIN_ON_THE_WAY[aim]?.includes(key)) return 'maybe';
+  // ㅝ is ㅡㆍ then ㆍㅣ: the field reads ㅠ until the last stroke lands.
+  if (key === 'ㅠ' && aim === 'ㅜ' && want[last + 1] === 'ㅓ') return 'maybe';
+  return 'now';
+}

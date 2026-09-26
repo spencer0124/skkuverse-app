@@ -14,6 +14,10 @@ describe('parseGameMessage (web → app)', () => {
       type: 'game:haptic',
       style: 'heavy',
     });
+    assert.deepEqual(parseGameMessage('{"type":"game:haptic","style":"error"}'), {
+      type: 'game:haptic',
+      style: 'error',
+    });
     assert.deepEqual(
       parseGameMessage('{"type":"game:over","score":120,"ticks":3000,"hit":"bus","revives":1,"revivesLeft":1}'),
       { type: 'game:over', score: 120, ticks: 3000, hit: 'bus', revives: 1, revivesLeft: 1 },
@@ -85,6 +89,7 @@ describe('parseHostMessage (app → web)', () => {
     for (const type of ['host:revive', 'host:restart', 'host:reset', 'host:pause', 'host:resume'] as const) {
       assert.deepEqual(parseHostMessage({ type }), { type });
     }
+    assert.deepEqual(parseHostMessage({ type: 'host:sound', on: false }), { type: 'host:sound', on: false });
   });
 
   test('rejects anything else', () => {
@@ -93,6 +98,8 @@ describe('parseHostMessage (app → web)', () => {
     assert.equal(parseHostMessage({ type: 'host:init' }), null);
     assert.equal(parseHostMessage({ type: 'host:init', hi: -3 }), null);
     assert.equal(parseHostMessage({ type: 'host:init', hi: 1.5 }), null);
+    assert.equal(parseHostMessage({ type: 'host:sound' }), null);
+    assert.equal(parseHostMessage({ type: 'host:sound', on: 'false' }), null);
     assert.equal(parseHostMessage({ type: 'game:ready' }), null);
   });
 });

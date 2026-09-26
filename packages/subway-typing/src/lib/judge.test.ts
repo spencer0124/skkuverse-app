@@ -1,5 +1,5 @@
 import { assert, test } from 'vitest';
-import { isStaleCommit, isTypo, judge } from './judge';
+import { isStaleCommit, isTypo, judge, slipKind } from './judge';
 
 test('a final consonant waiting to move on is not a typo', () => {
   assert.strictEqual(judge('삳', '사당').status, 'ok');
@@ -40,4 +40,33 @@ test('the echo of the last syllable is recognised, real typing is not', () => {
   assert.strictEqual(isStaleCommit('', '혜화', '동대문'), false);
   // A tail that happens to start the next name is kept.
   assert.strictEqual(isStaleCommit('문', '동대문', '문산'), false);
+});
+
+test('a slip on a two-set keyboard is felt at once', () => {
+  assert.strictEqual(slipKind('동데', '동대문'), 'now');
+  assert.strictEqual(slipKind('충무ㅗ', '충무로'), 'now');
+  // Wrong before the last key: no 천지인 key ever reaches back that far.
+  assert.strictEqual(slipKind('통대', '동대문'), 'now');
+  // Past the end of the name.
+  assert.strictEqual(slipKind('명동ㄱ', '명동'), 'now');
+});
+
+test('a 천지인 key on its way to the right one may still be fine', () => {
+  // ㅈ pressed again becomes ㅊ.
+  assert.strictEqual(slipKind('ㅈ', '충무로'), 'maybe');
+  // ㅇ pressed again becomes ㅁ: 사 + ㅇ reads 상 on the way to 삼.
+  assert.strictEqual(slipKind('상', '삼각지'), 'maybe');
+  // ㅣ, then ㆍ, makes ㅏ.
+  assert.strictEqual(slipKind('시', '사당'), 'maybe');
+  assert.strictEqual(slipKind('ㅅㆍ', '서울역'), 'maybe');
+  // 과: ㅗ then ㅣ reads 괴 before the dot turns it into ㅘ.
+  assert.strictEqual(slipKind('괴', '과천'), 'maybe');
+  // 대공원: the field reads 유 before the last ㅣ makes 워.
+  assert.strictEqual(slipKind('대공유', '대공원'), 'maybe');
+});
+
+test('nothing wrong, nothing to feel', () => {
+  assert.strictEqual(slipKind('', '혜화'), null);
+  assert.strictEqual(slipKind('혜', '혜화'), null);
+  assert.strictEqual(slipKind('혜화', '혜화'), null);
 });

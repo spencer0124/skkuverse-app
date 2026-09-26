@@ -75,6 +75,19 @@ the rest.
 Backgrounding the app, or a screen over the game, sends `host:pause` and holds the countdown.
 A page may ignore it: a typing run keeps its clock.
 
+## Sound and haptics
+
+A page plays its own sound, through Web Audio inside the web view: a key click has to land with
+the key, and a round trip over the bridge would make it late. The files are part of the page,
+inlined like its images, and the audio session is `ambient`, so the ring/silent switch silences
+them and the player's own music keeps playing. A game whose registry entry has `sound` gets a
+sound button beside the trophy; the setting is one for every game (`soundPref.ts`), sent as
+`host:sound` after `host:init` and on each change.
+
+Haptics go the other way: the page posts `game:haptic` and the host plays it (`host/haptic.ts`).
+`error` is a short, hard tap for a slip, not the notification pattern, which would still be
+buzzing at the next slip.
+
 ## Which way a score counts
 
 A score is a non-negative integer either way; the registry's `score.order` says how to rank it.

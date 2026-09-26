@@ -4,14 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
-import { TrophyIcon, XIcon } from 'phosphor-react-native';
+import { SpeakerHighIcon, SpeakerSlashIcon, TrophyIcon, XIcon } from 'phosphor-react-native';
 import { GlassIconButton, Txt } from '@skkuverse/sds';
 import { authStore, SdsColors, useAuthStore, useT } from '@skkuverse/shared';
 import type { GameMessage } from '@skkuverse/game-host';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { logHandledError } from '@/services/crashlytics';
 import { signInErrorMessageKey } from '@/services/google-auth';
-import { playWebHaptic } from '@/features/webview/haptic';
 import { emailPrefixOf } from '@/features/profile/domain';
 import { useUserProfile } from '@/features/profile/useUserProfile';
 import type { NativeGameId } from '../ids';
@@ -25,7 +24,9 @@ import { ReviveOffer } from '../result/ReviveOffer';
 import { ScoreHeader } from '../result/ScoreHeader';
 import { canRevive, initialSession, isFinal, sessionReducer } from './domain';
 import { GameShell, type GameShellHandle } from './GameShell';
+import { playGameHaptic } from './haptic';
 import { getHighScore, setHighScore } from './highScore';
+import { getSoundOn, setSoundOn } from './soundPref';
 import { startRun } from './repository';
 import { useAutoSubmit } from './useAutoSubmit';
 import { useRewardedRevive } from './useRewardedRevive';
@@ -66,6 +67,7 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const [hi, setHi] = useState(() => getHighScore(gameId));
+  const [soundOn, setSoundOnState] = useState(getSoundOn);
   const [newBest, setNewBest] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
@@ -124,6 +126,7 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
       switch (m.type) {
         case 'game:ready':
           shell.current?.send({ type: 'host:init', hi: getHighScore(gameId) });
+          if (game.sound) shell.current?.send({ type: 'host:sound', on: getSoundOn() });
           if (sessionRef.current.phase !== 'crashed') arm();
           break;
         case 'game:start':
@@ -141,11 +144,11 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
           break;
         }
         case 'game:haptic':
-          playWebHaptic(m.style);
+          playGameHaptic(m.style);
           break;
       }
     },
-    [arm, ensureArmed, gameId, game.score.order],
+    [arm, ensureArmed, gameId, game.score.order, game.sound],
   );
 
   useEffect(() => {
@@ -213,6 +216,13 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
       watchdog.current = null;
       if (sessionRef.current.phase === 'crashed') dispatch({ type: 'reviveFailed' });
     }, REVIVE_WATCHDOG_MS);
+  };
+
+  const toggleSound = () => {
+    const on = !soundOn;
+    setSoundOn(on);
+    setSoundOnState(on);
+    shell.current?.send({ type: 'host:sound', on });
   };
 
   /** Settle the run as it stands and go back to the game's title. */
@@ -457,6 +467,19 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
         />
       )}
       <View style={[styles.actions, { top: insets.top + 8 }]} pointerEvents="box-none">
+        {game.sound && (
+          <GlassIconButton
+            icon={
+              soundOn ? (
+                <SpeakerHighIcon size={20} color={SdsColors.grey900} weight="bold" />
+              ) : (
+                <SpeakerSlashIcon size={20} color={SdsColors.grey900} weight="bold" />
+              )
+            }
+            onPress={toggleSound}
+            label={t(soundOn ? 'game.soundOff' : 'game.soundOn')}
+          />
+        )}
         <GlassIconButton icon={<TrophyIcon size={20} color={SdsColors.grey900} weight="bold" />} onPress={openBoard} label={t('game.leaderboard')} />
         <GlassIconButton icon={<XIcon size={20} color={SdsColors.grey900} weight="bold" />} onPress={() => router.back()} label={t('common.close')} />
       </View>

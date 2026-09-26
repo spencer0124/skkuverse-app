@@ -1,0 +1,11 @@
+The sounds in this folder are cut from packs by Kenney (www.kenney.nl),
+released under Creative Commons Zero (CC0 1.0):
+http://creativecommons.org/publicdomain/zero/1.0/
+
+key1-3.wav    UI Audio          click3, click4, click5
+slip.wav      Interface Sounds  bong_001
+arrive.mp3    Interface Sounds  confirmation_001
+transfer.mp3  Interface Sounds  question_002
+finish.mp3    Music Jingles     jingles_PIZZI10
+
+scripts/sfx.py downloads the packs and cuts these files again.
