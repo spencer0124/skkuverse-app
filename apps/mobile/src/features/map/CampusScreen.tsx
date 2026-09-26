@@ -479,6 +479,8 @@ export function CampusScreen() {
 
   const {
     mode: trackingMode,
+    scrollLocked,
+    mapTouchHandlers,
     bearing: cameraBearing,
     permissionGranted,
     requestPermission,
@@ -1451,6 +1453,8 @@ export function CampusScreen() {
             onCameraChanged={handleCameraChanged}
             onCameraIdle={handleCameraIdle}
             camera={cameraCommand}
+            scrollLocked={scrollLocked}
+            {...mapTouchHandlers}
           >
             {mapConfig.layers.map((layer) => {
               // The chip's narrowing, the user's toggle, or the layer's own

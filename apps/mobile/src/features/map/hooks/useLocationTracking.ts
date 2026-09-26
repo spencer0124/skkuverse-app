@@ -4,7 +4,7 @@
  * Deliberately thin. The Naver SDK already owns the hard parts — the location
  * dot, the direction cone, camera follow and heading follow are all native, and
  * selected with a single `setLocationTrackingMode` call
- * (`ios/RNCNaverMapView.mm:410` maps the four modes onto NMFMyPosition*). So
+ * (`ios/RNCNaverMapView.mm:406-416` maps the four modes onto NMFMyPosition*). So
  * this hook does not fetch coordinates or draw an overlay; it handles
  * permission, and it decides which mode a tap moves to.
  *
@@ -17,14 +17,22 @@
  * tracks anything.
  *
  * `onOptionChanged` fires with the real mode on both platforms
- * (`RNCNaverMapViewImpl.mm:328`, `RNCNaverMapView.kt:57`), so `mode` here is a
- * mirror of the map rather than a command log. Two things fall out of that for
- * free: panning the map resets the button, and resetting north needs no
+ * (`RNCNaverMapViewImpl.mm:299-323`, `RNCNaverMapView.kt:57`), so `mode` here
+ * is a mirror of the map rather than a command log. Two things fall out of that
+ * for free: panning the map resets the button, and resetting north needs no
  * follow-up call to leave `Face` — the camera move does it.
+ *
+ * ## A pinch zooms about the dot
+ *
+ * A pinch drops tracking like any gesture, and the SDK then zooms about the
+ * fingers, sliding the dot off its spot. So the map's touches are counted here,
+ * and scroll is switched off for a pinch that starts on a following map — with
+ * the target pinned, the zoom is about the dot. The rule is `stepPinchLock` in
+ * `utils/pinchLock.ts`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Linking } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, Linking, type GestureResponderEvent } from 'react-native';
 import * as Location from 'expo-location';
 import { useSharedValue } from 'react-native-reanimated';
 import type {
@@ -33,6 +41,7 @@ import type {
   NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import { logHandledError } from '@/services/crashlytics';
+import { NO_PINCH, stepPinchLock } from '../utils/pinchLock';
 
 /** Tracking is on in some form — the location dot is drawn. */
 export function isTracking(mode: LocationTrackingMode): boolean {
@@ -56,6 +65,14 @@ export function useLocationTracking(
   strings: Strings,
 ) {
   const [mode, setMode] = useState<LocationTrackingMode>('None');
+
+  /**
+   * The pinch lock, kept twice. The ref sees every touch move without a render;
+   * the state is what the map's scroll prop reads, and changes only when a pinch
+   * starts or ends.
+   */
+  const pinch = useRef(NO_PINCH);
+  const [scrollLocked, setScrollLocked] = useState(false);
 
   /**
    * Camera bearing, as a shared value rather than React state.
@@ -158,6 +175,30 @@ export function useLocationTracking(
   );
 
   /**
+   * The map's own touch events, for counting fingers.
+   *
+   * Plain RN touch events rather than a gesture-handler detector: the map's
+   * native recognizers cannot cancel them (the map is inside the React surface),
+   * so they keep arriving through a native pinch, while a detector would compete
+   * with those recognizers for the touch.
+   */
+  const mapTouchHandlers = useMemo(() => {
+    const following = mode === 'Follow' || mode === 'Face';
+    const onTouch = (e: GestureResponderEvent) => {
+      const next = stepPinchLock(pinch.current, e.nativeEvent.touches.length, following);
+      if (next === pinch.current) return;
+      pinch.current = next;
+      setScrollLocked(next.locked);
+    };
+    return {
+      onTouchStart: onTouch,
+      onTouchMove: onTouch,
+      onTouchEnd: onTouch,
+      onTouchCancel: onTouch,
+    };
+  }, [mode]);
+
+  /**
    * Resolves to true only when the SDK may be switched on.
    *
    * `getForegroundPermissionsAsync` first, so an already-granted user never sees
@@ -257,6 +298,9 @@ export function useLocationTracking(
 
   return {
     mode,
+    /** Scroll is off for the pinch under way, so it zooms about the dot. */
+    scrollLocked,
+    mapTouchHandlers,
     bearing,
     permissionGranted,
     requestPermission: ensurePermission,
