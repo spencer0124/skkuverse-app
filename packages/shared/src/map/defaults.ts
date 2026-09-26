@@ -75,7 +75,9 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
       centerLng: 126.974942,
       defaultZoom: 15.8,
       defaultTilt: 0,
-      defaultBearing: 0,
+      // Mirrors the server: the campus grid runs ~6° east of north, so a
+      // camera turned by it shows the stadium square to the screen.
+      defaultBearing: 6,
     },
   ],
   layers: [

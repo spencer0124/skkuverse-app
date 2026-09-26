@@ -375,7 +375,11 @@ export interface MapChipList {
  * different places and could disagree about how close "close" is.
  */
 export interface MapCameraDefaults {
-  /** Focusing a tapped marker, a search result, or a deep link. */
+  /**
+   * Focusing a tapped marker, a search result, or a deep link. The client
+   * takes tilt and bearing from the place's campus instead (`CampusDef`), so
+   * these two apply only when the campus is unknown.
+   */
   markerFocus: MapCameraMotion;
   /**
    * Switching campus. Only the duration lives here: the zoom, tilt and bearing

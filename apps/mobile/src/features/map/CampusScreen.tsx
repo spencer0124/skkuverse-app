@@ -50,6 +50,7 @@ import {
   SdsColors,
   type Campus,
   type MapChip,
+  type MapCameraMotion,
   type MapChipCamera,
   type MarkerTap,
   type MapOverlay,
@@ -505,6 +506,25 @@ export function CampusScreen() {
   const cameraDefaults = mapConfig?.cameraDefaults ?? DEFAULT_CAMERA_DEFAULTS;
 
   /**
+   * `markerFocus` for a place on `campusId`, with that campus's attitude.
+   *
+   * The zoom and duration are the server's marker settings, but tilt and
+   * bearing belong to the campus, the same split `campusFocus` makes. The
+   * natural-sciences campus is rotated to square its grid to the screen, so
+   * the global `markerFocus` bearing would swing the map back to north on
+   * every pin tap. Its own tilt and bearing apply only to an unknown campus.
+   */
+  const markerFocusOn = useCallback(
+    (campusId: Campus): MapCameraMotion => {
+      const campus = mapConfig?.campuses.find((c) => c.id === campusId);
+      return campus
+        ? { ...cameraDefaults.markerFocus, tilt: campus.defaultTilt, bearing: campus.defaultBearing }
+        : cameraDefaults.markerFocus;
+    },
+    [mapConfig, cameraDefaults],
+  );
+
+  /**
    * The screen's one camera mover.
    *
    * Every move goes through `moveCamera`, which picks between the imperative
@@ -730,9 +750,9 @@ export function CampusScreen() {
       if (!campus) return;
       // `defaultTilt` and `defaultBearing` were parsed and then dropped here for
       // as long as they have existed, so framing a campus could never straighten
-      // a map the user had rotated. Both are 0 today, so passing them makes
-      // "frame this campus" mean north-up again — and makes the attitude the
-      // server's to set, the same way a chip's is.
+      // a map the user had rotated. Passing them makes "frame this campus" mean
+      // the campus's own attitude again — and makes it the server's to set, the
+      // same way a chip's is.
       moveTo({
         lat: campus.centerLat,
         lng: campus.centerLng,
@@ -1195,7 +1215,11 @@ export function CampusScreen() {
     // 2. Animate camera
     if (payload.lat !== 0 && payload.lng !== 0) {
       setTimeout(() => {
-        moveTo({ lat: payload.lat, lng: payload.lng, ...cameraDefaults.markerFocus });
+        moveTo({
+          lat: payload.lat,
+          lng: payload.lng,
+          ...markerFocusOn(payload.campus ?? selectedCampus),
+        });
       }, 100);
     }
 
@@ -1212,7 +1236,7 @@ export function CampusScreen() {
     selectedCampus,
     setSelectedCampus,
     moveTo,
-    cameraDefaults,
+    markerFocusOn,
     presentOverSheet,
   ]);
 
@@ -1267,7 +1291,7 @@ export function CampusScreen() {
     setTimeout(() => {
       // `overlayAnchor`, not `place.lat` — a zone has no single coordinate, and
       // this is the one point that represents any overlay.
-      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
+      moveTo({ ...overlayAnchor(place), ...markerFocusOn(place.campus) });
     }, 100);
     setSelectedPlaceId(pendingPlaceId);
     setTimeout(() => {
@@ -1281,7 +1305,7 @@ export function CampusScreen() {
     setSelectedCampus,
     setSelectedPlaceId,
     moveTo,
-    cameraDefaults,
+    markerFocusOn,
     presentOverSheet,
   ]);
 
@@ -1347,13 +1371,13 @@ export function CampusScreen() {
   // list rather than stacking a second grab handle on it.
   const handleSelectFromList = useCallback(
     (place: MapOverlay) => {
-      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
+      moveTo({ ...overlayAnchor(place), ...markerFocusOn(place.campus) });
       // Every listed place is an event marker, so `tap` is non-null and carries
       // the place's own id (a chip tap is never listed). Falling back to `id`
       // keeps this total anyway: the two are the same string for an event marker.
       handleSelectPlace(place.tap && place.tap.kind !== 'chip' ? place.tap.placeId : place.id);
     },
-    [moveTo, cameraDefaults, handleSelectPlace],
+    [moveTo, markerFocusOn, handleSelectPlace],
   );
 
   /**

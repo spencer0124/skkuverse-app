@@ -56,10 +56,11 @@ export interface MoveCameraHandlers {
   /**
    * The map's attitude right now, or `null` when it has not reported a camera.
    *
-   * `null` is read as flat rather than as unknown, and that is a fact about
-   * this app rather than a guess: nothing has settled yet means the map is
-   * still at its `initialCamera`, which is built from a campus definition, and
-   * every campus ships `defaultTilt` and `defaultBearing` of 0.
+   * `null` is unknown, not flat: nothing has settled yet means the map is still
+   * at its `initialCamera`, which carries the campus's own tilt and bearing —
+   * and the natural-sciences campus is rotated. So an unknown attitude takes
+   * the prop path, the only one that can set it; the cost is a first move
+   * without its duration.
    */
   current: CameraAttitude | null;
   animate: (arg: CameraAnimateArg) => void;
@@ -73,7 +74,7 @@ export function moveCamera(
   const { lat, lng, zoom, tilt, bearing, durationMs } = target;
 
   const attitudeHolds =
-    (current?.tilt ?? 0) === tilt && (current?.bearing ?? 0) === bearing;
+    current !== null && (current.tilt ?? 0) === tilt && (current.bearing ?? 0) === bearing;
 
   if (attitudeHolds) {
     animate({ latitude: lat, longitude: lng, zoom, duration: durationMs });

@@ -65,14 +65,6 @@ describe('moveCamera — the imperative path, when no attitude has to change', (
     assert.equal(animate.calls.length, 1);
   });
 
-  it('treats a map that has not reported a camera as flat', () => {
-    // Nothing has settled yet, so the map is at its initial camera — built from
-    // a campus definition, and every campus ships tilt and bearing 0.
-    const { animate, command } = run(FLAT, null);
-    assert.equal(command.calls.length, 0);
-    assert.equal(animate.calls.length, 1);
-  });
-
   it('reads a missing attitude member as 0 rather than as unknown', () => {
     const { animate } = run(FLAT, {});
     assert.equal(animate.calls.length, 1);
@@ -105,6 +97,15 @@ describe('moveCamera — the prop path, when the attitude has to change', () => 
     const { animate, command } = run({ ...FLAT, tilt: 45 }, { tilt: 0, bearing: 0 });
     assert.equal(animate.calls.length, 0);
     assert.equal((command.calls[0] as { tilt: number }).tilt, 45);
+  });
+
+  it('commands a map that has not reported a camera, since its attitude is unknown', () => {
+    // Nothing has settled yet, so the map is at its initial camera, which
+    // carries the campus's bearing — not necessarily this target's. Only the
+    // prop can guarantee the target's attitude from there.
+    const { animate, command } = run(FLAT, null);
+    assert.equal(animate.calls.length, 0);
+    assert.equal((command.calls[0] as { bearing: number }).bearing, 0);
   });
 
   it('applies a bearing the map does not have', () => {

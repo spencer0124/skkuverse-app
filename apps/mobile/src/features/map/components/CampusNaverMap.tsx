@@ -138,6 +138,8 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         latitude: campus?.centerLat ?? HSSC_FALLBACK.latitude,
         longitude: campus?.centerLng ?? HSSC_FALLBACK.longitude,
         zoom: campus?.defaultZoom ?? HSSC_FALLBACK.zoom,
+        tilt: campus?.defaultTilt ?? 0,
+        bearing: campus?.defaultBearing ?? 0,
       }),
       // Only compute once — camera moves via ref after initial render
       // eslint-disable-next-line react-hooks/exhaustive-deps
