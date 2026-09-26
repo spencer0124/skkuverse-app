@@ -2912,10 +2912,10 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
-"@skkuverse/miniapp@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@skkuverse/miniapp/-/miniapp-0.2.0.tgz#94bec37064e5d7b353ac163933c23236acf46700"
-  integrity sha512-X7kCmv8advT9mcthK2uWFlR/P9ZDcxV4DbXd84Bn3wWT/h1GuT1ygAWeuAhCyamOzLxBML7qL2pKsVQCcdtrHQ==
+"@skkuverse/miniapp@^0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@skkuverse/miniapp/-/miniapp-0.3.0.tgz#8c6410b677d91988253de73211d0dd7f7d01cd06"
+  integrity sha512-oxapDqSBO+NDcRb+7mlFBxWRZTmRoI7qmP1Gd1biGkdOeOhOx81BeUl+xz7XbFZLUeJOTG6GqKT+nwJFve68cg==
   dependencies:
     "@skkuverse/tokens" "^0.1.0"
 

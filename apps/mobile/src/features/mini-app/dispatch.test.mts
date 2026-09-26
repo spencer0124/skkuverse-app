@@ -18,6 +18,7 @@ function recorder() {
     haptic: rec('haptic'),
     openLink: rec('openLink'),
     performAction: rec('performAction'),
+    share: rec('share'),
     track: rec('track'),
     ready: rec('ready'),
     setShell: rec('setShell'),
@@ -55,6 +56,14 @@ test('map.openPlace and miniapp.open become map / miniapp actions', () => {
   assert.deepEqual(send({ method: 'miniapp.open', params: { target: 'setlist/today' } }).calls, [
     ['performAction', 'miniapp', 'setlist/today'],
   ]);
+});
+
+test('share.open passes url and text through, and drops a non-http url', () => {
+  const url = 'https://skkuverse.com/p/m/booth-box/r/bar-72min-sogaeting';
+  const { calls, outcome } = send({ method: 'share.open', params: { url, text: '뽑혔어요' } });
+  assert.equal(outcome, 'handled');
+  assert.deepEqual(calls, [['share', { url, text: '뽑혔어요' }]]);
+  assert.equal(send({ method: 'share.open', params: { url: 'skkuverse:///m/booth-box' } }).outcome, 'dropped');
 });
 
 test('analytics.track, app.ready and shell.set reach their effects', () => {

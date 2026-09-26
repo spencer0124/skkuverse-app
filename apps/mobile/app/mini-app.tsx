@@ -26,7 +26,7 @@ import {
   Linking,
   Platform,
   Pressable,
-  // Share, — 공유하기 메뉴 비활성화(아래 더보기 시트 참조)
+  Share, // 페이지가 보내는 share.open용. 더보기 시트의 공유하기 메뉴는 여전히 비활성(아래 참조)
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -496,6 +496,12 @@ export default function MiniAppScreen() {
       openLink: (target) => void openAppFirst(target, (url) => Linking.openURL(url)),
       // map·miniapp만 — resolveWebAction이 값의 문법까지 다시 검사한다.
       performAction: performWebAction,
+      // 공지 상세 공유와 같은 규칙: iOS는 url을 따로 넘겨야 링크 카드가 붙고 message에
+      // 넣으면 두 번 찍힌다. Android ACTION_SEND는 url을 버리니 message에 합친다.
+      share: ({ url, text }) =>
+        void Share.share(
+          Platform.OS === 'ios' ? { url, message: text } : { message: text ? `${text}\n${url}` : url },
+        ).catch(() => {}),
       track: (event) => {
         if (miniAppId) logMiniAppEvent({ miniAppId, event });
       },

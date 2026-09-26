@@ -34,6 +34,8 @@ export interface MiniAppEffects {
   openLink(target: { url: string; appUrl?: string }): void;
   /** A place or another mini-app, through the app's own action dispatcher. */
   performAction(actionType: 'map' | 'miniapp', actionValue: string): void;
+  /** The OS share sheet on `url`, with `text` as its message. */
+  share(target: { url: string; text?: string }): void;
   track(event: string, params?: Record<string, unknown>): void;
   ready(): void;
   setShell(patch: ShellPatch): void;
@@ -110,6 +112,9 @@ export function dispatchMiniAppMessage(
       break;
     case 'miniapp.open':
       effects.performAction('miniapp', msg.params.target);
+      break;
+    case 'share.open':
+      effects.share(msg.params);
       break;
     case 'analytics.track':
       effects.track(msg.params.event, msg.params.params);

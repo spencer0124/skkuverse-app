@@ -185,6 +185,12 @@ same grammar as a map or push `miniapp` action — [eventmap-rendering.md](../ex
 3. The link's own query string is left out of the mini app's page: `parseIncomingLink`
    splits it off before the match, and it belongs to the link rather than to the page.
 
+Without the app, `skkuverse.com/functions/p/m/[[slug]].ts` answers the same link. When the mini
+app publishes `share/<path>.json` beside its `startUrl`, the function serves it as OG tags and
+sends the visitor on to that mini app's page in the browser (booth-box's shared results,
+`/p/m/booth-box/r/<id>`). `?open=1` marks a link tapped as "open in the app" from such a page;
+the app ignores the query, and the function sends a visitor without the app to `/download`.
+
 > [!NOTE]
 > Why the membership check moved out of `+native-intent.tsx` and into the consumer: the
 > registry became server-owned (`GET /miniapps`), which makes a **synchronous** lookup

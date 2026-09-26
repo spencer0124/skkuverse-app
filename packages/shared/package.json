@@ -8,7 +8,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@skkuverse/miniapp": "^0.2.0",
+    "@skkuverse/miniapp": "^0.3.0",
     "axios-retry": "^4.5.0",
     "cli-truncate": "^2.1.0",
     "string-width": "^4.2.3",

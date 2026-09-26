@@ -113,6 +113,7 @@ The notify methods map onto the app's existing effects:
 | `link.open` | `openAppFirst({ url, appUrl })` | Tries `appUrl`'s scheme first, falls back to `Linking.openURL(url)` |
 | `map.openPlace` | `performWebAction('map', place)` | Same `resolveWebAction` + `handleSduiAction` path the old `web:action` `map` took |
 | `miniapp.open` | `performWebAction('miniapp', target)` | Same path, for `miniapp` |
+| `share.open` | `Share.share(...)` | Same split as the notice detail share: iOS gets `{ url, message: text }`, Android gets the URL appended to `message` because `ACTION_SEND` drops `url` |
 | `analytics.track` | `logMiniAppEvent({ miniAppId, event })` | The wired effect takes the method's `event` name and drops `params` — only the **event name** reaches GA4, as `miniapp_event` |
 | `app.ready` | ignored | The effect is a no-op; the shell does not act on the handshake |
 | `shell.set` | `setShellPatch` | Merged over the registry shell at render time, see below |
