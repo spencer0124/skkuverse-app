@@ -1,0 +1,18 @@
+{
+  "name": "@skkuverse/wave-run",
+  "version": "0.0.1",
+  "private": true,
+  "description": "초록의 파도 — the canvas game the app bundles into a WebView",
+  "scripts": {
+    "test": "vitest run",
+    "build:embed": "node scripts/build-embed.mjs",
+    "art": "node scripts/skyline-art.mjs"
+  },
+  "dependencies": {
+    "@skkuverse/game-host": "*"
+  },
+  "devDependencies": {
+    "vite": "8.0.8",
+    "vitest": "^4.1.4"
+  }
+}

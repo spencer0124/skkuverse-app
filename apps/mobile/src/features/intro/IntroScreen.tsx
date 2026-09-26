@@ -21,6 +21,7 @@ import {
   classifyAndRestoreOnboarding,
   signInWithDeviceMigration,
 } from '@/services/auth-flow';
+import { requestProfileSetupIfMissing } from '@/features/profile/service';
 import { GoogleAuthError } from '@/services/google-auth';
 import { logIntroStep, logScreenView, type IntroStepKey } from '@/services/analytics';
 import { IntroDots } from './components/IntroDots';
@@ -129,6 +130,9 @@ export function IntroScreen({ onDone }: Props) {
       // is the last step of the intro, and a new user meets the notices wizard
       // later, on their own terms.
       await classifyAndRestoreOnboarding(user.uid, 'intro');
+      // A Google player always has a campus: one without a profile is asked
+      // for it once the app is on screen.
+      requestProfileSetupIfMissing(user.uid);
       onDone();
     } catch (err) {
       if (err instanceof GoogleAuthError) {

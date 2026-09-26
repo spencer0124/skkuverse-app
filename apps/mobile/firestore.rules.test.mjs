@@ -1043,3 +1043,412 @@ describe('feedback/{docId} rules — unified collection', () => {
     await assertFails(feedbackCol(ctx).doc('seed').delete());
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────
+// In-app games: users/{uid}.profile, users/{uid}/gameRuns, leaderboards
+// ──────────────────────────────────────────────────────────────────────
+//
+// A board keeps one entry per player, their best. It is written only by an
+// @g.skku.edu Google account, only against a run the server stamped, never
+// above what the game could reach in the time since, only upwards, and only
+// with exactly the player's own profile (campus and nickname).
+// packages/wave-run/src/game/bound.test.ts pins the same ceiling values
+// (60 s → 850, 600 s → 11282), so tuning the game without the rules fails there.
+// subway-typing is a time (ms, less is better) bounded by a floor instead:
+// packages/subway-typing/src/bound.test.ts pins MIN_RUN_MS = 9520.
+
+const SKKU_EMAIL = 'wavekim@g.skku.edu';
+const googleToken = (email = SKKU_EMAIL, overrides = {}) => ({
+  email,
+  email_verified: true,
+  firebase: { sign_in_provider: 'google.com', identities: { 'google.com': ['1234567890'], email: [email] } },
+  ...overrides,
+});
+const googleCtx = (uid = 'g1', email = SKKU_EMAIL, overrides = {}) =>
+  testEnv.authenticatedContext(uid, googleToken(email, overrides));
+const anonCtx = (uid = 'g1') =>
+  testEnv.authenticatedContext(uid, { firebase: { sign_in_provider: 'anonymous', identities: {} } });
+
+const serverNow = () => firebase.firestore.FieldValue.serverTimestamp();
+const secondsAgo = (s) => firebase.firestore.Timestamp.fromMillis(Date.now() - s * 1000);
+
+const profile = (overrides = {}) => ({ campus: 'hssc', nickname: '파도왕', updatedAt: serverNow(), ...overrides });
+
+describe('users/{uid}.profile rules', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+  const userRef = (ctx, uid = 'g1') => ctx.firestore().collection('users').doc(uid);
+
+  test('owner writes campus and nickname → allow', async () => {
+    await assertSucceeds(userRef(googleCtx()).set({ profile: profile() }, { merge: true }));
+  });
+
+  test('campus only, no nickname yet → allow', async () => {
+    await assertSucceeds(userRef(googleCtx()).set({ profile: { campus: 'nsc', updatedAt: serverNow() } }));
+  });
+
+  test('a doc without a profile is left alone → allow', async () => {
+    await assertSucceeds(userRef(googleCtx()).set({ locale: 'ko' }));
+  });
+
+  test('unknown or missing campus → deny', async () => {
+    await assertFails(userRef(googleCtx()).set({ profile: profile({ campus: 'seoul' }) }));
+    await assertFails(userRef(googleCtx()).set({ profile: { nickname: '파도왕', updatedAt: serverNow() } }));
+  });
+
+  test('a department is no longer part of the profile → deny', async () => {
+    await assertFails(userRef(googleCtx()).set({ profile: profile({ deptId: 'cse' }) }));
+    await assertFails(userRef(googleCtx()).set({ profile: profile({ deptId: null }) }));
+  });
+
+  test('nickname: Hangul, Latin, digits and _ within 2–12 → allow', async () => {
+    // A fresh player each: a second nickname on one player would hit the
+    // ten-minute throttle tested below.
+    for (const [i, nickname] of ['파도', 'wave_rider12', '가나다라마바사아자차카타'].entries()) {
+      await assertSucceeds(userRef(googleCtx(`n${i}`), `n${i}`).set({ profile: profile({ nickname }) }));
+    }
+  });
+
+  test('nickname: too short, too long, spaces, symbols, emoji → deny', async () => {
+    for (const nickname of ['파', '가나다라마바사아자차카타파', 'wave rider', 'wave_rider_12', 'wave!', '파도🌊', '']) {
+      await assertFails(userRef(googleCtx()).set({ profile: profile({ nickname }) }));
+    }
+  });
+
+  test('an extra key in the profile → deny', async () => {
+    await assertFails(userRef(googleCtx()).set({ profile: profile({ admin: true }) }));
+  });
+
+  test("another user's profile → deny", async () => {
+    await assertFails(userRef(googleCtx('g2'), 'g1').set({ profile: profile() }));
+  });
+
+  test('a changed profile must be stamped by the server → deny a client time', async () => {
+    await assertFails(userRef(googleCtx()).set({ profile: profile({ updatedAt: new Date() }) }));
+  });
+
+  test('a write that leaves the profile alone (locale) → allow', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1').set({ profile: { campus: 'hssc', nickname: '파도왕', updatedAt: secondsAgo(5) } }),
+    );
+    await assertSucceeds(userRef(googleCtx()).set({ locale: 'en' }, { merge: true }));
+  });
+
+  test('adding the first nickname right after the campus → allow', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1').set({ profile: { campus: 'hssc', updatedAt: secondsAgo(5) } }),
+    );
+    await assertSucceeds(userRef(googleCtx()).set({ profile: { nickname: '파도왕', updatedAt: serverNow() } }, { merge: true }));
+  });
+
+  test('once there is a nickname, changes wait 10 minutes; the nickname cannot be removed', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1').set({ profile: { campus: 'hssc', nickname: '파도왕', updatedAt: secondsAgo(60) } }),
+    );
+    await assertFails(userRef(googleCtx()).set({ profile: { nickname: '새이름', updatedAt: serverNow() } }, { merge: true }));
+    await assertFails(userRef(googleCtx()).set({ profile: { campus: 'nsc', updatedAt: serverNow() } }, { merge: true }));
+    await assertFails(userRef(googleCtx()).update({ 'profile.nickname': firebase.firestore.FieldValue.delete(), 'profile.updatedAt': serverNow() }));
+
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1').set({ profile: { campus: 'hssc', nickname: '파도왕', updatedAt: secondsAgo(11 * 60) } }),
+    );
+    await assertSucceeds(userRef(googleCtx()).set({ profile: { nickname: '새이름', updatedAt: serverNow() } }, { merge: true }));
+  });
+
+  test('the client never deletes its user doc (deleteAccount does) → deny', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('users/g1').set({ locale: 'ko' }));
+    await assertFails(userRef(googleCtx()).delete());
+  });
+});
+
+describe('users/{uid}/gameRuns/{runId} rules', () => {
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+  });
+  const runRef = (ctx, uid = 'g1', runId = 'run1') =>
+    ctx.firestore().collection('users').doc(uid).collection('gameRuns').doc(runId);
+
+  test('owner starts a run stamped by the server → allow', async () => {
+    await assertSucceeds(runRef(googleCtx()).set({ gameId: 'wave-run', startedAt: serverNow() }));
+    await assertSucceeds(runRef(googleCtx(), 'g1', 'run2').set({ gameId: 'subway-typing', startedAt: serverNow() }));
+  });
+
+  test('an anonymous player can start a run too (a later Google link keeps the uid) → allow', async () => {
+    await assertSucceeds(runRef(anonCtx()).set({ gameId: 'wave-run', startedAt: serverNow() }));
+  });
+
+  test('a client-chosen start time → deny', async () => {
+    await assertFails(runRef(googleCtx()).set({ gameId: 'wave-run', startedAt: secondsAgo(3600) }));
+  });
+
+  test('unknown game → deny', async () => {
+    await assertFails(runRef(googleCtx()).set({ gameId: 'snake', startedAt: serverNow() }));
+  });
+
+  test('extra field → deny', async () => {
+    await assertFails(runRef(googleCtx()).set({ gameId: 'wave-run', startedAt: serverNow(), score: 1 }));
+  });
+
+  test("someone else's run → deny", async () => {
+    await assertFails(runRef(googleCtx('g2'), 'g1').set({ gameId: 'wave-run', startedAt: serverNow() }));
+  });
+
+  test('a run cannot be moved back in time or deleted → deny', async () => {
+    await assertSucceeds(runRef(googleCtx()).set({ gameId: 'wave-run', startedAt: serverNow() }));
+    await assertFails(runRef(googleCtx()).update({ startedAt: secondsAgo(3600) }));
+    await assertFails(runRef(googleCtx()).delete());
+  });
+
+  test('owner reads own run, others cannot → allow/deny', async () => {
+    await assertSucceeds(runRef(googleCtx()).get());
+    await assertFails(runRef(googleCtx('g2'), 'g1').get());
+  });
+});
+
+describe('leaderboards/{gameId}/scores/{uid} rules — one best per player', () => {
+  // g1 has runs stamped about a minute ago; at sixty seconds the ceiling is 850.
+  beforeEach(async () => {
+    await testEnv.clearFirestore();
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await db.doc('users/g1').set({ profile: { campus: 'hssc', nickname: '파도왕', updatedAt: new Date() } });
+      // Stamped in order a few seconds apart: a later run is a newer run.
+      for (const [id, ago] of [['run1', 60], ['run2', 58], ['run3', 56]]) {
+        await db.doc(`users/g1/gameRuns/${id}`).set({ gameId: 'wave-run', startedAt: secondsAgo(ago) });
+      }
+      await db.doc('users/g1/gameRuns/typing').set({ gameId: 'subway-typing', startedAt: secondsAgo(60) });
+      await db.doc('users/g2/gameRuns/run9').set({ gameId: 'wave-run', startedAt: secondsAgo(60) });
+    });
+  });
+
+  const scoreRef = (ctx, docId = 'g1', gameId = 'wave-run') =>
+    ctx.firestore().collection('leaderboards').doc(gameId).collection('scores').doc(docId);
+  const entry = (overrides = {}) => ({
+    uid: 'g1',
+    runId: 'run1',
+    score: 850,
+    revives: 1,
+    nickname: '파도왕',
+    emailPrefix: 'wav',
+    campus: 'hssc',
+    updatedAt: serverNow(),
+    ...overrides,
+  });
+  const seedBest = (score, runId = 'run1') =>
+    testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('leaderboards/wave-run/scores/g1').set(entry({ score, runId, updatedAt: new Date() })),
+    );
+
+  test('a first entry, plausible for its run → allow', async () => {
+    await assertSucceeds(scoreRef(googleCtx()).set(entry()));
+  });
+
+  test('the ceiling holds exactly for the run cited (run2, 58 s ago: 850 is over) → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'run2', score: 860 })));
+  });
+
+  test('above what the game allows in the elapsed time → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ score: 1000 })));
+  });
+
+  test('a better score on a new run replaces the best → allow', async () => {
+    await seedBest(100);
+    await assertSucceeds(scoreRef(googleCtx()).set(entry({ runId: 'run2', score: 200 })));
+  });
+
+  test('an equal or lower score never replaces the best → deny', async () => {
+    await seedBest(300);
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'run2', score: 300 })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'run2', score: 10 })));
+  });
+
+  test('the same run cannot be entered twice, even higher → deny', async () => {
+    await seedBest(100, 'run1');
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'run1', score: 200 })));
+  });
+
+  test('only a run newer than the stored one can raise it (no alternating two runs) → deny older', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().doc('users/g1/gameRuns/older').set({ gameId: 'wave-run', startedAt: secondsAgo(120) });
+      await ctx.firestore().doc('users/g1/gameRuns/newer').set({ gameId: 'wave-run', startedAt: secondsAgo(90) });
+    });
+    await seedBest(100, 'newer');
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'older', score: 200 })));
+    await assertSucceeds(scoreRef(googleCtx()).set(entry({ runId: 'run2', score: 200 })));
+  });
+
+  test("the document is the caller's own uid → deny another's", async () => {
+    await assertFails(scoreRef(googleCtx(), 'g2').set(entry()));
+    await assertFails(scoreRef(googleCtx(), 'g2').set(entry({ uid: 'g2' })));
+  });
+
+  test('no run document, or someone else’s, or another game’s → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'ghost' })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'run9' })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'typing' })));
+  });
+
+  test('an unknown leaderboard → deny', async () => {
+    await assertFails(scoreRef(googleCtx(), 'g1', 'snake').set(entry()));
+  });
+
+  test('anonymous → deny', async () => {
+    await assertFails(scoreRef(anonCtx()).set(entry()));
+  });
+
+  test('a Google account outside g.skku.edu → deny', async () => {
+    await assertFails(scoreRef(googleCtx('g1', 'wavekim@gmail.com')).set(entry()));
+    await assertFails(scoreRef(googleCtx('g1', 'wavekim@g.skku.edu.evil.com')).set(entry()));
+  });
+
+  test('an unverified email → deny', async () => {
+    await assertFails(scoreRef(googleCtx('g1', SKKU_EMAIL, { email_verified: false })).set(entry()));
+  });
+
+  test('an email/password account with an skku address, no Google identity → deny', async () => {
+    const ctx = testEnv.authenticatedContext('g1', {
+      email: SKKU_EMAIL,
+      email_verified: true,
+      firebase: { sign_in_provider: 'password', identities: { email: [SKKU_EMAIL] } },
+    });
+    await assertFails(scoreRef(ctx).set(entry()));
+  });
+
+  test('fields that disagree with the profile → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ nickname: '다른이름' })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ campus: 'nsc' })));
+  });
+
+  test('a profile with no nickname yet → deny', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1').set({ profile: { campus: 'hssc', updatedAt: new Date() } }),
+    );
+    await assertFails(scoreRef(googleCtx()).set(entry()));
+  });
+
+  test('a department on the entry → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ deptId: 'cse' })));
+  });
+
+  test('the email prefix must be the start of the signed-in email → deny otherwise', async () => {
+    for (const emailPrefix of ['abc', 'wave', '', 'wa.', '.*', 'WAV']) {
+      await assertFails(scoreRef(googleCtx()).set(entry({ emailPrefix })));
+    }
+    await assertSucceeds(scoreRef(googleCtx()).set(entry({ emailPrefix: 'w' })));
+  });
+
+  test('more revives than a run allows, or a fractional or negative score → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ revives: 3 })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ revives: -1 })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ score: 10.5 })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ score: -1 })));
+  });
+
+  test('a client-chosen updatedAt, or an extra field → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ updatedAt: new Date() })));
+    await assertFails(scoreRef(googleCtx()).set(entry({ verified: true })));
+  });
+
+  test('a run older than an hour can no longer be entered → deny', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1/gameRuns/old').set({ gameId: 'wave-run', startedAt: secondsAgo(3600 + 60) }),
+    );
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'old', score: 10 })));
+  });
+
+  test('never above the five digits the game can show → deny', async () => {
+    await assertFails(scoreRef(googleCtx()).set(entry({ score: 100000 })));
+  });
+
+  test('the ceiling past the speed ramp (10 minutes in) → exact edge', async () => {
+    await testEnv.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc('users/g1/gameRuns/ten').set({ gameId: 'wave-run', startedAt: secondsAgo(600) }),
+    );
+    // maxScoreAfter(600) = 11282 (packages/wave-run bound.test.ts); a few seconds of test latency add about 20 a second.
+    await assertFails(scoreRef(googleCtx()).set(entry({ runId: 'ten', score: 11400 })));
+    await assertSucceeds(scoreRef(googleCtx()).set(entry({ runId: 'ten', score: 11282 })));
+  });
+
+  test('any signed-in user reads the board, including anonymous; signed-out cannot', async () => {
+    await assertSucceeds(anonCtx('someone').firestore().collection('leaderboards/wave-run/scores').orderBy('score', 'desc').limit(5).get());
+    await assertFails(testEnv.unauthenticatedContext().firestore().collection('leaderboards/wave-run/scores').get());
+  });
+
+  test('an entry cannot be deleted by its owner → deny', async () => {
+    await seedBest(100);
+    await assertFails(scoreRef(googleCtx()).delete());
+  });
+
+  describe('subway-typing: a time, where less is better', () => {
+    // `typing` was stamped 60 s ago (beforeEach); `typing2` is a newer run.
+    beforeEach(async () => {
+      await testEnv.withSecurityRulesDisabled((ctx) =>
+        ctx.firestore().doc('users/g1/gameRuns/typing2').set({ gameId: 'subway-typing', startedAt: secondsAgo(58) }),
+      );
+    });
+    const typingRef = (ctx) => scoreRef(ctx, 'g1', 'subway-typing');
+    const time = (overrides = {}) => entry({ runId: 'typing', score: 30_000, revives: 0, ...overrides });
+    const seedTime = (score, runId = 'typing') =>
+      testEnv.withSecurityRulesDisabled((ctx) =>
+        ctx.firestore().doc('leaderboards/subway-typing/scores/g1').set(time({ score, runId, updatedAt: new Date() })),
+      );
+
+    test('a first time, plausible for its run → allow', async () => {
+      await assertSucceeds(typingRef(googleCtx()).set(time()));
+    });
+
+    test('the floor holds exactly (MIN_RUN_MS = 9520) → deny below, allow at it', async () => {
+      await assertFails(typingRef(googleCtx()).set(time({ score: 9519 })));
+      await assertSucceeds(typingRef(googleCtx()).set(time({ score: 9520 })));
+    });
+
+    test('a time longer than has passed since the stamp → deny', async () => {
+      // 60 s since the stamp plus 120 s of slack is 180 s; this is 240 s.
+      await assertFails(typingRef(googleCtx()).set(time({ score: 240_000 })));
+      // A stamp that landed late (after the first key) still passes.
+      await assertSucceeds(typingRef(googleCtx()).set(time({ score: 90_000 })));
+    });
+
+    test('a faster time on a newer run replaces the best → allow', async () => {
+      await seedTime(30_000);
+      await assertSucceeds(typingRef(googleCtx()).set(time({ runId: 'typing2', score: 25_000 })));
+    });
+
+    test('an equal or slower time never replaces the best → deny', async () => {
+      await seedTime(30_000);
+      await assertFails(typingRef(googleCtx()).set(time({ runId: 'typing2', score: 30_000 })));
+      await assertFails(typingRef(googleCtx()).set(time({ runId: 'typing2', score: 40_000 })));
+    });
+
+    test('a faster time on the same or an older run → deny', async () => {
+      await seedTime(30_000, 'typing2');
+      await assertFails(typingRef(googleCtx()).set(time({ runId: 'typing2', score: 25_000 })));
+      await assertFails(typingRef(googleCtx()).set(time({ runId: 'typing', score: 25_000 })));
+    });
+
+    test('a typing run has no revives → deny any', async () => {
+      await assertFails(typingRef(googleCtx()).set(time({ revives: 1 })));
+    });
+
+    test("another game's run → deny", async () => {
+      await assertFails(typingRef(googleCtx()).set(time({ runId: 'run1' })));
+    });
+
+    test('the board reads fastest first', async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const db = ctx.firestore();
+        await db.doc('leaderboards/subway-typing/scores/slow').set(time({ uid: 'slow', score: 40_000, updatedAt: new Date() }));
+        await db.doc('leaderboards/subway-typing/scores/fast').set(time({ uid: 'fast', score: 20_000, updatedAt: new Date() }));
+        await db.doc('leaderboards/subway-typing/scores/mid').set(time({ uid: 'mid', score: 30_000, updatedAt: new Date() }));
+      });
+      const snap = await anonCtx('someone')
+        .firestore()
+        .collection('leaderboards/subway-typing/scores')
+        .orderBy('score', 'asc')
+        .limit(5)
+        .get();
+      assert.deepEqual(snap.docs.map((d) => d.id), ['fast', 'mid', 'slow']);
+    });
+  });
+});

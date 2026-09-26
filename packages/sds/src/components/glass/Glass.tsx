@@ -7,8 +7,8 @@
  *
  * Lives in the design system rather than under a feature because the consumers
  * are spread across the app — the in-app browser's bottom bar, the event map's
- * floating chip row and control set, and the sheet backgrounds next door in
- * `../sheet/`. Prop-driven and string-free, so no feature owns it.
+ * floating chip row and control set, the in-app games' result and Hall of
+ * Fame cards (`GlassCard`), and the sheet backgrounds next door in `../sheet/`. Prop-driven and string-free, so no feature owns it.
  *
  * `expo-glass-effect` is a peer dependency of this package for this file alone.
  */
@@ -48,6 +48,44 @@ export function GlassSurface({
     );
   }
   return <View style={[style, styles.fallback]}>{children}</View>;
+}
+
+/** The card's own tint: laid into the glass so dark text reads over whatever is behind. */
+const GLASS_CARD_TINT = 'rgba(255,255,255,0.72)';
+
+/**
+ * A floating card: Liquid Glass on iOS 26+, a white card with the float
+ * shadow below it.
+ *
+ * Unlike `GlassSurface`, the glass is a background layer behind the content,
+ * not its container: content that changes size (a list loading, a row sliding
+ * in) inside a glass view leaves the effect drawn at its first size or not at
+ * all, while a layer that simply fills the card follows it. The shadow sits on
+ * an outer view so the rounded clip does not swallow it.
+ */
+export function GlassCard({
+  style,
+  contentStyle,
+  radius = 24,
+  children,
+}: {
+  /** The outer box: size and position. */
+  style?: StyleProp<ViewStyle>;
+  /** Padding and layout of what is inside. */
+  contentStyle?: StyleProp<ViewStyle>;
+  radius?: number;
+  children: ReactNode;
+}) {
+  return (
+    <View style={[style, !GLASS_AVAILABLE && [glassFloatShadow, { borderRadius: radius }]]}>
+      <View style={[styles.cardClip, { borderRadius: radius }, !GLASS_AVAILABLE && styles.cardSolid]}>
+        {GLASS_AVAILABLE && (
+          <GlassView style={StyleSheet.absoluteFill} glassEffectStyle="regular" tintColor={GLASS_CARD_TINT} />
+        )}
+        <View style={contentStyle}>{children}</View>
+      </View>
+    </View>
+  );
 }
 
 /** 원형 아이콘 버튼 (뒤로/새로고침/더보기 등). */
@@ -150,6 +188,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
+  cardClip: { overflow: 'hidden', flexShrink: 1 },
+  cardSolid: { backgroundColor: SdsColors.background },
   fill: {
     width: '100%',
     height: '100%',

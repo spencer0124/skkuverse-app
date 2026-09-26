@@ -69,6 +69,7 @@ crosses package boundaries.
 | [architecture.md](explanation/architecture.md) | The whole system, from monorepo boundaries and data flow through to the provider stack and its diagrams |
 | [fcm-architecture.md](explanation/fcm-architecture.md) | Current FCM architecture: v5 SSOT, tabsContract, delivery, auth transition |
 | [notices-feature.md](explanation/notices-feature.md) | Notices: server-driven tabs, markdown rendering, the onboarding gate and auto-restore |
+| [ios-simulator-hangul-fallback.md](explanation/ios-simulator-hangul-fallback.md) | Hangul as boxes in web views on the iOS 26.3 simulator: the fallback bug and the Hangul-only font face that fixes it |
 | [first-launch-intro.md](explanation/first-launch-intro.md) | The four-page value tour: why it gates inside InitGate, and how it lets the notices wizard skip its login step |
 | [app-check.md](explanation/app-check.md) | App Check: debug token injection paths, Play Integrity throttling and cache priming |
 | [`ios-26-native-tabs-minimize.md`](explanation/ios-26-native-tabs-minimize.md) | The chain root rule behind NativeTabs `minimizeBehavior` and automatic contentInset |
@@ -78,6 +79,7 @@ crosses package boundaries.
 | [eventmap-rendering.md](explanation/eventmap-rendering.md) | Event map client, covering on-device status derivation, the `layerId` join to `/map/config`, the list in the campus sheet and the client festival gate |
 | [splash-animation.md](explanation/splash-animation.md) | The splash animation and how it hands off to InitGate |
 | [campus-map-reconciliation.md](explanation/campus-map-reconciliation.md) | The order behind the campus suggestion card, and the idle that arrives before the camera moves |
+| [in-app-games.md](explanation/in-app-games.md) | Bundled games: the host screen, the run stamp, the player profile, and what the leaderboard rules trust |
 | [bottom-sheet-system.md](explanation/bottom-sheet-system.md) | The one sheet component. Its detents, the float-vs-attach rule behind glass or opaque, and the native constraints the card works within |
 | [miniapp-shell.md](explanation/miniapp-shell.md) | How `app/mini-app.tsx` hosts a registered mini app on the miniapp protocol: injection, the per-message origin gate, dispatch, the shell and the viewport |
 
@@ -96,6 +98,7 @@ copied to a second place is a value that will disagree with the first.
 | [0006-miniapp-webview-push-architecture.md](decisions/0006-miniapp-webview-push-architecture.md) | Mini app shell, web view bridge, and how push reaches it |
 | [0007-device-clock-event-map-status.md](decisions/0007-device-clock-event-map-status.md) | Event map booth status derives against the device clock, uncorrected |
 | [0008-campus-camera-reconciliation.md](decisions/0008-campus-camera-reconciliation.md) | The campus toggle never moves itself; disagreement with the camera is offered in a card |
+| [0009-bundle-games-into-the-app.md](decisions/0009-bundle-games-into-the-app.md) | Mini games ship inside the app as bundled pages; their leaderboards trust Firestore rules alone |
 
 ### internal (postmortems and debugging)
 
@@ -119,6 +122,9 @@ Package-local knowledge lives next to the package:
 | [apps/mobile](../apps/mobile/README.md) | The Expo mobile app, how to run it, and links to the build runbooks |
 | [packages/shared](../packages/shared/README.md) | Data layer: API client, stores, hooks, tokens, i18n |
 | [packages/bridge](../packages/bridge/README.md) | The web-to-native message contract |
+| [packages/game-host](../packages/game-host/README.md) | The bundled-game page-to-host contract |
+| [packages/wave-run](../packages/wave-run/README.md) | 초록의 파도: engine, renderer and the embed build <!-- conventions:allow-korean: the game's product name --> |
+| [packages/subway-typing](../packages/subway-typing/README.md) | 캠퍼스 타이핑: the typing game page, its route and judging, and the time floor <!-- conventions:allow-korean: the game's product name --> |
 | [packages/sds](../packages/sds/README.md) | Design system, plus SDS.md and TOSS_UX_GUIDE.md |
 | [functions](../functions/README.md) | Cloud Functions: triggers and verify scripts |
 

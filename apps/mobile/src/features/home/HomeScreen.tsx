@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import {
   Platform,
   View,
@@ -26,6 +26,22 @@ import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
 import { HomeBannerCarousel } from './HomeBannerCarousel';
+import { isNativeGameId, NATIVE_GAME_IDS, type NativeGameId } from '@/features/games/ids';
+import { HomeHallOfFame } from '@/features/games/leaderboard/HomeHallOfFame';
+import { NATIVE_GAMES } from '@/features/games/registry';
+
+/** A tile for a game bundled with the app: it opens the native game screen. */
+function gameTile(id: NativeGameId, title: string): TossfaceGridItem {
+  return {
+    id,
+    title,
+    emoji: NATIVE_GAMES[id].homeEmoji,
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: id });
+      openMiniAppById(id);
+    },
+  };
+}
 
 // Logo is a remote image (`{uri}`) or an emoji. A null logo (the server sent
 // one this build cannot use) draws 🧩 rather than an empty tile.
@@ -47,7 +63,7 @@ function toTile(app: MiniAppIndexEntry): TossfaceGridItem {
 
 type RenderedSection =
   | { type: 'banner'; key: string; section: Extract<HomeSection, { type: 'banner_carousel' }> }
-  | { type: 'grid'; key: string; title?: string; items: TossfaceGridItem[] };
+  | { type: 'grid'; key: string; title?: string; items: TossfaceGridItem[]; gameIds: NativeGameId[] };
 
 export function HomeScreen() {
   const { t } = useT();
@@ -89,11 +105,25 @@ export function HomeScreen() {
         .filter((app): app is MiniAppIndexEntry => app !== undefined)
         .map(toTile);
       if (items.length > 0) {
-        out.push({ type: 'grid', key: section.id, title: section.title, items });
+        // Only games whose tile is actually drawn count as placed here.
+        const gameIds = section.miniAppIds.filter(isNativeGameId).filter((id) => byId.has(id));
+        out.push({ type: 'grid', key: section.id, title: section.title, items, gameIds });
       }
     }
     return out;
   }, [layout, miniApps]);
+  const unplacedGames = useMemo(() => {
+    const placed = new Set(sections.flatMap((s) => (s.type === 'grid' ? s.gameIds : [])));
+    return NATIVE_GAME_IDS.filter((id) => !placed.has(id));
+  }, [sections]);
+  // One Hall of Fame for every game on the screen, in the order their tiles
+  // appear, under the first grid that holds one — or, when no server grid
+  // does, under the app's own mini-games grid.
+  const hallGames = useMemo(
+    () => [...new Set([...sections.flatMap((s) => (s.type === 'grid' ? s.gameIds : [])), ...unplacedGames])],
+    [sections, unplacedGames],
+  );
+  const hallAfter = sections.find((s) => s.type === 'grid' && s.gameIds.length > 0)?.key ?? null;
 
   return (
     <View style={styles.container}>
@@ -109,18 +139,35 @@ export function HomeScreen() {
           section.type === 'banner' ? (
             <HomeBannerCarousel key={section.key} section={section.section} />
           ) : (
-            <View key={section.key} style={styles.gridWrap}>
-              {section.title ? (
-                <View style={styles.sectionHeader}>
-                  <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-                    {section.title}
-                  </Txt>
-                </View>
-              ) : null}
-              <TossfaceButtonGrid items={section.items} />
-            </View>
+            <Fragment key={section.key}>
+              <View style={styles.gridWrap}>
+                {section.title ? (
+                  <View style={styles.sectionHeader}>
+                    <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                      {section.title}
+                    </Txt>
+                  </View>
+                ) : null}
+                <TossfaceButtonGrid items={section.items} />
+              </View>
+              {section.key === hallAfter && <HomeHallOfFame gameIds={hallGames} />}
+            </Fragment>
           ),
         )}
+
+        {/* The in-app games the server's grids do not hold get a grid of
+            their own, fixed in the app. */}
+        {unplacedGames.length > 0 && (
+          <View style={styles.gridWrap}>
+            <View style={styles.sectionHeader}>
+              <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                {t('home.section.miniGames')}
+              </Txt>
+            </View>
+            <TossfaceButtonGrid items={unplacedGames.map((id) => gameTile(id, t(NATIVE_GAMES[id].titleKey)))} />
+          </View>
+        )}
+        {hallAfter === null && <HomeHallOfFame gameIds={hallGames} />}
 
         {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
         <DeptNoticesSection />

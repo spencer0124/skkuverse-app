@@ -18,6 +18,9 @@ Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorep
 - **`packages/shared/`** — API client (Axios), Zustand stores, React Query hooks, types, design tokens, i18n
 - **`packages/sds/`** — Skku Design System component library (37+ components)
 - **`packages/bridge/`** — Web↔Native message-passing layer (`postToApp`, `parseWebMessage`)
+- **`packages/game-host/`** — Bundled game page ↔ native host contract
+- **`packages/wave-run/`** — The 초록의 파도 game (engine, Canvas renderer, embed build) <!-- conventions:allow-korean: the game's product name -->
+- **`packages/subway-typing/`** — The 캠퍼스 타이핑 game (React page, judging, time floor, embed build) <!-- conventions:allow-korean: the game's product name -->
 
 ## Common Commands
 
@@ -34,9 +37,9 @@ yarn lint             # expo lint (ESLint)
 npx expo prebuild --clean  # clean prebuild after a native change
 
 # Root
-yarn typecheck        # tsc --noEmit across apps/mobile and all three packages
+yarn typecheck        # tsc --noEmit across apps/mobile and every package
 yarn lint             # ESLint (--max-warnings 0) across the monorepo, then markdownlint
-yarn test             # packages/shared (vitest) + apps/mobile (node:test)
+yarn test             # every package's tests (vitest / node:test) + apps/mobile (node:test)
 yarn test:rules       # Firestore rules tests (Firestore emulator + node:test)
                       # scripts/test-rules.sh finds a JDK 21+ by probing versions.
                       # Must be green before deploying rules.
@@ -50,7 +53,7 @@ firebase deploy --only firestore:rules
 
 Node version is pinned to **22** (see `.nvmrc`), matching `functions/package.json` engines and what `--experimental-strip-types` requires.
 
-CI runs all of the above. `.github/workflows/ci.yml` has four jobs: `conventions` (contract integrity and the umbrella's shared conventions), `workspace` (typecheck, lint, tests), `functions`, and `rules`. **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist — without it the file is untracked and never runs, with no error.
+CI runs all of the above. `.github/workflows/ci.yml` has four jobs: `conventions` (contract integrity and the umbrella's shared conventions), `workspace` (typecheck, lint, tests, and that each game's committed page matches a fresh `build:embed`), `functions`, and `rules`. **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist — without it the file is untracked and never runs, with no error.
 
 ## Architecture
 
@@ -120,6 +123,19 @@ A four-page value tour (shuttle → campus map → AI notices → Google sign-in
 - **Sign-in is the last step and routes nowhere.** `classifyAndRestoreOnboarding` is still called, but purely for its restore side effect; the `kind` is ignored. A new user meets the notices wizard later, from the notices tab.
 - **The wizard's `skipLogin` is frozen at mount.** `OnboardingState.skipLogin` comes from `authStore` in the lazy initializer, and makes `NEXT` 3→5 and `PREV` 5→3. Never recompute it from live `isAnonymous`, which flips mid-wizard.
 - **`reducer.ts` must stay free of relative runtime imports.** `node --experimental-strip-types --test` erases the type-only `./types` import; a value import would break `reducer.test.mts`. That is why `MAX_INTEREST_DEPTS` lives there.
+
+### In-app games (`src/features/games/`, 2026-09-25)
+
+Mini games ship inside the app as a page string loaded into a web view, hosted by a native screen at `/games/[id]`. **Full detail: `docs/explanation/in-app-games.md`; the decision is ADR 0009.** The invariants worth knowing mid-session:
+
+- **The leaderboard trusts Firestore rules alone.** An entry must cite a server-stamped run (`users/{uid}/gameRuns`) and be plausible for the elapsed time (`isPlausible`). wave-run has a ceiling, `waveRunMaxScore`, mirroring `packages/wave-run/src/game/bound.ts`; subway-typing has a floor, `subwayTypingMinMs`, mirroring `packages/subway-typing/src/bound.ts`. Both test suites pin the same points, so a tuned constant or a changed route has to move in both.
+- **A score's direction is per game.** `score.order` in `features/games/registry.ts` (`desc` for wave-run's distance, `asc` for subway-typing's time) drives every comparison through `isBetter`: the board query, the rank count, the device best and `decideSubmit`. The rules' `isImprovement` is the same call. Never compare two scores with a bare `>`.
+- **The committed page is generated.** After editing a game package, run its `build:embed` (`yarn workspace @skkuverse/wave-run build:embed`, `yarn workspace @skkuverse/subway-typing build:embed`) and commit `html.generated.ts`; CI rebuilds and fails on a difference. The page must never expose the engine's debug options (start speed or score).
+- **`packages/game-host`, not `packages/bridge`.** The bridge is vendored into skkuverse-web and hash-checked; a game's channel stays in this repo.
+- **Registry ids are reused.** `openMiniAppById` sends an id in `NATIVE_GAME_IDS` to the native screen, so the home tile and `/m/<id>` keep working while older builds still open the web mini app.
+- **One line per player per board** (`leaderboards/{gameId}/scores/{uid}`, their best), and it must equal the player profile (`users/{uid}.profile`: campus, nickname). A profile change is server-stamped and throttled once a nickname exists, and `onUserProfileWrite` rewrites the player's entries. A sign-in that changes the uid leaves the run on screen under the anonymous one; `claimRun` moves it with the anonymous token as proof, and no submit decision is made while that is in flight. Deploy the `scores.uid` collection-group index before the functions, or `deleteAccount` fails.
+- **The result flow is game-agnostic** (`features/games/result/`, `features/games/leaderboard/`): a game supplies its page, a `NATIVE_GAMES` entry and its overlay (`features/games/<id>/Overlay.tsx`). The board component (`LeaderboardTopSection`) is the same on the result screen and on home, where one "Hall of Fame" card (`HomeHallOfFame`, on the banner's `LoopingPager`) pages through every game's podium (`HOME_LIMIT`). Players only ever see "Hall of Fame" (명예의 전당), never "leaderboard". <!-- conventions:allow-korean: the product term -->
+- **A typing page starts itself.** subway-typing's start button is on the page because iOS raises the keyboard only for a focus inside a tap on the page; the host sets `keyboard` on the web view and never starts a run by message. Android draws edge to edge, so the window is not resized for the keyboard: `GameScreen` wraps a keyboard game's web view in a `KeyboardAvoidingView` there (iOS needs nothing — WebKit shrinks the visual viewport).
 
 ### Design System (`@skkuverse/sds`)
 

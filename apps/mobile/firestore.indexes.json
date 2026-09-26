@@ -4,19 +4,49 @@
       "collectionGroup": "devices",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "active", "order": "ASCENDING" },
-        { "fieldPath": "notificationsEnabled", "order": "ASCENDING" },
-        { "fieldPath": "subscribedTopics", "arrayConfig": "CONTAINS" }
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "notificationsEnabled",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "subscribedTopics",
+          "arrayConfig": "CONTAINS"
+        }
       ]
     },
     {
       "collectionGroup": "bookmarks",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "savedAt", "order": "DESCENDING" },
-        { "fieldPath": "articleNo", "order": "DESCENDING" }
+        {
+          "fieldPath": "savedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "articleNo",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "scores",
+      "fieldPath": "uid",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }

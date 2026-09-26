@@ -45,6 +45,7 @@ import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
 import { decideOnboardingCompletion } from './completion';
 import { assembleOnboardingPickerSelections } from './utils/assemblePickerSelections';
+import { fillProfileIfMissing } from '@/features/profile/service';
 
 const STEP_KEYS: Record<number, OnboardingStepKey> = {
   1: 'campus',
@@ -369,6 +370,8 @@ export function OnboardingScreen() {
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
     });
+    // The same campus makes the player profile, if there is none yet.
+    fillProfileIfMissing(uid, { campus });
 
     router.dismissAll();
   }, [

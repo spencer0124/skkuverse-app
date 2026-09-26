@@ -17,7 +17,7 @@ import { logHandledError } from '@/services/crashlytics';
 import { anonymousSession } from '@/services/anon-session-instance';
 import { withRetry } from '@/utils/with-retry';
 
-export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro';
+export type AuthFlowScope = 'login' | 'notices' | 'onboarding' | 'intro' | 'game';
 
 /**
  * Phase A+B+C of the sign-in flow shared by all 4 entrypoints (login screen,

@@ -19,9 +19,20 @@
  */
 import { router } from 'expo-router';
 import type { MiniAppTarget } from '@skkuverse/shared';
+import { isNativeGameId } from '@/features/games/ids';
 
-/** Open a registered mini-app by slug. Unknown slugs surface on the screen. */
+/**
+ * Open a registered mini-app by slug. Unknown slugs surface on the screen.
+ *
+ * A game this build ships natively opens its own screen instead: the registry
+ * id, home tile and `/m/<id>` link stay as they are, and a build that predates
+ * the native game still opens the web version.
+ */
 export function openMiniAppById(id: string, path?: string): void {
+  if (isNativeGameId(id)) {
+    router.push({ pathname: '/games/[id]', params: { id } } as never);
+    return;
+  }
   router.push({
     pathname: '/mini-app',
     params: path ? { id, path } : { id },
