@@ -41,6 +41,7 @@ import type {
   NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
 import { logHandledError } from '@/services/crashlytics';
+import { distinctCommand } from '../utils/moveCamera';
 import { NO_PINCH, stepPinchLock } from '../utils/pinchLock';
 
 /** Tracking is on in some form — the location dot is drawn. */
@@ -143,21 +144,28 @@ export function useLocationTracking(
    * it (`RNCNaverMapViewImpl.mm:177-190` reads `bearing` and animates), so the
    * bearing is only reachable that way.
    *
-   * Each write stores a fresh object, so React sends the prop and the map
-   * animates. Between writes the value is untouched, so it is never re-sent and
-   * the imperative `animateCameraTo` call sites on this screen keep working
-   * exactly as before — the map is not actually controlled, it just occasionally
+   * A fresh object is NOT enough to deliver an order. The native side applies
+   * the prop only when it differs by value from the previous prop
+   * (`RNCNaverMapView.mm:202`), so an order equal to the last one is dropped
+   * silently — whatever the map did in between. Every write therefore goes
+   * through `distinctCommand`, which nudges a repeat by an invisible amount.
+   * Between writes the value is untouched, so it is never re-sent and the
+   * imperative `animateCameraTo` call sites on this screen keep working exactly
+   * as before — the map is not actually controlled, it just occasionally
    * receives an order. It starts undefined so `initialCamera` still applies on
    * the first render.
    *
-   * There are now TWO producers: `resetNorth` here, and `moveCamera` on the
+   * There are TWO producers: `resetNorth` here, and `moveCamera` on the
    * screen, which routes a tilted or rotated camera this way because
-   * `animateCameraTo` carries neither. The setter is returned as
-   * `commandCamera` for that second one. They cannot race — each is a discrete
-   * user action, and a later write simply supersedes an earlier one, which is
-   * the same thing the SDK would do with two overlapping animations.
+   * `animateCameraTo` carries neither. `commandCamera` is the one writer both
+   * use. They cannot race — each is a discrete user action, and a later write
+   * simply supersedes an earlier one, which is the same thing the SDK would do
+   * with two overlapping animations.
    */
   const [cameraCommand, setCameraCommand] = useState<Camera | undefined>(undefined);
+  const commandCamera = useCallback((next: Camera) => {
+    setCameraCommand((prev) => distinctCommand(prev, next));
+  }, []);
 
   const handleOptionChanged = useCallback(
     (params: { locationTrackingMode: LocationTrackingMode }) => {
@@ -293,8 +301,8 @@ export function useLocationTracking(
     // position to rotate around, and a command with a zero coordinate would
     // throw the camera into the ocean off West Africa.
     if (!cam) return;
-    setCameraCommand({ ...cam, bearing: 0 });
-  }, []);
+    commandCamera({ ...cam, bearing: 0 });
+  }, [commandCamera]);
 
   return {
     mode,
@@ -310,7 +318,7 @@ export function useLocationTracking(
      * whose tilt or bearing has to change, which no imperative method on
      * `NaverMapViewRef` can do.
      */
-    commandCamera: setCameraCommand,
+    commandCamera,
     /**
      * The map's last reported camera, read at call time.
      *

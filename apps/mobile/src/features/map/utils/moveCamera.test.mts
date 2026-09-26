@@ -19,7 +19,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { moveCamera } from './moveCamera.ts';
+import { distinctCommand, moveCamera } from './moveCamera.ts';
 import type { MapChipCamera } from '@skkuverse/shared';
 
 const FLAT: MapChipCamera = {
@@ -112,5 +112,65 @@ describe('moveCamera — the prop path, when the attitude has to change', () => 
     const { animate, command } = run({ ...FLAT, bearing: 90 }, { tilt: 0, bearing: 0 });
     assert.equal(animate.calls.length, 0);
     assert.equal((command.calls[0] as { bearing: number }).bearing, 90);
+  });
+});
+
+describe('distinctCommand — a repeated camera order is still delivered', () => {
+  // The native side drops a `camera` prop equal by value to the previous one
+  // (`RNCNaverMapView.mm:202`). A second tap on the 에스카라 chip sent exactly
+  // that, and nothing moved.
+  const ORDER = { latitude: 37.295129, longitude: 126.971234, zoom: 17.5, tilt: 0, bearing: 6 };
+
+  it('passes the first order through', () => {
+    assert.equal(distinctCommand(undefined, ORDER), ORDER);
+  });
+
+  it('passes a different order through unchanged', () => {
+    const prev = { ...ORDER, bearing: 0 };
+    assert.equal(distinctCommand(prev, ORDER), ORDER);
+  });
+
+  it('nudges an order that repeats the previous one, invisibly', () => {
+    const next = distinctCommand({ ...ORDER }, ORDER);
+    assert.notEqual(next.latitude, ORDER.latitude);
+    assert.ok(Math.abs(next.latitude - ORDER.latitude) < 1e-8);
+    assert.deepEqual({ ...next, latitude: ORDER.latitude }, ORDER);
+  });
+
+  it('never repeats the previous write across a run of identical taps', () => {
+    let prev: typeof ORDER | undefined;
+    for (let i = 0; i < 5; i++) {
+      const next = distinctCommand(prev, ORDER);
+      if (prev) assert.notDeepEqual(next, prev);
+      prev = next;
+    }
+  });
+
+  it('keeps the fields it does not compare', () => {
+    const withExtra = { ...ORDER, reason: 'Developer' };
+    assert.equal(distinctCommand(ORDER, withExtra).reason, 'Developer');
+  });
+});
+
+describe('moveCamera — attitude is compared within a tolerance', () => {
+  const ROTATED: MapChipCamera = { ...FLAT, bearing: 6 };
+
+  it('animates when the reported heading is 6 plus float noise', () => {
+    // The SDK reports a heading set to 6 as 6.000000000000001.
+    const { animate, command } = run(ROTATED, { tilt: 0, bearing: 6.000000000000001 });
+    assert.equal(command.calls.length, 0);
+    assert.equal(animate.calls.length, 1);
+  });
+
+  it('still commands a real change of heading', () => {
+    const { animate, command } = run(ROTATED, { tilt: 0, bearing: 7 });
+    assert.equal(animate.calls.length, 0);
+    assert.equal(command.calls.length, 1);
+  });
+
+  it('treats headings either side of north as close', () => {
+    const { animate, command } = run(FLAT, { tilt: 0, bearing: 359.999 });
+    assert.equal(command.calls.length, 0);
+    assert.equal(animate.calls.length, 1);
   });
 });
