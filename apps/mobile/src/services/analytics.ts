@@ -441,6 +441,19 @@ export function logMiniAppEvent(params: { miniAppId: string; event: string }) {
   });
 }
 
+// ── Map ────────────────────────────────────────────────────────────
+
+/**
+ * A link asked the map for a place it does not have — a mini app's
+ * `map.openPlace`, an SDUI `map` action, a `?place=` deep link. The map lands
+ * with no sheet and nothing on screen says why, so this is the only trace of a
+ * stale or mistyped place id (inja once sent `event:shuttle-queue-welfare` for
+ * `event:eskara-2026-shuttle-queue-welfare`).
+ */
+export function logMapPlaceNotFound(params: { placeId: string }) {
+  logEvent('map_place_not_found', { place_id: truncate(params.placeId) });
+}
+
 // ── Custom typed wrappers (funnel / state change) ──────────────────
 
 /**

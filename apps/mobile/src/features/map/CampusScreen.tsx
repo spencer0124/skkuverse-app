@@ -107,8 +107,10 @@ import {
   logConnectionTap,
   logCampusContentSelect,
   logCampusSwitch,
+  logMapPlaceNotFound,
   type BuildingDetailSource,
 } from '@/services/analytics';
+import { devLog } from '@/services/dev-log';
 
 // 시트 본문은 서버가 보내는 `sections` 배열을 그 순서대로 그린다. 앱에는
 // 하드코딩된 사본이 없다 — 예전에 이 자리에 CAMPUS_GRID_ITEMS가 있어서 서버가
@@ -1243,8 +1245,13 @@ export function CampusScreen() {
     setPendingPlaceId(null); // one shot, resolvable or not
     const place = placesById.get(pendingPlaceId);
     // An id that matches nothing lands on the campus tab with no sheet. That is
-    // the documented behaviour, not a swallowed error.
-    if (!place) return;
+    // the documented behaviour, but it is logged: nothing on screen says why,
+    // so the event is the only way a stale or mistyped id gets noticed.
+    if (!place) {
+      devLog('campus.placeNotFound', { placeId: pendingPlaceId });
+      logMapPlaceNotFound({ placeId: pendingPlaceId });
+      return;
+    }
 
     if (place.campus !== selectedCampus) setSelectedCampus(place.campus);
     // Same 100ms → camera(500ms) → 400ms → present choreography as the search
