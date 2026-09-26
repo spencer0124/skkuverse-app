@@ -15,6 +15,14 @@
  * thumbnail, a portrait poster lost ~40% of itself; a strip of one had nothing
  * to page across anyway.
  *
+ * Every photo is keyed by its URL, not its block id. Ids are only unique within
+ * one place — every pub's poster is `poster` — and the sheet stays mounted
+ * while another pin is tapped, so an id key kept the same image view across
+ * places, and expo-image holds the old bitmap until the new one loads: the
+ * previous pub's poster showed for the second a ~500KB poster takes. A URL is
+ * content-hashed, so it is unique and stable, and a new one is a fresh view
+ * that starts on the loading shimmer (and, for a lone photo, on its own aspect).
+ *
  * A plain React Native `ScrollView`, not one of gorhom's: a gorhom scrollable
  * cannot nest inside another (`Sheet.tsx`), and a horizontal one would not help
  * the sheet's own vertical drag anyway.
@@ -26,11 +34,17 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  type StyleProp,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Image } from 'expo-image';
+import {
+  Image,
+  type ImageContentFit,
+  type ImageLoadEventData,
+  type ImageStyle,
+} from 'expo-image';
 import { XIcon } from 'phosphor-react-native';
 import {
   pickI18nText,
@@ -42,7 +56,7 @@ import {
   useSettingsStore,
   type PlaceImage,
 } from '@skkuverse/shared';
-import { Txt } from '@skkuverse/sds';
+import { Skeleton, Txt } from '@skkuverse/sds';
 import { SHEET_GUTTER } from './layout';
 
 const THUMB_WIDTH = 256;
@@ -81,6 +95,7 @@ export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
     <>
       {solo ? (
         <SoloImage
+          key={solo.url}
           uri={solo.url}
           caption={solo.caption ? pickI18nText(solo.caption, lang) : null}
           onOpen={() => setOpenIndex(0)}
@@ -96,7 +111,7 @@ export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
         >
           {images.map((image, index) => (
             <GalleryThumbnail
-              key={image.id}
+              key={image.url}
               uri={image.url}
               caption={image.caption ? pickI18nText(image.caption, lang) : null}
               onOpen={() => setOpenIndex(index)}
@@ -124,7 +139,7 @@ export function PlaceGallery({ images }: { images: readonly PlaceImage[] }) {
             showsHorizontalScrollIndicator={false}
           >
             {images.map((image) => (
-              <View key={image.id} style={[styles.viewerPage, { width, height }]}>
+              <View key={image.url} style={[styles.viewerPage, { width, height }]}>
                 <Image
                   source={{ uri: image.url }}
                   style={{ width, height }}
@@ -193,12 +208,10 @@ function GalleryThumbnail({
 
   return (
     <Pressable accessibilityRole="imagebutton" {...tap}>
-      <Image
-        source={{ uri }}
+      <LoadingImage
+        uri={uri}
         style={styles.thumb}
         contentFit="cover"
-        transition={150}
-        accessibilityIgnoresInvertColors
         accessibilityLabel={caption ?? undefined}
       />
       {caption ? (
@@ -234,18 +247,16 @@ function SoloImage({
 
   return (
     <Pressable accessibilityRole="imagebutton" style={styles.solo} {...tap}>
-      <Image
-        source={{ uri }}
+      <LoadingImage
+        uri={uri}
         style={[styles.soloImage, size]}
         contentFit="contain"
-        transition={150}
         onLoad={(event) => {
           const loaded = event.source.width / event.source.height;
           if (!Number.isFinite(loaded) || loaded <= 0) return;
           soloAspects.set(uri, loaded);
           setAspect(loaded);
         }}
-        accessibilityIgnoresInvertColors
         accessibilityLabel={caption ?? undefined}
       />
       {caption ? (
@@ -262,6 +273,52 @@ function SoloImage({
   );
 }
 
+/**
+ * A sheet photo with a shimmer under it until it is on screen.
+ *
+ * The shimmer sits BEHIND the image rather than in its place, so a cached photo
+ * simply covers it on its first frame and nothing flashes. It goes on
+ * `onDisplay` — the photo is actually drawn, not just fetched — or on `onError`,
+ * which leaves the style's grey. Callers key this by URL (see the file header),
+ * so `shown` never carries over from another photo.
+ */
+function LoadingImage({
+  uri,
+  style,
+  contentFit,
+  onLoad,
+  accessibilityLabel,
+}: {
+  uri: string;
+  style: StyleProp<ImageStyle>;
+  contentFit: ImageContentFit;
+  onLoad?: (event: ImageLoadEventData) => void;
+  accessibilityLabel?: string;
+}) {
+  const [shown, setShown] = useState(false);
+
+  return (
+    <View>
+      {shown ? null : (
+        <Skeleton.Animate>
+          <Skeleton width="100%" borderRadius={SdsRadius.md} style={styles.shimmer} />
+        </Skeleton.Animate>
+      )}
+      <Image
+        source={{ uri }}
+        style={[style, shown ? null : styles.loading]}
+        contentFit={contentFit}
+        transition={150}
+        onLoad={onLoad}
+        onDisplay={() => setShown(true)}
+        onError={() => setShown(true)}
+        accessibilityIgnoresInvertColors
+        accessibilityLabel={accessibilityLabel}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   bleed: { marginHorizontal: -SHEET_GUTTER, flexGrow: 0 },
   row: { paddingHorizontal: SHEET_GUTTER, gap: 6 },
@@ -274,6 +331,9 @@ const styles = StyleSheet.create({
   caption: { width: THUMB_WIDTH, marginTop: SdsSpacing.xs },
   solo: { alignSelf: 'center' },
   soloImage: { borderRadius: SdsRadius.md, backgroundColor: SdsColors.grey100 },
+  // Until the photo is drawn, its grey backdrop gives way to the shimmer under it.
+  loading: { backgroundColor: 'transparent' },
+  shimmer: { ...StyleSheet.absoluteFillObject, height: '100%' },
   soloCaption: { marginTop: SdsSpacing.xs, textAlign: 'center' },
   viewer: { flex: 1, backgroundColor: '#000' },
   viewerPage: { justifyContent: 'center', alignItems: 'center' },
