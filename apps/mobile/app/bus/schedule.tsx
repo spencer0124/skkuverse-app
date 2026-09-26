@@ -225,8 +225,12 @@ export default function ScheduleScreen() {
         )}
       </SectionCard>
 
-      {/* Fixed area — banner + hero card */}
-      {schedule?.status === 'active' && selectedDay?.display === 'schedule' && (
+      {/* Fixed area — banner + hero card. A no-service day shows its notices
+          too when it has any: an announced closure (e.g. festival days) says
+          where to go instead, and the server opens the page on that day. */}
+      {schedule?.status === 'active' &&
+        (selectedDay?.display === 'schedule' ||
+          (selectedDay?.display === 'noService' && selectedDay.notices.length > 0)) && (
         <SectionCard style={styles.timetableSection}>
           {bannerNotice && (
             <View style={styles.bannerWrapper}>
@@ -238,7 +242,7 @@ export default function ScheduleScreen() {
             <NoticeBar key={i} notice={notice} />
           ))}
 
-          {screenConfig?.heroCard && (
+          {selectedDay.display === 'schedule' && screenConfig?.heroCard && (
             <HeroCard
               entry={heroBus}
               routeBadges={screenConfig.routeBadges}
