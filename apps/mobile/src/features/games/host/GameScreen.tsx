@@ -68,6 +68,12 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   const [panelVisible, setPanelVisible] = useState(false);
   const [appActive, setAppActive] = useState(true);
   const [prompt, setPrompt] = useState<{ variant: 'signIn' | 'setup'; busy: boolean; error: string | null } | null>(null);
+  // The sheet reports its own close (a swipe, the backdrop) through
+  // `onDismiss`, and also after it was taken off screen in code — by then with
+  // a handler from a render that still showed it. Reading the prompt here
+  // tells the two apart: once it is gone, a late dismiss is not "later".
+  const promptRef = useRef(prompt);
+  promptRef.current = prompt;
   // The board is offered once per screen, and again only after a new best:
   // a game has many runs, and asking after every one of them is nagging.
   const offeredBoard = useRef(false);
@@ -212,6 +218,7 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
     }
     dispatch({ type: 'restart' });
     setNewBest(false);
+    auto.resetDetour();
     arm();
     shell.current?.send({ type: 'host:reset' });
     clearResetWait();
@@ -254,7 +261,8 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   };
 
   const declinePrompt = () => {
-    if (!prompt || prompt.busy) return;
+    const p = promptRef.current;
+    if (!p || p.busy) return;
     setPrompt(null);
     toTitle();
   };
@@ -268,6 +276,11 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   toTitleRef.current = toTitle;
   useEffect(() => {
     if (detour.state !== 'back' || !focused) return;
+    // A detour belongs to the run it left from; the game moved on without it.
+    if (detour.runId !== session.run?.id) {
+      resetDetour();
+      return;
+    }
     const status = session.submission.status;
     const settled = status === 'submitted' || status === 'notImproved' || status === 'failed';
     // Backed out: still facing the very step they were sent to.

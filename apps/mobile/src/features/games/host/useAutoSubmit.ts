@@ -36,6 +36,15 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+export interface Detour {
+  state: 'none' | 'away' | 'back';
+  step: 'signIn' | 'setup' | null;
+  /** The run on screen when the detour began. */
+  runId: string | null;
+}
+
+const NO_DETOUR: Detour = { state: 'none', step: null, runId: null };
+
 const isPermissionDenied = (e: unknown) =>
   typeof e === 'object' && e !== null && (e as { code?: string }).code === 'firestore/permission-denied';
 
@@ -75,12 +84,10 @@ export function useAutoSubmit(input: {
   /**
    * The last detour (sign-in, nickname) and where it sent the player, so the
    * screen can move on once they are back — and tell "backed out" (still
-   * facing that same step) from "not decided yet".
+   * facing that same step) from "not decided yet". It belongs to the run that
+   * was on screen when it began (`runId`): a later run never inherits it.
    */
-  const [detour, setDetour] = useState<{ state: 'none' | 'away' | 'back'; step: 'signIn' | 'setup' | null }>({
-    state: 'none',
-    step: null,
-  });
+  const [detour, setDetour] = useState<Detour>(NO_DETOUR);
   const [awaiting, setAwaiting] = useState<'signIn' | 'setup' | null>(null);
   const leftRef = useRef(false);
 
@@ -187,7 +194,7 @@ export function useAutoSubmit(input: {
 
   const pickNickname = useCallback(() => {
     setAwaiting('setup');
-    setDetour({ state: 'away', step: 'setup' });
+    setDetour({ state: 'away', step: 'setup', runId: sessionRef.current.run?.id ?? null });
     leftRef.current = false;
     router.push({ pathname: '/profile-setup', params: { nickname: '1' } } as never);
   }, [router]);
@@ -224,7 +231,7 @@ export function useAutoSubmit(input: {
       await classifyAndRestoreOnboarding(user.uid, 'game');
       const p = await getProfile(user.uid).catch(() => null);
       if (!p?.nickname) pickNickname();
-      else setDetour({ state: 'back', step: 'signIn' });
+      else setDetour({ state: 'back', step: 'signIn', runId: sessionRef.current.run?.id ?? null });
       return null;
     } catch (err) {
       if (err instanceof GoogleAuthError) {
@@ -250,7 +257,7 @@ export function useAutoSubmit(input: {
     if (!leftRef.current || profile.status === 'loading' || !ready) return;
     const d = decide(session);
     setAwaiting(null);
-    setDetour({ state: 'back', step: awaiting });
+    setDetour((prev) => ({ state: 'back', step: awaiting, runId: prev.runId }));
     if (!isStalledOn(awaiting, d) && isFinal(session) && session.submission.status === 'idle') void act(session, d);
   }, [awaiting, isFocused, profile.status, ready, decide, act, session]);
 
@@ -266,7 +273,7 @@ export function useAutoSubmit(input: {
     [decide, profile.status, ready],
   );
 
-  const resetDetour = useCallback(() => setDetour({ state: 'none', step: null }), []);
+  const resetDetour = useCallback(() => setDetour(NO_DETOUR), []);
 
   return {
     /** Where the last detour stands, and which step it was. */

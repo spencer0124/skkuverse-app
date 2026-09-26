@@ -27,18 +27,33 @@ interface Props {
   /** Draw the title row; off where the host screen draws its own (home). */
   showHeader?: boolean;
   /**
-   * Home: exactly `limit` lines, so every page of the carousel is the same
-   * height — the player's line shows only when it is among them — and no read
-   * on each remount (useLeaderboard `BoardReadOptions`).
+   * Home: the top `limit`, then the player's line right under it when they
+   * are further down (no "⋯" between), and no read on each remount
+   * (useLeaderboard `BoardReadOptions`).
    */
   compact?: boolean;
+  /**
+   * Home: keep a line's room under the top `limit` even when this game has no
+   * player's line there, so every page of the carousel is the same height —
+   * set when any game's page has one.
+   */
+  reserveMine?: boolean;
 }
 
 /**
  * A game's board, top N plus the player's line — on the home screen and after
  * a run. It always shows N places: the ones nobody holds yet are drawn blank.
  */
-export function LeaderboardTopSection({ gameId, title = '', limit = 5, me, footer, showHeader = true, compact = false }: Props) {
+export function LeaderboardTopSection({
+  gameId,
+  title = '',
+  limit = 5,
+  me,
+  footer,
+  showHeader = true,
+  compact = false,
+  reserveMine = false,
+}: Props) {
   const router = useRouter();
   const { t } = useT();
   const uid = useAuthStore((s) => s.uid);
@@ -50,23 +65,24 @@ export function LeaderboardTopSection({ gameId, title = '', limit = 5, me, foote
 
   const mine: MyLine | null = useMemo(() => {
     if (me !== undefined) return me;
-    if (!myBest.data || (compact && myBest.data.rank > limit)) return null;
+    if (!myBest.data) return null;
     return { kind: 'entry', entry: myBest.data.entry, rank: myBest.data.rank };
-  }, [me, myBest.data, compact, limit]);
+  }, [me, myBest.data]);
 
   // Nothing until the top is in: placed against an empty list, the player's
   // line would read as first.
   // Not signed in at all (the anonymous sign-in has not landed): nothing can
   // be read, so the places are drawn empty rather than loading for ever.
-  const lines = useMemo(
-    () =>
-      top.data
-        ? boardLines({ top: top.data, order, limit, me: mine, fill: true })
-        : uid === null
-          ? boardLines({ top: [], order, limit, me: null, fill: true })
-          : [],
-    [top.data, order, limit, mine, uid],
-  );
+  const lines = useMemo(() => {
+    const all = top.data
+      ? boardLines({ top: top.data, order, limit, me: mine, fill: true })
+      : uid === null
+        ? boardLines({ top: [], order, limit, me: null, fill: true })
+        : [];
+    // Home has room for one line under the top, not two.
+    return compact ? all.filter((line) => line.kind !== 'gap') : all;
+  }, [top.data, order, limit, mine, uid, compact]);
+  const compactRows = limit + (reserveMine ? 1 : 0);
 
   return (
     <View style={styles.section}>
@@ -79,13 +95,16 @@ export function LeaderboardTopSection({ gameId, title = '', limit = 5, me, foote
         <Skeleton.Animate>
           <View style={styles.skeleton}>
             {/* As tall as the rows that replace it, so the card does not jump. */}
-            {Array.from({ length: compact ? limit : Math.min(limit, 3) }, (_, i) => (
+            {Array.from({ length: compact ? compactRows : Math.min(limit, 3) }, (_, i) => (
               <Skeleton key={i} height={ROW_HEIGHT - SKELETON_GAP} borderRadius={12} />
             ))}
           </View>
         </Skeleton.Animate>
       ) : (
-        <LeaderboardList lines={lines} format={format} />
+        <>
+          <LeaderboardList lines={lines} format={format} />
+          {compact && lines.length < compactRows && <View style={{ height: ROW_HEIGHT * (compactRows - lines.length) }} />}
+        </>
       )}
       {footer}
     </View>

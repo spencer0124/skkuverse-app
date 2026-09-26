@@ -50,7 +50,9 @@ the rest.
    at once.
 4. **Revive** (wave-run). While revives are left, the offer is a button whose fill drains over `REVIVE_WINDOW_MS`;
    when it is empty the button is spent and the crash is final. No ad to play makes the offer
-   unavailable, and the crash final at once. Only an ad that reported the reward and then
+   unavailable, and the crash final at once. A failed load is retried a few times with backoff
+   (`useRewardedRevive`) before it counts as "no ad" — the button waits with a spinner meanwhile —
+   because a single miss at mount otherwise hid the offer for every crash on that screen. Only an ad that reported the reward and then
    closed revives the run; the page accepts `host:revive` up to the engine's `MAX_REVIVES`.
 5. **Final.** The moment the crash is final, a signed-in player with a nickname is written to
    the board if this is their best, and their line slides into place.
@@ -58,6 +60,13 @@ the rest.
    its title. If the run could go on the board once the player signs in or picks a nickname,
    "next" first offers that in `RankPromptSheet` — once per screen, and again only after a new
    device best. "Later" carries on to the title.
+
+   The sheet reports its own close through `onDismiss`, and gorhom also calls it after the
+   sheet was taken off screen in code — with a handler from a render that still showed it. So
+   "later" reads the prompt from a ref and ignores a dismiss once the prompt is gone; otherwise
+   accepting "pick a nickname" would throw the run away behind the player's back. The detour
+   that follows (sign-in, nickname) carries the id of the run it left from, and a later run
+   never inherits it.
 
 Backgrounding the app, or a screen over the game, sends `host:pause` and holds the countdown.
 A page may ignore it: a typing run keeps its clock.
@@ -148,7 +157,8 @@ rules and their tests.
 
 On home, one Hall of Fame card (`HomeHallOfFame`) holds every game on the screen, a page each —
 its name, then its podium (`HOME_LIMIT` places) — turning over like the banner (`components/LoopingPager`, shared
-with it). It sits under the first grid holding a game's tile; a game no server grid holds gets a
+with it). A player further down gets their line right under the podium, with no "⋯" between;
+once any game has one, every page keeps that line's room, so the carousel holds one height. It sits under the first grid holding a game's tile; a game no server grid holds gets a
 "mini games" grid of its own, fixed in the app, and when no server grid holds any, the card goes
 under that. "View all" opens the board of the game on screen.
 

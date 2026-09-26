@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useAuthStore } from '@skkuverse/shared';
 import type { NativeGameId } from '../ids';
@@ -38,18 +38,25 @@ export function useBoardTop(gameId: NativeGameId, limit: number, options: BoardR
   });
 }
 
+const myBestQuery = (gameId: NativeGameId, uid: string | null, options: BoardReadOptions = {}) => ({
+  queryKey: [...leaderboardKey(gameId), 'me', uid],
+  enabled: uid !== null,
+  queryFn: async (): Promise<{ entry: BoardEntry; rank: number } | null> => {
+    const entry = await myEntry(gameId, uid!);
+    return entry ? { entry, rank: await rankOf(gameId, orderOf(gameId), entry.score) } : null;
+  },
+  staleTime: STALE_MS,
+  refetchOnMount: options.refetchOnMount ?? true,
+});
+
 /** The signed-in player's best with its rank; null data when they have none. */
 export function useMyBest(gameId: NativeGameId, uid: string | null, options: BoardReadOptions = {}) {
-  return useQuery({
-    queryKey: [...leaderboardKey(gameId), 'me', uid],
-    enabled: uid !== null,
-    queryFn: async (): Promise<{ entry: BoardEntry; rank: number } | null> => {
-      const entry = await myEntry(gameId, uid!);
-      return entry ? { entry, rank: await rankOf(gameId, orderOf(gameId), entry.score) } : null;
-    },
-    staleTime: STALE_MS,
-    refetchOnMount: options.refetchOnMount ?? true,
-  });
+  return useQuery(myBestQuery(gameId, uid, options));
+}
+
+/** `useMyBest` for several games at once — the same reads, so the same cache. */
+export function useMyBests(gameIds: readonly NativeGameId[], uid: string | null, options: BoardReadOptions = {}) {
+  return useQueries({ queries: gameIds.map((id) => myBestQuery(id, uid, options)) });
 }
 
 /** Where a score not on the board (yet) would rank. */
