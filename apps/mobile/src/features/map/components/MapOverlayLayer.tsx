@@ -316,6 +316,19 @@ interface MapOverlayLayerProps {
    * place ids are layer-set prefixed, so they never meet a building id.
    */
   hiddenIds?: ReadonlySet<string>;
+  /**
+   * Draw this one overlay and nothing else — how a layer that is OFF still
+   * shows the place the peek sheet is open on. "View on map" from a mini app
+   * can land on a 주점 at 15:00, outside its schedule, and a camera flown to
+   * empty ground under a sheet naming a place reads as broken.
+   *
+   * Selection outranks visibility, and only for the one place: turning the
+   * layer on instead would write a resolved value into `useMapLayerStore`,
+   * freezing the schedule and making the server's default indistinguishable
+   * from the user's choice. Such a layer is outside `collisionPeers`, so the
+   * ladder never runs here.
+   */
+  onlyId?: string;
 }
 
 export function MapOverlayLayer({
@@ -324,17 +337,16 @@ export function MapOverlayLayer({
   selectedPlaceId,
   onMarkerTap,
   hiddenIds,
+  onlyId,
 }: MapOverlayLayerProps) {
   const { data: overlays } = useLayerOverlays(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  const all = useMemo(
-    () =>
-      hiddenIds && hiddenIds.size > 0
-        ? (overlays ?? []).filter((o) => !hiddenIds.has(o.id))
-        : (overlays ?? []),
-    [overlays, hiddenIds],
-  );
+  const all = useMemo(() => {
+    const list = overlays ?? [];
+    if (onlyId !== undefined) return list.filter((o) => o.id === onlyId);
+    return hiddenIds && hiddenIds.size > 0 ? list.filter((o) => !hiddenIds.has(o.id)) : list;
+  }, [overlays, hiddenIds, onlyId]);
 
   // A booth changes state on the device's clock rather than on a refetch: the
   // payload is identical either side of a boundary, so this hook owns the timer

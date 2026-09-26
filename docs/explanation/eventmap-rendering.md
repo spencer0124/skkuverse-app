@@ -169,6 +169,16 @@ the filter (`placesById` is built from **all** event markers): a shared link mus
 layer the recipient happens to have hidden, and hiding a layer must not slam shut a sheet someone is
 reading.
 
+**The selected place is drawn whatever hides it.** Reaching a place is half the job; the pin has to
+be under the sheet, or a mini app's "view on map" at 15:00 flies the camera to an empty 주점 plot. <!-- conventions:allow-korean: the layer label the app shows -->
+So selection outranks visibility for that one place: a layer that is off mounts as the selected
+overlay alone (`MapOverlayLayer`'s `onlyId`), and the facet filter never takes the selected place
+out of `filteredOutIds`. Closing the sheet clears the selection, and the pin goes with it. The layer
+itself is not turned on — that would write a resolved value into `useMapLayerStore` and freeze the
+schedule (§5.4) — and the sheet does not go full height, because the map is the context the user
+asked for. What such a layer does not do is join the collision ladder, since `collisionPeers` holds
+drawn layers only, so the selected pin can share a coordinate with a visible pin on another layer.
+
 ### 4.2 One order, chosen by the server
 
 The list has no sort control and no count header. A chip with no `list` orders its rows by the

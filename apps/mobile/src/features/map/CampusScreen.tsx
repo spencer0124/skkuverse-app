@@ -1092,12 +1092,18 @@ export function CampusScreen() {
    * The places the list filters took out, hidden from the map as well, so the
    * pins and the rows describe the same view: 주점 on 2일차 shows 2일차's pubs
    * on both. Empty while nothing is narrowed or the chip has no list.
+   *
+   * The selected place is never taken out: a link to 2일차's pub while 1일차 is
+   * narrowed still draws that one pin under its sheet. The rows are unaffected,
+   * since the list filters `layerPlaces` itself.
    */
   const filteredOutIds = useMemo<ReadonlySet<string>>(() => {
     if (!narrowedList) return NO_IDS;
     const kept = new Set(filterByFacets(layerPlaces, narrowedList, facetSelection));
-    return new Set(layerPlaces.filter((p) => !kept.has(p)).map((p) => p.id));
-  }, [layerPlaces, narrowedList, facetSelection]);
+    return new Set(
+      layerPlaces.filter((p) => !kept.has(p) && p !== selectedPlace).map((p) => p.id),
+    );
+  }, [layerPlaces, narrowedList, facetSelection, selectedPlace]);
 
   /**
    * What the campus sheet shows: the event list while a chip has narrowed the
@@ -1453,7 +1459,23 @@ export function CampusScreen() {
               // from its snapshot, which made this a chain every reader had to
               // reproduce exactly; it is one function call now, and `now` is the
               // same one the list beside it reads.
-              if (!isLayerVisible(layer, layerState, now)) return null;
+              //
+              // One exception, and it is not a tier: the place the sheet is
+              // open on is drawn even when its layer is off, as that single
+              // pin (see `onlyId`). Nothing is written to the layer store.
+              if (!isLayerVisible(layer, layerState, now)) {
+                if (selectedPlace?.layerId !== layer.id) return null;
+                return (
+                  <MapOverlayLayer
+                    key={layer.id}
+                    layer={layer}
+                    collisionPeers={collisionPeers}
+                    selectedPlaceId={selectedPlaceId}
+                    onMarkerTap={handleMarkerTap}
+                    onlyId={selectedPlace.id}
+                  />
+                );
+              }
 
               // ONE component per layer, whatever that layer draws. The
               // `layer.type === 'polyline'` branch that used to stand here is
