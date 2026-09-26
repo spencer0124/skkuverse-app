@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@skkuverse/sds';
 import { SdsColors, SdsSpacing, useT } from '@skkuverse/shared';
-import { GoogleAuthError } from '@/services/google-auth';
+import { signInErrorCode, signInErrorMessageKey } from '@/services/google-auth';
 import {
   signInWithDeviceMigration,
   classifyAndRestoreOnboarding,
@@ -17,12 +17,19 @@ export default function LoginScreen() {
   const { t } = useT();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // A ref, not the state: the button only disables on the next render, and two
+  // taps within one render both read the state as false. Android then rejects
+  // the first flow with IN_PROGRESS, whose finally clears the spinner while the
+  // second flow's sheet is still open.
+  const inFlight = useRef(false);
 
   const handleSignIn = async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    logAuthEvent({ event: 'signin_attempt', surface: 'login_screen' });
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
+      setLoading(true);
+      setErrorMessage(null);
+      logAuthEvent({ event: 'signin_attempt', surface: 'login_screen' });
       const user = await signInWithDeviceMigration('login');
       logAuthEvent({ event: 'signin_success', surface: 'login_screen' });
       const result = await classifyAndRestoreOnboarding(user.uid, 'login');
@@ -41,28 +48,22 @@ export default function LoginScreen() {
           break;
       }
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        switch (err.code) {
-          case 'DOMAIN_NOT_ALLOWED':
-            logAuthEvent({ event: 'signin_domain_rejected', surface: 'login_screen' });
-            setErrorMessage(t('auth.domainNotAllowed'));
-            break;
-          case 'CANCELLED':
-            logAuthEvent({ event: 'signin_cancel', surface: 'login_screen' });
-            break;
-          case 'PLAY_SERVICES_UNAVAILABLE':
-            logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: 'play_services' });
-            setErrorMessage(t('auth.playServicesError'));
-            break;
-          default:
-            logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: err.code });
-            setErrorMessage(t('auth.unknownError'));
-        }
+      const code = signInErrorCode(err);
+      if (code === 'CANCELLED') {
+        logAuthEvent({ event: 'signin_cancel', surface: 'login_screen' });
+      } else if (code === 'DOMAIN_NOT_ALLOWED') {
+        logAuthEvent({ event: 'signin_domain_rejected', surface: 'login_screen' });
       } else {
-        logAuthEvent({ event: 'signin_error', surface: 'login_screen', detail: 'unknown' });
-        setErrorMessage(t('auth.unknownError'));
+        logAuthEvent({
+          event: 'signin_error',
+          surface: 'login_screen',
+          detail: code === 'PLAY_SERVICES_UNAVAILABLE' ? 'play_services' : code,
+        });
       }
+      const key = signInErrorMessageKey(code);
+      if (key) setErrorMessage(t(key));
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
   };

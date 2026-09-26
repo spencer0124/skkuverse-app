@@ -12,7 +12,11 @@ import {
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
-import { GoogleAuthError } from '@/services/google-auth';
+import {
+  signInErrorCode,
+  signInErrorMessageKey,
+  type GoogleSignInErrorCode,
+} from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
@@ -47,6 +51,14 @@ import { decideOnboardingCompletion } from './completion';
 import { assembleOnboardingPickerSelections } from './utils/assemblePickerSelections';
 import { fillProfileIfMissing } from '@/features/profile/service';
 
+// The analytics `detail` the screen reported for these before the codes were
+// shared, kept so the funnel's series continue. (A non-GoogleAuthError, once
+// 'unknown', now reports 'UNKNOWN' like the rest.)
+const ONBOARDING_ERROR_DETAIL: Partial<Record<GoogleSignInErrorCode, string>> = {
+  DOMAIN_NOT_ALLOWED: 'domain_not_allowed',
+  CANCELLED: 'cancelled',
+};
+
 const STEP_KEYS: Record<number, OnboardingStepKey> = {
   1: 'campus',
   2: 'primary_dept',
@@ -78,6 +90,11 @@ export function OnboardingScreen() {
   });
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  // A ref, not the state: the button only disables on the next render, and two
+  // taps within one render both read the state as false. Android then rejects
+  // the first flow with IN_PROGRESS, whose finally clears the spinner while the
+  // second flow's sheet is still open.
+  const signInInFlight = useRef(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Per-step funnel: each step enter fires both screen_view + onboarding_step
@@ -154,33 +171,30 @@ export function OnboardingScreen() {
   // 2026-05-25: step 5 auto-skip 제거. 권한 상태와 무관하게 항상 "받을까요?"
   // 페이지를 노출하여 명시적 선택을 유도. checkPermission 호출도 불필요.
   const handleSignIn = useCallback(async () => {
-    setLoginLoading(true);
-    setLoginError(null);
-    logOnboardingStep({ step: 'login', action: 'signin_attempt' });
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     try {
+      setLoginLoading(true);
+      setLoginError(null);
+      logOnboardingStep({ step: 'login', action: 'signin_attempt' });
       const user = await signInWithDeviceMigration('onboarding');
       logOnboardingStep({ step: 'login', action: 'signin_success' });
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
       dispatch({ type: 'NEXT' });
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        switch (err.code) {
-          case 'DOMAIN_NOT_ALLOWED':
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'domain_not_allowed' });
-            setLoginError(t('onboarding.oauthErrorTitle'));
-            break;
-          case 'CANCELLED':
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'cancelled' });
-            break;
-          default:
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: err.code });
-            setLoginError(t('onboarding.oauthErrorRetry'));
-        }
-      } else {
-        logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'unknown' });
-        setLoginError(t('onboarding.oauthErrorRetry'));
-      }
+      const code = signInErrorCode(err);
+      logOnboardingStep({
+        step: 'login',
+        action: 'signin_error',
+        detail: ONBOARDING_ERROR_DETAIL[code] ?? code,
+      });
+      // The domain case keeps the wizard's own headline; every other failure
+      // says what went wrong (it used to show the button label "다시 해보기").
+      const key = signInErrorMessageKey(code);
+      if (code === 'DOMAIN_NOT_ALLOWED') setLoginError(t('onboarding.oauthErrorTitle'));
+      else if (key) setLoginError(t(key));
     } finally {
+      signInInFlight.current = false;
       setLoginLoading(false);
     }
   }, [t]);

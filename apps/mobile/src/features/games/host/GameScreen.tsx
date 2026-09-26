@@ -10,6 +10,7 @@ import { authStore, SdsColors, useAuthStore, useT } from '@skkuverse/shared';
 import type { GameMessage } from '@skkuverse/game-host';
 import { AdUnitIds } from '@/utils/ad-helper';
 import { logHandledError } from '@/services/crashlytics';
+import { signInErrorMessageKey } from '@/services/google-auth';
 import { playWebHaptic } from '@/features/webview/haptic';
 import { emailPrefixOf } from '@/features/profile/domain';
 import { useUserProfile } from '@/features/profile/useUserProfile';
@@ -76,6 +77,7 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
   // tells the two apart: once it is gone, a late dismiss is not "later".
   const promptRef = useRef(prompt);
   promptRef.current = prompt;
+  const signInInFlight = useRef(false);
   // The board is offered once per screen, and again only after a new best:
   // a game has many runs, and asking after every one of them is nagging.
   const offeredBoard = useRef(false);
@@ -258,11 +260,20 @@ export function GameScreen({ gameId }: { gameId: NativeGameId }) {
       auto.pickNickname();
       return;
     }
+    // `busy` disables the button only from the next render; a second tap in
+    // this one would start a second sign-in.
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     setPrompt({ ...prompt, busy: true, error: null });
-    const failure = await auto.signIn();
-    if (failure === null) setPrompt(null);
-    else if (failure === 'cancelled') setPrompt((p) => p && { ...p, busy: false });
-    else setPrompt((p) => p && { ...p, busy: false, error: t(failure === 'domain' ? 'auth.domainNotAllowed' : 'auth.unknownError') });
+    const failure = await auto.signIn().finally(() => {
+      signInInFlight.current = false;
+    });
+    if (failure === null) {
+      setPrompt(null);
+      return;
+    }
+    const key = signInErrorMessageKey(failure);
+    setPrompt((p) => p && { ...p, busy: false, error: key && t(key) });
   };
 
   const declinePrompt = () => {

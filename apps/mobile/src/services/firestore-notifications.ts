@@ -310,12 +310,27 @@ export async function registerDevice(
     );
 }
 
-export async function unregisterDevice(deviceId: string): Promise<void> {
+/**
+ * @param signal aborted: the caller stopped waiting while App Check was
+ *   priming. Issuing the write then would queue it behind whatever the caller
+ *   did next — after sign-in, the re-register, which this would then undo.
+ * @param onIssued called once the write is handed to the native module, whose
+ *   serial queue (single-thread executor on Android, serial method queue on
+ *   iOS) passes it to Firestore ahead of any later write — before the ack.
+ */
+export async function unregisterDevice(
+  deviceId: string,
+  signal?: AbortSignal,
+  onIssued?: () => void,
+): Promise<void> {
   await primeAppCheck();
-  await firestore()
+  if (signal?.aborted) return;
+  const write = firestore()
     .collection(DEVICES)
     .doc(deviceId)
     .update({ active: false });
+  onIssued?.();
+  await write;
 }
 
 // ── Realtime subscription ────────────────────────────────────────

@@ -5,7 +5,7 @@ import { getAuth } from '@react-native-firebase/auth';
 import { useAuthStore } from '@skkuverse/shared';
 import { logHandledError } from '@/services/crashlytics';
 import { classifyAndRestoreOnboarding, signInWithDeviceMigration } from '@/services/auth-flow';
-import { GoogleAuthError } from '@/services/google-auth';
+import { GoogleAuthError, type GoogleSignInErrorCode } from '@/services/google-auth';
 import { emailPrefixOf } from '@/features/profile/domain';
 import { getProfile } from '@/features/profile/repository';
 import type { ProfileState } from '@/features/profile/useUserProfile';
@@ -208,7 +208,7 @@ export function useAutoSubmit(input: {
    * is written by the effect above as soon as their profile and best are read.
    * Resolves to what went wrong, or null.
    */
-  const signIn = useCallback(async (): Promise<'domain' | 'failed' | 'cancelled' | null> => {
+  const signIn = useCallback(async (): Promise<GoogleSignInErrorCode | null> => {
     setSigningIn(true);
     try {
       const run = sessionRef.current.run;
@@ -234,12 +234,10 @@ export function useAutoSubmit(input: {
       else setDetour({ state: 'back', step: 'signIn', runId: sessionRef.current.run?.id ?? null });
       return null;
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        if (err.code === 'CANCELLED') return 'cancelled';
-        if (err.code === 'DOMAIN_NOT_ALLOWED') return 'domain';
-      }
+      // signInWithGoogle already recorded the sign-in failures worth a row.
+      if (err instanceof GoogleAuthError) return err.code;
       logHandledError('games/sign-in', err);
-      return 'failed';
+      return 'UNKNOWN';
     } finally {
       setSigningIn(false);
     }
