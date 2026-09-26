@@ -41,6 +41,7 @@ import { AdUnitIds } from '@/utils/ad-helper';
 import { resolveWebviewCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
 import { openAppFirst } from '@/features/webview/open-external';
+import { handOffAppLinks } from '@/features/webview/open';
 import { playWebHaptic } from '@/features/webview/haptic';
 
 /** Host shown as the header title when neither a param nor a page title exists. */
@@ -167,6 +168,8 @@ export default function WebViewScreen() {
           // button only where it will work. Advertises; the gate still grants.
           injectedJavaScriptBeforeContentLoaded={WEB_BRIDGE_ADVERTISEMENT_JS}
           onNavigationStateChange={onNavigationStateChange}
+          // An Instagram link in the page opens in Instagram, not in this shell.
+          onShouldStartLoadWithRequest={handOffAppLinks}
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
           onError={() => {

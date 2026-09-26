@@ -140,7 +140,7 @@ export const EventMapPeekSheet = forwardRef<SheetRef, EventMapPeekSheetProps>(
                   {pickI18nText(place.text, lang)}
                 </Txt>
                 {instagram ? (
-                  <InstagramInlineButton action={instagram} onNavigateAway={onNavigateAway} />
+                  <InstagramInlineButton action={instagram} />
                 ) : null}
               </View>
             ) : null}

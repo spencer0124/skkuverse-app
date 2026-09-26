@@ -18,6 +18,10 @@
  * bookmark button and an "add to home screen" menu. The two are now genuinely
  * separate destinations; there is deliberately no helper that blurs them again.
  *
+ * An Instagram address never reaches a webview either: it goes to the OS as
+ * is, and Instagram's own universal/app link opens it in the app, or the
+ * browser opens it without one (`lib/instagram-url.ts`).
+ *
  * What the loaded page is allowed to do is NOT decided here — the /webview
  * screen resolves that per message from the document's own origin. See
  * `features/webview/capabilities.ts`.
@@ -26,6 +30,7 @@ import { Linking } from 'react-native';
 import { router } from 'expo-router';
 import { getMiniAppOrigins, miniAppTargetForUrl } from '@skkuverse/shared';
 import { openMiniAppTarget } from '@/features/mini-app/open';
+import { handsOffToOs, isInstagramUrl } from '@/lib/instagram-url';
 import { normalizeWebUrl } from '@/lib/web-url';
 
 export interface OpenWebViewParams {
@@ -34,11 +39,20 @@ export interface OpenWebViewParams {
   title?: string;
 }
 
+/**
+ * Whether `openWebView` hands `url` to the OS rather than pushing a screen: a
+ * non-web scheme a WebView cannot render (`mailto:`, `tel:`, `itms-apps:`), or
+ * an Instagram address. The place sheet asks too, to stay up for an app switch.
+ */
+export function leavesApp(url: string): boolean {
+  const { url: normalized, isWeb } = normalizeWebUrl(url);
+  return !isWeb || isInstagramUrl(normalized);
+}
+
 export function openWebView({ url, title }: OpenWebViewParams): void {
   const { url: normalized, isWeb } = normalizeWebUrl(url);
-  if (!isWeb) {
-    // mailto:/tel:/itms-apps: etc. — a WebView can't render these.
-    void Linking.openURL((url ?? '').trim()).catch(() => {});
+  if (leavesApp(url)) {
+    void Linking.openURL(isWeb ? normalized : (url ?? '').trim()).catch(() => {});
     return;
   }
   const target = miniAppTargetForUrl(normalized, getMiniAppOrigins());
@@ -50,4 +64,16 @@ export function openWebView({ url, title }: OpenWebViewParams): void {
     pathname: '/webview',
     params: { url: normalized, title: title ?? '' },
   } as never);
+}
+
+/**
+ * `onShouldStartLoadWithRequest` for the /webview and /mini-app shells: an
+ * Instagram link tapped in the page goes to the OS instead of loading in the
+ * webview, where it would never reach the Instagram app. Everything else —
+ * including an Instagram embed in an iframe — loads as before.
+ */
+export function handOffAppLinks(request: { url: string; isTopFrame?: boolean }): boolean {
+  if (!handsOffToOs(request)) return true;
+  void Linking.openURL(request.url).catch(() => {});
+  return false;
 }

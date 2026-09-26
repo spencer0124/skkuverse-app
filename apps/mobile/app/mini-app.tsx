@@ -93,6 +93,7 @@ import { computeViewport } from '@/features/mini-app/viewport';
 import { resolveMiniAppCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
 import { openAppFirst } from '@/features/webview/open-external';
+import { handOffAppLinks } from '@/features/webview/open';
 import { playWebHaptic } from '@/features/webview/haptic';
 import { logMiniAppEvent } from '@/services/analytics';
 import { MiniAppEmojiLogo } from '@/components/MiniAppEmojiLogo';
@@ -751,6 +752,8 @@ export default function MiniAppScreen() {
           // 배경색을 WebView 자체에도 — 첫 페인트 전 흰 번쩍임과 오버스크롤 색을 셸에 맞춘다.
           style={[styles.webview, { backgroundColor: shell.background }]}
           onNavigationStateChange={onNavChange}
+          // 페이지 안 Instagram 링크는 이 셸에서 열지 않고 OS로 넘긴다 — Instagram 앱이 연다.
+          onShouldStartLoadWithRequest={handOffAppLinks}
           onMessage={handleMessage}
           // `window.skkuverse`(프로토콜 버전·권한 목록·viewport)와 --sv-* CSS 변수를 페이지
           // 스크립트보다 먼저 심는다. 목록은 알림일 뿐 권한이 아니다(메시지마다 게이트가 판정).

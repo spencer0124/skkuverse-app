@@ -553,11 +553,13 @@ which is a separate question.
 (`mailto:`, `tel:`), pushes nothing, so there is nothing to protect — and nothing to restore from: an
 app switch backgrounds the app without blurring the navigator, so no focus event would arrive. A
 sheet dismissed for one stayed gone, with the campus sheet held down beside it and the arm left to
-fire on some later, unrelated focus. So `useInstagramNavigate` tries the app first with the sheet
-still presented and runs the dismiss-and-push only as its webview fallback
-(`openInstagramAppFirst`), and `usePlaceNavigate` skips the dismiss for a non-web URL. The gap was
+fire on some later, unrelated focus. So `useInstagramNavigate` never dismisses: it hands the post or
+profile's https address to the OS, which opens it in Instagram or, without the app, in the browser
+(`lib/instagram-url.ts`). `usePlaceNavigate` skips the dismiss for any URL `openWebView` hands to the
+OS — a non-web URL, or an Instagram address (`leavesApp` in `features/webview/open.ts`). The gap was
 latent until Instagram started opening natively (`eea351d`); before that every tap fell back to the
-webview, whose round trip restores.
+webview, whose round trip restores. The `instagram://p/<shortcode>` scheme that commit tried first
+opened Instagram's home feed rather than the post, which is why the https address replaced it.
 
 The same constraint is why `BuildingDetailSheet` dismisses before pushing `/map/hssc`, and why
 `NoticeDetailScreen`'s original-notice link hands off to the system browser rather than pushing.

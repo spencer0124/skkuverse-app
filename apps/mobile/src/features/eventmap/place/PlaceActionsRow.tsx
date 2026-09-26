@@ -62,7 +62,7 @@ export function PlaceActionsRow({
 }) {
   const { t } = useT();
   const lang = useSettingsStore((s) => s.appLanguage);
-  const openInstagram = useInstagramNavigate(onNavigateAway);
+  const openInstagram = useInstagramNavigate();
   const navigate = usePlaceNavigate(onNavigateAway);
   const { data: miniApps } = useMiniAppIndex();
 
@@ -83,7 +83,7 @@ export function PlaceActionsRow({
         <LinkPill
           label={t('eventmap.instagram')}
           icon={<InstagramLogoIcon size={16} color={SdsColors.grey800} />}
-          onPress={() => openInstagram(instagram, pickI18nText(instagram.label, lang))}
+          onPress={() => openInstagram(instagram)}
         />
       ) : null}
 
@@ -134,23 +134,16 @@ export function PlaceActionsRow({
  * Smaller than a row pill, since it rides the title's line rather than a row
  * of its own. The logo is still what says it goes somewhere.
  */
-export function InstagramInlineButton({
-  action,
-  onNavigateAway,
-}: {
-  action: PlaceInstagramAction;
-  onNavigateAway?: () => void;
-}) {
+export function InstagramInlineButton({ action }: { action: PlaceInstagramAction }) {
   const { t } = useT();
-  const lang = useSettingsStore((s) => s.appLanguage);
-  const openInstagram = useInstagramNavigate(onNavigateAway);
+  const openInstagram = useInstagramNavigate();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={t('eventmap.instagram')}
       hitSlop={8}
-      onPress={() => openInstagram(action, pickI18nText(action.label, lang))}
+      onPress={() => openInstagram(action)}
       style={({ pressed }) => [styles.inlinePill, pressed && styles.pressed]}
     >
       <InstagramLogoIcon size={14} color={SdsColors.grey800} />
