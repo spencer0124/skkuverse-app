@@ -34,7 +34,6 @@ import {
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -90,6 +89,7 @@ import { HeaderIconButton } from '@/lib/HeaderIconButton';
 import { faviconUrl } from '@/features/mini-app/protocol';
 import { dispatchMiniAppMessage, pageOrigin, type MiniAppEffects } from '@/features/mini-app/dispatch';
 import { computeViewport } from '@/features/mini-app/viewport';
+import { useSwipeGuard } from '@/features/mini-app/useSwipeGuard';
 import { resolveMiniAppCapabilities } from '@/features/webview/capabilities';
 import { performWebAction } from '@/features/webview/web-action';
 import { openAppFirst } from '@/features/webview/open-external';
@@ -348,7 +348,13 @@ export default function MiniAppScreen() {
   const startUrl = detail?.startUrl ? normalizeWebUrl(detail.startUrl).url : '';
   // 처음 열 페이지 — `path`가 있으면 그 페이지, 없거나 origin을 벗어나면 startUrl.
   // startUrl은 여전히 이 미니앱의 "홈"이다.
-  const initialUrl = startUrl ? resolveMiniAppUrl(startUrl, params.path) : '';
+  const resolvedUrl = startUrl ? resolveMiniAppUrl(startUrl, params.path) : '';
+  // 한 번 정해지면 고정 — 레지스트리 refetch로 startUrl 문자열이 조금이라도 바뀌면
+  // (슬래시, 쿼리) WebView source가 바뀌어 페이지가 다시 로드되고 스크롤이 맨 위로 간다.
+  // 이미 연 화면은 처음 URL 그대로 둔다. 렌더 중 setState는 파생 상태 패턴(effect면 한 프레임 늦음).
+  const [pinnedUrl, setPinnedUrl] = useState('');
+  if (!pinnedUrl && resolvedUrl) setPinnedUrl(resolvedUrl);
+  const initialUrl = pinnedUrl || resolvedUrl;
   const serviceName = entry?.name ?? '';
   const shellLogo = entry?.shellLogo ?? null;
   // 공유/홈추가 링크가 가리키는 웹 도메인 — 서버 설정(GET /app/config). 아직 못
@@ -359,7 +365,14 @@ export default function MiniAppScreen() {
   const webRef = useRef<WebView>(null);
 
   // ── Viewport — 페이지가 콘텐츠를 둘 수 있는 영역(--sv-* CSS 변수, getViewport()) ──
-  const headerHeight = useHeaderHeight();
+  // useHeaderHeight() 대신 — 뒤로 스와이프 중(navbar가 숨겨지는 동안)에는 값을 고정한다.
+  // 스크롤 복원 가드도 함께(features/mini-app/swipe-guard.ts 참고).
+  const { headerHeight, onScrollY, onLoadStart } = useSwipeGuard(webRef);
+  // iOS는 헤더를 항상 translucent로 깔고 WebView를 직접 헤더 아래로 내린다. 불투명 헤더면
+  // RNS가 콘텐츠를 헤더 높이만큼 내려주는데, 인터랙티브 pop이 시작되면 (tabs)가 navbar를
+  // 숨기고 그 높이가 0이 되어 WebView 프레임이 제스처 도중 바뀌었다(취소하면 스크롤이 맨 위로).
+  // translucent면 화면 bounds가 navbar와 무관하다. Android는 이 문제가 없어 그대로 둔다.
+  const headerOverContent = isOverlay || Platform.OS === 'ios';
   // 하단 바가 덮는 높이 중 기기 안전영역(insets.bottom) 밖의 부분.
   const bottomBarHeight =
     BAR_PAD_TOP + BAR_H + Math.max(insets.bottom, BAR_MIN_PAD_BOTTOM) - insets.bottom;
@@ -435,6 +448,8 @@ export default function MiniAppScreen() {
   // (effect로 setState하면 첫 페인트가 한 프레임 늦는다).
   const [navigatedUrl, setNavigatedUrl] = useState('');
   const currentUrl = navigatedUrl || initialUrl;
+  // 재렌더마다 새 객체를 넘기지 않는다 — URL이 같으면 네이티브가 다시 로드하지 않지만, 굳이 기대지 않는다.
+  const source = useMemo(() => ({ uri: initialUrl }), [initialUrl]);
   const [pageTitle, setPageTitle] = useState(serviceName);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
@@ -533,6 +548,10 @@ export default function MiniAppScreen() {
     // contentOffset.y만 읽으므로 최소 구조 타입(전체 이벤트가 이 타입에 대입 가능 — 반공변).
     (e: { nativeEvent: { contentOffset: { y: number } } }) => {
       const y = e.nativeEvent.contentOffset.y;
+      // 스와이프 취소 후 복원용 — 하단 바가 없어도 오프셋은 늘 기록한다.
+      onScrollY(y);
+      // 하단 바가 없으면 접을 것도 없다.
+      if (!isBottomBar) return;
       // 상단 근처(러버밴드 포함)는 항상 펼침.
       if (y < 10) {
         collapsed.value = withTiming(0, COLLAPSE_TIMING);
@@ -549,7 +568,7 @@ export default function MiniAppScreen() {
       }
       lastY.current = y;
     },
-    [collapsed],
+    [collapsed, isBottomBar, onScrollY],
   );
 
   // ── 뒤로가기: 웹뷰 히스토리 우선, 루트에서만 화면 종료 ──
@@ -718,7 +737,15 @@ export default function MiniAppScreen() {
       };
 
   return (
-    <View style={[styles.container, { backgroundColor: shell.background }]}>
+    <View
+      // opaque 셸이 iOS에서 translucent 헤더 아래로 들어가는 몫 — WebView를 헤더 아래로 내린다
+      // (headerOverContent 참고). headerHeight는 스와이프 중 고정된 값이라 프레임이 흔들리지 않는다.
+      style={[
+        styles.container,
+        { backgroundColor: shell.background },
+        headerOverContent && !isOverlay && { paddingTop: headerHeight },
+      ]}
+    >
       {/* 상태바 아이콘 색 — 셸(과 shell.set)이 정한다. 화면을 떠나면 루트의 dark로 돌아간다. */}
       <StatusBar style={shell.statusBar === 'light' ? 'light' : 'dark'} />
       {/* 네이티브 헤더 — 버스/공지와 동일 메트릭. 좌: native back(=미니앱 종료, glass 캡슐)
@@ -733,7 +760,10 @@ export default function MiniAppScreen() {
           // (--sv-inset-top)로 상태바·헤더 아래로 비켜선다.
           ...(isOverlay
             ? { headerTransparent: true, headerStyle: { backgroundColor: 'transparent' } }
-            : {}),
+            : headerOverContent
+              ? // iOS opaque — 보이는 건 그대로 불투명 헤더(셸 배경색), 레이아웃만 translucent.
+                { headerTransparent: true, headerStyle: { backgroundColor: shell.background } }
+              : {}),
           ...headerItems,
           // iOS 엣지 스와이프 핸드오프: 웹뷰 히스토리 있으면 화면 pop 제스처 OFF →
           // WKWebView가 스와이프를 소유(웹뷰 back). 루트면 ON → 스와이프 = 미니앱 종료.
@@ -748,7 +778,7 @@ export default function MiniAppScreen() {
       {initialUrl ? (
         <WebView
           ref={webRef}
-          source={{ uri: initialUrl }}
+          source={source}
           // 배경색을 WebView 자체에도 — 첫 페인트 전 흰 번쩍임과 오버스크롤 색을 셸에 맞춘다.
           style={[styles.webview, { backgroundColor: shell.background }]}
           onNavigationStateChange={onNavChange}
@@ -758,8 +788,9 @@ export default function MiniAppScreen() {
           // `window.skkuverse`(프로토콜 버전·권한 목록·viewport)와 --sv-* CSS 변수를 페이지
           // 스크립트보다 먼저 심는다. 목록은 알림일 뿐 권한이 아니다(메시지마다 게이트가 판정).
           injectedJavaScriptBeforeContentLoaded={bootstrapScript}
-          // 하단 바가 없으면 접을 것도 없다 — 스크롤마다 collapse 계산을 돌리지 않는다.
-          onScroll={isBottomBar ? onScroll : undefined}
+          // 오프셋은 늘 기록(스와이프 취소 후 복원용). collapse 계산은 하단 바가 있을 때만.
+          onScroll={onScroll}
+          onLoadStart={onLoadStart}
           javaScriptEnabled
           domStorageEnabled
           startInLoadingState
@@ -786,8 +817,9 @@ export default function MiniAppScreen() {
           Liquid Glass, 아니면 흰 박스+shadow 폴백(GlassSurface 내부 분기). 탭하면 닫힘. */}
       {detail?.noticeBanner && noticeVisible && (
         <View
-          // overlay 헤더면 WebView가 헤더 밑에서 시작하므로 배너를 헤더 아래로 내린다.
-          style={[styles.topNotice, isOverlay && { top: headerHeight + NOTICE_TOP }]}
+          // 헤더가 콘텐츠 위에 떠 있으면(overlay, iOS) 화면 y=0이 헤더 밑이므로 배너를 헤더
+          // 아래로 내린다. 절대 위치라 컨테이너 paddingTop은 적용되지 않는다.
+          style={[styles.topNotice, headerOverContent && { top: headerHeight + NOTICE_TOP }]}
           pointerEvents="box-none"
         >
           <GlassSurface interactive style={styles.topNoticePill}>

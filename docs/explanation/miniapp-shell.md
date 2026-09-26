@@ -155,7 +155,10 @@ Rendering follows directly:
   rather than assuming `'bottom'`, because guessing wrong flashes the bar on screen before a
   `'top'` mini app's real shell replaces it.
 - **`header: 'opaque'`** (the default) leaves the native header solid, and the WebView starts
-  below it — nothing added.
+  below it. On Android that is react-native-screens' own layout. On iOS the header is laid out
+  translucent (`headerTransparent: true`) but painted solid with the shell's `background`, and
+  the screen pushes the WebView down itself with `paddingTop` equal to the header height. It
+  looks the same; the reason is the back swipe (see below).
 - **`header: 'overlay'`** sets `headerTransparent: true` with a transparent `headerStyle`, and
   the WebView starts at `y = 0` under the status bar. The page insets itself with
   `--sv-inset-top`.
@@ -173,6 +176,37 @@ Rendering follows directly:
 `shell.set` can only touch `header`, `statusBar` and `background` at runtime — `bar` is a layout
 decision, so its type excludes the field entirely (`ShellPatch = Partial<Pick<ShellConfig,
 'header' | 'statusBar' | 'background'>>`), and only the manifest can move it.
+
+## The iOS back swipe: the WebView's frame stays put
+
+The screen under the mini-app shell, `(tabs)`, has no header. When an interactive pop starts,
+react-native-screens applies that screen's config and hides the navigation bar. While the bar
+is hidden it reports a header height of `0` (`calculateHeaderHeightIsModal`). Under a solid
+header, react-native-screens offsets the content by that height. So a back swipe that was
+started and then let go moved the WebView's frame twice mid-gesture. The page came back
+scrolled to the top (first seen in 인자셔틀).
+
+Four guards now keep the page where it was (`features/mini-app/useSwipeGuard.ts`, with the pure
+rules in `swipe-guard.ts` and `swipe-guard.test.mts`):
+
+- **The frame no longer follows the bar.** On iOS the header is always translucent, so the
+  screen's bounds do not depend on whether the bar is shown. An opaque shell gets its offset
+  from the screen's own `paddingTop` instead.
+- **The header height holds still while the screen is leaving.** From a closing
+  `transitionStart` until `transitionEnd` or `gestureCancel`, the height the screen lays out
+  with, and feeds to `computeViewport`, keeps its last value. It never drops to `0`. An overlay
+  mini app therefore gets no `viewport.changed` with `top: 0` mid-swipe.
+- **A cancelled swipe restores the scroll.** The screen always records the WebView's
+  `contentOffset.y`. If the offset is under half of where it was 150 ms after `gestureCancel`,
+  and no load started in between, it injects `window.scrollTo`. This only reaches pages whose
+  document scrolls. A page that scrolls an inner container reads as offset `0` and is left
+  alone.
+- **The start URL is pinned.** Once `initialUrl` is known it no longer changes for the life of
+  the screen. A registry refetch that returns a slightly different `startUrl` would otherwise
+  change `source` and reload the page.
+
+This covers the `/mini-app` shell only. `/webview` has the same header arrangement and has not
+been changed.
 
 ## `computeViewport`: what the page is told to avoid
 
@@ -208,7 +242,9 @@ its height, or a `shell.set` patch that changes what the chrome covers.
 
 - **Not yet verified on a physical device.** Built and exercised against the simulator/emulator
   plus the two unit-test matrices above; the Liquid Glass fallback path and the iOS edge-swipe
-  back handoff in particular still want a real-device pass.
+  back handoff in particular still want a real-device pass. So does the back-swipe guard: the
+  simulator's edge gesture always completed the pop, so a cancelled swipe has not been observed
+  there.
 - **The Android child-iframe caveat applies here too** (see the warning above): the origin gate
   trusts the top-level document's URL, so an embedded untrusted iframe on a bridged origin would
   inherit that origin's grant.

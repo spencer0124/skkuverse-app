@@ -26,8 +26,9 @@ export interface ViewportInput {
   /** Device safe-area insets (`useSafeAreaInsets`). */
   insets: Insets;
   /**
-   * The native header's full height, status bar included (`useHeaderHeight`).
-   * Read only for `header: 'overlay'`.
+   * The native header's full height, status bar included (`useHeaderHeight`,
+   * held still through a back swipe by `useSwipeGuard`). Read only for
+   * `header: 'overlay'`.
    */
   headerHeight: number;
   /**
