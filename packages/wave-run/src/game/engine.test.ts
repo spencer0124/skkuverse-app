@@ -212,6 +212,44 @@ describe('spawning', () => {
   });
 });
 
+describe('landing and diving', () => {
+  /** Step a fresh run (nothing spawns yet) and collect each tick's events. */
+  function eventsOf(script: Input[][]): GameState['events'][] {
+    const s = createGame(7);
+    beginRun(s);
+    return script.map((inputs) => {
+      step(s, inputs);
+      return s.events;
+    });
+  }
+
+  it('a jump lands once, softly, on the tick it touches down', () => {
+    const script: Input[][] = [['jump', 'jumpEnd'], ...Array.from({ length: 80 }, () => [])];
+    const events = eventsOf(script);
+    const lands = events.flatMap((e, t) => e.filter((x) => x.type === 'land').map((x) => ({ t, x })));
+    expect(lands).toHaveLength(1);
+    expect(lands[0]!.x).toEqual({ type: 'land', hard: false });
+    expect(lands[0]!.t).toBeGreaterThan(10);
+  });
+
+  it('ducking in the air dives once, and the landing is hard', () => {
+    const script: Input[][] = [['jump'], ...Array.from({ length: 8 }, () => []), ['duck'], ['duckEnd', 'duck'], ...Array.from({ length: 60 }, () => [])];
+    const all = eventsOf(script).flat();
+    expect(all.filter((e) => e.type === 'dive')).toHaveLength(2);
+    expect(all.filter((e) => e.type === 'land')).toEqual([{ type: 'land', hard: true }]);
+  });
+
+  it('ducking on the ground is not a dive, and never lands', () => {
+    const all = eventsOf([['duck'], [], [], ['duckEnd']]).flat();
+    expect(all).toEqual([]);
+  });
+
+  it('letting go of a dive before touching down lands softly', () => {
+    const script: Input[][] = [['jump'], ...Array.from({ length: 8 }, () => []), ['duck'], ['duckEnd'], ...Array.from({ length: 60 }, () => [])];
+    expect(eventsOf(script).flat().filter((e) => e.type === 'land')).toEqual([{ type: 'land', hard: false }]);
+  });
+});
+
 describe('a run', () => {
   it('does not move before it begins', () => {
     const s = createGame(7);

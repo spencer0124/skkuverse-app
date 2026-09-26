@@ -49,6 +49,8 @@ export const MAX_OBSTACLE_LENGTH = 3;
 // Score.
 export const SCORE_COEFFICIENT = 0.025;
 export const MILESTONE = 100;
+/** Every this many points the milestone chirp becomes a longer run of notes. */
+export const BIG_MILESTONE = 1000;
 /** Day and night swap every this many points (the original inverts at 700). */
 export const NIGHT_EVERY = 700;
 /** Ticks the day/night crossfade takes. */

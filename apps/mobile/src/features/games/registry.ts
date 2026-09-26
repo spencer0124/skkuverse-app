@@ -75,7 +75,7 @@ export const NATIVE_GAMES: Record<NativeGameId, NativeGame> = {
     Overlay: WaveRunOverlay,
     revives: true,
     keyboard: false,
-    sound: false,
+    sound: true,
     background: '#073E32',
     scrim: 'rgba(4,32,26,0.5)',
     homeEmoji: '\u{1F3C4}',

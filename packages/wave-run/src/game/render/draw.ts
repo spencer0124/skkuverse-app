@@ -70,9 +70,13 @@ export class Renderer {
   private layout: Layout = computeLayout(1, 1, 1);
   private readonly baked: Baked;
   private readonly dots: Dot[] = makeDots(160);
-  private readonly water = new WaterFx();
+  private readonly water: WaterFx;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    onSplash?: () => void,
+  ) {
+    this.water = new WaterFx(onSplash);
     this.ctx = canvas.getContext('2d')!;
     this.baked = {
       run: PLAYER_RUN.map((s) => bake(s, PLAYER_PALETTE)),

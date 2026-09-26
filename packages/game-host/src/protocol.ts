@@ -15,8 +15,13 @@
  * inside the page bundle alike.
  */
 
-/** `error` is a short, hard tap for a slip — not the notification pattern, which is too long to repeat. */
-export type HapticStyle = 'light' | 'medium' | 'heavy' | 'error';
+/**
+ * `light`, `medium`, `heavy`, `soft` and `rigid` are impact taps. `error` is a
+ * short, hard tap for a slip — not the notification pattern, which is too long
+ * to repeat. `success` is that notification pattern, for a moment that comes
+ * at most once a run.
+ */
+export type HapticStyle = 'light' | 'medium' | 'heavy' | 'soft' | 'rigid' | 'error' | 'success';
 export type GamePhase = 'ready' | 'running' | 'paused' | 'crashed';
 
 /** Page → host. */
@@ -57,7 +62,7 @@ export type HostMessage =
   | { type: 'host:sound'; on: boolean };
 
 const PHASES: readonly GamePhase[] = ['ready', 'running', 'paused', 'crashed'];
-const HAPTICS: readonly HapticStyle[] = ['light', 'medium', 'heavy', 'error'];
+const HAPTICS: readonly HapticStyle[] = ['light', 'medium', 'heavy', 'soft', 'rigid', 'error', 'success'];
 
 /** A non-negative integer that survives JSON exactly — a score is submitted as is. */
 const isCount = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;

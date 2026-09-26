@@ -1,5 +1,6 @@
 import type { HapticStyle } from '@skkuverse/game-host';
-import { TICK_MS } from './constants';
+import type { CueName } from '../sound/sfx';
+import { BIG_MILESTONE, TICK_MS } from './constants';
 import { beginRun, createGame, resultOf, revive, step, type GameResult, type GameState, type Input } from './engine';
 import { Renderer, type Overlay } from './render/draw';
 import { newSeed } from './rng';
@@ -13,10 +14,18 @@ export interface LoopCallbacks {
   /** Every crash passes through here; the host decides whether it is the end. */
   onCrash(result: GameResult): void;
   onHaptic(style: HapticStyle): void;
+  onSound(cue: CueName): void;
 }
 
 /** Longest stretch simulated after a stall, so a hitch does not fast-forward into a crash. */
 const MAX_FRAME_MS = 250;
+
+/**
+ * One tap of feedback a tick at most: when two moments land together (a
+ * milestone as the best is passed), the stronger one is felt.
+ */
+const HAPTIC_RANK: Record<HapticStyle, number> = { light: 0, soft: 1, rigid: 2, medium: 3, error: 4, heavy: 5, success: 6 };
+const stronger = (a: HapticStyle | null, b: HapticStyle): HapticStyle => (a && HAPTIC_RANK[a] >= HAPTIC_RANK[b] ? a : b);
 
 /**
  * Runs the simulation at a fixed 60 Hz whatever the display rate, and draws in
@@ -36,12 +45,14 @@ export class GameLoop {
   private raf = 0;
   private phase: Phase = 'ready';
   private readonly overlay: Overlay;
+  /** This run has already been told it passed the best. */
+  private bestHeard = false;
 
   constructor(
     canvas: HTMLCanvasElement,
     private readonly callbacks: LoopCallbacks,
   ) {
-    this.renderer = new Renderer(canvas);
+    this.renderer = new Renderer(canvas, () => callbacks.onSound('splash'));
     this.state = createGame(newSeed());
     this.overlay = { hi: 0, flashUntil: 0, crashedAt: null, doubleJump: null, debug: false };
   }
@@ -100,6 +111,7 @@ export class GameLoop {
     this.overlay.crashedAt = null;
     this.overlay.doubleJump = null;
     this.queue = [];
+    this.bestHeard = false;
     this.run();
   }
 
@@ -111,6 +123,7 @@ export class GameLoop {
     this.overlay.crashedAt = null;
     this.overlay.doubleJump = null;
     this.queue = [];
+    this.bestHeard = false;
     this.setPhase('ready');
   }
 
@@ -122,6 +135,8 @@ export class GameLoop {
     this.overlay.doubleJump = null;
     this.queue = [];
     this.resetClock();
+    this.callbacks.onSound('revive');
+    this.callbacks.onHaptic('medium');
     this.setPhase('running');
   }
 
@@ -171,25 +186,54 @@ export class GameLoop {
     const inputs = this.queue;
     this.queue = [];
     step(this.state, inputs);
-    for (const e of this.state.events) {
+    const s = this.state;
+    let haptic: HapticStyle | null = null;
+    let chime: CueName | null = null;
+    for (const e of s.events) {
       switch (e.type) {
+        case 'jump':
+          if (e.double) {
+            this.overlay.doubleJump = { at: now, y: s.player.jumpBase };
+            this.callbacks.onSound('doubleJump');
+            haptic = stronger(haptic, 'soft');
+          } else {
+            this.callbacks.onSound('jump');
+          }
+          break;
+        case 'dive':
+          this.callbacks.onSound('dive');
+          break;
+        case 'land':
+          // An ordinary landing is silent: it comes every second, and the next jump is already sounding.
+          if (e.hard) {
+            this.callbacks.onSound('land');
+            haptic = stronger(haptic, 'rigid');
+          }
+          break;
         case 'milestone':
           this.overlay.flashUntil = now + 900;
-          this.callbacks.onHaptic('light');
+          chime = e.score % BIG_MILESTONE === 0 ? 'thousand' : 'milestone';
+          haptic = stronger(haptic, chime === 'thousand' ? 'medium' : 'light');
           break;
         case 'crash':
-          this.crash(now);
-          break;
-        case 'jump':
-          if (e.double) this.overlay.doubleJump = { at: now, y: this.state.player.jumpBase };
+          this.callbacks.onSound('crash');
+          haptic = stronger(haptic, 'heavy');
           break;
       }
     }
+    // Past the best on record, once a run. A first run has no best to pass.
+    if (s.status === 'running' && !this.bestHeard && this.overlay.hi > 0 && s.score > this.overlay.hi) {
+      this.bestHeard = true;
+      chime = 'best';
+      haptic = stronger(haptic, 'success');
+    }
+    if (chime) this.callbacks.onSound(chime);
+    if (haptic) this.callbacks.onHaptic(haptic);
+    if (s.status === 'crashed') this.crash(now);
   }
 
   private crash(now: number): void {
     this.overlay.crashedAt = now;
-    this.callbacks.onHaptic('heavy');
     const result = resultOf(this.state);
     if (result.score > this.overlay.hi) this.overlay.hi = result.score;
     this.setPhase('crashed');

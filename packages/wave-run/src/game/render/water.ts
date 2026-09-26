@@ -51,6 +51,9 @@ export class WaterFx {
   /** Runs whose crash has already thrown its splash. */
   private readonly crashed = new WeakSet<GameState>();
 
+  /** `onSplash` hears each 첨벙, for a sound to go with it. */
+  constructor(private readonly onSplash: () => void = () => {}) {}
+
   reset(): void {
     this.drops = [];
   }
@@ -103,6 +106,7 @@ export class WaterFx {
       if (under && s.player.y > 6 && !this.splashed.has(o)) {
         this.splashed.add(o);
         this.burst(PLAYER_X + 16, 2, 22);
+        this.onSplash();
       }
     }
   }
