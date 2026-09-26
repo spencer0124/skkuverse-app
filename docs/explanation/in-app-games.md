@@ -83,10 +83,10 @@ the ring/silent switch silences it and the player's own music keeps playing. A g
 registry entry has `sound` gets a sound button beside the trophy; the setting is one for every
 game (`soundPref.ts`), sent as `host:sound` after `host:init` and on each change.
 
-The two games make their sound differently. The typing game plays short files, inlined into the
-page like its images. The runner renders 8-bit tones with ZzFX in the page itself
-(`packages/wave-run/src/sound/`), so it carries no audio files; its sounds hang off the engine's
-events, which a tick only reports and never reads back, so sound cannot change a run or its replay.
+The typing game plays short files, inlined into the page like its images. The runner renders
+8-bit tones with ZzFX in the page itself (`packages/wave-run/src/sound/`), so it carries no audio
+files; its sounds hang off the engine's events, which a tick only reports and never reads back, so
+sound cannot change a run or its replay.
 
 Haptics go the other way: the page posts `game:haptic` and the host plays it (`host/haptic.ts`).
 `error` is a short, hard tap for a slip, not the notification pattern, which would still be
