@@ -118,7 +118,7 @@ Fix commit `3e3cbca`, five files, +215/−52, with tsc, lint, tests and all rule
       way to exercise the real Play Integrity path, then verify the picker saves
 - [ ] Process: make reviewing non-fatal errors a weekly habit
 - [x] **S3: give the user feedback when a picker write fails** (2026-09-01). Marked optional
-      here, and that turned out to be the single reason this bug shipped twice — see the
+      here, and that turned out to be the single reason this bug reached users twice — see the
       recurrence section below. P4 (skip the pre-create during onboarding) is still open
 
 ## Appendix: where the code is
@@ -136,8 +136,8 @@ document is missing, and writes working in other collections rules out auth and 
 
 ## Recurrence: 2026-09-01
 
-Reported again, in the same words: "공지-학과선택에서 학과를 선택해도 건축학과에서 타 과로
-바뀌지 않아요." Two days after Release 3.6.0 (`ota/prod/2026-08-30T2026`).
+Reported again, in the same words: "공지-학과선택에서 학과를 선택해도 건축학과에서 타 과로 <!-- conventions:allow-korean: the user's report, quoted -->
+바뀌지 않아요." Two days after Release 3.6.0 (`ota/prod/2026-08-30T2026`). <!-- conventions:allow-korean: the user's report, quoted -->
 
 **Not a revert.** Every fix from 2026-07 was still present on `dev` and `main`: the
 `essential: true` seed, the ordering-invariant comment, the `useAppInit` self-heal, the
@@ -174,12 +174,12 @@ it most.
 
 **4. A third state nobody had named.** The picker modal seeded its edit buffer from
 `resolvePickerSelection` — the *resolved fallback*, not the *stored* value. So the modal
-opened with 건축학과 pre-checked, the user added their own department, and the save
+opened with 건축학과 pre-checked, the user added their own department, and the save <!-- conventions:allow-korean: the department name the app showed -->
 **succeeded**, persisting `['arch', <theirs>]`. A display fallback laundered into stored
 intent. This needs no failed write at all, and it fits the reported wording better than the
 ghost state does.
 
-### What shipped (2026-09-01)
+### What went out (2026-09-01)
 
 | File | Change |
 | --- | --- |
@@ -205,14 +205,14 @@ in 2026-07:
 | Repaired (`--apply`) | 45 created, 0 failed, re-audit confirms 0 remaining |
 
 **Crashlytics undercounted by 9x.** `notifications/picker-set` showed 5 affected
-users; the real dead-write population was 45. A ghost who never opens the picker
+users, against a real dead-write population of 45. A ghost who never opens the picker
 never generates an error, so the error log can only ever show the subset who hit
 the symptom AND reported it. Any future estimate of a silent-failure population
 should come from a census like this one, not from the non-fatal count.
 
 Note what the repair does and does not do: it restores the ability to save. It
 does not restore anyone's department, because the only copy of that lives in the
-device's MMKV. Those 45 users still see 건축학과 until they re-pick — but the
+device's MMKV. Those 45 users still see 건축학과 until they re-pick — but the <!-- conventions:allow-korean: the department name the app showed -->
 re-pick now persists.
 
 ### The lesson that generalises

@@ -119,7 +119,7 @@ compiled code is the entire point of this choice.
 
 Wire the `protocol.ts` seed into the host's `onMessage` and
 `injectedJavaScriptBeforeContentLoaded`. (Built 2026-09-25 on the miniapp protocol rather than
-the seed; see the note at the end of section 9.)
+the seed. See the note at the end of section 9.)
 
 - **Gate on the registered `startUrl` origin.** Handle messages from allowlisted origins
   only.

@@ -260,7 +260,7 @@ Under iOS 26 NativeTabs it does not: react-native-screens hosts each tab as a
 over the bottom of the full-window screen. The inline campus sheet's top detent
 reaches the window's bottom edge, so without help its last rows sit under the
 bar, visible and untappable. No bottom gap fixes that, because a gap only moves
-the card; the rows are inside it.
+the card, and the rows are inside it.
 
 The scroll content clears the bar instead, with a bottom padding measured per
 screen. No API reports a native tab bar's height, but UIKit's per-view safe area
@@ -340,7 +340,7 @@ anyway, so only the final segment commits layout.
 
 The card's top edge is the body's `translateY`, which gorhom drives from its own
 internal `animatedPosition`. The bottom edge is a height computed from a
-position. The two edges only agree when both read the **same** shared value.
+position. Top and bottom agree only when both read the **same** shared value.
 
 The `animatedPosition` and `animatedIndex` a caller hands to `Sheet` are copies.
 Gorhom fills them in a `useAnimatedReaction`, and Reanimated does not order a
@@ -352,8 +352,8 @@ movement in one frame. On a drag that reads as the bottom edge shaking.
 So everything below the sheet that tracks the card's edges — the background and
 `SheetCardClip` — reads `useSheetMotion()`, which returns gorhom's internal
 values through `useBottomSheetInternal()`. The copies are for things outside the
-sheet, where the provider does not resolve: the locate button, and the body's
-own side inset, whose few points hide a frame of lag.
+sheet, where the provider does not resolve. The locate button reads them, and so
+does the body's own side inset, whose few points hide a frame of lag.
 
 ## Matching the tab bar, and not matching it
 
@@ -438,13 +438,13 @@ closed, then rises from the bottom; and when the modal is dismissed the campus
 sheet returns to the detent it left. The user sees one sheet go down and another
 come up, in sequence, rather than one landing on top of the other.
 
-**Both moves are short, named timings, not gorhom's default spring.** Under the
+**Both moves are short timings in place of gorhom's default spring.** Under the
 spring the sequence read as a pause: a list row tapped, the list sinking slowly,
 then the place climbing up. The order is kept and the two moves are cut short.
 The values are `SHEET_HANDOFF_CLOSE` (`out`, 150 ms) and `SHEET_HANDOFF_RISE`
 (`expo`, 250 ms), in `packages/sds/src/components/sheet/motion.ts`. They are
 timings rather than springs because a hand-off gated on "the first one has
-landed" wants a length it can state. The two knobs they use:
+landed" wants a length it can state. They are set through these knobs:
 
 - `SheetRef.close(animationConfigs?)` overrides one close only. The campus sheet
   leaves fast for a modal and moves as before everywhere else.

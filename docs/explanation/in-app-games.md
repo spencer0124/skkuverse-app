@@ -11,22 +11,22 @@ audience: internal
 
 > How a bundled game runs, what its host screen owns, how a result reaches the Hall of Fame
 > (the leaderboard; "Hall of Fame" is the only name players see), and what to touch when adding
-> a game. Two games ship: wave-run, a distance where more is better, and subway-typing, a time
+> a game. The app bundles wave-run, a distance where more is better, and subway-typing, a time
 > where less is better. The decision behind the shape is
 > [ADR 0009](../decisions/0009-bundle-games-into-the-app.md).
 
 ## The pieces
 
 Everything under `apps/mobile/src/features/games/` except `registry.ts` and a game's own
-folder is game-agnostic: a new game supplies a page, a registry entry and an overlay, and gets
-the rest.
+folder is game-agnostic. A new game brings its page and overlay, plus a registry entry. The
+rest is shared.
 
 | Piece | Where | Job |
 | --- | --- | --- |
 | Game source | `packages/wave-run`, `packages/subway-typing` | The game and its page entry |
 | Page build | each package's `build:embed`, through `embedGame` (`packages/game-host/scripts/embed.mjs`) | Writes the page as one string to `features/games/<id>/html.generated.ts` |
 | Contract | `packages/game-host/src/protocol.ts` | Page-to-host and host-to-page messages, and their parsers |
-| Registry | `features/games/registry.ts` | Per game: the page, the name, how its score reads and ranks (`score.order`, `format`), result rows, its overlay, whether it has revives or a keyboard |
+| Registry | `features/games/registry.ts` | Per game, the page and name, how its score reads and ranks (`score.order`, `format`), result rows, overlay, and whether it has revives or a keyboard |
 | Overlay | `features/games/<id>/Overlay.tsx` | What the host draws over the page: the title (`host/stage/StageTitle`), controls, the pause card (`host/stage/PauseCard`) |
 | Host | `features/games/host/` | `GameScreen` (full screen, route `/games/[id]`), the web view, run stamps, the session domain, auto-submit, rewarded revives |
 | Result | `features/games/result/` | `ResultPanel` and its floating cards, `ScoreHeader`, `ReviveOffer` (`DrainButton`), `RankPromptSheet` |
@@ -73,7 +73,7 @@ the rest.
    never inherits it.
 
 Backgrounding the app, or a screen over the game, sends `host:pause` and holds the countdown.
-A page may ignore it: a typing run keeps its clock.
+A page may ignore it, as the typing game does to keep its clock running.
 
 ## Sound and haptics
 
@@ -90,7 +90,7 @@ buzzing at the next slip.
 
 ## Which way a score counts
 
-A score is a non-negative integer either way; the registry's `score.order` says how to rank it.
+A score is a non-negative integer either way. The registry's `score.order` says how to rank it.
 Every comparison goes through `isBetter` (`leaderboard/domain.ts`): the board query
 (`orderBy('score', order)`), the rank count (`>` or `<`), placing the player's line, the device
 best, and `decideSubmit` (which takes the comparison as an argument, because a pure module there
@@ -116,11 +116,11 @@ A board keeps one line per player: `leaderboards/{gameId}/scores/{uid}`, their b
 An account that has signed in before cannot absorb the anonymous one, so the uid changes and
 the run on screen is left stamped under the anonymous uid. Before signing in, the client keeps
 the anonymous account's ID token; afterwards it calls `claimRun`, which verifies that token and
-copies the stamp — `startedAt` unchanged — to the new uid. While the sign-in and the claim are
-in flight no decision is made, so the run is not called someone else's in between.
+copies the stamp — `startedAt` unchanged — to the new uid. Nothing about the run is decided while the sign-in
+and the claim are in flight, so it stays the player's throughout.
 
-**Coming back.** After signing in or picking a nickname, the run is written, the board shows it
-for a moment, and the game moves on to its title by itself. A player who backed out goes
+**Coming back.** After signing in or picking a nickname, the run is written and shown on the board
+for a moment before the game returns to its title by itself. A player who backed out goes
 straight on.
 
 ## The player profile
@@ -141,7 +141,7 @@ leaderboard entry, shared by every game).
 
 ## What the leaderboard trusts
 
-The rules are the only guard; the reasoning is in ADR 0009. An entry must come from an
+The rules are the only guard, for the reasons in ADR 0009. An entry must come from an
 `@g.skku.edu` Google identity, be the caller's own document, cite the caller's own run of this
 game within the run window, be plausible for the time since its stamp (`isPlausible`), stay
 under the game's absolute cap (`maxEntryScore`) and revive cap (`maxRevives`), and match the
@@ -196,7 +196,7 @@ screen's cards are.
    overlay, and its screen names to `SCREEN_NAMES` in `app/_layout.tsx`. A game replacing a web
    mini app keeps that mini app's id, so its `/m/<id>` link opens the native screen. To place it
    on home, add a `{ "kind": "game", "id": "<id>" }` tile to a grid in skkuverse-server's
-   `home-layout.json`; a game no grid places still gets the app's own mini-games grid.
+   `home-layout.json`. A game no grid places still gets the app's own mini-games grid.
 4. In `firestore.rules`, add the id to `isGameId`, and its cases to `isPlausible`,
    `maxEntryScore`, `maxRevives` and `isImprovement`, with rules tests. Add the id to `GAME_IDS`
    in `functions/src/games/claimRun.ts`.

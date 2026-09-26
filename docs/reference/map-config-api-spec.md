@@ -482,22 +482,22 @@ interface MapChipList {
 }
 ```
 
-- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 10/1(목)`,
-  `운영: 전체`. A chip is green whenever it narrows the list, which means anything but 전체. A
-  single choice has no 전체, so 일자 is always green. Tapping a chip opens the option sheet.
-- **`required`** (일자): a single choice with no 전체. It opens on the day that is on now, otherwise
+- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 10/1(목)`, <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  `운영: 전체`. A chip is green whenever it narrows the list, which means anything but 전체. A <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  single choice has no 전체, so 일자 is always green. Tapping a chip opens the option sheet. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+- **`required`** (일자): a single choice with no 전체. It opens on the day that is on now, otherwise <!-- conventions:allow-korean: the facet and option labels the app shows -->
   the nearest one to come, otherwise the last, and flips at the next day's 06:00 cut-over. Picking
-  closes the sheet. 일자 is single because a plot holds a different pub each night, so two days at
+  closes the sheet. 일자 is single because a plot holds a different pub each night, so two days at <!-- conventions:allow-korean: the facet and option labels the app shows -->
   once would stack two places on one pin.
-- **`optional`** (운영): a checklist headed by 전체, which it opens on. Tapping an option under
-  전체 picks that option alone. Unchecking the last option falls back to 전체, and checking every
-  option collapses into 전체, so "nothing selected" cannot exist.
-- **Filter:** keep an overlay when, for every facet not on 전체, `overlay.facets[facet.id]` shares an
+- **`optional`** (운영): a checklist headed by 전체, which it opens on. Tapping an option under <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  전체 picks that option alone. Unchecking the last option falls back to 전체, and checking every <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  option collapses into 전체, so "nothing selected" cannot exist. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+- **Filter:** keep an overlay when, for every facet not on 전체, `overlay.facets[facet.id]` shares an <!-- conventions:allow-korean: the facet and option labels the app shows -->
   option with what is checked.
 - **Sort,** then by `id`. `order` with a scope sorts by the first checked option of that facet the
   overlay is in, then `orderByOption[that option] ?? order`. With one day checked, that is the day's
-  running order. Under 전체, it is day 1's order followed by day-2-only booths in day 2's order.
-  `title` sorts on `text.ko` in code-point order, which is 가나다 for Hangul.
+  running order. Under 전체, it is day 1's order followed by day-2-only booths in day 2's order. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  `title` sorts on `text.ko` in code-point order, which is 가나다 for Hangul. <!-- conventions:allow-korean: the facet and option labels the app shows -->
 - **Parsing degrades toward showing more.** A facet the app cannot draw is dropped, an unknown sort
   becomes `order`, and a scope that no longer names a kept `required` facet is cleared. A malformed
   list can reorder rows, but never hide one.

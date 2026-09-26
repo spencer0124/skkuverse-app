@@ -9,12 +9,12 @@ audience: internal
 
 # The mini-app shell
 
-> How `app/mini-app.tsx` hosts a registered mini app on the miniapp protocol since 2026-09-25: what the app injects before a page's own script runs, how a message's origin is gated and dispatched, and how the registry's shell becomes chrome and a viewport. For anyone changing the shell or debugging why a page's message did nothing.
+> How `app/mini-app.tsx` hosts a registered mini app on the miniapp protocol since 2026-09-25. It covers what the app injects before a page's own script runs and how a message's origin is gated and dispatched, then how the registry's shell becomes chrome and a viewport. For anyone changing the shell or debugging why a page's message did nothing.
 
 ## Two doors, two protocols
 
-Two screens load a page into a `react-native-webview`, and they no longer speak the same
-language to it.
+`app/mini-app.tsx` and `app/webview.tsx` both load a page into a `react-native-webview`, and they
+no longer speak the same language to it.
 
 ```text
   skkuverse://m/<slug>              skkuverse://webview?url=…, notice links,
@@ -184,7 +184,7 @@ react-native-screens applies that screen's config and hides the navigation bar. 
 is hidden it reports a header height of `0` (`calculateHeaderHeightIsModal`). Under a solid
 header, react-native-screens offsets the content by that height. So a back swipe that was
 started and then let go moved the WebView's frame twice mid-gesture. The page came back
-scrolled to the top (first seen in 인자셔틀).
+scrolled to the top (first seen in 인자셔틀). <!-- conventions:allow-korean: the mini app's name -->
 
 Four guards now keep the page where it was (`features/mini-app/useSwipeGuard.ts`, with the pure
 rules in `swipe-guard.ts` and `swipe-guard.test.mts`):
@@ -223,7 +223,7 @@ bottom bar's own height, it returns:
   the status bar, but only under `'overlay'`. `bottom` is the floating bar's height, but only
   under `bar: 'bottom'`. `left` and `right` are always `0`: the chrome floats over the top and
   bottom bands alone.
-- **`chrome`** — `'glass'` only when Liquid Glass is available **and** something is actually
+- **`chrome`** — `'glass'` only when Liquid Glass is available and something is actually
   drawn over the page (an overlay header or a bottom bar); an opaque header with no bottom bar
   covers nothing, whatever the OS can offer.
 

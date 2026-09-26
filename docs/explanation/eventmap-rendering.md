@@ -147,7 +147,7 @@ body is one gorhom scrollable or the other, never both, since they cannot nest. 
 its middle detent when the list appears — enough to read a few rows with the pins still showing —
 and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
 campus sheet closes first and the peek sheet rises once that animation finishes. Both moves are
-short named timings (`SHEET_HANDOFF_CLOSE`, 150 ms, and `SHEET_HANDOFF_RISE`, 250 ms), because under
+short timings (`SHEET_HANDOFF_CLOSE`, 150 ms, and `SHEET_HANDOFF_RISE`, 250 ms), because under
 gorhom's default spring the pair read as a pause between the tap and the sheet that answers it. It
 comes back to the same detent, list and all, when the peek sheet is dismissed. The hand-off is
 described in [bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
@@ -185,8 +185,8 @@ The list has no sort control and no count header. A chip with no `list` orders i
 marker's `order`, ascending, using `sortPlaces` (`map/list.ts`). That is the position ops authored.
 
 A chip with a `list` gets its filters and its sort from the server. The filters are one row of
-dropdown chips: 일자, a single choice that opens on today, plus 운영 (총학생회 / 학생단체) on
-booths, a checklist that opens on 전체. The sort is a per-day `order` for booths and 가나다 for
+dropdown chips: 일자, a single choice that opens on today, plus 운영 (총학생회 / 학생단체) on <!-- conventions:allow-korean: the filter and option labels the app shows -->
+booths, a checklist that opens on 전체. The sort is a per-day `order` for booths and 가나다 for <!-- conventions:allow-korean: the filter and option labels the app shows -->
 food trucks. The app matches the ids each overlay's `facets` carries and runs `sortForList`. Nothing
 here decides which day a place is on. The app used to infer that from the dates it was served, and
 one stray date renumbered every place. See

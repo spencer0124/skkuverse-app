@@ -15,7 +15,7 @@ audience: internal
 
 ## Context
 
-The mini games shipped as web mini apps on their own origins, opened in the mini-app shell
+The mini games ran as web mini apps on their own origins, opened in the mini-app shell
 ([ADR 0006](0006-miniapp-webview-push-architecture.md)). A leaderboard needs to know who is
 playing, and a web mini app cannot find out:
 
@@ -31,7 +31,7 @@ Meanwhile the app already has everything a leaderboard needs: Google sign-in res
 
 ## Decision
 
-### 1. A game is an app asset, not a site
+### 1. A game is an app asset
 
 The game's source moves into this monorepo as a workspace package
 (`packages/wave-run`). Its build emits the whole page (script, styles, art) as one string,
@@ -39,8 +39,8 @@ committed as `apps/mobile/src/features/games/wave-run/html.generated.ts`, and a 
 loads it into a web view from that string.
 
 The page keeps its Canvas renderer. Porting it to Skia was the alternative. It would have
-removed the web view, but it adds a native module and therefore a `runtimeVersion` bump and a
-store release for every change to the renderer. A bundled page ships over OTA, like any other
+removed the web view, but it adds a native module and so a `runtimeVersion` bump and a
+store release for every change to the renderer. A bundled page goes out over OTA, like any other
 JS.
 
 This does not reopen [umbrella ADR 0005](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0005-web-surfaces-dedicated-repo.md).
@@ -68,9 +68,9 @@ A score is accepted only if all of these hold, checked in `apps/mobile/firestore
 One entry per player, their best: it only moves up, and each run can raise it once.
 
 The engine is deterministic, so a Cloud Function could replay a run's inputs and recompute
-its score exactly. We chose not to, for now: it roughly doubles the work, and the goal is to
-stop casual tampering (a hand-written write with a made-up score), not a determined player
-who is willing to wait real time for a plausible one.
+its score exactly. We chose not to, for now. It roughly doubles the work. The goal is to stop casual
+tampering, such as a hand-written write with a made-up score. A determined player who is
+willing to wait real time for a plausible score is out of scope.
 
 ## Consequences
 

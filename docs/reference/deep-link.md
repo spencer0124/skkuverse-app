@@ -175,14 +175,14 @@ same grammar as a map or push `miniapp` action — [eventmap-rendering.md](../ex
 §7.3). It follows the same pending-holder pattern as notices:
 
 1. It checks **shape only**. On a match it stashes `pendingMiniAppLink.set({ id, path? })` and
-   returns `/(tabs)/home`. A capture that is not a target falls through to the whitelist, which
+   returns `/(tabs)/home`. A capture that is not a target goes on to the whitelist, which
    lands on home.
 2. The root layout's `PendingMiniAppLinkConsumer` is **where registry membership is
    checked**. It runs `GET /miniapps/:id` through `queryClient.fetchQuery`, opens the mini
    app shell over the home tab on success — at `path` when one was given, resolved against the
    registered `startUrl` and falling back to it off-origin — and drops the link silently on
    failure, which is not a dead end because the user is already on home.
-3. The link's own query string is **not** carried into the mini app's page: `parseIncomingLink`
+3. The link's own query string is left out of the mini app's page: `parseIncomingLink`
    splits it off before the match, and it belongs to the link rather than to the page.
 
 > [!NOTE]
