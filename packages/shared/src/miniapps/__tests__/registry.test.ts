@@ -4,6 +4,7 @@ import {
   parseMiniAppDetail,
   MINIAPP_REGISTRY_VERSION,
 } from '../schema';
+import { DEFAULT_SHELL } from '@skkuverse/miniapp/protocol';
 
 /**
  * The registry moved server-side, so there is no bundled JSON left to assert
@@ -20,7 +21,8 @@ const validEntry = {
   name: '인사캠 총학생회',
   shortName: '인사캠 총학',
   order: 10,
-  logo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc.png' },
+  homeLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-home.png' },
+  shellLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-shell.png' },
 };
 
 describe('parseMiniAppIndex', () => {
@@ -32,7 +34,8 @@ describe('parseMiniAppIndex', () => {
       id: 'hssc',
       name: '인사캠 총학생회',
       shortName: '인사캠 총학',
-      logo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc.png' },
+      homeLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-home.png' },
+      shellLogo: { kind: 'remote', uri: 'https://skkuverse.com/miniapps/hssc-shell.png' },
     });
   });
 
@@ -65,24 +68,72 @@ describe('parseMiniAppIndex', () => {
     expect(parsed.miniApps.map((m) => m.id)).toEqual(['hssc', 'good2']);
   });
 
-  it('keeps an entry whose logo is unusable, with logo null', () => {
+  it('keeps an entry whose homeLogo is unusable, with homeLogo null', () => {
     // A missing logo is a cosmetic problem; dropping the tile would hide a
     // working mini-app over an image.
-    for (const logo of [
+    for (const homeLogo of [
       undefined,
       null,
       { kind: 'bundled', key: 'hssc' },
       { kind: 'remote' },
       { kind: 'remote', uri: 'javascript:alert(1)' },
       { kind: 'remote', uri: '/miniapps/hssc.png' },
+      { kind: 'emoji' },
+      { kind: 'emoji', emoji: '' },
     ]) {
       const parsed = parseMiniAppIndex({
         version: 1,
-        miniApps: [{ ...validEntry, logo }],
+        miniApps: [{ ...validEntry, homeLogo }],
       });
       expect(parsed.miniApps).toHaveLength(1);
-      expect(parsed.miniApps[0].logo).toBeNull();
+      expect(parsed.miniApps[0].homeLogo).toBeNull();
     }
+  });
+
+  it('keeps an entry whose shellLogo is unusable, with shellLogo null', () => {
+    for (const shellLogo of [
+      undefined,
+      null,
+      { kind: 'bundled', key: 'hssc' },
+      { kind: 'remote', uri: 'javascript:alert(1)' },
+    ]) {
+      const parsed = parseMiniAppIndex({
+        version: 1,
+        miniApps: [{ ...validEntry, shellLogo }],
+      });
+      expect(parsed.miniApps).toHaveLength(1);
+      expect(parsed.miniApps[0].shellLogo).toBeNull();
+    }
+  });
+
+  it('parses homeLogo and shellLogo independently — one unusable does not null the other', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [
+        {
+          ...validEntry,
+          homeLogo: { kind: 'emoji', emoji: '🌊' },
+          shellLogo: { kind: 'remote', uri: 'javascript:alert(1)' },
+        },
+      ],
+    });
+    expect(parsed.miniApps[0].homeLogo).toEqual({ kind: 'emoji', emoji: '🌊' });
+    expect(parsed.miniApps[0].shellLogo).toBeNull();
+  });
+
+  it('parses an emoji logo for both homeLogo and shellLogo', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [
+        {
+          ...validEntry,
+          homeLogo: { kind: 'emoji', emoji: '😋' },
+          shellLogo: { kind: 'emoji', emoji: '😋' },
+        },
+      ],
+    });
+    expect(parsed.miniApps[0].homeLogo).toEqual({ kind: 'emoji', emoji: '😋' });
+    expect(parsed.miniApps[0].shellLogo).toEqual({ kind: 'emoji', emoji: '😋' });
   });
 
   it('returns an empty registry for a malformed envelope instead of throwing', () => {
@@ -106,6 +157,31 @@ describe('parseMiniAppIndex', () => {
     expect(parseMiniAppIndex({ miniApps: [] }).version).toBe(
       MINIAPP_REGISTRY_VERSION,
     );
+  });
+
+  it('keeps `hidden: true`, keeping the entry in the registry', () => {
+    const parsed = parseMiniAppIndex({
+      version: 1,
+      miniApps: [{ ...validEntry, hidden: true }],
+    });
+    expect(parsed.miniApps).toHaveLength(1);
+    expect(parsed.miniApps[0].hidden).toBe(true);
+  });
+
+  it('omits `hidden` when absent', () => {
+    const parsed = parseMiniAppIndex({ version: 1, miniApps: [validEntry] });
+    expect(parsed.miniApps[0]).not.toHaveProperty('hidden');
+  });
+
+  it('drops a non-true `hidden` value rather than coercing it, keeping the entry', () => {
+    for (const hidden of ['yes', 1, false]) {
+      const parsed = parseMiniAppIndex({
+        version: 1,
+        miniApps: [{ ...validEntry, hidden }],
+      });
+      expect(parsed.miniApps).toHaveLength(1);
+      expect(parsed.miniApps[0]).not.toHaveProperty('hidden');
+    }
   });
 });
 
@@ -194,5 +270,52 @@ describe('parseMiniAppDetail', () => {
       expect(() => parseMiniAppDetail(raw)).not.toThrow();
       expect(parseMiniAppDetail(raw)).toBeNull();
     }
+  });
+
+  describe('shell', () => {
+    const shellOf = (shell: unknown) =>
+      parseMiniAppDetail({ ...validDetail, shell })?.shell;
+
+    it('is the protocol default when the server sends none', () => {
+      // An opt-out surface: a server that never mentions `shell` keeps every
+      // mini-app on the default bottom bar and opaque header.
+      expect(parseMiniAppDetail(validDetail)?.shell).toEqual(DEFAULT_SHELL);
+    });
+
+    it('keeps a complete, valid shell as sent', () => {
+      const shell = { bar: 'top', header: 'overlay', statusBar: 'light', background: '#101820' };
+      expect(shellOf(shell)).toEqual(shell);
+    });
+
+    it('fills the fields a partial shell leaves out from the default', () => {
+      expect(shellOf({ bar: 'top' })).toEqual({ ...DEFAULT_SHELL, bar: 'top' });
+      expect(shellOf({ header: 'overlay' })).toEqual({ ...DEFAULT_SHELL, header: 'overlay' });
+    });
+
+    it("reads the registry's old `hide` as the protocol's `none`", () => {
+      // A cached v2 detail, or a server predating the protocol shell, still says hide.
+      expect(shellOf({ bar: 'hide' })?.bar).toBe('none');
+      expect(shellOf({ bar: 'none' })?.bar).toBe('none');
+    });
+
+    it('drops each bad field on its own, keeping the valid ones', () => {
+      expect(
+        shellOf({ bar: 'left', header: 'overlay', statusBar: 42, background: 'red' }),
+      ).toEqual({ ...DEFAULT_SHELL, header: 'overlay' });
+    });
+
+    it('falls back to the default for a shell that is not an object', () => {
+      for (const shell of [null, 'top', 42, true, ['top']]) {
+        expect(shellOf(shell)).toEqual(DEFAULT_SHELL);
+      }
+    });
+
+    it('drops unknown shell keys', () => {
+      expect(shellOf({ bar: 'top', extra: 1 })).toEqual({ ...DEFAULT_SHELL, bar: 'top' });
+    });
+
+    it('normalises the background to upper case', () => {
+      expect(shellOf({ background: '#abcdef' })?.background).toBe('#ABCDEF');
+    });
   });
 });

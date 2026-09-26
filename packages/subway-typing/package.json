@@ -1,0 +1,24 @@
+{
+  "name": "@skkuverse/subway-typing",
+  "version": "0.0.1",
+  "private": true,
+  "description": "캠퍼스 타이핑 — the typing game the app bundles into a WebView",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "build:embed": "node scripts/build-embed.mjs",
+    "art": "python3 scripts/metro-glyph.py",
+    "sfx": "python3 scripts/sfx.py"
+  },
+  "dependencies": {
+    "@skkuverse/game-host": "*",
+    "@skkuverse/shared": "*"
+  },
+  "devDependencies": {
+    "@types/react-dom": "~19.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "vite": "8.0.8",
+    "vitest": "^4.1.4"
+  }
+}

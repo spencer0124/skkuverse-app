@@ -1,8 +1,13 @@
 /**
  * Map config query hook.
  *
- * Fetches from GET /map/config. Falls back to DEFAULT_MAP_CONFIG on failure
- * (same pattern as useCampusSections — queryFn never throws).
+ * Fetches from GET /map/config. Falls back to DEFAULT_MAP_CONFIG when a fetch
+ * fails with no good config to keep (same pattern as useCampusSections).
+ *
+ * The queryFn throws rather than returning the defaults — see `dataOrFallback`.
+ * This route is not edge-cached, so a festival-day 5xx or 429 reaches the app;
+ * cached as a success, the defaults (which carry no festival layers) would
+ * hide every booth for the whole staleTime.
  *
  * Flutter source: lib/features/campus_map/controller/map_config_controller.dart
  */
@@ -12,6 +17,7 @@ import { safeGet } from '../api/safe-request';
 import { ApiEndpoints } from '../api/endpoints';
 import { parseMapConfig } from '../map/parser';
 import { DEFAULT_MAP_CONFIG } from '../map/defaults';
+import { dataOrFallback } from './fallback';
 import type { MapConfig } from '../types/map';
 
 export const MAP_CONFIG_KEY = ['map', 'config'] as const;
@@ -30,9 +36,9 @@ export function useMapConfig() {
       if (result.ok) return result.data;
 
       if (__DEV__) {
-        console.debug('[map] config API failed, using defaults:', result.failure);
+        console.debug('[map] config API failed:', result.failure);
       }
-      return DEFAULT_MAP_CONFIG;
+      throw result.failure;
     },
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
@@ -41,5 +47,5 @@ export function useMapConfig() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: MAP_CONFIG_KEY });
 
-  return { ...query, refresh };
+  return { ...query, data: dataOrFallback(query, DEFAULT_MAP_CONFIG), refresh };
 }

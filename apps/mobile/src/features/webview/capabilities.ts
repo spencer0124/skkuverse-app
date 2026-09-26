@@ -1,5 +1,8 @@
 /**
- * Origin gate for the generic /webview shell.
+ * Origin gate for the bridge, shared by both web shells: the generic /webview,
+ * which speaks `@skkuverse/bridge`, and the /mini-app shell, which speaks the
+ * miniapp protocol (`@skkuverse/miniapp/protocol`). One origin match
+ * (`bridgedOrigin`), two message sets.
  *
  * The shell loads two very different kinds of page through one component:
  *
@@ -31,13 +34,15 @@
  * why adding an origin to BRIDGE_ORIGINS is flagged server-side as a trust
  * decision.
  *
- * Kept dependency-free (the one import is `import type`, erased at runtime) so
- * `node --experimental-strip-types --test` can exercise it without a Metro
- * resolver — same arrangement as `mini-app/protocol.ts`. The caller supplies
+ * Kept free of relative and React Native imports (the bridge import is
+ * `import type`, erased at runtime; the miniapp protocol is a plain ESM
+ * package) so `node --experimental-strip-types --test` can exercise it without
+ * a Metro resolver. The caller supplies
  * `allowedOrigins`; it is required rather than defaulted so no call site can
  * accidentally omit the gate and get a permissive fallback.
  */
 import type { WebToAppMessage } from '@skkuverse/bridge';
+import { NOTIFY_METHODS, type NotifyMethod } from '@skkuverse/miniapp/protocol';
 
 export type WebMessageType = WebToAppMessage['type'];
 
@@ -51,14 +56,51 @@ export type WebMessageType = WebToAppMessage['type'];
  * kept safe only by the fact that nothing untrusted had reached the screen yet.
  * Rerouting notice links here is precisely what would have ended that, so it
  * goes. Re-add it only alongside a path allowlist.
+ *
+ * `web:action` is NOT that hole reopened. It carries an action, not a path, and
+ * the only actions a page may ask for are `map` and `miniapp`, whose values are
+ * ids the app resolves itself (`resolveWebAction` in @skkuverse/shared). A page
+ * can name a place or a mini app through it, never a route or a URL.
+ *
+ * `web:haptic` plays one impact from a fixed set of three styles — the setlist
+ * mini app's counter uses it. It can buzz the phone and nothing else.
  */
 export const FIRST_PARTY_CAPABILITIES: readonly WebMessageType[] = [
   'web:open-url',
   'web:map-select',
+  'web:action',
+  'web:haptic',
 ];
 
 /** No capabilities. */
 const NONE: readonly WebMessageType[] = [];
+const NO_METHODS: readonly NotifyMethod[] = [];
+
+/**
+ * The origin of `pageUrl` when it is on the allowlist, else null.
+ *
+ * The one origin match both shells run: `/webview` turns it into the
+ * `@skkuverse/bridge` message set, `/mini-app` into the miniapp protocol's.
+ *
+ * @param pageUrl `event.nativeEvent.url` — the URL of the document that posted.
+ * @param allowedOrigins Server-owned allowlist (`getBridgeOrigins()`).
+ */
+export function bridgedOrigin(
+  pageUrl: string | undefined,
+  allowedOrigins: readonly string[],
+): string | null {
+  if (!pageUrl || allowedOrigins.length === 0) return null;
+  let origin: string;
+  try {
+    origin = new URL(pageUrl).origin;
+  } catch {
+    return null;
+  }
+  // `new URL().origin` yields the STRING "null" for opaque origins (data:,
+  // sandboxed frames). Never let that match an allowlist entry.
+  if (origin === 'null') return null;
+  return allowedOrigins.includes(origin) ? origin : null;
+}
 
 /**
  * Capabilities granted to a document loaded from `pageUrl`.
@@ -70,15 +112,20 @@ export function resolveWebviewCapabilities(
   pageUrl: string | undefined,
   allowedOrigins: readonly string[],
 ): readonly WebMessageType[] {
-  if (!pageUrl || allowedOrigins.length === 0) return NONE;
-  let origin: string;
-  try {
-    origin = new URL(pageUrl).origin;
-  } catch {
-    return NONE;
-  }
-  // `new URL().origin` yields the STRING "null" for opaque origins (data:,
-  // sandboxed frames). Never let that match an allowlist entry.
-  if (origin === 'null') return NONE;
-  return allowedOrigins.includes(origin) ? FIRST_PARTY_CAPABILITIES : NONE;
+  return bridgedOrigin(pageUrl, allowedOrigins) ? FIRST_PARTY_CAPABILITIES : NONE;
+}
+
+/**
+ * Miniapp protocol methods granted to a document loaded from `pageUrl`: every
+ * notify method on an allowlisted origin, nothing anywhere else.
+ *
+ * All or nothing because the curated phase has one trust level — a bridged
+ * origin is ours. Scoping a third-party mini-app to part of the set (ADR 0006
+ * decision 4) is a per-origin grant table in place of `NOTIFY_METHODS` here.
+ */
+export function resolveMiniAppCapabilities(
+  pageUrl: string | undefined,
+  allowedOrigins: readonly string[],
+): readonly NotifyMethod[] {
+  return bridgedOrigin(pageUrl, allowedOrigins) ? NOTIFY_METHODS : NO_METHODS;
 }

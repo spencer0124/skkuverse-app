@@ -33,11 +33,25 @@ export interface WebConfig {
   origin: string | null;
 }
 
+export interface MiniAppsConfig {
+  /**
+   * First-party mini-app origin → the id of the mini app that owns it.
+   *
+   * Server-owned (skkuverse-server `FIRST_PARTY_MINIAPP_ORIGINS`, built from the
+   * registry's startUrls). `openWebView` opens a URL on one of these origins in
+   * that mini app's shell, because in /webview the page's SDK finds no bridge
+   * and shows its "open in the app" gate instead. Empty when the server sent
+   * none, which leaves every URL in /webview, as before.
+   */
+  origins: Readonly<Record<string, string>>;
+}
+
 export interface AppConfig {
   ios: PlatformConfig;
   android: PlatformConfig;
   webview: WebviewConfig;
   web: WebConfig;
+  miniapps: MiniAppsConfig;
 }
 
 function parsePlatform(raw: unknown): PlatformConfig {
@@ -101,6 +115,35 @@ function parseWeb(raw: unknown): WebConfig {
   }
 }
 
+const MINIAPP_ID_RE = /^[a-z0-9-]+$/;
+
+/**
+ * Parse the miniapps section. Keeps only an https origin that is already bare
+ * (what `new URL(url).origin` produces, so a lookup can match it) mapped to a
+ * registry-shaped id; anything else is dropped, and a malformed section is `{}`.
+ *
+ * Exported for `config-cache.ts`, which re-validates an MMKV copy written by an
+ * older build with this same function.
+ */
+export function parseMiniApps(raw: unknown): MiniAppsConfig {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  const map = obj.origins;
+  if (typeof map !== 'object' || map === null || Array.isArray(map)) return { origins: {} };
+
+  const origins: Record<string, string> = {};
+  for (const [key, id] of Object.entries(map)) {
+    if (typeof id !== 'string' || !MINIAPP_ID_RE.test(id)) continue;
+    try {
+      const { origin, protocol } = new URL(key);
+      if (protocol !== 'https:' || origin !== key) continue;
+      origins[origin] = id;
+    } catch {
+      // Unparseable key — it could never match a page's origin anyway.
+    }
+  }
+  return { origins };
+}
+
 export function parseAppConfig(envelope: ApiEnvelope<unknown>): AppConfig {
   const data = (envelope.data ?? {}) as Record<string, unknown>;
   return {
@@ -108,5 +151,6 @@ export function parseAppConfig(envelope: ApiEnvelope<unknown>): AppConfig {
     android: parsePlatform(data.android),
     webview: parseWebview(data.webview),
     web: parseWeb(data.web),
+    miniapps: parseMiniApps(data.miniapps),
   };
 }

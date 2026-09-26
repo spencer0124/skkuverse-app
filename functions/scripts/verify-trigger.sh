@@ -17,4 +17,4 @@ npm run build
 
 exec firebase emulators:exec --only functions,firestore \
   --project demo-skku-verify-trigger \
-  "node --experimental-strip-types scripts/verify-trigger.ts"
+  "node --experimental-strip-types scripts/verify-trigger.ts && node --experimental-strip-types scripts/verify-profile-trigger.ts"

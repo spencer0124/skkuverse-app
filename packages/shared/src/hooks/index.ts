@@ -3,7 +3,6 @@ export { useTransitList, TRANSIT_LIST_KEY } from './useTransitList';
 export { useBusConfig, BUS_CONFIG_KEY } from './useBusConfig';
 export { useRealtimeData, REALTIME_DATA_KEY } from './useRealtimeData';
 export { useSmartSchedule, SMART_SCHEDULE_KEY } from './useSmartSchedule';
-export { useCampusEta, CAMPUS_ETA_KEY } from './useCampusEta';
 export { useMainNotice, MAIN_NOTICE_KEY, type NoticePlacement } from './useMainNotice';
 
 // ── Map hooks ──
@@ -15,6 +14,7 @@ export {
   MAP_LAYER_OVERLAYS_KEY,
 } from './useMapLayers';
 export { useWindowClock } from './useWindowClock';
+export { usePlaceDetails, PLACE_DETAILS_KEY } from './usePlaceDetails';
 export { useSearchBuildings, BUILDING_SEARCH_KEY } from './useSearchBuildings';
 
 // ── Notice hooks ──

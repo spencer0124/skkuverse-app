@@ -36,6 +36,7 @@ const chip = (id: string, action: MapChip['action']): MapChip => ({
   icon: null,
   action,
   isReset: false,
+  list: null,
 });
 
 const config = (over: Partial<MapConfig> = {}): MapConfig => ({

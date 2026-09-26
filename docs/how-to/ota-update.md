@@ -29,6 +29,10 @@ a native build is required" below.
   meaning the App Store and Play Store.
 - The channel is decided **at build time** by the `EAS_BUILD_PROFILE` variable in
   `app.config.ts`, so an existing build's channel cannot be changed.
+- **Being in TestFlight does not make a build beta.** An `ios-release.sh` upload shows up in
+  TestFlight too, and it asks for `production`. Before expecting a beta OTA on a device, read
+  the `Expo-Channel-Name` header its requests carry in the server log. On 2026-09-25 a beta
+  publish never reached a TestFlight 3.6.1 install for exactly this reason.
 
 ### When a native build is required
 

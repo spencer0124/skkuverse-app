@@ -41,4 +41,14 @@ export const AdUnitIds = {
         android: 'ca-app-pub-5619947536545679/5214084608',
         ios: 'ca-app-pub-5619947536545679/1948792861',
       })!,
+  /**
+   * In-app games: the rewarded ad that buys a revive — AdMob console unit
+   * `game_revive`, shared by every game.
+   */
+  gameRevive: __DEV__
+    ? TestIds.REWARDED
+    : Platform.select({
+        android: 'ca-app-pub-5619947536545679/2637099098',
+        ios: 'ca-app-pub-5619947536545679/5085410873',
+      })!,
 } as const;

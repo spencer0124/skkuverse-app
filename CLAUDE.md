@@ -18,6 +18,9 @@ Skkuverse is a university campus app (SKKU) built as a **Yarn workspaces monorep
 - **`packages/shared/`** — API client (Axios), Zustand stores, React Query hooks, types, design tokens, i18n
 - **`packages/sds/`** — Skku Design System component library (37+ components)
 - **`packages/bridge/`** — Web↔Native message-passing layer (`postToApp`, `parseWebMessage`)
+- **`packages/game-host/`** — Bundled game page ↔ native host contract
+- **`packages/wave-run/`** — The 초록의 파도 game (engine, Canvas renderer, embed build) <!-- conventions:allow-korean: the game's product name -->
+- **`packages/subway-typing/`** — The 캠퍼스 타이핑 game (React page, judging, time floor, embed build) <!-- conventions:allow-korean: the game's product name -->
 
 ## Common Commands
 
@@ -34,9 +37,9 @@ yarn lint             # expo lint (ESLint)
 npx expo prebuild --clean  # clean prebuild after a native change
 
 # Root
-yarn typecheck        # tsc --noEmit across apps/mobile and all three packages
+yarn typecheck        # tsc --noEmit across apps/mobile and every package
 yarn lint             # ESLint (--max-warnings 0) across the monorepo, then markdownlint
-yarn test             # packages/shared (vitest) + apps/mobile (node:test)
+yarn test             # every package's tests (vitest / node:test) + apps/mobile (node:test)
 yarn test:rules       # Firestore rules tests (Firestore emulator + node:test)
                       # scripts/test-rules.sh finds a JDK 21+ by probing versions.
                       # Must be green before deploying rules.
@@ -50,7 +53,7 @@ firebase deploy --only firestore:rules
 
 Node version is pinned to **22** (see `.nvmrc`), matching `functions/package.json` engines and what `--experimental-strip-types` requires.
 
-CI runs all of the above. `.github/workflows/ci.yml` has four jobs: `conventions` (contract integrity and the umbrella's shared conventions), `workspace` (typecheck, lint, tests), `functions`, and `rules`. **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist — without it the file is untracked and never runs, with no error.
+CI runs all of the above. `.github/workflows/ci.yml` has four jobs: `conventions` (contract integrity and the umbrella's shared conventions), `workspace` (typecheck, lint, tests, and that each game's committed page matches a fresh `build:embed`), `functions`, and `rules`. **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist — without it the file is untracked and never runs, with no error.
 
 ## Architecture
 
@@ -82,6 +85,10 @@ ErrorBoundary → GestureHandlerRootView → SafeAreaProvider → SDSProvider �
 ### Data Layer (in `@skkuverse/shared`)
 
 - **API client:** Axios with auth interceptor and retry. Requests wrapped in `Result<T>` (success/failure union).
+- **Retries live in one place.** axios-retry (`packages/shared/src/api/interceptors/retry.ts`) is the only retry layer, and React Query's `retry` is off (`apps/mobile/src/lib/query-client.ts`). Don't add a per-query `retry`: the two layers multiply, and a synchronized retry burst is what hurts the server during a spike. 429 is never retried.
+- **Timeouts live in `packages/shared/src/api/timeouts.ts`.** The `safeGet*` wrappers give a GET 6 s unless the caller passes its own `timeout`, bus realtime polling uses 4 s (it must stay under half the shortest `refreshInterval`), and everything else keeps the instance's 10 s. A retry starts a fresh timeout, so a GET that stalls twice fails in about 13 s.
+- **A query with a fallback throws, and the hook applies it.** Returning defaults from a `queryFn` caches the failure as a success for the whole staleTime. Throw, and hand the caller `dataOrFallback(query, DEFAULTS)` (`packages/shared/src/hooks/fallback.ts`), as `useMapConfig` does.
+- **staleTime never exceeds the server's `max-age`.** The server's `Cache-Control` is the real freshness knob; the device's HTTP cache and the Cloudflare edge answer repeat requests, so a shorter staleTime costs the origin nothing, while a longer one holds data the server has already corrected.
 - **Stores:** `useAuthStore` (Firebase auth), `useSettingsStore` (campus, language, lastTab), `useMapLayerStore`.
 - **React Query hooks:** `useCampusSections`, `useTransitList`, `useBusConfig`, `useMapConfig`, `useBuildings`, etc.
 - **i18n:** `useT()` hook, `SUPPORTED_LANGUAGES`.
@@ -116,6 +123,19 @@ A four-page value tour (shuttle → campus map → AI notices → Google sign-in
 - **Sign-in is the last step and routes nowhere.** `classifyAndRestoreOnboarding` is still called, but purely for its restore side effect; the `kind` is ignored. A new user meets the notices wizard later, from the notices tab.
 - **The wizard's `skipLogin` is frozen at mount.** `OnboardingState.skipLogin` comes from `authStore` in the lazy initializer, and makes `NEXT` 3→5 and `PREV` 5→3. Never recompute it from live `isAnonymous`, which flips mid-wizard.
 - **`reducer.ts` must stay free of relative runtime imports.** `node --experimental-strip-types --test` erases the type-only `./types` import; a value import would break `reducer.test.mts`. That is why `MAX_INTEREST_DEPTS` lives there.
+
+### In-app games (`src/features/games/`, 2026-09-25)
+
+Mini games ship inside the app as a page string loaded into a web view, hosted by a native screen at `/games/[id]`. **Full detail: `docs/explanation/in-app-games.md`; the decision is ADR 0009.** The invariants worth knowing mid-session:
+
+- **The leaderboard trusts Firestore rules alone.** An entry must cite a server-stamped run (`users/{uid}/gameRuns`) and be plausible for the elapsed time (`isPlausible`). wave-run has a ceiling, `waveRunMaxScore`, mirroring `packages/wave-run/src/game/bound.ts`; subway-typing has a floor, `subwayTypingMinMs`, mirroring `packages/subway-typing/src/bound.ts`. Both test suites pin the same points, so a tuned constant or a changed route has to move in both.
+- **A score's direction is per game.** `score.order` in `features/games/registry.ts` (`desc` for wave-run's distance, `asc` for subway-typing's time) drives every comparison through `isBetter`: the board query, the rank count, the device best and `decideSubmit`. The rules' `isImprovement` is the same call. Never compare two scores with a bare `>`.
+- **The committed page is generated.** After editing a game package, run its `build:embed` (`yarn workspace @skkuverse/wave-run build:embed`, `yarn workspace @skkuverse/subway-typing build:embed`) and commit `html.generated.ts`; CI rebuilds and fails on a difference. The page must never expose the engine's debug options (start speed or score).
+- **`packages/game-host`, not `packages/bridge`.** The bridge is vendored into skkuverse-web and hash-checked; a game's channel stays in this repo.
+- **Registry ids are reused.** `openMiniAppById` sends an id in `NATIVE_GAME_IDS` to the native screen, so the home tile and `/m/<id>` keep working while older builds still open the web mini app.
+- **One line per player per board** (`leaderboards/{gameId}/scores/{uid}`, their best), and it must equal the player profile (`users/{uid}.profile`: campus, nickname). A profile change is server-stamped and throttled once a nickname exists, and `onUserProfileWrite` rewrites the player's entries. A sign-in that changes the uid leaves the run on screen under the anonymous one; `claimRun` moves it with the anonymous token as proof, and no submit decision is made while that is in flight. Deploy the `scores.uid` collection-group index before the functions, or `deleteAccount` fails.
+- **The result flow is game-agnostic** (`features/games/result/`, `features/games/leaderboard/`): a game supplies its page, a `NATIVE_GAMES` entry and its overlay (`features/games/<id>/Overlay.tsx`). The board component (`LeaderboardTopSection`) is the same on the result screen and on home, where one "Hall of Fame" card (`HomeHallOfFame`, on the banner's `LoopingPager`) pages through every game's podium (`HOME_LIMIT`). Players only ever see "Hall of Fame" (명예의 전당), never "leaderboard". <!-- conventions:allow-korean: the product term -->
+- **A typing page starts itself.** subway-typing's start button is on the page because iOS raises the keyboard only for a focus inside a tap on the page; the host sets `keyboard` on the web view and never starts a run by message. Android draws edge to edge, so the window is not resized for the keyboard: `GameScreen` wraps a keyboard game's web view in a `KeyboardAvoidingView` there (iOS needs nothing — WebKit shrinks the visual viewport).
 
 ### Design System (`@skkuverse/sds`)
 
@@ -159,6 +179,7 @@ The app can be entered from outside through the custom scheme `skkuverse://` and
 - **Maps:** Naver Maps SDK via `@mj-studio/react-native-naver-map`. Android custom view markers require `renderToHardwareTextureAndroid` + `collapsable={false}` to avoid bitmap snapshot race condition (see `docs/explanation/android-naver-map-markers.md`)
 - **The campus toggle never moves on its own.** It holds exactly one campus and only the user changes it; when the camera ends up somewhere else — pressing locate is the ordinary way — a card in the map's lower row offers the difference instead. Markers are deliberately NOT filtered by campus, so whatever is under the camera is always drawn. The decision is `resolveCampusSuggestion`, a pure function unit-tested against the real coordinates, and the radius that defines "inside a campus" is served as `campuses[].radiusM` with a permanent client fallback (neither side may assume the other has shipped). One invariant belongs here: **an explicit camera request is answered by a decision, not by the first camera idle** — switching tracking on emits an idle while the camera is still at the old position, and consuming the request there makes the real answer look like drift, which the explicit-action rule then suppresses silently. There are two such requests, a locate press and a **map chip tap**, and both raise the same ref (`awaitingExplicitCameraResult`) so a chip that flies to the festival ground switches the toggle silently rather than being followed by a card asking about the campus it just took you to. Detail: ADR 0008 and `docs/explanation/campus-map-reconciliation.md`.
 - **Auth/Analytics:** Firebase (auth, analytics, crashlytics, app-check). Google Sign-In, restricted to the `@g.skku.edu` domain. App Check is iOS App Attest plus Android Play Integrity.
+- **The cold-start anonymous sign-in never blocks launch.** `anonymousSession.ensure()` (`apps/mobile/src/services/anon-session.ts`) makes one attempt, lets the caller move on signed out after a timeout or a failure, and retries in the background with jittered backoff. The per-IP sign-up quota counts every anonymous account, so behind a shared NAT the old blocking `await` was a dead-end error screen. Three rules: **nothing else calls `signInAnonymously`** — cold start, the Google sign-out and the account deletion all go through `ensure()`, or a foreground retry races them into a second account; an attempt re-checks `currentUser` immediately before calling, because `signInAnonymously` **replaces** a signed-in Google user; and any Google sign-in path must `pause()` the session first and `resume()` after (pauses nest), as `signInWithDeviceMigration` does. A failure is logged once per process as `auth/anon-signin`.
 - **Push notifications (FCM):** option D, meaning no inbox, with the badge computed locally through Zustand and Notifee. The decision is recorded in `docs/decisions/0002`. **The full architecture is `docs/explanation/fcm-architecture.md`** (the v5 SSOT, tabsContract, drift sync, delivery, auth transitions). The history is `docs/plans/fcm-push-notifications.md` (superseded), and the preferences-to-devices drift incident is `docs/internal/2026-04-fcm-preferences-devices-drift.md`. On-device diagnosis is `app/settings/debug-logs.tsx`.
 - **FCM invariants (detail in fcm-architecture.md):** what is recorded is intent, what is sent is derived. The client writes intent fields alone, since the rules close off the derived ones, and every write is a single dot-path `updateDoc` with **no transaction**, which is what protects offline queueing in a campus wifi dead spot. `onboardedAt` is one-way immutable, null to a timestamp. MMKV holds device-local state alone, and a Firestore listener is the single source for preferences. Verify with `cd functions && npm run verify:trigger` and `yarn test:rules` (the case count and composition are `firestore.rules.test.mjs`'s to state — never freeze a number here).
 - **The FCM tabsContract mirror discipline:** `functions/src/notifications/tabsContract.ts` is a hardcoded mirror of `src/notices/categories.json` in the separate skkuverse-server repo. When the backend adds a tab, the mirror has to be updated **in the same release**, because an unknown fixed key cannot be detected on this side. The convention is that a picker tab key is its topic prefix. The procedure is `docs/how-to/add-notice-tab.md`.
@@ -177,7 +198,8 @@ The app can be entered from outside through the custom scheme `skkuverse://` and
 - **Running in development:** Expo Go is not used. Everything runs as a real native build through **CNG (Continuous Native Generation)**, with `yarn ios` (`expo run:ios`) or `yarn android` (`expo run:android`). The custom native modules, Firebase and Naver Maps among them, make a native build mandatory.
 - **After a native change:** anything that affects native code — adding or removing a package, changing plugins in `app.config.ts`, changing a native module's configuration — needs `npx expo prebuild --clean` followed by `yarn ios` or `yarn android`.
 - **EAS Build:** Configured in `apps/mobile/eas.json` (dev/preview/production profiles)
-- **`@mj-studio/react-native-naver-map` is pinned exact at 2.7.1, and the pin is the point.** A caret would let an ordinary install pull a native SDK bump that needs `expo prebuild --clean` plus a manual `runtimeVersion` bump. **There is no longer a patch for it** — our nil-iconImage fix went upstream as PR #184 and ships in 2.7.1. `patches/` holds only `expo-router` and `react-native-screens`.
+- **`@mj-studio/react-native-naver-map` is pinned exact, and the pin is the point.** The version lives in `apps/mobile/package.json`. A caret would let an ordinary install pull a native SDK bump that needs `expo prebuild --clean` plus a manual `runtimeVersion` bump. **There is no patch for it** — our nil-iconImage fix went upstream as PR #184, and the floor is 2.8.0, the release that moved the iOS image loader off `RCTImageLoader` so every completion lands on the main queue. Below that floor the shared `imageCache` is written from a background queue while the main thread reads it, over-releasing `NMFOverlayImage`; that was the crash cluster in spencer0124/skkuverse#53. `patches/` holds only `expo-router` and `react-native-screens`.
+- **Android native libraries are extracted at install (`useLegacyPackaging: true` in `app.config.ts`), and turning it off crashes emulators on launch.** Left inside the APK, SoLoader searches only `Build.SUPPORTED_ABIS[0]`, which on an x86_64 emulator with ARM translation is not the ABI the package manager installed, so `MainApplication.onCreate` dies with `SoLoaderDSONotFoundError` before any JS runs. Detail: `docs/explanation/android-native-library-loading.md`.
 - **Android dev environment:** CLI-only SDK (no Android Studio IDE), JDK 17, `ANDROID_HOME=~/Library/Android/sdk`
 
 ## Build & Deploy (local builds)

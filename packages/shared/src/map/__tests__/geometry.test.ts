@@ -36,6 +36,8 @@ const base = {
   fields: [],
   actions: [],
   order: 0,
+  facets: {},
+  orderByOption: {},
   tap: null,
 };
 
@@ -45,6 +47,7 @@ const marker = (lat: number, lng: number): MapOverlay => ({
   lat,
   lng,
   pinPriority: 0,
+  locationAccuracy: 'exact',
 });
 
 const polygon = (rings: { lat: number; lng: number }[][]): MapOverlay => ({

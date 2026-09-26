@@ -196,7 +196,8 @@ const NumberDotMarker = React.memo(function NumberDotMarker({
  * falls back to `place.id`, and the one `resolvePinCollisions` matches on.
  */
 function placeIdOf(marker: MarkerOverlay): string {
-  return marker.tap?.placeId ?? marker.id;
+  // A chip tap addresses no place, so its marker is selected by its own id.
+  return marker.tap && marker.tap.kind !== 'chip' ? marker.tap.placeId : marker.id;
 }
 
 /**
@@ -262,8 +263,16 @@ const PlaceMarker = React.memo(function PlaceMarker({
       }}
       // The density lever for a layer that really does put every marker on
       // screen at once, which the building layers never do.
-      isHideCollidedCaptions
+      //
+      // Except for a marker whose tap runs a chip. It names an AREA — the
+      // 푸드트럭 구역, standing over 17 trucks the collision ladder removed —
+      // so its caption is the whole point of it. The SDK hid that caption on
+      // iOS with no other marker within ~60 m (checked 2026-09-24 by logging
+      // every drawn marker near it); forcing it on is what made it appear.
+      isHideCollidedCaptions={tap?.kind !== 'chip'}
       zIndex={isSelected ? SELECTED_Z : 0}
+      minZoom={layerStyle?.minZoom}
+      maxZoom={layerStyle?.maxZoom}
       onTap={tap ? onTap : undefined}
     />
   );
@@ -299,6 +308,29 @@ interface MapOverlayLayerProps {
    */
   selectedPlaceId: string | null;
   onMarkerTap: (tap: MarkerTap) => void;
+  /**
+   * Places the narrowed chip's list filters have taken out — a 2일차 pub while
+   * 1일차 is selected — so the map shows what the list lists.
+   *
+   * Removed BEFORE the collision ladder, not after. Pub plots hold a different
+   * pub each night, so a hidden night's pub left in the ladder would still win
+   * the shared coordinate and leave the visible night's pub undrawn. Event
+   * place ids are layer-set prefixed, so they never meet a building id.
+   */
+  hiddenIds?: ReadonlySet<string>;
+  /**
+   * Draw this one overlay and nothing else — how a layer that is OFF still
+   * shows the place the peek sheet is open on. "View on map" from a mini app
+   * can land on a 주점 at 15:00, outside its schedule, and a camera flown to
+   * empty ground under a sheet naming a place reads as broken.
+   *
+   * Selection outranks visibility, and only for the one place: turning the
+   * layer on instead would write a resolved value into `useMapLayerStore`,
+   * freezing the schedule and making the server's default indistinguishable
+   * from the user's choice. Such a layer is outside `collisionPeers`, so the
+   * ladder never runs here.
+   */
+  onlyId?: string;
 }
 
 export function MapOverlayLayer({
@@ -306,11 +338,17 @@ export function MapOverlayLayer({
   collisionPeers,
   selectedPlaceId,
   onMarkerTap,
+  hiddenIds,
+  onlyId,
 }: MapOverlayLayerProps) {
   const { data: overlays } = useLayerOverlays(layer.endpoint, true);
   const lang = useSettingsStore((s) => s.appLanguage);
 
-  const all = useMemo(() => overlays ?? [], [overlays]);
+  const all = useMemo(() => {
+    const list = overlays ?? [];
+    if (onlyId !== undefined) return list.filter((o) => o.id === onlyId);
+    return hiddenIds && hiddenIds.size > 0 ? list.filter((o) => !hiddenIds.has(o.id)) : list;
+  }, [overlays, hiddenIds, onlyId]);
 
   // A booth changes state on the device's clock rather than on a refetch: the
   // payload is identical either side of a boundary, so this hook owns the timer
@@ -407,6 +445,8 @@ export function MapOverlayLayer({
               }}
               isHideCollidedCaptions
               globalZIndex={layer.style?.zIndex ?? LABEL_Z_INDEX}
+              minZoom={layer.style?.minZoom}
+              maxZoom={layer.style?.maxZoom}
               onTap={onTap}
             />
           );
@@ -470,6 +510,13 @@ export function MapOverlayLayer({
             // prints the number a second time beside its own dot. The name is
             // the `building_labels` layer's job, which is the whole reason the
             // two are separate layers.
+            //
+            // Zoom bounds are the layer's, as on every other kind. The server
+            // gives this layer a higher floor than `building_labels`, so zooming
+            // out drops the numbers first and the names after them. Unset
+            // falls through to the SDK's own 0–21 default.
+            minZoom={layer.style?.minZoom}
+            maxZoom={layer.style?.maxZoom}
             onTap={onTap}
           >
             <NumberDotMarker label={label} size={dotSize} />

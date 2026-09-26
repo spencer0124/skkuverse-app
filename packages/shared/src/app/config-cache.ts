@@ -19,7 +19,7 @@
  * source of truth this migration removes.
  */
 import { readCache, writeCache } from '../store/mmkv-cache';
-import type { AppConfig } from './parser';
+import { parseMiniApps, type AppConfig } from './parser';
 
 const CACHE_KEY = 'app-config:v1';
 
@@ -52,6 +52,7 @@ function validate(raw: unknown): AppConfig | null {
     web: {
       origin: typeof web?.origin === 'string' ? web.origin : null,
     },
+    miniapps: parseMiniApps(obj.miniapps),
   };
 }
 
@@ -78,6 +79,15 @@ export function getCachedAppConfig(): AppConfig | null {
  */
 export function getBridgeOrigins(): string[] {
   return getCachedAppConfig()?.webview.bridgeOrigins ?? [];
+}
+
+/**
+ * First-party mini-app origin → mini-app id (`AppConfig.miniapps.origins`).
+ * Empty when the config has never been fetched or the server sent none, which
+ * leaves every URL in /webview.
+ */
+export function getMiniAppOrigins(): Readonly<Record<string, string>> {
+  return getCachedAppConfig()?.miniapps.origins ?? {};
 }
 
 /**

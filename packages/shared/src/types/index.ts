@@ -36,7 +36,6 @@ export type {
   DaySchedule,
   ScheduleEntry,
   ScheduleNotice,
-  CampusEta,
 } from './bus';
 export { hexToColor, isBusGroupVisible } from './bus';
 
@@ -51,6 +50,19 @@ export type {
   MarkerOverlay,
   LatLng,
 } from './map';
+
+// ── Place detail types ──
+export type {
+  PlaceKind,
+  PlaceDetail,
+  PlaceAction,
+  PlaceInstagramAction,
+  PlaceLinkAction,
+  PlaceBlock,
+  PlaceBlockType,
+  PlaceListItem,
+  PlaceTableRow,
+} from './placeDetail';
 
 // ── Building types ──
 export type {

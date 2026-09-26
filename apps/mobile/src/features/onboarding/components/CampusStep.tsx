@@ -7,12 +7,16 @@ import { logOnboardingStep } from '@/services/analytics';
 interface Props {
   selected: Campus | null;
   onSelect: (campus: Campus) => void;
+  /** Overrides the notices-flavoured subtitle when the step is reused elsewhere. */
+  subtitle?: string;
+  /** Log onboarding funnel events. Off when the step is reused outside the wizard. */
+  track?: boolean;
 }
 
-export function CampusStep({ selected, onSelect }: Props) {
+export function CampusStep({ selected, onSelect, subtitle, track = true }: Props) {
   const { t } = useT();
   const handleSelect = (campus: Campus) => {
-    logOnboardingStep({ step: 'campus', action: 'select_campus', detail: campus });
+    if (track) logOnboardingStep({ step: 'campus', action: 'select_campus', detail: campus });
     onSelect(campus);
   };
   return (
@@ -21,7 +25,7 @@ export function CampusStep({ selected, onSelect }: Props) {
         {t('onboarding.campusTitle')}
       </Txt>
       <Txt typography="t6" color={SdsColors.grey500} style={styles.subtitle}>
-        {t('onboarding.campusSubtitle')}
+        {subtitle ?? t('onboarding.campusSubtitle')}
       </Txt>
       <CampusCard
         name={t('onboarding.hsscName')}

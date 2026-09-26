@@ -1,5 +1,7 @@
 import {
   parseIncomingLink,
+  parseMapPlaceRef,
+  parseMiniAppTarget,
   resolveInitialTabRouteName,
   useSettingsStore,
 } from '@skkuverse/shared';
@@ -25,7 +27,13 @@ const TAB_PATHS: Record<string, string> = {
 // happened to be active when the link arrived).
 const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
 
-// Mini-app entry: /m/<slug> (universal `…/p/m/<slug>` or scheme `skkuverse://m/<slug>`).
+// Mini-app entry: /m/<target> (universal `…/p/m/<target>` or scheme `skkuverse://m/<target>`),
+// where a target is `<slug>[/path]` — `parseMiniAppTarget` in @skkuverse/shared,
+// the same grammar a map or push `miniapp` action carries. The path opens that
+// page of the mini app; the shell resolves it against the registered startUrl
+// and falls back to startUrl if it would leave that origin. A query string on
+// the link is NOT carried: `parseIncomingLink` has already split it off, and the
+// link's query belongs to the link, not to the mini app's page.
 // Same pending-holder pattern as notices — route to home, then the root layout's
 // PendingMiniAppLinkConsumer opens the mini-app on top.
 //
@@ -46,7 +54,7 @@ const NOTICE_PATH_RE = /^\/notices\/([a-z0-9-]+)\/(\d+)$/;
 // Security is unchanged: an unknown slug still resolves to /(tabs)/home and
 // cannot push an arbitrary internal route. The consumer drops it on lookup
 // failure, so the worst case is a deep link that lands on home.
-const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
+const MINIAPP_PATH_RE = /^\/m\/(.+)$/;
 
 // Universal map entry: `skkuverse://map?place=<placeId>`. A booth and a building
 // are addressed identically, because both are places (umbrella ADR 0004
@@ -62,19 +70,10 @@ const MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/;
 // floor map.
 const MAP_PATH_RE = /^\/map$/;
 
-// `?place=` takes either `<placeId>` or `<kind>:<placeId>`. The prefixed form is
-// literally the two fields of a marker's `tap`, so a shared link can never
-// disagree with the marker it came from; the bare form is what is already in
-// circulation and stays valid.
-//
-// BOTH anchors are load-bearing and neither is decoration: they are what stops
-// `../../etc` from being accepted as a place id.
-const PLACE_ID_RE = /^(?:([a-z0-9_]+):)?([a-z0-9-]+)$/;
-
-// The kinds this build can route. A link naming anything else is dropped rather
-// than stripped down to its id: guessing which kind an unknown prefix meant is
-// how a booth link opens the wrong building.
-const PLACE_KINDS = ['skku_building', 'event'] as const;
+// `?place=` is a map place reference, `[<kind>:]<placeId>` — `parseMapPlaceRef`
+// in @skkuverse/shared, the same grammar a `map` action carries. The grammar,
+// its anchors and its kind allowlist live there, so this link and a page's
+// `web:action` cannot disagree about what a place id is.
 
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {
   // Cold start (`initial: true`) receives the launch URL — possibly the full
@@ -117,8 +116,9 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     // Mini-app path → stash slug + route to home; PendingMiniAppLinkConsumer
     // resolves it against the server registry and opens the shell (or drops it).
     const miniAppMatch = pathname.match(MINIAPP_PATH_RE);
-    if (miniAppMatch) {
-      pendingMiniAppLink.set({ id: miniAppMatch[1] });
+    const miniAppTarget = miniAppMatch ? parseMiniAppTarget(miniAppMatch[1]) : null;
+    if (miniAppTarget) {
+      pendingMiniAppLink.set(miniAppTarget);
       return '/(tabs)/home';
     }
 
@@ -130,15 +130,10 @@ export function redirectSystemPath({ path, initial }: { path: string; initial: b
     // mini-app slug above: this runs outside the React tree, so a lookup would
     // be a duplicate request that blocks the app's first navigation.
     if (MAP_PATH_RE.test(pathname)) {
-      const match = PLACE_ID_RE.exec(params.get('place') ?? '');
-      const rawKind = match?.[1];
-      const placeId = match?.[2];
-      const kind = PLACE_KINDS.find((k) => k === rawKind) ?? null;
-      // A prefix we do not recognise is a link from a newer build (next year's
-      // festival), so drop it rather than resolving the id under the wrong kind.
-      if (placeId && (rawKind === undefined || kind !== null)) {
-        pendingMapPlaceLink.set({ kind, placeId });
-      }
+      // An unknown kind prefix parses to null: a link from a newer build is
+      // dropped rather than resolved under the wrong kind.
+      const ref = parseMapPlaceRef(params.get('place'));
+      if (ref) pendingMapPlaceLink.set(ref);
       return '/(tabs)/campus';
     }
 

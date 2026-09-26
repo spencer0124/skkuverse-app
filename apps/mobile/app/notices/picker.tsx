@@ -64,7 +64,6 @@ import {
   filterPickerSources,
   findCollegeUmbrella,
   recommendCollegeMates,
-  resolvePickerSelection,
   SdsColors,
   useAuthStore,
   useNoticeTabs,
@@ -75,7 +74,7 @@ import {
   type TabSource,
   type TranslationKey,
 } from '@skkuverse/shared';
-import { SearchField, Txt } from '@skkuverse/sds';
+import { SearchField, Toast, Txt } from '@skkuverse/sds';
 import { DeptRow } from '@/features/onboarding/components/DeptRow';
 import { UnsupportedDeptSheet } from '@/features/onboarding/components/UnsupportedDeptSheet';
 import { setPickerSelectionRemote } from '@/services/firestore-notifications';
@@ -124,9 +123,19 @@ function NoticesPickerScreenInner() {
   // Snapshot the saved selection ONCE at mount. Lazy initializer reads
   // from the current Firestore-backed store value; later changes from the
   // listener don't reset us (would clobber in-progress edits).
+  //
+  // Deliberately NOT resolvePickerSelection(): that returns the *display*
+  // fallback, which for the dept tab is sources[0] (건축학과) whenever the
+  // stored value is empty or unresolvable. Seeding the edit buffer from it
+  // launders a display fallback into persisted intent — the user opens the
+  // modal, finds 건축학과 already checked, adds their own dept, and saves
+  // ['arch', <theirs>]. 건축학과 then never goes away, which is exactly the
+  // 2026-09 report. The edit buffer must reflect what is STORED; the
+  // fallback belongs only on the read side.
   const [originalIds] = useState<string[]>(() => {
     if (!tab || tab.tabMode !== 'picker' || !tab.picker) return [];
-    return resolvePickerSelection(tab, pickerSelections[tab.key]);
+    const validIds = new Set(tab.picker.sources.map((sc) => sc.id));
+    return (pickerSelections[tab.key] ?? []).filter((id) => validIds.has(id));
   });
   const [pending, setPending] = useState<string[]>(originalIds);
   const [query, setQuery] = useState('');
@@ -248,21 +257,54 @@ function NoticesPickerScreenInner() {
     });
   };
 
-  const canConfirm = pending.length > 0;
+  // `saving` doubles as the double-tap guard, matching the inFlightRef
+  // discipline in OnboardingScreen's prepareCategoryStep.
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const canConfirm = pending.length > 0 && !saving;
 
-  const handleConfirm = () => {
+  // Await the write and only dismiss on success.
+  //
+  // This used to be fire-and-forget with an unconditional router.back(): the
+  // modal closed, the selector re-rendered from the unchanged store, and a
+  // failed write was indistinguishable from a successful one. That silence is
+  // why the 2026-07 ghost-state bug shipped a second time in 2026-09 — the
+  // postmortem's action item S3 ("give the user feedback when a picker write
+  // fails") was left unchecked. Do not restore the fire-and-forget form.
+  //
+  // Cost, accepted deliberately: a Firestore write promise settles on SERVER
+  // ACK, so this spinner can sit for seconds in a campus-wifi dead spot where
+  // the old code returned instantly. The spinner is not decorative.
+  const handleConfirm = async () => {
     if (!canConfirm || !tab || !subscriptionUid) return;
     logNoticesContentSelect({
       content_type: 'picker_done',
       item_id: `${tab.key}/${pending.length}`,
     });
-    setPickerSelectionRemote(subscriptionUid, tab.key, pending).catch((e) => {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      // Thread the local onboarding selection through, so a self-heal seed
+      // recreates the document with the user's real picks rather than an
+      // empty one. See updatePrefsWithSelfHeal in firestore-notifications.
+      await setPickerSelectionRemote(subscriptionUid, tab.key, pending, {
+        pickerSelections: { [tab.key]: pending },
+        onboarded: true,
+      });
+      router.back();
+    } catch (e) {
+      // Label preserved — Crashlytics triage queries depend on it.
       logHandledError('notifications/picker-set', e);
-    });
-    router.back();
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClose = () => {
+    // A dismiss mid-write is not corruption (the write self-heals), but it
+    // re-opens the silent-failure hole this screen exists to close.
+    if (saving) return;
     logNoticesContentSelect({
       content_type: 'picker_close',
       item_id: tab?.key ?? 'unknown',
@@ -343,7 +385,7 @@ function NoticesPickerScreenInner() {
             fontWeight="semiBold"
             color={canConfirm ? DEEPGREEN : SdsColors.grey300}
           >
-            {t('notices.done')}
+            {saving ? t('notices.picker.saving') : t('notices.done')}
           </Txt>
         </Pressable>
       </View>
@@ -496,6 +538,19 @@ function NoticesPickerScreenInner() {
           setUnsupportedTapped(null);
         }}
         onDismiss={() => setUnsupportedTapped(null)}
+      />
+
+      {/* The write failed and the modal stayed open. Retry re-runs the same
+          save, which now self-heals a missing preferences document. Before
+          2026-09 this failure was invisible: the modal closed and the old
+          selection silently reappeared. */}
+      <Toast
+        open={saveFailed}
+        text={t('notices.picker.saveFailed')}
+        button={
+          <Toast.Button text={t('notices.picker.retry')} onPress={handleConfirm} />
+        }
+        onClose={() => setSaveFailed(false)}
       />
     </View>
   );

@@ -67,6 +67,16 @@ jobs:
       - run: yarn typecheck
       - run: yarn lint
       - run: yarn test
+      # The bundled game page is committed; rebuilding it must change nothing.
+      - name: wave-run embed is up to date
+        run: |
+          yarn workspace @skkuverse/wave-run build:embed
+          # --porcelain also catches the file never having been committed.
+          test -z "$(git status --porcelain -- apps/mobile/src/features/games/wave-run/html.generated.ts)"
+      - name: subway-typing embed is up to date
+        run: |
+          yarn workspace @skkuverse/subway-typing build:embed
+          test -z "$(git status --porcelain -- apps/mobile/src/features/games/subway-typing/html.generated.ts)"
 
   functions:
     runs-on: ubuntu-latest

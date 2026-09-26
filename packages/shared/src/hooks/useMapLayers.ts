@@ -37,6 +37,11 @@ export function useLayerOverlays(endpoint: string, enabled: boolean) {
       throw result.failure;
     },
     enabled,
-    staleTime: 10 * 60_000,
+    // The server's Cache-Control is the real freshness knob: a minute on the
+    // festival route, so an ops correction is live before anyone walks there.
+    // staleTime only has to be no longer than that. Refetching sooner costs the
+    // origin nothing: the campus route's day-long max-age lets the device's HTTP
+    // cache answer, and both routes are edge hits (a few KB gzipped).
+    staleTime: 60_000,
   });
 }

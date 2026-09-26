@@ -8,8 +8,8 @@ import Animated, {
   withDelay,
   withTiming,
   Easing,
+  cancelAnimation,
 } from 'react-native-reanimated';
-import { CaretRightIcon } from 'phosphor-react-native';
 import { SdsColors } from '@skkuverse/shared';
 import { FloatingEmoji, type EmojiSpec } from '@/components/FloatingEmoji';
 import { logHomeContentSelect } from '@/services/analytics';
@@ -18,6 +18,9 @@ import { handleSduiAction } from '@/sdui/action-handler';
 // Cycle: morph (~2.7s) → 5s idle hold → snap reset → loop.
 const ACTIVE_DURATION = 2700;
 const IDLE_HOLD = 5000;
+// As a carousel page: "스꾸 버스" holds this long after the page becomes
+// current, so the morph starts once the slide-in has settled, not during it.
+const REPLAY_DELAY = 400;
 
 // Animation flow:
 //   0–SPREAD_START   : "스꾸 버스" held tight (1-space gap, both slots
@@ -69,7 +72,7 @@ function easedPhase(
 // Web has subhead and wordmark at the same fontSize (104px desktop). Match
 // that here for visual symmetry — banner uses 18dp for both (slim layout
 // targeting ~AI공지 grid tile height).
-const HEADING_FONT = 18;
+const HEADING_FONT = 21;
 const SLOT_HEIGHT = HEADING_FONT;
 // One space character width at fontSize 28 bold WantedSans.
 const SLOT_GAP = HEADING_FONT * 0.28;
@@ -95,20 +98,49 @@ const LEFT_TIGHT_TRANSLATE = (RIGHT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
 const RIGHT_TIGHT_TRANSLATE = -(LEFT_LONG_WIDTH - SHORT_TEXT_WIDTH) / 2;
 
 // Right-zone emoji cluster — organic scatter around 📢 anchor (the largest,
-// focal). Sizes graduated (28→16) so the eye reads anchor first then drifts
+// focal). Sizes graduated (38→22) so the eye reads anchor first then drifts
 // to peripherals; rotations spread ±20° for "tossed in" feel instead of
 // uniform corners.
 const EMOJIS: readonly EmojiSpec[] = [
-  { ch: '\u{1F4E2}', left: '56%', top: '28%', size: 28, rot: -12, delay: 0 },
-  { ch: '\u{1F68C}', left: '78%', top: '8%', size: 20, rot: 16, delay: 800 },
-  { ch: '\u{1F5FA}', left: '70%', top: '60%', size: 18, rot: -22, delay: 1400 },
-  { ch: '\u{23F0}', left: '87%', top: '50%', size: 16, rot: 10, delay: 2000 },
+  { ch: '\u{1F4E2}', left: '61%', top: '26%', size: 38, rot: -12, delay: 0 },
+  { ch: '\u{1F68C}', left: '82%', top: '6%', size: 27, rot: 16, delay: 800 },
+  { ch: '\u{1F5FA}', left: '75%', top: '58%', size: 24, rot: -22, delay: 1400 },
+  { ch: '\u{23F0}', left: '89%', top: '46%', size: 22, rot: 10, delay: 2000 },
 ];
 
-export function HeroBanner() {
+interface HeroBannerProps {
+  /**
+   * Fill the parent instead of drawing a standalone 96-high card. Used as the
+   * `default` page of the home banner carousel, which sets the height from the
+   * server's aspect ratio and owns the margins and the rounded clip; the
+   * content is already vertically centred, so it sits mid-card at any height.
+   */
+  fill?: boolean;
+  /**
+   * Whether this banner is the carousel's current page. Each time it turns
+   * true the "스꾸 버스 → 성균관 유니버스" morph plays once from the start; while
+   * false the banner rests on "스꾸 버스", ready for its next turn. Absent means
+   * the banner is always on screen (standalone, or the carousel's only page),
+   * and the morph loops on its own clock as it always has.
+   */
+  active?: boolean;
+}
+
+export function HeroBanner({ fill = false, active }: HeroBannerProps = {}) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
+    if (active !== undefined) {
+      cancelAnimation(progress);
+      progress.value = 0;
+      if (active) {
+        progress.value = withDelay(
+          REPLAY_DELAY,
+          withTiming(1, { duration: ACTIVE_DURATION, easing: Easing.linear }),
+        );
+      }
+      return;
+    }
     progress.value = withRepeat(
       withSequence(
         withTiming(1, {
@@ -120,7 +152,7 @@ export function HeroBanner() {
       -1,
       false,
     );
-  }, [progress]);
+  }, [active, progress]);
 
   // SPREAD phase uses TOSS_SPRING (56% overshoot) — slots fly outward, settle
   // back. translate = TIGHT * (1 − eased): at eased=0 → TIGHT, at eased=1 → 0.
@@ -203,6 +235,7 @@ export function HeroBanner() {
     <Pressable
       style={({ pressed }) => [
         styles.card,
+        fill ? styles.cardFill : styles.cardStandalone,
         { opacity: pressed ? 0.85 : 1 },
       ]}
       onPress={() => {
@@ -244,23 +277,25 @@ export function HeroBanner() {
       <FloatingEmoji spec={EMOJIS[2]} />
       <FloatingEmoji spec={EMOJIS[3]} />
 
-      <View style={styles.chevronWrap} pointerEvents="none">
-        <CaretRightIcon size={18} color={SdsColors.grey500} weight="bold" />
-      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    height: 96,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
     backgroundColor: SdsColors.brandLight,
     paddingHorizontal: 20,
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  cardStandalone: {
+    height: 96,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+  },
+  cardFill: {
+    flex: 1,
   },
   subhead: {
     fontFamily: 'WantedSans',
@@ -306,12 +341,5 @@ const styles = StyleSheet.create({
     color: SdsColors.brandDark,
     letterSpacing: -HEADING_FONT * 0.03,
     textAlign: 'center',
-  },
-  chevronWrap: {
-    position: 'absolute',
-    right: 14,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
   },
 });

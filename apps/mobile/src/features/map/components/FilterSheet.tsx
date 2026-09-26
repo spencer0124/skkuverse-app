@@ -7,9 +7,6 @@
  * without this file knowing a festival exists — and hiding one here is the
  * same write a chip makes, read back by the same `isLayerVisible`.
  *
- * No sort control. Sort is only observable in the list, so a selector here would
- * be a control that appears to do nothing — see `EventListPanel`.
- *
  * Campus and layer are thumbnail tiles rather than text pills. A pill row states
  * what a layer is called; a tile shows what turning it on does to the map, which
  * is the actual question.

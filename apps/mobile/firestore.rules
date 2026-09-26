@@ -12,9 +12,213 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // users/{uid} — locale + future user-level settings.
+    // ── In-app games ─────────────────────────────────────────────────────
+    //
+    // Games whose leaderboard exists. A new game adds its id here, and its
+    // bounds in `isPlausible`, `maxEntryScore`, `maxRevives` and
+    // `isImprovement`.
+    function isGameId(gameId) {
+      return gameId in ['wave-run', 'subway-typing'];
+    }
+
+    // Signed in with an @g.skku.edu Google account. The app checks the domain
+    // before it signs in (google-auth.ts), but that is a client check; this is
+    // the one a leaderboard entry has to pass. The Google identity is required
+    // so an email/password account created with an skku address does not count.
+    function isSkkuGoogle() {
+      return request.auth != null
+             && request.auth.token.email is string
+             && request.auth.token.email.matches('^[a-z0-9._-]+@g[.]skku[.]edu$')
+             && request.auth.token.email_verified == true
+             && 'google.com' in request.auth.token.firebase.identities;
+    }
+
+    // users/{uid}.profile — who a player is on a leaderboard: a campus
+    // (required) and a nickname that arrives with the first leaderboard entry.
+    // Same pattern as `validateNickname` in
+    // apps/mobile/src/features/profile/domain.ts.
+    function isValidProfile(p) {
+      return p is map
+             && p.keys().hasAll(['campus', 'updatedAt'])
+             && p.keys().hasOnly(['campus', 'nickname', 'updatedAt'])
+             && p.campus in ['hssc', 'nsc']
+             && (!('nickname' in p) || (p.nickname is string && p.nickname.matches('^[가-힣a-zA-Z0-9_]{2,12}$')))
+             && p.updatedAt is timestamp;
+    }
+
+    // The highest score wave-run can reach `sec` seconds after its run was
+    // stamped: the speed ramps from 6 by 0.001 a tick to 13 (reached at tick
+    // 7000), distance is the sum of speeds, score is distance × 0.025, and 10 s
+    // of slack covers the round trip before the stamp. Mirror of
+    // packages/wave-run/src/game/bound.ts, whose tests pin the same values.
+    function waveRunMaxScore(sec) {
+      let t = (sec + 10) * 60;
+      let d = t <= 7000 ? 6 * t + 0.0005 * t * t : 66500 + 13 * (t - 7000);
+      return math.floor(d * 0.025);
+    }
+
+    // subway-typing scores a time in ms, and less is better, so what bounds it
+    // is a floor: the whole route (238 keys) at 40 ms a key, 1,500 keys a
+    // minute, beyond anyone on a phone. Mirror of MIN_RUN_MS in
+    // packages/subway-typing/src/bound.ts, whose test pins the same value.
+    function subwayTypingMinMs() {
+      return 9520;
+    }
+
+    // Whether `score` could have been played in the `sec` seconds since the
+    // run was stamped. wave-run: at most what its speed ramp reaches. A time:
+    // no faster than the floor — that is the guard — and, as a sanity bound,
+    // no longer than the time since the stamp. That bound's slack is generous
+    // (two minutes) because nobody gains by claiming a slower time, while a
+    // stamp re-taken at the start tap waits on App Check and can land after
+    // the first key: a tight bound would refuse an honest run.
+    function isPlausible(gameId, score, sec) {
+      return gameId == 'wave-run' ? score <= waveRunMaxScore(sec)
+           : gameId == 'subway-typing' ? score >= subwayTypingMinMs() && score <= (sec + 120) * 1000
+           : false;
+    }
+
+    // The absolute cap on an entry: the five digits wave-run can show; for a
+    // time, the hour a run can be entered in.
+    function maxEntryScore(gameId) {
+      return gameId == 'subway-typing' ? 3600000 : 99999;
+    }
+
+    // Revives a run can have used: wave-run's MAX_REVIVES; none elsewhere.
+    function maxRevives(gameId) {
+      return gameId == 'wave-run' ? 2 : 0;
+    }
+
+    // Which way a best moves: a time down, a distance up. Mirror of the
+    // client's `isBetter` with the game's order (features/games/registry.ts).
+    function isImprovement(gameId, next, prev) {
+      return gameId == 'subway-typing' ? next < prev : next > prev;
+    }
+
+    // The run a score claims: the caller's own, of this game, entered within
+    // an hour of its start, and plausible for the time since. wave-run's
+    // ceiling grows with time, so the window is what keeps a stamped run from
+    // being banked and entered later with a score nobody played for; an hour
+    // is longer than any real run and caps what waiting alone can reach.
+    function isEarnedOnRun(gameId, runId, score) {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid)/gameRuns/$(runId);
+      let run = get(path).data;
+      return exists(path)
+             && run.gameId == gameId
+             && request.time < run.startedAt + duration.value(1, 'h')
+             && isPlausible(gameId, score, (request.time - run.startedAt).seconds());
+    }
+
+    // What the entry says about the player is exactly their profile.
+    function matchesProfile(d) {
+      let p = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profile;
+      return p.nickname == d.nickname && p.campus == d.campus;
+    }
+
+    // The masked email shown on the board: up to three leading characters of
+    // the signed-in address. Restricted to [a-z0-9] so it cannot carry regex
+    // syntax into the match below.
+    function isOwnEmailPrefix(prefix) {
+      return prefix is string
+             && prefix.matches('^[a-z0-9]{1,3}$')
+             && request.auth.token.email.matches('^' + prefix + '[^@]*@g[.]skku[.]edu$');
+    }
+
+    // A leaderboard entry as written by its player: every field present and
+    // well-formed, earned on a stamped run, and matching their profile.
+    function isValidEntry(gameId, uid, d) {
+      return d.keys().hasOnly(['uid', 'runId', 'score', 'revives', 'nickname', 'emailPrefix', 'campus', 'updatedAt'])
+             && d.keys().hasAll(['uid', 'runId', 'score', 'revives', 'nickname', 'emailPrefix', 'campus', 'updatedAt'])
+             && d.uid == uid
+             && d.runId is string
+             && d.score is int
+             && d.score >= 0
+             && d.score <= maxEntryScore(gameId)
+             && d.revives is int
+             && d.revives >= 0
+             && d.revives <= maxRevives(gameId)
+             && d.updatedAt == request.time
+             && isOwnEmailPrefix(d.emailPrefix)
+             && isEarnedOnRun(gameId, d.runId, d.score)
+             && matchesProfile(d);
+    }
+
+    // When a run of the caller's was stamped. The update rule reads the stamp of
+    // the run a best was set on, so run documents must outlive the best that
+    // cites them: never put a TTL on gameRuns without changing that rule.
+    function runStart(runId) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)/gameRuns/$(runId)).data.startedAt;
+    }
+
+    // leaderboards/{gameId}/scores/{uid} — one entry per player: their best.
+    // The document is theirs alone (its id is their uid), it only ever gets
+    // better (`isImprovement`), and only a run newer than the one it holds can raise it, so a run
+    // counts once and two runs cannot be alternated to keep climbing. The nickname and campus copies are
+    // kept current by the onUserProfileWrite Cloud Function (admin SDK,
+    // bypasses these rules).
+    match /leaderboards/{gameId}/scores/{uid} {
+      allow read: if request.auth != null;
+      allow create: if isGameId(gameId)
+                    && isSkkuGoogle()
+                    && request.auth.uid == uid
+                    && isValidEntry(gameId, uid, request.resource.data);
+      allow update: if isGameId(gameId)
+                    && isSkkuGoogle()
+                    && request.auth.uid == uid
+                    && isValidEntry(gameId, uid, request.resource.data)
+                    && isImprovement(gameId, request.resource.data.score, resource.data.score)
+                    && runStart(request.resource.data.runId) > runStart(resource.data.runId);
+      allow delete: if false;
+    }
+
+    // A write that changes the profile at all is stamped by the server; one
+    // that leaves it alone (a locale merge) is not asked to.
+    function isProfileStamped() {
+      let before = resource == null ? {} : resource.data;
+      let after = request.resource.data;
+      return !('profile' in after)
+             || (('profile' in before) && after.profile == before.profile)
+             || after.profile.updatedAt == request.time;
+    }
+
+    // Once a player has a nickname they have leaderboard entries, and each
+    // change of nickname or campus rewrites all of them (onUserProfileWrite). So such a change waits ten minutes after the last
+    // one, and the nickname, once set, stays.
+    function isProfileChangeAllowed() {
+      let before = resource == null ? {} : resource.data;
+      let prev = before.get('profile', {});
+      let next = request.resource.data.get('profile', {});
+      return !('nickname' in prev)
+             || (('nickname' in next)
+                 && ((next.nickname == prev.nickname && next.campus == prev.campus)
+                     || request.time > prev.updatedAt + duration.value(10, 'm')));
+    }
+
+    // users/{uid} — locale, the player profile and future user-level settings.
+    // Never deleted by the client: the deleteAccount callable does it, after
+    // the leaderboard entries.
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+                            && request.auth.uid == uid
+                            && (!('profile' in request.resource.data) || isValidProfile(request.resource.data.profile))
+                            && isProfileStamped()
+                            && isProfileChangeAllowed();
+      allow delete: if false;
+
+      // users/{uid}/gameRuns/{runId} — a run's start, stamped by the server.
+      // Anyone signed in may start one (an anonymous account that later links
+      // Google keeps its uid, so a run played before sign-in can still be
+      // entered). Immutable: the start time is the whole point.
+      match /gameRuns/{runId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && request.resource.data.keys().hasOnly(['gameId', 'startedAt'])
+                      && isGameId(request.resource.data.gameId)
+                      && request.resource.data.startedAt == request.time;
+        allow update, delete: if false;
+      }
 
       // users/{uid}/preferences/main — v5 SSOT (Phase F lockdown).
       //

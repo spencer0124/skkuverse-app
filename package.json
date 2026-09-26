@@ -12,8 +12,8 @@
     "ios": "cd apps/mobile && expo run:ios",
     "lint": "expo lint --max-warnings 0 && yarn lint:md",
     "lint:md": "markdownlint-cli2",
-    "typecheck": "tsc --noEmit -p apps/mobile && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/sds && tsc --noEmit -p packages/bridge",
-    "test": "yarn workspace @skkuverse/shared test && yarn workspace @skkuverse/sds test && yarn workspace mobile test",
+    "typecheck": "tsc --noEmit -p apps/mobile && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/sds && tsc --noEmit -p packages/bridge && tsc --noEmit -p packages/game-host && tsc --noEmit -p packages/wave-run && tsc --noEmit -p packages/subway-typing",
+    "test": "yarn workspace @skkuverse/shared test && yarn workspace @skkuverse/sds test && yarn workspace @skkuverse/game-host test && yarn workspace @skkuverse/wave-run test && yarn workspace @skkuverse/subway-typing test && yarn workspace mobile test",
     "test:rules": "bash scripts/test-rules.sh",
     "postinstall": "patch-package"
   },

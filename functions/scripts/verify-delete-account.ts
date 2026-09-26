@@ -116,6 +116,13 @@ async function seedUser(uid: string): Promise<void> {
     title: 'Another notice',
     savedAt: new Date(),
   });
+  // Games: two runs, an entry on each of two boards, and someone else's
+  // entry that must survive.
+  await db.doc(`users/${uid}/gameRuns/run-a`).set({ gameId: 'wave-run', startedAt: new Date() });
+  await db.doc(`users/${uid}/gameRuns/run-b`).set({ gameId: 'wave-run', startedAt: new Date() });
+  await db.doc(`leaderboards/wave-run/scores/${uid}`).set({ uid, score: 10, nickname: 'wave' });
+  await db.doc(`leaderboards/other-game/scores/${uid}`).set({ uid, score: 20, nickname: 'wave' });
+  await db.doc('leaderboards/wave-run/scores/bystander').set({ uid: 'bystander', score: 30, nickname: 'other' });
   await db.doc('devices/dev-1').set({
     uid,
     deviceId: 'dev-1',
@@ -146,6 +153,12 @@ async function assertCleaned(uid: string): Promise<void> {
   assert.equal(prefDoc.exists, false, 'preferences/main should be deleted');
   const bookmarks = await db.collection(`users/${uid}/bookmarks`).get();
   assert.equal(bookmarks.size, 0, 'bookmarks should be empty');
+  const runs = await db.collection(`users/${uid}/gameRuns`).get();
+  assert.equal(runs.size, 0, 'gameRuns should be empty');
+  const entries = await db.collectionGroup('scores').where('uid', '==', uid).get();
+  assert.equal(entries.size, 0, 'leaderboard entries should be deleted on every board');
+  const bystander = await db.doc('leaderboards/wave-run/scores/bystander').get();
+  assert.equal(bystander.exists, true, "another player's entry must survive");
 
   // devices deactivated, token + topics wiped.
   const devices = await db

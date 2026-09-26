@@ -7,8 +7,16 @@ export {
   type MiniAppIndex,
   type MiniAppLink,
   type MiniAppNoticeBanner,
+  type MiniAppShell,
+  type MiniAppShellBar,
   type MiniAppDetail,
 } from './schema';
+export {
+  parseMiniAppTarget,
+  resolveMiniAppUrl,
+  miniAppTargetForUrl,
+  type MiniAppTarget,
+} from './target';
 export {
   getCachedMiniAppIndex,
   getCachedMiniAppDetail,

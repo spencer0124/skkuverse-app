@@ -3,7 +3,7 @@ title: Event Map Rendering
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -48,7 +48,7 @@ fetches are the data the list and the peek sheet render.** What left the client 
 | `useEventMap`, the manifest and snapshot queries, the MMKV last-known-good cache | `useLayerOverlays` on the festival layer's own `endpoint` |
 | `schemaVersion` and its exact-match gate | nothing — there is no envelope left to version |
 | `cardTemplates`, `EventMapCardSlot`, `resolveSlots`, `CardRenderer` | `PlaceCard`, a fixed layout over `subtitle` / `hours` / `fields` |
-| `sorts` declared by the server | `PLACE_SORTS` in `map/list.ts`, labelled by translation |
+| `sorts` declared by the server | nothing — the list has one order, the author's `order` (§4.2) |
 | `status` on the wire, `ItemStatus`, `deriveItemStatus` | `isOpenNow(hours, now)` (§5) |
 | `stackKey`, `buildStacks`, stacked peek cards | `resolvePinCollisions` (§6.3); a tap is one place |
 | `eventmap-refresh` silent push, `services/silent-push.ts` | nothing — the server deleted the sender |
@@ -62,13 +62,14 @@ entry. `CampusScreen` reads the same query key rather than issuing a second.
 
 | Hook | Endpoint | staleTime | On failure |
 | --- | --- | --- | --- |
-| `useLayerOverlays(endpoint, enabled)` | the layer's own `endpoint` | 10 min | throws → the query is in error and the layer draws nothing |
+| `useLayerOverlays(endpoint, enabled)` | the layer's own `endpoint` | 1 min | throws → the query is in error and the layer draws nothing |
 
 The endpoint is read off the served layers (`layers.find(isFestivalLayer)?.endpoint`), never
 hardcoded: the route is named for the mechanism rather than the festival, so next year's event
 changes the layer set and not the URL — and this build has to know neither.
 
-`Cache-Control` on that route is `public, max-age=60`. The **window arithmetic needs no refetch at
+`Cache-Control` on that route is `public, max-age=60`, and the staleTime matches it: a longer one
+would hold an ops correction on the device after the edge already serves it. The **window arithmetic needs no refetch at
 all**: opening and closing times ride in the payload and the device re-derives, which is what keeps
 the map truthful on the dead network a festival actually has (§5).
 
@@ -90,6 +91,8 @@ The server fails loud on config it can fix. The client fails soft on a payload i
 | coordinate absent, unparseable, or `\|lat\| > 90` | `parseOverlayData` | drop the marker — a swapped pair puts it in the ocean and never throws |
 | unknown `campus` | `parseOverlayData` | drop the marker, rather than put it on the wrong map |
 | unknown `tap.kind` | `parseMarkerTap` | `tap: null` — still a place worth drawing, just inert |
+| `tap.kind: "chip"` with no `chipId` | `parseMarkerTap` | `tap: null`, rather than a guess at which chip |
+| `locationAccuracy` absent or unknown | `parseOverlayData` | `'exact'` — every server before the field, and every building, means that |
 | half-bounded or unparseable window | `parseHours` | drop that window (§5) |
 | field row missing a label or a value | `parseFields` | drop the row |
 | action missing an id, label or value | `parseActions` | drop the button, serve the place |
@@ -123,6 +126,16 @@ A marker naming a layer this build was not served is not listed. There is no pin
 marker route serves markers per served layer — so the two stay in step for an id outside the
 activation window too.
 
+**An inert overlay (`tap: null`) is not listed.** A row is a way to a place, and a background zone or
+a label-only overlay has nowhere to go: listing it would open an all-but-empty sheet. It is still
+drawn — the filter is on the list, not on the render loop — so a zone's label can share its layer
+and switch on and off with it without adding a row.
+
+**Nor is an overlay whose tap runs a chip** (`tap.kind: "chip"`). It is a way *into* a list, not a
+row in one. The food-truck zone's ring and its pin run the food-truck chip when tapped (`handleMarkerTap` →
+`handleChipPress`, the chip row's own handler). A chip this build was not served opens nothing, the
+same as a place id that resolves to no marker.
+
 **The list describes the layer. The pin describes the coordinate.** A place suppressed by the
 collision ladder (§6.3) keeps its row: losing a shared spot to whoever is open at this hour says
 nothing about whether the place exists. This is the one place the two views deliberately differ, and
@@ -133,9 +146,11 @@ narrowed the map (`useMapLayerStore`'s `chip`, looked up in the served chip list
 body is one gorhom scrollable or the other, never both, since they cannot nest. The sheet snaps to
 its middle detent when the list appears — enough to read a few rows with the pins still showing —
 and the feed returns when the narrowing is cleared. When a row or a pin opens the peek sheet, the
-campus sheet closes first and the peek sheet rises once that animation finishes. It comes back to
-the same detent, list and all, when the peek sheet is dismissed — the hand-off is described in
-[bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
+campus sheet closes first and the peek sheet rises once that animation finishes. Both moves are
+short timings (`SHEET_HANDOFF_CLOSE`, 150 ms, and `SHEET_HANDOFF_RISE`, 250 ms), because under
+gorhom's default spring the pair read as a pause between the tap and the sheet that answers it. It
+comes back to the same detent, list and all, when the peek sheet is dismissed. The hand-off is
+described in [bottom-sheet-system.md](bottom-sheet-system.md). Both of these follow from it:
 
 - Narrowing through the filter sheet's tiles reveals the list the same way. The reveal is an effect
   on the derived flag, not a call inside the chip handler.
@@ -143,28 +158,51 @@ the same detent, list and all, when the peek sheet is dismissed — the hand-off
   the festival pins and flies there but leaves the feed in the sheet. If that reads wrong on device,
   the alternative — showing the list whenever any event layer is visible — would replace the feed for
   the whole festival, which is a product call rather than a code one.
+- **A narrowing with no row shows no list.** A chip whose layers hold only inert overlays — the 통제 <!-- conventions:allow-korean: the chip label the app shows -->
+  zones are drawn, not pressed — moves the camera and leaves the sheet where it was, the way the reset
+  chip does. That is read off the listed places rather than declared on the chip: a flag saying "this
+  chip opens no list" could disagree with the places actually served, and whether the list is empty
+  depends on the user's own layer toggles, which the server cannot see.
 
 Every place stays reachable by a pin tap, a deep link and an already-open peek sheet regardless of
 the filter (`placesById` is built from **all** event markers): a shared link must reach a booth whose
 layer the recipient happens to have hidden, and hiding a layer must not slam shut a sheet someone is
 reading.
 
-### 4.2 Sort is only observable in the list
+**The selected place is drawn whatever hides it.** Reaching a place is half the job; the pin has to
+be under the sheet, or a mini app's "view on map" at 15:00 flies the camera to an empty 주점 plot. <!-- conventions:allow-korean: the layer label the app shows -->
+So selection outranks visibility for that one place: a layer that is off mounts as the selected
+overlay alone (`MapOverlayLayer`'s `onlyId`), and the facet filter never takes the selected place
+out of `filteredOutIds`. Closing the sheet clears the selection, and the pin goes with it. The layer
+itself is not turned on — that would write a resolved value into `useMapLayerStore` and freeze the
+schedule (§5.4) — and the sheet does not go full height, because the map is the context the user
+asked for. What such a layer does not do is join the collision ladder, since `collisionPeers` holds
+drawn layers only, so the selected pin can share a coordinate with a visible pin on another layer.
 
-The orders are the client's own — `PLACE_SORTS` in `map/list.ts`, one translation key each. The
-snapshot used to declare them with server-authored labels, and there is no snapshot; the marker wire
-carries `order` and `hours`, which is everything the three comparators need.
+### 4.2 One order, chosen by the server
 
-Sorting has no effect on pins, which are positional, nor inside the peek sheet, which now shows one
-place. It is visible **only** in `EventListPanel`, and so the sort control lives there and
-deliberately not in `FilterSheet` — a sort selector beside the filters would be a control that
-appears to do nothing, the same dead-control shape a permission-denied distance sort would be.
+The list has no sort control and no count header. A chip with no `list` orders its rows by the
+marker's `order`, ascending, using `sortPlaces` (`map/list.ts`). That is the position ops authored.
 
-Every comparator ends at `id`. The list re-derives at every clock boundary, so a tie is a list that
-reshuffles itself while it is being read. The `opening` comparator **compares rather than
-subtracts** for the same reason: two open places both rank `-Infinity`, and `Infinity - Infinity` is
-`NaN`, which is neither zero nor a sign — so a subtracting comparator would skip the `id` tiebreak
-and put the order back at the mercy of input order.
+A chip with a `list` gets its filters and its sort from the server. The filters are one row of
+dropdown chips: 일자, a single choice that opens on today, plus 운영 (총학생회 / 학생단체) on <!-- conventions:allow-korean: the filter and option labels the app shows -->
+booths, a checklist that opens on 전체. The sort is a per-day `order` for booths and 가나다 for <!-- conventions:allow-korean: the filter and option labels the app shows -->
+food trucks. The app matches the ids each overlay's `facets` carries and runs `sortForList`. Nothing
+here decides which day a place is on. The app used to infer that from the dates it was served, and
+one stray date renumbered every place. See
+[map-config-api-spec.md § Chip lists](../reference/map-config-api-spec.md#chip-lists).
+
+The map follows the same selection. A place the filters take out is hidden from its layer
+**before** the pin collision ladder runs, because pub plots hold a different pub each night. If the
+hidden night's pub stayed in the ladder, it would still win the shared plot and leave the visible
+night's pub undrawn.
+
+While a chip's layers hold any place, the list stays mounted even when a tab has no rows. The tab
+shows an empty line rather than the sheet falling back to the feed, which would take the tabs with
+it.
+
+It ends at `id`. The list re-derives at every clock boundary, so a tie is a list that reshuffles
+itself while it is being read.
 
 ## 5. Openness
 
@@ -174,8 +212,10 @@ Openness is a pure function of the device clock and the windows, and the server 
 hours.length === 0 || hours.some(w => now >= w.startAt && now < w.endAt)
 ```
 
-`packages/shared/src/map/window.ts` is the only implementation. `PlaceCard` turns it into one of
-three pills — open, upcoming, closed — and `resolvePinCollisions` reads it as step 1 of the ladder.
+`packages/shared/src/map/window.ts` is the only implementation. `opennessOf`
+(`apps/mobile/src/features/eventmap/place/placeFormat.ts`) turns it into one of three pills — open,
+upcoming, closed — for both the list row and the sheet, and `resolvePinCollisions` reads it as step 1
+of the ladder.
 
 ### 5.1 An empty list means always open, and only that
 
@@ -200,6 +240,14 @@ still derives correctly — a phone set to Bangkok agrees with one set to Seoul.
 **clock** is genuinely wrong does not, and that is accepted rather than corrected (ADR 0007). An
 earlier design reconciled against a response `Date` header and was removed as more machinery than the
 rare case justified.
+
+The same holds for what the rows **display**. Every time the map shows carries its date — the list
+row's hours, the sheet's status line and its hours row alike read `10/1(Thu) 18:00–23:00` — because
+the festival runs on two days and a bare time leaves the visitor to guess which. A window is dated by
+its **start**, so one crossing midnight stays on the evening it began. The strings are built by
+`packages/shared/src/map/kst-format.ts` from the epoch shifted to KST, not by `Intl`: without a
+`timeZone` a phone abroad formats in its own zone, `ko-KR` renders a date as `10. 1.`, and
+`hour12: false` prints midnight as `24:00` on some engines.
 
 ### 5.3 A marker's hours do not decide what is drawn
 
@@ -327,7 +375,11 @@ so a tap re-renders the two markers whose selection changed rather than all ~100
 ### 6.2 Density levers, in order
 
 1. **the dot** (§6.1) — roughly 60% less screen area per marker than a teardrop
-2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of `MapOverlayLayer`
+2. `isHideCollidedCaptions` — already used by the `textLabel` and `placeDot` branches of
+   `MapOverlayLayer`. **Except on a marker whose tap runs a chip.** It names an area, so its caption
+   is the whole point of it. On iOS the SDK hid the food-truck zone pin's caption with no other marker
+   within ~60 m (checked 2026-09-24 by logging every drawn marker near it), and turning the flag off
+   for that marker was what made it appear.
 3. **the caption line budget** (§6.4) — a narrower caption collides with fewer neighbours, and a
    collision here hides the whole label rather than shortening it, so wrapping puts *more* names on
    screen rather than fewer
@@ -437,9 +489,10 @@ A sheet button carries one action. The app renders it; it never interprets what 
 | --- | --- | --- |
 | `content` | Render inline in the sheet, no navigation | **new** |
 | `route` | `router.push(actionValue)`; a bare `/` is intercepted as `router.dismissTo('/(tabs)/home')` | exists |
-| `webview` | `openWebView({url, title})` → `router.push('/webview', {url, title})` | exists — **ESKARA's primary type** |
+| `webview` | `openWebView({url, title})` → `router.push('/webview', {url, title})` | exists — pages on `WEBVIEW_ORIGIN` only |
 | `external` | The **same** in-app `/webview` shell; a non-web scheme (`mailto:`, `tel:`) hands off to `Linking.openURL` | exists |
-| `miniapp` | Mini-app scheme | **deferred**, §7.3 |
+| `miniapp` | `openMiniAppById(id, path)` — the registered mini app's shell, at that page | §7.3 |
+| `map` | `openMapAtPlace(ref)` — close any shell on top, open that place's sheet; value is the §7.2 `?place=` grammar | §7.2 |
 
 `webview` and `external` are one code path in `handleSduiAction`, and `webviewColor` is accepted
 but never read. They stay distinct action types because the server still emits both and older
@@ -452,17 +505,25 @@ plus the parser cleanup, and all of it has shipped. `parseActionType` returns `'
 unrecognized values, `handleSduiAction` no-ops it, and both `renderer.tsx` and the action handler
 now carry a `never` exhaustiveness guard.
 
-> `webview` is the **primary** type for ESKARA, which makes the origin gate in `app/webview.tsx` a
-> hard dependency rather than a mini-app concern. That gate is in place: `handleMessage` re-resolves
-> `resolveWebviewCapabilities(event.nativeEvent.url, getBridgeOrigins())` **per message**, against
-> the document that actually posted it rather than once at open time.
+> The 2026 ESKARA pages live on their own origin, `eskara.miniapp.skkuverse.com`, which the server
+> refuses as a `webview` value, so a map button into them is a **`miniapp`** action
+> (`eskara-2026/eskara/<page>`, §7.3) and opens inside the mini app shell. Both shells run the same
+> origin gate, re-resolved from `event.nativeEvent.url` **per message**, against the document that
+> actually posted it rather than once at open time. They speak different message sets: `/webview`
+> takes `@skkuverse/bridge`'s `web:open-url` and `web:action`, and the mini app shell takes the
+> miniapp protocol's `link.open`, `map.openPlace` and `miniapp.open`, which end in the same
+> handlers ([ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md) §9). The way back — a
+> page opening the map on a place — is a `map` action (`openMapPlace()` from a mini app); the runbook is
+> [add-view-on-map-button.md](../how-to/add-view-on-map-button.md).
 
 `content` is handled by the sheet that renders the button, not by `handleSduiAction` — that
-dispatcher is fire-and-forget and has no surface to render prose into. `miniapp` and `unknown` render
-no button at all: the parser keeps them for contract fidelity, but a button that does nothing is
-worse than a missing one.
+dispatcher is fire-and-forget and has no surface to render prose into. `unknown` renders no button at
+all: the parser keeps it for contract fidelity, but a button that does nothing is worse than a
+missing one. A `miniapp` pill leads with the mini app's registry logo instead of the link glyph, so it
+reads as "opens inside skkuverse"; the parser drops a `miniapp` action whose value is not a target.
 
-**The peek sheet dismisses itself before it navigates.** `ActionButton` calls
+**The peek sheet dismisses itself before an in-app push.** `usePlaceNavigate`
+(`apps/mobile/src/features/eventmap/place/navigate.ts`) calls
 `useBottomSheetModal().dismiss()` and only then `handleSduiAction`. This is not polish; without it
 the destination arrives damaged.
 
@@ -486,9 +547,19 @@ once and preserving `restoreTo`.
 Both refs are raised together at the button rather than chained, because `onDismiss` does not fire
 until the close animation ends and that is not guaranteed to precede the return focus. The sheet
 returns at its low detent — restoring the exact one needs gorhom's private `minimize()`/`restore()`,
-which is a separate question. And an action whose URL is not web (`mailto:`, `tel:`) goes to
-`Linking.openURL` instead of pushing, so no focus event arrives and the arm survives until some
-later unrelated focus; the fix for that is for `openWebView` to report whether it navigated.
+which is a separate question.
+
+**Leaving for another app keeps the sheet up.** Opening Instagram, or an action whose URL is not web
+(`mailto:`, `tel:`), pushes nothing, so there is nothing to protect — and nothing to restore from: an
+app switch backgrounds the app without blurring the navigator, so no focus event would arrive. A
+sheet dismissed for one stayed gone, with the campus sheet held down beside it and the arm left to
+fire on some later, unrelated focus. So `useInstagramNavigate` never dismisses: it hands the post or
+profile's https address to the OS, which opens it in Instagram or, without the app, in the browser
+(`lib/instagram-url.ts`). `usePlaceNavigate` skips the dismiss for any URL `openWebView` hands to the
+OS — a non-web URL, or an Instagram address (`leavesApp` in `features/webview/open.ts`). The gap was
+latent until Instagram started opening natively (`eea351d`); before that every tap fell back to the
+webview, whose round trip restores. The `instagram://p/<shortcode>` scheme that commit tried first
+opened Instagram's home feed rather than the post, which is why the https address replaced it.
 
 The same constraint is why `BuildingDetailSheet` dismisses before pushing `/map/hssc`, and why
 `NoticeDetailScreen`'s original-notice link hands off to the system browser rather than pushing.
@@ -499,6 +570,12 @@ of a sheet the user already navigated away from. It pairs with `stackBehavior="r
 stops the default `'switch'` from resurrecting `BuildingDetailSheet` underneath.
 
 ### 7.2 Universal map scheme
+
+A place reference, `[<kind>:]<placeId>`, is parsed by `parseMapPlaceRef`
+(`packages/shared/src/map/place-ref.ts`) wherever it arrives: this link, and a `map` action,
+including a first-party page's `web:action` "view on map" button (ADR 0006 §9). A page can reach
+the map ONLY that way — never through `web:open-url` to this scheme, which would stack a second
+copy of the tabs on top of the web shell instead of replacing it.
 
 ```text
 skkuverse://map?place=<placeId>
@@ -540,64 +617,55 @@ navigation.
 No new screen: `skkuverse://map?place=X` resolves to `/(tabs)/campus` plus a pending payload. Details
 and the full route table: [`../reference/deep-link.md`](../reference/deep-link.md).
 
-### 7.3 Deferred — the `miniapp` action
+### 7.3 The `miniapp` action — a mini-app target
 
-Kept in the union so the contract does not change later, but not emitted until the mini-app platform
-ships. When it does:
+`actionValue` is a **mini-app target**, one grammar for the map action, a mini-app push's
+`miniapp` action, and the `/m/<target>` deep link (`packages/shared/src/miniapps/target.ts`, mirrored by
+the server's `src/miniapps/miniapp-target.ts`):
 
-- Widen `MINIAPP_PATH_RE` to carry a sub-path, **keeping the anchors**
-- Resolve the sub-path against the registry `startUrl`, **failing closed on origin**:
+```text
+<miniAppId>[<root-relative path>]
+eskara-2026                     the mini app at its registered startUrl
+eskara-2026/eskara/wristband    that page, inside the mini-app shell
+```
 
-  ```ts
-  const resolved = new URL(path, base);
-  // new URL('//evil.com/x', 'https://a.com') → 'https://evil.com/x'.
-  // Without this a deep link escapes the registered origin and renders arbitrary
-  // content inside a shell that shows the verified badge.
-  return resolved.origin === base.origin ? resolved.toString() : startUrl;
-  ```
+An id and a path rather than a URL: an origin does not name a mini app (one host can serve several),
+and the shell needs the id for the name, logo and verified badge it frames the page with.
 
-- The native side validates the *origin*, never the path — the page list is a mini-app-owned contract
+The shell resolves the path against the registry `startUrl`, **failing closed on origin**
+(`resolveMiniAppUrl`):
 
-Switching ESKARA buttons from `webview` to `miniapp` is then a server payload change with no app
-release.
+```ts
+const resolved = new URL(path, base);
+// new URL('//evil.com/x', 'https://a.com') → 'https://evil.com/x'.
+// Without this a deep link escapes the registered origin and renders arbitrary
+// content inside a shell that shows the verified badge.
+return resolved.origin === base.origin ? resolved.toString() : startUrl;
+```
+
+- The grammar already refuses `//…` and `/\…`, and the server refuses them before it ships a value.
+  The origin check is repeated in the shell because a deep link never passes the server.
+- The native side validates the *origin*, never the path — the page list is a mini-app-owned contract.
+- `startUrl` stays the mini app's home; `path` only chooses the first page loaded.
 
 ## 8. State
 
-`useEventMapStore` (Zustand):
+`useEventMapStore` (Zustand) holds one thing, `selectedPlaceId` — which place's peek sheet is open.
 
-```ts
-{ activeLayerSetId, sortId, selectedPlaceId }
-```
+**Not persisted.** A peek sheet reopening on cold start, for a booth tapped yesterday, is never right.
+The store used to persist a sort and the layer set it was keyed to; the list has one order now (§4.2),
+so both went with it. Installs that ran an older build keep a stale `eventmap` key in MMKV that
+nothing reads.
 
-Persisted: `activeLayerSetId` and `sortId`. Never `selectedPlaceId` — a peek sheet reopening on cold
-start, for a booth tapped yesterday, is never right.
-
-`sortId` is one of `PLACE_SORTS`, the client's own set. It used to be an id chosen from a `sorts`
-array the snapshot declared, which is why the v4 migration **drops a stored value that is not one of
-this build's keys**: a persisted `'manual'` or `'distance'` would leave the list on an order nothing
-can render. `syncLayerSet` resets the sort when the live layer set changes — a different event starts
-clean — keyed on the festival layers' `chipGroupId`, which is the layer set id by another name and
-the one thing on `/map/config` that turns over when next year's festival replaces this one.
-
-**The persisted blob is schema-versioned**, with `version` and `migrate` in
-`packages/shared/src/store/eventmap.ts`. Every bump so far has been a key leaving: `clockOffset`,
-then `layerVisibility` and `selectedChips`, and now `selectedStackKey` with the snapshot tier that
-produced stacks. Dropping a key from `partialize` only stops new writes — persist shallow-merges the
-stored blob over the initial state, so an existing install would rehydrate it as a property the types
-no longer describe. Every bump is **one-directional**: an OTA rollback to a bundle published before
-it finds the newer `version` in MMKV, has no way down, and discards the blob, so the sort reverts to
-the default. Nothing irreplaceable is lost, but it is silent.
-
-Both writers — `setSortId` and `setSelectedPlaceId` — are user gestures, and that is a constraint
-rather than a coincidence: a write here re-renders every consumer and costs an MMKV write. Nothing on
-a polling cadence belongs in this store. The clock offset used to be written on every manifest poll,
-which re-rendered `CampusScreen` for the whole of an event without changing a single derived value.
+Its one writer, `setSelectedPlaceId`, is a user gesture, and that is a constraint rather than a
+coincidence: a write here re-renders every consumer. Nothing on a polling cadence belongs in this
+store. The clock offset used to be written on every manifest poll, which re-rendered `CampusScreen`
+for the whole of an event without changing a single derived value.
 
 **Layer visibility is not here.** Festival layers are ordinary `/map/config` layers, so their
 visibility lives in `useMapLayerStore` with every other layer's — ephemeral, seeded by nothing at
-all, holding only the user's own `overrides` and a transient `chip` (§5.4). Two stores, two
-lifetimes: that one is the map's, this one is the event's, and keeping event keys out of the map's is
-what stops a persisted blob accumulating a festival's worth of dead ids.
+all, holding only the user's own `overrides` and a transient `chip` (§5.4). Two stores: that one is
+the map's, this one is the event's.
 
 ### 8.1 `basemapOverride` is gone
 
@@ -676,7 +744,7 @@ server opens the window**.
 | `packages/shared/src/map/window.ts` | `isOpenNow`, `nextOpeningAfter`, `nextWindowBoundaryAfter` — absolute instants (§5) |
 | `packages/shared/src/map/daily-window.ts` | `kstMinutesOfDay`, `isDailyWindowOpen`, `nextDailyBoundaryAfter` — recurring KST wall-clock (§5.4) |
 | `packages/shared/src/map/pins.ts` | `resolvePinCollisions` — the coordinate ladder (§6.3) |
-| `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` and `PLACE_SORTS` (§4.2) |
+| `packages/shared/src/map/list.ts` | `selectVisibleMarkers` (§4.1), `sortPlaces` (§4.2) |
 | `packages/shared/src/map/text.ts` | `pickI18nText` — the one place a language is chosen |
 | `packages/shared/src/map/chips.ts` | `isLayerVisible` (the four tiers, §5.4), `defaultVisibleAt`, and the chip rules the list borrows (§4.1) |
 | `packages/shared/src/store/map.ts` | `overrides` and the transient `chip` — what the user expressed, and nothing else (§5.4) |
@@ -685,11 +753,15 @@ server opens the window**.
 | `packages/shared/src/hooks/useMapLayers.ts` | the one marker query, keyed on the endpoint (§2) |
 | `packages/shared/src/store/eventmap.ts` | client state (§8) |
 | `apps/mobile/src/features/map/festivalGate.ts` | `isFestivalUnlocked()` — what decides whether the gate is open (§9) |
-| `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the fixed card layout; `compact` for list rows |
-| `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet; the only home for the sort control |
-| `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet + action buttons |
+| `apps/mobile/src/features/eventmap/PlaceCard.tsx` | the list row's layout |
+| `apps/mobile/src/features/eventmap/EventListPanel.tsx` | the list, in the campus sheet |
+| `apps/mobile/src/features/eventmap/EventMapPeekSheet.tsx` | one place's sheet: chrome, height and the card clip (§10) |
+| `apps/mobile/src/features/eventmap/place/` | the sheet: summary, facts card, and `PlaceBlocks` for the composed body (§10) |
+| `packages/shared/src/map/placeDetail.ts` | `placeSections`, `highlightBlock`, `placeSheetOpensTall` — the sheet's decisions (§10) |
+| `packages/shared/src/map/kst-format.ts` | the dated KST strings every row and the sheet show (§5.2) |
+| `packages/shared/src/hooks/usePlaceDetails.ts` | every place's detail from `/map/overlays/event/details`, parsed by `parsePlaceDetails` (§10.3) |
 | `apps/mobile/src/lib/pending-map-place-link.ts` | deferred deep-link intent (§7.2) |
-| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind`, owns the gate and the collision peer set, swaps the sheet body, resolves place links |
+| `apps/mobile/src/features/map/CampusScreen.tsx` | routes marker taps on `tap.kind` (a place's sheet, or a chip via `handleChipPress`), owns the gate and the collision peer set, swaps the sheet body, resolves place links, hands the screen to a modal |
 | `apps/mobile/src/features/map/components/MapOverlayLayer.tsx` | draws every `/map/config` layer, booth pins included; dispatches on each overlay's `kind`; applies the ladder to markers alone |
 | `apps/mobile/src/features/map/components/MapZoneOverlay.tsx` | one `kind: "polygon"` overlay |
 | `apps/mobile/src/features/map/components/MapRouteOverlay.tsx` | one `kind: "path"` overlay |
@@ -707,9 +779,100 @@ server opens the window**.
 `CampusNaverMap` needed **no change** through any of this — it forwards `children` verbatim into
 `NaverMapView`, and no phase has needed a new map-level prop.
 
-The card body is a fixed layout now. What `EventMapPeekSheet` keeps beyond it is the sheet chrome and
-the actions row, including `ActionButton`'s dismiss-before-navigate, which is a portal ordering
-constraint (§7.1) rather than a styling choice.
+## 10. The place sheet
+
+The sheet is a **structured head** every place shares and a **body the operator composes**.
+
+```text
+[pinned]  title
+status    open now · closes 10/1(Thu) 23:00   statusLineOf
+meta      <locationLabel> · <org, or the overlay's subtitle>
+highlight the first list or table block, lifted above the fold
+photos    the body's first run of consecutive images, one rail
+─ collapsed card ends about here ─
+facts     location · hours · instagram · links · notices
+blocks    text · list · table · image · notice, in the authored order
+```
+
+**The facts card is the floor, and it is always mounted.** `placeSections` returns `['facts']` for a
+place with no detail at all, which is most of what the server serves — every one of them carries
+`hours` on the overlay wire, and gating the card away took their opening times with it. Only
+`locationLabel` fills the location row. The wire's `subtitle` is whatever ops wrote — a bay number,
+a kind and a day, an operating note, a shuttle route — so half the bars would read
+"location: 연합 주점". <!-- conventions:allow-korean: the subtitle ops authored, quoted -->
+It belongs in the meta line instead, where every one of those readings is correct.
+
+### 10.1 Why the body is blocks
+
+The council's requirement sheet names twelve categories whose bodies share almost nothing: a booth
+wants an introduction and a list of games, a goods shop wants an item/price table plus payment and
+pickup instructions, a barrier-free zone wants three prose paragraphs, a toilet wants nothing. A
+typed field per category means a client release every time ops needs a shape the app has not shipped.
+
+So `PlaceDetail.blocks` is an ordered list of five types — `text`, `list`, `table`, `image`,
+`notice` — and a new category becomes an authoring change. `MapPlaceDoc` grows one field rather than
+ten. The wire already had a primitive form of this: a `content` MarkerAction carries free text
+(`daybooth-01`'s reward explainer).
+
+Three rules are load-bearing:
+
+- **`type` is an OPEN enum.** An unknown block is dropped on its own, and the switch in
+  `place/PlaceBlocks.tsx` deliberately has no exhaustive `never` arm — one would blank a whole body
+  on an older build the day a sixth type ships. Same discipline as `OVERLAY_KINDS`.
+- **Style belongs to the type, not the block.** The operator picks which blocks and in what order,
+  never how they look. A per-block styling knob multiplies the design surface by every place.
+- **The highlight is the first `list` or `table`** (`highlightBlock`), so the operator chooses what
+  the collapsed card leads with by ordering their blocks. That replaced a per-kind fallback table;
+  nothing branches rendering on `PlaceKind` any more. The kind is kept for the list's filters.
+
+**Consecutive images are one rail** (`placeBody` in `packages/shared/src/map/placeDetail.ts`). A food
+truck is a menu table and then one photo per dish, captioned with the dish's name; drawn a block at a
+time that was a stack of one-photo rails, and the viewer opened each alone. Folded, it is one rail the
+viewer pages across. The summary draws the body's first rail (`heroGallery`) and the body skips it by
+id. Only adjacency folds, so a logo above an introduction stays a rail of one where the operator put
+it.
+
+Anything genuinely long-form stays a **link out** rather than an embed: `goods-shop` and `preorder`
+already carry a goods-guide `webview` action to `webview.skkuverse.com/eskara/goods`. A web view inside the
+sheet would bring a second scroller into the one slot gorhom allows (§"a gorhom scrollable cannot
+nest inside another"), report its height only after first paint, and load once per pin on the worst
+network day of the year.
+
+### 10.2 The collapsed card is one size
+
+Every place opens at SDS's `small` detent, however short its content — **except a place whose pin
+names only an area.** A marker with `locationAccuracy: 'area'` (the food trucks, placed on the day and
+stacked on one point) opens at `large`, because the low detent exists to keep the pin in view and
+that pin points at nothing. The rule is `placeSheetOpensTall` in `placeDetail.ts`. The server only
+states the fact, and `EventMapPeekSheet` picks between two module-level positions that differ only in
+`initial`, so the sheet still drags down. A zone is never `area` on the wire and keeps the low detent.
+
+The rest of this section is about the places that open low. The card used to shrink to fit
+a short place, so a toilet opened as a sliver and a food truck as a full card, and one kind of sheet
+at two heights read as two different sheets. A short place now leaves glass below its content
+instead. The summary carries no minimum height and nothing reads the detent, which is what
+`docs/explanation/bottom-sheet-system.md` rules out.
+
+The content is still clipped to the card (`SheetCardClip.tsx`): gorhom lays the body out as tall as
+the top detent, so a summary that fills the card to its edge would otherwise draw over the map.
+
+### 10.3 Where the data comes from
+
+`GET /map/overlays/event/details` serves every place's detail in one response, keyed by the overlay's
+`tap.placeId`. The contract is skkuverse-server `docs/reference/map-overlays-api.md` §5.4, and the
+server mirrors `PlaceDetail` one-to-one. A separate route rather than a field on the overlay, because
+only the sheet reads it.
+
+`usePlaceDetails` fetches it once, beside the overlays, so a tapped pin's sheet opens with its menu
+already there instead of drawing its skeleton and growing under the finger. The route is the festival
+layer's endpoint plus `/details`, and a `null` endpoint disables the query — so the festival gate
+closes the details with the overlays and no second guard. `CampusScreen` looks the selected place up
+and passes `detail` down as a prop, the same way it passes `place`.
+
+`parsePlaceDetails` (`map/parser.ts`) fails as narrowly as the server does: a bad row, block or
+action drops alone, and a detail drops whole only without an id or with a `kind` outside
+`PLACE_KINDS`, which is closed where a block's `type` is open. A failed request, or a place with no
+detail, is the overlay alone: hours and actions, with the `subtitle` on the meta line.
 
 ## 11. Gotchas
 
@@ -735,17 +898,15 @@ constraint (§7.1) rather than a styling choice.
   with a typo'd `actionType` used to be handed to the webview opener and now does nothing. That is
   the intended direction — the failure mode of not understanding an action should not be to open it —
   but it reads as a regression in QA unless you know.
-- **A distance sort needs permission handling, not a new dependency.** `expo-location` is already
-  one (`apps/mobile/package.json`), and `features/map/hooks/useLocationTracking.ts` uses it for the
-  locate button and the heading compass. What a distance sort still needs is the denied-permission
-  path: **hide** the sort rather than show a dead control. This bullet used to say the package was
-  absent, which was true when it was written and stopped being true when location tracking shipped.
-- **`@mj-studio/react-native-naver-map` is pinned exact at 2.7.1, and the pin is the point.** 2.9.0
-  changes nothing about clustering and bumps the native Naver SDK, so it would need
-  `expo prebuild --clean` plus a manual `runtimeVersion` bump — a caret would let an ordinary install
-  pull that in with neither. Our nil-icon patch is gone: the fix went upstream as PR #184 and ships
-  in 2.7.1, whose version restores `alpha` unconditionally and guards only the `iconImage`
-  assignment. Ours guarded both, so a failed image load left the marker permanently invisible.
+- **`@mj-studio/react-native-naver-map` is pinned exact, and the pin is the point.** The version
+  lives in `apps/mobile/package.json`. A newer release can bump the native Naver SDK, which would
+  need `expo prebuild --clean` plus a manual `runtimeVersion` bump — a caret would let an ordinary
+  install pull that in with neither. Our nil-icon patch is gone: the fix went upstream as PR #184,
+  whose version restores `alpha` unconditionally and guards only the `iconImage` assignment. Ours
+  guarded both, so a failed image load left the marker permanently invisible. The floor is 2.8.0,
+  the release that moved the iOS image loader off `RCTImageLoader` so every completion lands on the
+  main queue; below it, `imageCache` is written from a background queue while the main thread reads
+  it, over-releasing `NMFOverlayImage` — see spencer0124/skkuverse#53.
 - **`useMapConfig` must keep its never-throw fallback.** It is now the ONLY thing standing between a
   config hiccup and a festival that does not exist: the endpoint the booths arrive on is read off its
   layers, so a thrown config is a blank event map as well as a blank filter sheet. The offline

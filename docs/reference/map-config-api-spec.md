@@ -3,7 +3,7 @@ title: Map Config API Specification
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-24
 audience: public
 ---
 
@@ -214,7 +214,7 @@ field existed — so a server sending none of them renders exactly as one that n
 | `outlineColor` | string | `polygon`, `path` | The stroke. Falls back to `color` at full strength, which is what the festival layers ask for explicitly and what campus geometry wants implicitly |
 | `outlineWidth` | number | `polygon`, `path` | Stroke thickness in points. **Effectively required on a polygon**: the SDK defaults it to `0`, so an unstyled zone has no border at all |
 | `fillOpacity` | number | `polygon` | Fill alpha 0–1, composed onto `color` as `#RRGGBBAA`. **Also effectively required**: the SDK's polygon `color` defaults to opaque black, so a zone without this is a dark blob hiding the booths it groups. Separate from `color` because an opacity is not a colour, and `color` is shared with the marker and path layers |
-| `minZoom` / `maxZoom` | number | every kind | Zoom bounds, passed to the SDK's overlay base props. A property of the layer rather than of any one overlay — footprints are noise at campus-wide zoom |
+| `minZoom` / `maxZoom` | number | every kind | Zoom bounds, passed to the SDK's overlay base props. A property of the layer rather than of any one overlay — footprints are noise at campus-wide zoom. The building layers use `minZoom` to thin out as the camera pulls back: `building_numbers` has the higher floor, so the numbers disappear before the names |
 | `width` / `height` | number | `placeDot` | Pin size in points. Sent together: the tintable base icon has natural proportions, and setting one alone distorts the tint |
 | `size` | number | `numberCircle`, `placeDot` | Circle diameter in points, and always the **visible** disc. On `numberCircle` the number's glyph is derived from it as a fixed ratio; on a `placeDot` drawn as a dot the overlay canvas is derived from it the same way, because the dot asset carries transparent padding that is the marker's tap target. Either way the two cannot drift |
 | `captionTextSize` | number | `placeDot`, `textLabel` | Caption point size |
@@ -386,6 +386,7 @@ interface MapChip {
   icon: { kind: "emoji"; emoji: string } | null;
   action: MapChipAction;
   isReset: boolean;                               // true on exactly the synthesised reset chip
+  list: MapChipList | null;                       // the list this chip opens — see "Chip lists"
 }
 ```
 
@@ -396,6 +397,7 @@ interface MapChip {
 | `icon` | object \| null | Yes | `null` is declared before it is reachable, so a text-only chip can arrive without a coordinated release. An unrecognised icon kind degrades to `null` rather than dropping the chip |
 | `action` | object | Yes | Discriminated on `kind`. A kind the client cannot route **drops the whole chip** |
 | `isReset` | boolean | Yes | Does a tap mean **stop narrowing** rather than "show these layers". `false` on every authored chip rather than absent, since an optional field is a second thing to branch on. The client reads only an explicit `true` |
+| `list` | object \| null | Yes | The filters and sort of the list this chip opens. `null` means unfiltered and in `order`. See [Chip lists](#chip-lists) |
 
 > [!IMPORTANT]
 > **`isReset` is on the wire because it stopped being derivable.** The reset chip used to be
@@ -460,6 +462,49 @@ Clearing writes nothing — it drops the shadow — so a layer the user had turn
 a layer they never touched returns to its own schedule rather than to a boolean captured on the way
 in. Toggling a tile in the filter sheet also ends the narrowing, committing the visible state first
 so nothing else on screen jumps.
+
+### Chip lists
+
+The list the sheet shows while a chip is narrowed carries its filters and sort on that chip.
+The server decides everything: which filter axes exist, which options each place is in (each
+overlay's `facets`), and how the list sorts. The app draws one segmented control per facet,
+matches ids and runs one comparator. It never works out a day from a date.
+
+```ts
+interface MapChipList {
+  facets: {
+    id: string;
+    label: string;                                 // already localised
+    select: "required" | "optional";
+    options: { id: string; label: string; window: { startAt: string; endAt: string } | null }[];
+  }[];
+  sort: { key: "order"; scopeFacetId: string | null } | { key: "title"; scopeFacetId: null };
+}
+```
+
+- **The row.** One dropdown chip per facet, reading `<facet>: <value>` — `일자: 10/1(목)`, <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  `운영: 전체`. A chip is green whenever it narrows the list, which means anything but 전체. A <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  single choice has no 전체, so 일자 is always green. Tapping a chip opens the option sheet. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+- **`required`** (일자): a single choice with no 전체. It opens on the day that is on now, otherwise <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  the nearest one to come, otherwise the last, and flips at the next day's 06:00 cut-over. Picking
+  closes the sheet. 일자 is single because a plot holds a different pub each night, so two days at <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  once would stack two places on one pin.
+- **`optional`** (운영): a checklist headed by 전체, which it opens on. Tapping an option under <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  전체 picks that option alone. Unchecking the last option falls back to 전체, and checking every <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  option collapses into 전체, so "nothing selected" cannot exist. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+- **Filter:** keep an overlay when, for every facet not on 전체, `overlay.facets[facet.id]` shares an <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  option with what is checked.
+- **Sort,** then by `id`. `order` with a scope sorts by the first checked option of that facet the
+  overlay is in, then `orderByOption[that option] ?? order`. With one day checked, that is the day's
+  running order. Under 전체, it is day 1's order followed by day-2-only booths in day 2's order. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+  `title` sorts on `text.ko` in code-point order, which is 가나다 for Hangul. <!-- conventions:allow-korean: the facet and option labels the app shows -->
+- **Parsing degrades toward showing more.** A facet the app cannot draw is dropped, an unknown sort
+  becomes `order`, and a scope that no longer names a kept `required` facet is cleared. A malformed
+  list can reorder rows, but never hide one.
+
+The logic is `defaultFacetSelection`, `toggleChecklist`, `filterByFacets` and `sortForList` in
+`packages/shared/src/map/list.ts`. The server contract is skkuverse-server
+`docs/reference/map-overlays-api.md` §8.8.
 
 ## `cameraDefaults`
 
@@ -547,11 +592,13 @@ Every overlay from either producer is the same object plus the field its `kind` 
 | `actions` | array | Yes | Sheet buttons in authored order. Empty for a building |
 | `order` | number | Yes | Author's sort position, and the last tiebreak in a coordinate collision |
 | `pinPriority` | number | `marker` only | A step of the collision ladder. Higher wins. `0` for a building |
-| `tap` | object \| null | Yes | `{ kind, placeId }`, or `null` for a **backdrop** — drawn, deliberately not pressable |
+| `locationAccuracy` | `'exact'` \| `'area'` | `marker` only | Whether the point is the place's spot or only names the area it is in (the food trucks, placed on the day). Absent or unknown reads as `'exact'`. An `'area'` place's sheet opens at `large` |
+| `tap` | object \| null | Yes | `{ kind, placeId }` for a place, `{ kind: 'chip', chipId }` to run a chip, or `null` for a **backdrop** — drawn, deliberately not pressable |
 
 ```ts
 type MapOverlay =
-  | (OverlayBase & { kind: 'marker';  geometry: GeoJsonPoint;      pinPriority: number })
+  | (OverlayBase & { kind: 'marker';  geometry: GeoJsonPoint;      pinPriority: number;
+                    locationAccuracy: 'exact' | 'area' })
   | (OverlayBase & { kind: 'polygon'; geometry: GeoJsonPolygon })
   | (OverlayBase & { kind: 'path';    geometry: GeoJsonLineString });
 ```
@@ -652,6 +699,14 @@ meant for the markers inside it is worse than one that is not drawn.
 Which categories are inert is authored per **category** on the server, never derived from "has no
 `fields` or `actions`" — adding one card row must not silently turn a backdrop into a button.
 
+### `tap.kind: 'chip'` runs a chip
+
+A shape that stands for a whole list rather than one place carries `tap: { kind: 'chip', chipId }`.
+The 2026 food-truck zone's ring and its pin are the case. A tap runs that chip exactly as the chip row
+would, through the same `handleChipPress`: its layers, its camera, its list. Such an overlay opens no
+sheet and is never a list row. A `chipId` naming no chip this build was served opens nothing. A chip
+tap with an empty `chipId` parses as `null`. The server authors it per category (`tapChip`).
+
 ### Two fields that are gone
 
 - **`displayNo` folded into `text`.** The two building layers are the same documents differing only
@@ -672,17 +727,18 @@ there is none, on this endpoint or any other. It was a plan, written as though i
 
 | Query | staleTime | Notes |
 | --- | --- | --- |
-| `['map', 'config']` | 5 min (gc 30 min) | Never throws — falls back to `DEFAULT_MAP_CONFIG` |
-| `['map', 'layer', 'overlays', endpoint]` | 10 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
+| `['map', 'config']` | 5 min (gc 30 min) | Throws; the hook serves the last good config, or `DEFAULT_MAP_CONFIG` if there is none (`hooks/fallback.ts`) |
+| `['map', 'layer', 'overlays', endpoint]` | 1 min | Keyed on the endpoint **string**, so layers sharing a URL share one entry |
 
-Server-side `Cache-Control` is the other half and is the server's to state:
-`/map/overlays/campus` is a day (or `no-store` on its degraded fallback), `/map/overlays/event`
-is a minute. `/map/config` carries only Express's auto-generated `ETag` and `Vary`.
+Server-side `Cache-Control` is the other half and is the server's to state: see the overlay
+controller (`src/map/controllers/map-overlays.controller.ts` in skkuverse-server). The overlay
+staleTime is set no longer than the event route's `max-age`, so a correction the edge serves
+reaches the device on the next refetch. The overlay routes are also cached at the Cloudflare
+edge; `/map/config` is not, which is why its hook must never cache a failure as a success.
 
-A silent `eventmap-refresh` push invalidates the overlay key prefix and `['map','config']`
-(`apps/mobile/src/services/silent-push.ts`), which is the only thing that shortens the overlay
-staleTime mid-festival. Its honest value is bounded by the server's own 60s TTL, and it does
-nothing in the quit state.
+Nothing invalidates these queries in the background. The silent `eventmap-refresh` push that
+once did went with the snapshot tier, and the app now ignores data-only messages
+(`apps/mobile/src/hooks/useNotificationHandler.ts`).
 
 ## i18n
 
@@ -720,7 +776,9 @@ nothing in the quit state.
   shape is in the server's `map-chip.types.ts`.
 - The `campuses` array can grow without a client change, for a new satellite campus.
 - A **new `tap.kind` does not** — it is the one thing here that still needs a client branch,
-  because the client routes a tap on it. That is exactly why the festival kind is `event` rather
+  because the client routes a tap on it. `chip` (2026-09-24) is the latest. A build predating
+  it parses the tap as `null` and draws the shape inert, which is what makes adding a kind safe to
+  ship before the client that routes it. That is exactly why the festival kind is `event` rather
   than the festival's name: the branch resolves `placeId` against whichever event is live, so the
   next festival needs no new kind, no new route and no client release.
 

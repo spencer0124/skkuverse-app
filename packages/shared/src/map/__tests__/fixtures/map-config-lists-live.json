@@ -1,0 +1,555 @@
+{
+  "meta": {
+    "lang": "ko"
+  },
+  "data": {
+    "naver": {
+      "styleId": "91a6fcf5-9d03-4762-99a5-7e58a5674628"
+    },
+    "campuses": [
+      {
+        "id": "hssc",
+        "label": "인사캠",
+        "centerLat": 37.587241,
+        "centerLng": 126.992858,
+        "defaultZoom": 15.8,
+        "defaultTilt": 0,
+        "defaultBearing": 0,
+        "radiusM": 1000
+      },
+      {
+        "id": "nsc",
+        "label": "자과캠",
+        "centerLat": 37.29358,
+        "centerLng": 126.974942,
+        "defaultZoom": 15.8,
+        "defaultTilt": 0,
+        "defaultBearing": 0,
+        "radiusM": 1000
+      }
+    ],
+    "layers": [
+      {
+        "id": "building_numbers",
+        "markerStyle": "numberCircle",
+        "label": "건물번호",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/campus",
+        "chipGroupId": null,
+        "style": {
+          "size": 16
+        }
+      },
+      {
+        "id": "building_labels",
+        "markerStyle": "textLabel",
+        "label": "건물이름",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/campus",
+        "chipGroupId": null,
+        "style": {
+          "captionTextSize": 7,
+          "zIndex": 100000
+        }
+      },
+      {
+        "id": "campus_geometry",
+        "label": "건물 외곽",
+        "defaultVisibleWhen": {
+          "kind": "never"
+        },
+        "userConfigurable": false,
+        "endpoint": "/map/overlays/campus",
+        "chipGroupId": null,
+        "style": {
+          "fillOpacity": 0.12,
+          "outlineWidth": 1.5,
+          "minZoom": 16
+        }
+      },
+      {
+        "id": "eskara26_stage",
+        "markerStyle": "placeDot",
+        "label": "공연",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "F76CA0",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_bar",
+        "markerStyle": "placeDot",
+        "label": "주점",
+        "defaultVisibleWhen": {
+          "kind": "scheduled",
+          "windows": [
+            {
+              "start": "18:00",
+              "end": "23:00"
+            }
+          ]
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "F04452",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_food",
+        "markerStyle": "placeDot",
+        "label": "먹거리",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "FFB800",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_booth",
+        "markerStyle": "placeDot",
+        "label": "부스",
+        "defaultVisibleWhen": {
+          "kind": "scheduled",
+          "windows": [
+            {
+              "start": "11:00",
+              "end": "18:00"
+            }
+          ]
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "3182F6",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_facility",
+        "markerStyle": "placeDot",
+        "label": "편의시설",
+        "defaultVisibleWhen": {
+          "kind": "never"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "4CC9F0",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_control_entry",
+        "markerStyle": "textLabel",
+        "label": "진입 통제",
+        "defaultVisibleWhen": {
+          "kind": "never"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "C92A2A",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_control_vehicle",
+        "markerStyle": "textLabel",
+        "label": "차량 통제",
+        "defaultVisibleWhen": {
+          "kind": "never"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "1971C2",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_entry",
+        "markerStyle": "placeDot",
+        "label": "입장",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "7048E8",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      },
+      {
+        "id": "eskara26_etc",
+        "markerStyle": "placeDot",
+        "label": "기타",
+        "defaultVisibleWhen": {
+          "kind": "always"
+        },
+        "userConfigurable": true,
+        "endpoint": "/map/overlays/event",
+        "chipGroupId": "eskara-2026",
+        "style": {
+          "color": "8B95A1",
+          "width": 22,
+          "height": 30,
+          "captionTextSize": 9,
+          "fillOpacity": 0.18,
+          "outlineWidth": 0
+        }
+      }
+    ],
+    "chips": [
+      {
+        "id": "eskara-2026_all",
+        "label": "에스카라",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🌊"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.295129,
+            "lng": 126.971234,
+            "zoom": 17.5,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_stage",
+            "eskara26_bar",
+            "eskara26_food",
+            "eskara26_booth",
+            "eskara26_entry",
+            "eskara26_etc"
+          ]
+        },
+        "isReset": true,
+        "list": null
+      },
+      {
+        "id": "eskara26_view_bar",
+        "label": "주점",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🍺"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.295187,
+            "lng": 126.970977,
+            "zoom": 17,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_bar"
+          ]
+        },
+        "isReset": false,
+        "list": {
+          "facets": [
+            {
+              "id": "day",
+              "label": "일자",
+              "select": "required",
+              "options": [
+                {
+                  "id": "day1",
+                  "label": "10/1(목)",
+                  "window": {
+                    "startAt": "2026-09-30T21:00:00.000Z",
+                    "endAt": "2026-10-01T21:00:00.000Z"
+                  }
+                },
+                {
+                  "id": "day2",
+                  "label": "10/2(금)",
+                  "window": {
+                    "startAt": "2026-10-01T21:00:00.000Z",
+                    "endAt": "2026-10-02T21:00:00.000Z"
+                  }
+                }
+              ]
+            }
+          ],
+          "sort": {
+            "key": "order",
+            "scopeFacetId": null
+          }
+        }
+      },
+      {
+        "id": "eskara26_view_booth",
+        "label": "부스",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🎨"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.295187,
+            "lng": 126.970977,
+            "zoom": 17,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_booth"
+          ]
+        },
+        "isReset": false,
+        "list": {
+          "facets": [
+            {
+              "id": "day",
+              "label": "일자",
+              "select": "required",
+              "options": [
+                {
+                  "id": "day1",
+                  "label": "10/1(목)",
+                  "window": {
+                    "startAt": "2026-09-30T21:00:00.000Z",
+                    "endAt": "2026-10-01T21:00:00.000Z"
+                  }
+                },
+                {
+                  "id": "day2",
+                  "label": "10/2(금)",
+                  "window": {
+                    "startAt": "2026-10-01T21:00:00.000Z",
+                    "endAt": "2026-10-02T21:00:00.000Z"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "org",
+              "label": "운영",
+              "select": "optional",
+              "options": [
+                {
+                  "id": "council",
+                  "label": "총학생회",
+                  "window": null
+                },
+                {
+                  "id": "club",
+                  "label": "학생단체",
+                  "window": null
+                }
+              ]
+            }
+          ],
+          "sort": {
+            "key": "order",
+            "scopeFacetId": "day"
+          }
+        }
+      },
+      {
+        "id": "eskara26_view_food",
+        "label": "푸드트럭",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🚚"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.295129,
+            "lng": 126.971234,
+            "zoom": 17.5,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_food"
+          ]
+        },
+        "isReset": false,
+        "list": {
+          "facets": [
+            {
+              "id": "day",
+              "label": "일자",
+              "select": "required",
+              "options": [
+                {
+                  "id": "day1",
+                  "label": "10/1(목)",
+                  "window": {
+                    "startAt": "2026-09-30T21:00:00.000Z",
+                    "endAt": "2026-10-01T21:00:00.000Z"
+                  }
+                },
+                {
+                  "id": "day2",
+                  "label": "10/2(금)",
+                  "window": {
+                    "startAt": "2026-10-01T21:00:00.000Z",
+                    "endAt": "2026-10-02T21:00:00.000Z"
+                  }
+                }
+              ]
+            }
+          ],
+          "sort": {
+            "key": "title",
+            "scopeFacetId": null
+          }
+        }
+      },
+      {
+        "id": "eskara26_view_entry",
+        "label": "입장",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🎫"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.293648,
+            "lng": 126.974831,
+            "zoom": 17,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_entry"
+          ]
+        },
+        "isReset": false,
+        "list": null
+      },
+      {
+        "id": "eskara26_view_facility",
+        "label": "편의시설",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🚻"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.294007,
+            "lng": 126.972575,
+            "zoom": 16,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_facility"
+          ]
+        },
+        "isReset": false,
+        "list": null
+      },
+      {
+        "id": "eskara26_view_control",
+        "label": "통제구역",
+        "icon": {
+          "kind": "emoji",
+          "emoji": "🚧"
+        },
+        "action": {
+          "kind": "focus",
+          "camera": {
+            "lat": 37.294555,
+            "lng": 126.971921,
+            "zoom": 16.2,
+            "tilt": 0,
+            "bearing": 0,
+            "durationMs": 500
+          },
+          "layerIds": [
+            "eskara26_control_entry",
+            "eskara26_control_vehicle"
+          ]
+        },
+        "isReset": false,
+        "list": null
+      }
+    ],
+    "cameraDefaults": {
+      "markerFocus": {
+        "zoom": 17.5,
+        "tilt": 0,
+        "bearing": 0,
+        "durationMs": 500
+      },
+      "campusFocus": {
+        "durationMs": 500
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@ yarn test:watch
 
 ## 구조
 
-- `api/` — Axios 클라이언트 (auth interceptor + retry, `Result<T>` success/failure union)
+- `api/` — Axios client (auth interceptor + retry, `Result<T>` success/failure union). axios-retry is the only retry layer; see the Data Layer rules in the root `CLAUDE.md`
 - `app/` — 스토어: `useAuthStore`, `useSettingsStore` (campus/language/lastTab), `useMapLayerStore`
 - `hooks/` — React Query 훅: `useCampusSections`, `useTransitList`, `useBusConfig`, `useMapConfig`, `useBuildings`, …
 - `notices/`, `bus/`, `building/`, `map/`, `sdui/`, `miniapps/` — 도메인별 로직/타입

@@ -3,7 +3,7 @@ title: Mini App Notification Payload
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-26
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -34,7 +34,7 @@ version. The feed a notification is recorded in comes from the amendment in
 | `type` | Visible | Purpose |
 | --- | --- | --- |
 | `miniapp` | Banner and sound | A mini app announces something to its subscribers |
-| `eventmap-refresh` | Silent, no banner | Invalidates the cached event-map manifest on the device |
+| `eventmap-refresh` | Silent, no banner | Retired: the event-map snapshot it invalidated is gone, and the app ignores data-only messages |
 
 Both are scoped the same way, and the scoping is the security boundary rather than a
 convenience. The caller never chooses a topic. The server derives `miniapp:<miniAppId>` from the
@@ -157,7 +157,7 @@ Four cases reach that fallback, and a sender should expect all four to land on t
 | Case | Why it falls back |
 | --- | --- |
 | `actionType` and `actionValue` both omitted | The documented default |
-| `actionType: 'miniapp'` | Deferred on the device — see the compatibility rules below |
+| `actionType: 'miniapp'` whose target is malformed or names another mini app | A mini app's push opens only its own pages |
 | `actionType: 'content'` | Prose for a sheet to render; there is no sheet in a notification tap |
 | An `actionType` newer than the installed build | `parseActionType` maps it to `unknown` |
 | An `actionValue` whose shape the type does not accept | See the shape rules below |
@@ -226,16 +226,16 @@ with another repository.
   still appears, the tap does nothing, and nothing crashes.
 - **Add the tap case before any caller can send.** Otherwise the first real notification is also
   the first one whose tap goes nowhere.
-- **Changing `actionType` later is a payload change, not a release** — but only between the
-  navigable types (`route`, `webview`, `external`). Use `webview` for ESKARA.
-- **`actionType: 'miniapp'` is NOT wired on the device, and sending it lands on the mini app
-  itself.** It is not a broken value, just a redundant way of asking for the fallback. It stays
-  deferred because its value shape is undecided in two places at once: the event-map parser
-  validates a `miniapp` `actionValue` as an HTTPS URL (`eventmap/parser.ts`), while
-  `openMiniAppById` takes a registry slug. Settling that is
-  [eventmap-rendering.md](../explanation/eventmap-rendering.md) §7.3 work with real security content
-  (resolve the sub-path against the registry `startUrl`, fail closed on an origin mismatch), and a
-  guess frozen into a shipped binary cannot be corrected mid-event.
+- **Changing `actionType` later is a payload change, not a release.**
+- **`actionType: 'miniapp'` opens a page of the sending mini app inside its shell.** The value is a
+  mini-app target, `<miniAppId>[<root-relative path>]` (`parseMiniAppTarget` in
+  `packages/shared/src/miniapps/target.ts`): `eskara-2026/eskara/wristband` opens that page,
+  `eskara-2026` the start page. The id must equal `miniAppId`; the server refuses anything else before
+  sending, and the device ignores it if one arrives anyway. The path is resolved against the
+  registry `startUrl` and falls back to it if the result leaves that origin
+  ([eventmap-rendering.md](../explanation/eventmap-rendering.md) §7.3). Prefer it over `webview` for a
+  mini app's own pages: the tap lands under the mini app's name and badge rather than in a bare
+  browser. Builds before this change treat it as the fallback above.
 
 ## Related
 

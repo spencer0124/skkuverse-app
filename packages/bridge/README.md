@@ -3,7 +3,7 @@ title: Bridge Package (@skkuverse/bridge)
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-07
+last-updated: 2026-09-26
 audience: internal
 ---
 
@@ -24,6 +24,16 @@ audience: internal
 - 발신: [skkuverse-web](https://github.com/spencer0124/skkuverse-web) `apps/webview` 각 페이지
 - 수신: apps/mobile의 webview 래퍼 컴포넌트
 
+> [!NOTE]
+> **이 패키지는 이제 `app/webview.tsx` 전용이다(2026-09-25).** 등록된 미니앱을 여는
+> `app/mini-app.tsx`는 더 이상 이 v1 브리지를 쓰지 않고, npm `@skkuverse/miniapp`의
+> `@skkuverse/miniapp/protocol`을 쓴다 — 셸 주입, 메시지 셋, origin 판정 모두 별도
+> 계약이다. 자세한 내용은
+> [docs/explanation/miniapp-shell.md](../../docs/explanation/miniapp-shell.md)와
+> [ADR 0006](../../docs/decisions/0006-miniapp-webview-push-architecture.md) §9 참고.
+
 발신 측이 별도 레포로 나갔으므로 `types.ts`는 이제 **레포를 넘는 계약**이다. skkuverse-web이 이 파일을 byte 단위로 vendoring하고, umbrella의 `contracts/manifest.json`에 `bridge.message-types`로 등록돼 소비자 CI에서 해시로 검증된다 ([umbrella ADR 0002](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0002-pull-based-config-contracts.md)).
+
+`web:action`만 예외적으로 `parseWebMessage`가 payload까지 검사한다(`actionType`/`actionValue`가 빈 문자열이 아닌 문자열). 페이지에 허용되는 액션은 `map`·`miniapp`뿐이고, 그 판정은 `@skkuverse/shared`의 `resolveWebAction`이 한다 — 페이지는 `window.skkuverse?.bridge?.actions`로 앱이 받는 액션을 확인한 뒤에만 버튼을 그린다 (ADR 0006 §9).
 
 메시지 타입을 추가할 때는 여기 `types.ts`를 먼저 고친다. 소비자 쪽 복사본을 직접 고치면 그쪽 CI가 빨개지고, 그게 의도된 동작이다.

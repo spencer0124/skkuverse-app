@@ -50,7 +50,13 @@ import React, {
   type ReactNode,
 } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useAnimatedStyle, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import {
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+  type WithSpringConfig,
+  type WithTimingConfig,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWindowDimensions } from 'react-native';
 import GorhomBottomSheet, {
@@ -84,11 +90,18 @@ import { SheetHeader } from './SheetHeader';
  * asserted so that calling one on the wrong kind is a type error at the call
  * site instead of a crash at runtime.
  */
+/** gorhom's per-animation override: a spring or a timing, in reanimated's own shape. */
+export type SheetAnimationConfig = WithSpringConfig | WithTimingConfig;
+
 export interface SheetRef {
   snapToIndex: (index: number) => void;
   expand: () => void;
   collapse: () => void;
-  close: () => void;
+  /**
+   * `animationConfigs` overrides this one close only — a hand-off that wants
+   * the sheet out of the way fast, without changing how it moves otherwise.
+   */
+  close: (animationConfigs?: SheetAnimationConfig) => void;
   forceClose: () => void;
   /** Modal sheets only. */
   present?: () => void;
@@ -136,9 +149,13 @@ export interface SheetProps {
    * The card's bottom gap while it floats, in points. Glass only.
    *
    * Defaults to the same side gap the card uses, which is right for an inline
-   * sheet whose container already stops above the tab bar. A modal's container
-   * is the whole window, so a modal that has to line up with an inline card on
-   * the same screen must restate that card's bottom edge here.
+   * sheet. A modal's container is the whole window, so a modal that has to line
+   * up with an inline card on the same screen must restate that card's bottom
+   * edge here.
+   *
+   * This gap does not clear a tab bar. Under iOS 26 NativeTabs an inline
+   * sheet's container runs under the floating bar, so the caller clears it with
+   * its scroll content's bottom padding (`CampusScreen`'s `tabBarOverlap`).
    */
   bottomGap?: number;
   /** Pinned above the content, outside the scrollable. */
@@ -168,14 +185,23 @@ export interface SheetProps {
    * opened from somewhere that has no state to spare, which is most of them.
    */
   open?: boolean;
-  /** Written by gorhom. Supply one to drive something outside the sheet. */
+  /**
+   * Written by gorhom. Supply one to drive something OUTSIDE the sheet — it is
+   * a copy that can trail the body by a frame. Inside, use `useSheetMotion`.
+   */
   animatedIndex?: SharedValue<number>;
-  /** Written by gorhom. Supply one to drive something outside the sheet. */
+  /** As `animatedIndex`: for outside the sheet only. */
   animatedPosition?: SharedValue<number>;
   onChange?: (index: number) => void;
   onClose?: () => void;
   /** Modal sheets only. Fires for a swipe-away and a programmatic dismiss alike. */
   onDismiss?: () => void;
+  /**
+   * How every snap of this sheet animates, its rise included — gorhom's
+   * `present()` takes no override, so a modal that must arrive fast says so
+   * here. Absent means gorhom's default spring.
+   */
+  animationConfigs?: SheetAnimationConfig;
   /** Merged onto the sheet body, after the card's own inset. */
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -199,6 +225,7 @@ function SheetRoot(
     onChange,
     onClose,
     onDismiss,
+    animationConfigs,
     style,
     children,
   }: SheetProps,
@@ -231,7 +258,7 @@ function SheetRoot(
       snapToIndex: (i: number) => ownRef.current?.snapToIndex(i),
       expand: () => ownRef.current?.expand(),
       collapse: () => ownRef.current?.collapse(),
-      close: () => ownRef.current?.close(),
+      close: (animationConfigs?: SheetAnimationConfig) => ownRef.current?.close(animationConfigs),
       forceClose: () => ownRef.current?.forceClose(),
       present: () => ownRef.current?.present?.(),
       dismiss: () => ownRef.current?.dismiss?.(),
@@ -246,8 +273,9 @@ function SheetRoot(
   }, [open]);
 
   // gorhom writes into whichever shared values it is handed. Owning a pair when
-  // the caller supplies none keeps the background and the card's inset reading
-  // the same source either way.
+  // the caller supplies none gives the card's inset below a source either way.
+  // These are copies that can trail the body by a frame, which the inset's few
+  // points hide; anything tracking the card's edges uses `useSheetMotion`.
   const ownIndex = useSharedValue(-1);
   const ownPosition = useSharedValue(0);
   const index = animatedIndex ?? ownIndex;
@@ -285,8 +313,6 @@ function SheetRoot(
           <ExpandableSheetBackground
             style={bgStyle}
             pointerEvents={pointerEvents}
-            animatedIndex={index}
-            animatedPosition={sheetTop}
             lastIndex={resolved.lastIndex}
             floatBottomGap={bottomGap}
           />
@@ -303,7 +329,7 @@ function SheetRoot(
       }
       return <AttachedSheetBackground style={bgStyle} pointerEvents={pointerEvents} />;
     },
-    [travels, floatsStatically, index, sheetTop, resolved.lastIndex, bottomGap],
+    [travels, floatsStatically, resolved.lastIndex, bottomGap],
   );
 
   const renderBackdrop = useCallback(
@@ -373,6 +399,7 @@ function SheetRoot(
     android_keyboardInputMode: androidKeyboardInputMode,
     onChange,
     onClose,
+    animationConfigs,
     style: bodyStyle,
     children,
   } as const;

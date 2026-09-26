@@ -13,6 +13,18 @@ import type { NoticeTab } from './types';
  *   3. First source — last-resort fallback so the notices tab always
  *      has at least one source id to render; avoids an "empty list" degenerate.
  *
+ * Rung 3 is deliberately kept, but it is NOT harmless, and callers should pass
+ * `onFallback`. For the `dept` and `general` tabs the server sends no
+ * `defaultIds`, so rung 2 is dead and rung 3 is the only other outcome — it
+ * renders `sources[0]`, which for `dept` is 'arch' (건축학과, first by Korean
+ * collation). That means a save which never landed is displayed as a confident,
+ * plausible-looking department the user never chose. Twice now (2026-07 and
+ * 2026-09) that has turned a silent write failure into a user-visible bug that
+ * nothing reported: the 2026-07 incident ran 84 days because reaching this rung
+ * emitted no signal at all. Keeping the rung avoids a blank notices tab for a
+ * genuine first-time user; instrumenting it is what makes the broken case
+ * visible in Crashlytics rather than only in a support message.
+ *
  * Note: campus-conditional defaults (`picker.campusDefaultIds`) are NOT
  * merged here. They're an onboarding-time seed (see `computeOnboardingPickerSeed`)
  * — view-layer fallback uses common defaults only so the displayed selection
@@ -26,6 +38,12 @@ import type { NoticeTab } from './types';
 export function resolvePickerSelection(
   tab: NoticeTab,
   stored: string[] | undefined,
+  /**
+   * Invoked only when rung 3 is reached AND a source exists to fall back to.
+   * Kept as an injected callback rather than an import so this module stays
+   * dependency-free and unit-testable.
+   */
+  onFallback?: () => void,
 ): string[] {
   if (!tab.picker) return [];
   const picker = tab.picker;
@@ -40,7 +58,9 @@ export function resolvePickerSelection(
     return picker.defaultIds.filter((id) => validIds.has(id));
   }
 
-  return picker.sources.length > 0 ? [picker.sources[0].id] : [];
+  if (picker.sources.length === 0) return [];
+  onFallback?.();
+  return [picker.sources[0].id];
 }
 
 /**

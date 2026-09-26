@@ -25,6 +25,7 @@ export { ApiEndpoints } from './api/endpoints';
 // ── API client ──
 export { createApiClient, getApiClient, resetApiClient } from './api/client';
 export { ApiConfig } from './api/config';
+export { API_TIMEOUT_MS } from './api/timeouts';
 
 // ── Safe request wrappers ──
 export {
@@ -91,12 +92,14 @@ export type {
   SduiSectionTitle,
   SduiNotice,
   SduiBanner,
+  SduiBannerCarousel,
   SduiSpacer,
   SduiUnknown,
   SduiButtonItem,
   CampusSectionsResponse,
 } from './types/sdui';
 export { type ActionType, parseActionType } from './types/sdui';
+export { parseMapPlaceRef, type MapPlaceRef } from './map/place-ref';
 
 // ── Bus types ──
 export type {
@@ -123,7 +126,6 @@ export type {
   DaySchedule,
   ScheduleEntry,
   ScheduleNotice,
-  CampusEta,
 } from './types/bus';
 export { hexToColor, isBusGroupVisible } from './types/bus';
 
@@ -137,6 +139,11 @@ export type {
   MapChipAction,
   MapChipCamera,
   MapChipIcon,
+  MapChipList,
+  MapChipFacet,
+  MapChipFacetOption,
+  MapChipFacetSelect,
+  MapListSort,
   MapLayerStyle,
   MarkerShape,
   MapLayerDef,
@@ -150,6 +157,7 @@ export type {
   I18nText,
   DailyWindow,
   LayerDefaultVisibility,
+  OpeningWindow,
   TimeWindow,
 } from './types/map';
 
@@ -178,14 +186,23 @@ export type {
   PlatformConfig,
   WebviewConfig,
   WebConfig,
+  MiniAppsConfig,
   AppConfig,
 } from './app/parser';
 export { parseAppConfig } from './app/parser';
+export {
+  resolveWebAction,
+  WEB_ACTION_TYPES,
+  WEB_BRIDGE_ADVERTISEMENT_JS,
+  type WebAction,
+  type WebActionType,
+} from './app/web-action';
 export {
   setCachedAppConfig,
   getCachedAppConfig,
   getBridgeOrigins,
   getWebOrigin,
+  getMiniAppOrigins,
   resetAppConfigMemo,
 } from './app/config-cache';
 
@@ -204,7 +221,6 @@ export {
   parseBusGroup,
   parseRealtimeData,
   parseSmartSchedule,
-  parseCampusEta,
 } from './bus';
 
 // ── Map parsers + defaults ──
@@ -225,6 +241,7 @@ export {
   isFestivalLayer,
   withoutFestival,
   resolvePinCollisions,
+  currentOpenRun,
   isOpenNow,
   nextOpeningAfter,
   nextWindowBoundaryAfter,
@@ -237,16 +254,50 @@ export type { LayerVisibilityState, PinCandidate } from './map';
 //
 // The snapshot tier is gone. `/eventmap/manifest` and `/eventmap/snapshot` were
 // deleted server-side and the place documents they carried now ride on the
-// ordinary marker wire, so what used to be a module of its own is the list and
-// sort rules in `./map` plus the two UI choices below.
+// ordinary marker wire, so what used to be a module of its own is the list
+// rules in `./map` plus the store below.
 export {
   selectVisibleOverlays,
   sortPlaces,
+  defaultFacetSelection,
+  filterByFacets,
+  isWholeFacet,
+  isFacetNarrowed,
+  toggleChecklist,
+  sortForList,
   pickI18nText,
   wrapMarkerLabel,
-  PLACE_SORTS,
 } from './map';
-export type { PlaceSortKey, VisibleOverlaysInput } from './map';
+export type { FacetSelection } from './map';
+export type { VisibleOverlaysInput } from './map';
+export {
+  highlightBlock,
+  placeBody,
+  heroGallery,
+  soloImageSize,
+  soleInstagram,
+  NAVIGABLE_ACTION_TYPES,
+  SOLO_IMAGE_DEFAULT_ASPECT,
+  HIGHLIGHT_MAX,
+  placeSections,
+  placeSheetOpensTall,
+  formatKstDate,
+  formatKstDateTime,
+  formatKstTime,
+  formatTimeWindow,
+} from './map';
+export type { PlaceSectionKey, PlaceBodyItem, PlaceImage } from './map';
+export type {
+  PlaceKind,
+  PlaceDetail,
+  PlaceAction,
+  PlaceInstagramAction,
+  PlaceLinkAction,
+  PlaceBlock,
+  PlaceBlockType,
+  PlaceListItem,
+  PlaceTableRow,
+} from './types/placeDetail';
 export { useEventMapStore } from './store/eventmap';
 export type { EventMapStore } from './store/eventmap';
 
@@ -267,6 +318,7 @@ export {
   computeOnboardingPickerSeed,
   highlightMatches,
   classifyBookmarkToggleError,
+  isMissingPrefsDocError,
   filterPickerSources,
   isUnsupportedSource,
   recommendCollegeMates,
@@ -310,8 +362,6 @@ export {
   REALTIME_DATA_KEY,
   useSmartSchedule,
   SMART_SCHEDULE_KEY,
-  useCampusEta,
-  CAMPUS_ETA_KEY,
   useMainNotice,
   MAIN_NOTICE_KEY,
   type NoticePlacement,
@@ -324,6 +374,8 @@ export {
   useLayerOverlays,
   MAP_LAYER_OVERLAYS_KEY,
   useWindowClock,
+  usePlaceDetails,
+  PLACE_DETAILS_KEY,
   useSearchBuildings,
   BUILDING_SEARCH_KEY,
   useNoticeTabs,
@@ -340,3 +392,4 @@ export {
 
 // ── Mini-app registry (2-tier SSOT: index + per-service detail, joined by id) ──
 export * from './miniapps';
+export * from './home';

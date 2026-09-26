@@ -8,7 +8,9 @@
  */
 
 import { router } from 'expo-router';
-import type { ActionType } from '@skkuverse/shared';
+import { parseMapPlaceRef, parseMiniAppTarget, type ActionType } from '@skkuverse/shared';
+import { openMiniAppTarget } from '@/features/mini-app/open';
+import { openMapAtPlace } from '@/lib/open-map-place';
 import { openWebView } from '@/features/webview/open';
 
 interface SduiAction {
@@ -52,15 +54,38 @@ export function handleSduiAction({
       openWebView({ url: actionValue, title: webviewTitle });
       break;
 
+    // A mini-app target, `<miniAppId>[/path]` — opens the registered mini app's
+    // shell, at that page when a path is given (eventmap §7.3). A value that is
+    // not a target does nothing: it is never treated as a URL.
+    case 'miniapp': {
+      const target = parseMiniAppTarget(actionValue);
+      if (target) {
+        openMiniAppTarget(target);
+      } else if (__DEV__) {
+        console.debug('[sdui] miniapp action with no valid target ignored:', actionValue);
+      }
+      break;
+    }
+
+    // A place on the campus map, `[<kind>:]<placeId>` — the `?place=` grammar.
+    // Closes whatever shell is on top and opens that place's sheet. A value that
+    // is not a place reference does nothing.
+    case 'map': {
+      const ref = parseMapPlaceRef(actionValue);
+      if (ref) {
+        openMapAtPlace(ref);
+      } else if (__DEV__) {
+        console.debug('[sdui] map action with no valid place ignored:', actionValue);
+      }
+      break;
+    }
+
     case 'content':
-    case 'miniapp':
     case 'unknown':
       // `content` is prose to render in place, and this dispatcher is
       // fire-and-forget with no surface to render into — the sheet that owns the
       // button handles it before ever calling here. Reaching this arm means a
       // call site rendered a button for something that was never navigable.
-      //
-      // `miniapp` is deferred until the mini-app platform ships (eventmap §7.3).
       //
       // `unknown` is what an unrecognised action type parses to. It used to
       // become 'external' and open a browser at whatever string arrived.

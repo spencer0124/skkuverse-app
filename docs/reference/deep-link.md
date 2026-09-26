@@ -3,7 +3,7 @@ title: Deep Link Reference
 type: reference
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-29
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -132,9 +132,10 @@ guarantee that next year's event demands another new scheme.
   Notices and mini apps have no whitelist entry for the same reason.
 - **`/map/hssc` is unaffected.** The pattern ends at `/map`, so a path carrying another
   segment fails to match and flows on to the whitelist, which sends it to the SVG floor map.
-- The value is checked for **shape only**, by `PLACE_ID_RE` in `app/+native-intent.tsx`, and
-  never looked up. A bare `<placeId>` passes, and so does `<kind>:<placeId>` — the two fields of
-  a marker's `tap`, so `event:nsc-truck-05` and `skku_building:2` are links copied straight off a
+- The value is checked for **shape only**, by `parseMapPlaceRef`
+  (`packages/shared/src/map/place-ref.ts`, the same grammar a `map` action carries), and never
+  looked up. A bare `<placeId>` passes, and so does `<kind>:<placeId>` — the two fields of a
+  marker's `tap`, so `event:nsc-truck-05` and `skku_building:2` are links copied straight off a
   pin — where the kind has to be one of `PLACE_KINDS` in the same file. A bare id resolves the way
   it always has, against the event markers. The reason for shape-only matches the mini app slug:
   this function runs outside the React tree, so a lookup here would duplicate the request and
@@ -166,17 +167,23 @@ When someone without the app taps the universal link, a Cloudflare Pages Functio
 `skkuverse.com/p/notices/<sourceId>/<articleNo>` renders the notice body, with OG meta, an
 iOS smart banner, and a JS CTA fallback for Android.
 
-### Variable path 2: mini app (`/m/<slug>`)
+### Variable path 2: mini app (`/m/<target>`)
 
-`MINIAPP_PATH_RE = /^\/m\/([a-z0-9-]+)$/` matches after the notice intercept and before the
-whitelist check, following the same pending-holder pattern as notices:
+`MINIAPP_PATH_RE = /^\/m\/(.+)$/` matches after the notice intercept and before the whitelist
+check, and its capture must parse as a mini-app target, `<slug>[/path]` (`parseMiniAppTarget`, the
+same grammar as a map or push `miniapp` action — [eventmap-rendering.md](../explanation/eventmap-rendering.md)
+§7.3). It follows the same pending-holder pattern as notices:
 
-1. It checks **shape only** (`[a-z0-9-]+`). On a match it stashes
-   `pendingMiniAppLink.set({ id })` and returns `/(tabs)/home`.
+1. It checks **shape only**. On a match it stashes `pendingMiniAppLink.set({ id, path? })` and
+   returns `/(tabs)/home`. A capture that is not a target goes on to the whitelist, which
+   lands on home.
 2. The root layout's `PendingMiniAppLinkConsumer` is **where registry membership is
    checked**. It runs `GET /miniapps/:id` through `queryClient.fetchQuery`, opens the mini
-   app shell over the home tab on success, and drops the link silently on failure, which is
-   not a dead end because the user is already on home.
+   app shell over the home tab on success — at `path` when one was given, resolved against the
+   registered `startUrl` and falling back to it off-origin — and drops the link silently on
+   failure, which is not a dead end because the user is already on home.
+3. The link's own query string is left out of the mini app's page: `parseIncomingLink`
+   splits it off before the match, and it belongs to the link rather than to the page.
 
 > [!NOTE]
 > Why the membership check moved out of `+native-intent.tsx` and into the consumer: the

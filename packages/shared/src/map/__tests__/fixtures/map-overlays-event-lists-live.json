@@ -1,0 +1,1584 @@
+{
+  "meta": {
+    "lang": "ko"
+  },
+  "data": {
+    "overlays": [
+      {
+        "id": "eskara-2026-truck-oyabong",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "오야봉",
+          "en": "오야봉"
+        },
+        "subtitle": {
+          "ko": "야끼소바 · 오꼬노미야끼",
+          "en": "야끼소바 · 오꼬노미야끼"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 20,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-oyabong"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971501,
+            37.29542
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-umai",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "우마이식당",
+          "en": "우마이식당"
+        },
+        "subtitle": {
+          "ko": "불초밥 · 연어초밥",
+          "en": "불초밥 · 연어초밥"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 21,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-umai"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971492,
+            37.29538
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-bossdak",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "보스닭",
+          "en": "보스닭"
+        },
+        "subtitle": {
+          "ko": "닭강정",
+          "en": "닭강정"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 22,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-bossdak"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971484,
+            37.29534
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-paradise-coffee",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "파라다이스 커피",
+          "en": "파라다이스 커피"
+        },
+        "subtitle": {
+          "ko": "커피 · 음료",
+          "en": "커피 · 음료"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 23,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-paradise-coffee"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971476,
+            37.2953
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-jungwoo-kkochi",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "정우꼬치 맛있는꼬치",
+          "en": "정우꼬치 맛있는꼬치"
+        },
+        "subtitle": {
+          "ko": "닭꼬치",
+          "en": "닭꼬치"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 24,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-jungwoo-kkochi"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971459,
+            37.295221
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-myeongpum-hanip",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "명품한입",
+          "en": "명품한입"
+        },
+        "subtitle": {
+          "ko": "타코야끼 · 소떡소떡",
+          "en": "타코야끼 · 소떡소떡"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 25,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-myeongpum-hanip"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971451,
+            37.295181
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-toktok-pangpang",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "톡톡팡팡",
+          "en": "톡톡팡팡"
+        },
+        "subtitle": {
+          "ko": "구슬아이스크림",
+          "en": "구슬아이스크림"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 26,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-toktok-pangpang"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971442,
+            37.295141
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-huimang-churros",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "희망츄러스",
+          "en": "희망츄러스"
+        },
+        "subtitle": {
+          "ko": "츄러스 · 아이스크림",
+          "en": "츄러스 · 아이스크림"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 27,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-huimang-churros"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971434,
+            37.295101
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-sunnycook",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "써니쿡",
+          "en": "써니쿡"
+        },
+        "subtitle": {
+          "ko": "칠리새우 · 크림새우",
+          "en": "칠리새우 · 크림새우"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 28,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-sunnycook"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971426,
+            37.295061
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-geongang-gajok",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "건강가족",
+          "en": "건강가족"
+        },
+        "subtitle": {
+          "ko": "족발 · 닭발",
+          "en": "족발 · 닭발"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 29,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-geongang-gajok"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971418,
+            37.295021
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-jfood",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "제이푸드",
+          "en": "제이푸드"
+        },
+        "subtitle": {
+          "ko": "크레페",
+          "en": "크레페"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 30,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-jfood"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971409,
+            37.294981
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-staking",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "스테이킹",
+          "en": "스테이킹"
+        },
+        "subtitle": {
+          "ko": "팟타이",
+          "en": "팟타이"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 31,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-staking"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971401,
+            37.294941
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-pikkoboro",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "피꼬보로",
+          "en": "피꼬보로"
+        },
+        "subtitle": {
+          "ko": "피자",
+          "en": "피자"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 32,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-pikkoboro"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971393,
+            37.294902
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-prime-factory",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "프라임팩토리",
+          "en": "프라임팩토리"
+        },
+        "subtitle": {
+          "ko": "스테이크",
+          "en": "스테이크"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 33,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-prime-factory"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971384,
+            37.294862
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-nyamnyam",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "냠냠쩝쩝",
+          "en": "냠냠쩝쩝"
+        },
+        "subtitle": {
+          "ko": "타코 · 나초",
+          "en": "타코 · 나초"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 34,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-nyamnyam"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971376,
+            37.294822
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-damoa-food",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "다모아푸드",
+          "en": "다모아푸드"
+        },
+        "subtitle": {
+          "ko": "야채곱창 · 순대곱창",
+          "en": "야채곱창 · 순대곱창"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T02:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 35,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-damoa-food"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971367,
+            37.294782
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-truck-panpan-mala",
+        "layerId": "eskara26_food",
+        "campus": "nsc",
+        "text": {
+          "ko": "판판마라",
+          "en": "판판마라"
+        },
+        "subtitle": {
+          "ko": "마라꼬치",
+          "en": "마라꼬치"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T02:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 36,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-truck-panpan-mala"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.971359,
+            37.294742
+          ]
+        },
+        "pinPriority": 20
+      },
+      {
+        "id": "eskara-2026-bar-72min-sogaeting",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "72분 소개팅: 수원편",
+          "en": "72분 소개팅: 수원편"
+        },
+        "subtitle": {
+          "ko": "제76대 국어국문학과 학생회 다움 X 제13대 전자전기공학부 학생회 시그널",
+          "en": "제76대 국어국문학과 학생회 다움 X 제13대 전자전기공학부 학생회 시그널"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 70,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-72min-sogaeting"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.970935894275,
+            37.295467886144934
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-jikuro-laksil",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "지쿠로락실: 에스카라 특별편",
+          "en": "지쿠로락실: 에스카라 특별편"
+        },
+        "subtitle": {
+          "ko": "쿠사 X 로타랙트",
+          "en": "쿠사 X 로타랙트"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 71,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-jikuro-laksil"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97121503661282,
+            37.295454438801244
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-bullyang-seongdae",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "불량성대",
+          "en": "불량성대"
+        },
+        "subtitle": {
+          "ko": "제11대 화학공학부 학생회 C:ODE X 제37대 융합생명공학과 학생회 위드융",
+          "en": "제11대 화학공학부 학생회 C:ODE X 제37대 융합생명공학과 학생회 위드융"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 72,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-bullyang-seongdae"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9713659,
+            37.2953261
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-s-angel",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "S♡ANGEL.NET에 접속하시겠습니까?",
+          "en": "S♡ANGEL.NET에 접속하시겠습니까?"
+        },
+        "subtitle": {
+          "ko": "성균관대학교 공식 학교발전홍보대사 S-ANGEL",
+          "en": "성균관대학교 공식 학교발전홍보대사 S-ANGEL"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 73,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-s-angel"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97133638141378,
+            37.29518190444774
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-harry-potter",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "해리포터와 초록의 파도",
+          "en": "해리포터와 초록의 파도"
+        },
+        "subtitle": {
+          "ko": "제49대 한문교육과 학생회 개화(開花)",
+          "en": "제49대 한문교육과 학생회 개화(開花)"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 74,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-harry-potter"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97130543815885,
+            37.294992679096445
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-yes-some-noise",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "YES~ SOME NOISE",
+          "en": "YES~ SOME NOISE"
+        },
+        "subtitle": {
+          "ko": "제58대 스포츠과학대학 학생회 SP:HERE X 제28대 예술대학 학생회 <예너지>",
+          "en": "제58대 스포츠과학대학 학생회 SP:HERE X 제28대 예술대학 학생회 <예너지>"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 75,
+        "facets": {
+          "day": [
+            "day1"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-yes-some-noise"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9712815,
+            37.2948372
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-gonggyeong-rodang",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "공경로당(工經老堂)",
+          "en": "공경로당(工經老堂)"
+        },
+        "subtitle": {
+          "ko": "제41대 공과대학 학생회 BETWE:EN X 제26대 경영대학 학생회 Be:hind",
+          "en": "제41대 공과대학 학생회 BETWE:EN X 제26대 경영대학 학생회 Be:hind"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 76,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-gonggyeong-rodang"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.970935894275,
+            37.295467886144934
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-back-to-00-10",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "BACK TO 00-10",
+          "en": "BACK TO 00-10"
+        },
+        "subtitle": {
+          "ko": "제51대 식품생명공학과 학생회 푸렌즈 X 제57대 행정학과 학생회 PA:stel",
+          "en": "제51대 식품생명공학과 학생회 푸렌즈 X 제57대 행정학과 학생회 PA:stel"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 77,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-back-to-00-10"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97121503661282,
+            37.295454438801244
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-haus-cosmo",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "zl존건축 ♡ 오ビ소글융 | 일촌공개",
+          "en": "zl존건축 ♡ 오ビ소글융 | 일촌공개"
+        },
+        "subtitle": {
+          "ko": "제23대 건축학과 학생회 HAUS23 X 제8대 글로벌융합학부 학생회 COSMO",
+          "en": "제23대 건축학과 학생회 HAUS23 X 제8대 글로벌융합학부 학생회 COSMO"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 78,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-haus-cosmo"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9713659,
+            37.2953261
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-chamgyoyuk",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "참교육: 酒권보호국 성균관대학교 특별파견본부",
+          "en": "참교육: 酒권보호국 성균관대학교 특별파견본부"
+        },
+        "subtitle": {
+          "ko": "제56대 사범대학 학생회 나래",
+          "en": "제56대 사범대학 학생회 나래"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 79,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-chamgyoyuk"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97133638141378,
+            37.29518190444774
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-jujeongbaengi",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "酒情뱅이",
+          "en": "酒情뱅이"
+        },
+        "subtitle": {
+          "ko": "제42대 자연과학대학 학생회 SCeNe X 제40대 생명공학대학 학생회 Blink",
+          "en": "제42대 자연과학대학 학생회 SCeNe X 제40대 생명공학대학 학생회 Blink"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 80,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-jujeongbaengi"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9712984,
+            37.2949454
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-seonggyun-theater",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "성균 시어터",
+          "en": "성균 시어터"
+        },
+        "subtitle": {
+          "ko": "성균극회 X 영상촌",
+          "en": "성균극회 X 영상촌"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 81,
+        "facets": {
+          "day": [
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-seonggyun-theater"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97127168579507,
+            37.29477642192593
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-homecoming-night",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "SKKU HOMECOMING NIGHT",
+          "en": "SKKU HOMECOMING NIGHT"
+        },
+        "subtitle": {
+          "ko": "향실",
+          "en": "향실"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 82,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-homecoming-night"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9712041584638,
+            37.29440472755858
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-lemon-kung",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "레몬 쿵! 신(New & Sour) 에너지연구소",
+          "en": "레몬 쿵! 신(New & Sour) 에너지연구소"
+        },
+        "subtitle": {
+          "ko": "에너지학과 제3대 학생회 효율 X 배터리학과 제1대 학생회 BATTON",
+          "en": "에너지학과 제3대 학생회 효율 X 배터리학과 제1대 학생회 BATTON"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 83,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-lemon-kung"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97110547412659,
+            37.2944069561024
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-golden-apple",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "황금사과 스캔들",
+          "en": "황금사과 스캔들"
+        },
+        "subtitle": {
+          "ko": "학생사회공헌단 다소미",
+          "en": "학생사회공헌단 다소미"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 84,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-golden-apple"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.97102370263194,
+            37.294420451674384
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-goal-in-love",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "그대 마음에 골인럽",
+          "en": "그대 마음에 골인럽"
+        },
+        "subtitle": {
+          "ko": "플러렌",
+          "en": "플러렌"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 85,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-goal-in-love"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9709532118222,
+            37.294427192177515
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-sync",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "SYNC는 못말려",
+          "en": "SYNC는 못말려"
+        },
+        "subtitle": {
+          "ko": "제3대 성균융합원 학생회 SYNC X 제44대 자연과학캠퍼스 동아리연합회 SYNC",
+          "en": "제3대 성균융합원 학생회 SYNC X 제44대 자연과학캠퍼스 동아리연합회 SYNC"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 86,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-sync"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9707967,
+            37.2944395
+          ]
+        },
+        "pinPriority": 30
+      },
+      {
+        "id": "eskara-2026-bar-spha-man",
+        "layerId": "eskara26_bar",
+        "campus": "nsc",
+        "text": {
+          "ko": "스 PHA×의 더맨: SKKU MULTIVERSE",
+          "en": "스 PHA×의 더맨: SKKU MULTIVERSE"
+        },
+        "subtitle": {
+          "ko": "의과대학 제28대 학생회 Smile X 약학대학 제42대 학생회 PHA:DO",
+          "en": "의과대학 제28대 학생회 Smile X 약학대학 제42대 학생회 PHA:DO"
+        },
+        "hours": [
+          {
+            "startAt": "2026-10-01T09:00:00.000Z",
+            "endAt": "2026-10-01T14:00:00.000Z"
+          },
+          {
+            "startAt": "2026-10-02T09:00:00.000Z",
+            "endAt": "2026-10-02T14:00:00.000Z"
+          }
+        ],
+        "fields": [],
+        "actions": [],
+        "order": 87,
+        "facets": {
+          "day": [
+            "day1",
+            "day2"
+          ],
+          "org": []
+        },
+        "orderByOption": {},
+        "tap": {
+          "kind": "event",
+          "placeId": "eskara-2026-bar-spha-man"
+        },
+        "kind": "marker",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            126.9706501,
+            37.2944519
+          ]
+        },
+        "pinPriority": 30
+      }
+    ]
+  }
+}

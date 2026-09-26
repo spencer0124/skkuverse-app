@@ -3,7 +3,7 @@ title: Mini App Webview & Push Architecture
 type: adr
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-28
+last-updated: 2026-09-25
 audience: internal
 ---
 
@@ -15,8 +15,9 @@ audience: internal
 
 Accepted — 2026-07-22. **Decisions 1 and 2 are implemented** (2026-08-01,
 `feat/webview-shell-split` plus the server's `feat/webview-ssot-miniapps`). The push half of
-sections 6 to 8 was built and deployed on 2026-08-21; the SDK in sections 3 to 5 has not been
-started.
+sections 6 to 8 was built and deployed on 2026-08-21. The SDK in sections 3 to 5 exists since
+2026-09-25 as the npm package `@skkuverse/miniapp`, which the mini app shell speaks (decision 3's
+amendment, and the end of section 9).
 
 > [!NOTE]
 > **Push is deferred.** The deployed push path is left in place and is inert — `sendNotification` is
@@ -52,7 +53,7 @@ builds.
 | Mini app renderer | ~~`apps/mobile/app/in-app-browser.tsx`~~ → **`apps/mobile/app/mini-app.tsx`** | **Implemented.** Registered mini apps only. Arbitrary URLs split out to `app/webview.tsx` |
 | Deep link | `apps/mobile/app/+native-intent.tsx`, `MINIAPP_PATH_RE` | `skkuverse://m/<slug>` routes already |
 | Pending holder and consumer | `apps/mobile/src/lib/pending-mini-app-link.ts` plus `app/_layout.tsx` | **Already exists**, and push tap routing can reuse it |
-| WebView-to-RN protocol seed | `apps/mobile/src/features/mini-app/protocol.ts` | Defined but unwired. The page-extraction half is dead code since on-device AI was removed, and is a deletion candidate |
+| WebView-to-RN protocol seed | `apps/mobile/src/features/mini-app/protocol.ts` | Defined but unwired. The page-extraction half is dead code since on-device AI was removed, and is a deletion candidate. Superseded by the miniapp protocol (section 9); only `faviconUrl` is still imported |
 | First-party bridge | `packages/bridge/` | Web to app is wired; native to web is a placeholder |
 | Push delivery CF | `functions/src/send-notification.ts` | `switch(body.type)` has `case 'notice'` alone. A single `FCM_API_KEY`, so **any caller can target any topic** |
 | Topic derivation | `functions/src/notifications/{derive,tabsContract}.ts` | A topic is a Firestore label. Multicast by `array-contains-any` |
@@ -103,10 +104,22 @@ Clubs do not bundle the SDK. They load
 **skkuverse shim old app versions at the SDK level**. Keeping the contract out of the club's
 compiled code is the entire point of this choice.
 
+> [!NOTE]
+> **Amendment 2026-09-25.** First-party mini apps bundle the SDK from npm,
+> `@skkuverse/miniapp`, rather than loading a hosted script. The protocol's source of truth is
+> the [skkuverse-miniapp](https://github.com/spencer0124/skkuverse-miniapp) repo: its
+> `@skkuverse/miniapp/protocol` subpath (the message set, the shell manifest, the viewport and
+> the `window.skkuverse` bootstrap) is what `app/mini-app.tsx` and `parseMiniAppDetail` import,
+> so nobody keeps a copy. The shimming this decision wanted moves into the protocol instead:
+> requests always get an answer (`unsupported` when a method is unknown), and a page offers a
+> feature only when `window.skkuverse.capabilities` lists it. A hosted script remains the option
+> for third-party mini apps in phase 2, where an old bundle can no longer be rebuilt on demand.
+
 ### 4. Treat the native bridge as a mini-app-only channel
 
 Wire the `protocol.ts` seed into the host's `onMessage` and
-`injectedJavaScriptBeforeContentLoaded`.
+`injectedJavaScriptBeforeContentLoaded`. (Built 2026-09-25 on the miniapp protocol rather than
+the seed. See the note at the end of section 9.)
 
 - **Gate on the registered `startUrl` origin.** Handle messages from allowlisted origins
   only.
@@ -197,6 +210,61 @@ a precondition of that change rather than a follow-up to it.
 > is our own SPA, which embeds no such iframe, but that is an **invariant of the allowlist**
 > rather than a property of the code. It is why adding an entry to `BRIDGE_ORIGINS` is a
 > trust decision.
+
+**The mini app shell runs the same gate (added 2026-09-23).** A mini app can itself be a
+first-party page: eskara's `startUrl` is on its own bridged origin,
+`eskara.miniapp.skkuverse.com`, and its pages post `web:open-url` through `@skkuverse/bridge`.
+`app/mini-app.tsx` had no `onMessage`, so those buttons did nothing inside the shell. It now
+resolves `resolveWebviewCapabilities(event.nativeEvent.url, getBridgeOrigins())` per message,
+exactly as `/webview` does, and acts on `web:open-url` and `web:action`.
+
+**`web:action` — a page may ask for an action, from a closed subset (added 2026-09-24).** A page
+sends `{ type: 'web:action', actionType, actionValue }`, the same shape as a server button, so a
+"view on map" button is a `map` action. It is not `web:navigate` revived, because a page gets a
+strict subset of the action union, decided by `resolveWebAction` in `@skkuverse/shared`:
+
+| From a page | Value | Why |
+| --- | --- | --- |
+| `map` | `[<kind>:]<placeId>`, the `?place=` grammar | An id the app resolves itself |
+| `miniapp` | `<id>[/path]`, held to that mini app's origin by the shell | An id the app resolves itself |
+| `route`, `webview`, `external` | refused | Each names a destination: any screen (debug screens and `/webview?url=` included), or any URL |
+
+Four checks, each able to refuse on its own: the origin gate (capability `web:action`), the
+payload shape in `parseWebMessage` (both fields non-empty strings, the receiver's first payload
+check), the allowlist, and each type's anchored value grammar. Both shells also inject
+`window.skkuverse.bridge.actions` before content loads, so a page shows an action button only on a
+host that will perform it; every build before this one injects nothing. That list advertises and
+never grants.
+
+This does not undo decision 4, because nothing is granted by the shell. The grant still
+comes from the posting document's origin, so a third-party mini app, or eskara after it
+navigates off our host, resolves to `[]`. The separate mini app SDK channel from decision 4
+is still what a third-party mini app will talk to.
+
+**The mini app shell moves to the miniapp protocol (2026-09-25).** `app/mini-app.tsx` no longer
+speaks `@skkuverse/bridge`, so the `web:*` messages above now apply to `/webview` alone. The shell
+speaks `@skkuverse/miniapp/protocol` instead, the contract decision 4 asked for, and none of this
+had shipped, so no v1 page was left behind. What carried over and what changed:
+
+- **The gate is the same.** `resolveMiniAppCapabilities` runs the one origin match both shells
+  share (`bridgedOrigin` in `features/webview/capabilities.ts`) per message, and grants every
+  notify method to a `BRIDGE_ORIGINS` origin and nothing to any other. Every message goes through
+  the protocol's `parseMessage` first.
+- **The actions are the same.** `map.openPlace` and `miniapp.open` go through `resolveWebAction`
+  and `handleSduiAction`, exactly as `web:action` did; `link.open` is `web:open-url` with `appUrl`.
+- **Requests always get an answer.** A request carries an `id`, and the dispatcher
+  (`features/mini-app/dispatch.ts`) answers it `denied` from an ungranted origin and `unsupported`
+  otherwise, since no request method exists yet. `hostDeliverScript` re-checks the page's origin
+  before delivering.
+- **The advertisement is `window.skkuverse`.** `hostBootstrapScript` injects the protocol version,
+  the capability list for the start URL's origin, and the viewport, before content loads. It
+  still advertises and never grants.
+- **The shell tells the page where content may go.** The registry's `shell` is now a complete
+  `ShellConfig` (`bar`, `header`, `statusBar`, `background`); `header: 'overlay'` puts the page
+  under a transparent header. The app computes a `Viewport` (`features/mini-app/viewport.ts`),
+  injects it as `--sv-*` CSS variables and sends `viewport.changed` when it moves. The WebView
+  no longer insets itself: the old `contentInset` for the bottom bar is the page's
+  `--sv-inset-bottom` now.
 
 ## Backward-compatibility principles
 

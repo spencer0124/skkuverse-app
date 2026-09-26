@@ -13,6 +13,7 @@ import type {
 } from './types';
 import { Failure, ResultHelper } from './types';
 import { getApiClient } from './client';
+import { API_TIMEOUT_MS } from './timeouts';
 
 /**
  * Safe request wrappers — every API call returns Result<T>, never throws.
@@ -74,6 +75,15 @@ function isValidEnvelope(raw: unknown): raw is ApiEnvelope<unknown> {
   );
 }
 
+/**
+ * GETs default to the shorter `read` timeout unless the caller set one. Done
+ * here rather than in an interceptor so a GET path that skips these wrappers
+ * keeps the instance's 10 s instead of being cut short. See ./timeouts.ts.
+ */
+function withReadTimeout<C extends AxiosRequestConfig>(config: C): C {
+  return { ...config, timeout: config.timeout ?? API_TIMEOUT_MS.read };
+}
+
 // ── Public wrappers ──
 
 /**
@@ -87,7 +97,7 @@ export async function safeGet<T>(
 ): Promise<Result<T>> {
   const { client, ...axiosConfig } = options ?? {};
   try {
-    const response = await (client ?? getApiClient()).get(path, axiosConfig);
+    const response = await (client ?? getApiClient()).get(path, withReadTimeout(axiosConfig));
     const raw = response.data;
     if (!isValidEnvelope(raw)) {
       return ResultHelper.error(Failure.parse('Invalid v2 envelope'));
@@ -129,7 +139,7 @@ export async function safeGetRaw(
 ): Promise<Result<Record<string, unknown>>> {
   const { client, ...axiosConfig } = options ?? {};
   try {
-    const response = await (client ?? getApiClient()).get(path, axiosConfig);
+    const response = await (client ?? getApiClient()).get(path, withReadTimeout(axiosConfig));
     const raw = response.data;
     if (typeof raw !== 'object' || raw === null) {
       return ResultHelper.error(Failure.parse('Expected JSON object'));
@@ -154,7 +164,7 @@ export async function safeGetConditional<T>(
   const { client, ifNoneMatch, ...axiosConfig } = options ?? {};
   try {
     const response = await (client ?? getApiClient()).get(path, {
-      ...axiosConfig,
+      ...withReadTimeout(axiosConfig),
       headers: {
         ...axiosConfig.headers,
         ...(ifNoneMatch && { 'If-None-Match': ifNoneMatch }),

@@ -1,34 +1,90 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import {
   Platform,
   View,
   ScrollView,
-  // Pressable,  // 미니앱 섹션 '더보기' 전용 — 섹션과 함께 주석 처리
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
-// import { CaretRightIcon } from 'phosphor-react-native';  // 미니앱 섹션 전용
+// import { CaretRightIcon } from 'phosphor-react-native';  // 하단 배너 전용
 import {
   SdsColors,
-  // useMiniAppIndex,  // 미니앱 섹션과 함께 주석 처리
+  defaultHomeLayout,
+  useHomeLayout,
+  useMiniAppIndex,
   useT,
+  type HomeSection,
+  type HomeTile,
+  type MiniAppIndexEntry,
+  type MiniAppLogo,
 } from '@skkuverse/shared';
-// import { Txt } from '@skkuverse/sds';  // 미니앱 섹션 헤더 전용
+import { Txt } from '@skkuverse/sds';
 import {
   TossfaceButtonGrid,
   type TossfaceGridItem,
 } from '@/components/TossfaceButtonGrid';
+import { openMiniAppById } from '@/features/mini-app/open';
 import { handleSduiAction } from '@/sdui/action-handler';
-// import { openMiniAppById } from '@/features/mini-app/open';  // 미니앱 섹션 전용
 import { logHomeContentSelect } from '@/services/analytics';
 import { DeptNoticesSection } from './DeptNoticesSection';
 import { ExternalActivitiesSection } from './ExternalActivitiesSection';
-import { HeroBanner } from './HeroBanner';
+import { HomeBannerCarousel } from './HomeBannerCarousel';
+import { isNativeGameId, NATIVE_GAME_IDS, type NativeGameId } from '@/features/games/ids';
+import { HomeHallOfFame } from '@/features/games/leaderboard/HomeHallOfFame';
+import { NATIVE_GAMES } from '@/features/games/registry';
+
+/** A tile for a game bundled with the app: it opens the native game screen. */
+function gameTile(id: NativeGameId, title: string): TossfaceGridItem {
+  return {
+    id,
+    title,
+    emoji: NATIVE_GAMES[id].homeEmoji,
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: id });
+      openMiniAppById(id);
+    },
+  };
+}
+
+// Logo is a remote image (`{uri}`) or an emoji. A null logo (the server sent
+// one this build cannot use) draws 🧩 rather than an empty tile.
+function logoProps(logo: MiniAppLogo | null): Pick<TossfaceGridItem, 'emoji' | 'imageSource'> {
+  return logo?.kind === 'remote'
+    ? { imageSource: { uri: logo.uri } }
+    : { emoji: logo?.kind === 'emoji' ? logo.emoji : '\u{1F9E9}' };
+}
+
+function toTile(app: MiniAppIndexEntry): TossfaceGridItem {
+  return {
+    id: app.id,
+    title: app.shortName ?? app.name,
+    ...logoProps(app.homeLogo),
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: app.id });
+      openMiniAppById(app.id);
+    },
+  };
+}
+
+/** A tile that brings its own text, icon and action: an app screen, a page. */
+function linkTile(tile: Extract<HomeTile, { kind: 'link' }>): TossfaceGridItem {
+  return {
+    id: tile.id,
+    title: tile.title,
+    ...logoProps(tile.icon),
+    onPress: () => {
+      logHomeContentSelect({ content_type: 'tile', item_id: tile.id });
+      handleSduiAction(tile.action);
+    },
+  };
+}
+
+type RenderedSection =
+  | { type: 'banner'; key: string; section: Extract<HomeSection, { type: 'banner_carousel' }> }
+  | { type: 'grid'; key: string; title?: string; items: TossfaceGridItem[]; gameIds: NativeGameId[] };
 
 export function HomeScreen() {
   const { t } = useT();
-  const router = useRouter();
   // headerTransparent: true (home tab) disables the automatic top inset
   // applied to UIScrollView; we add headerHeight back manually so content
   // starts below the bar and only slides under it on scroll (where the
@@ -43,98 +99,59 @@ export function HomeScreen() {
   const headerHeight = useHeaderHeight();
   const scrollTopInset = Platform.OS === 'ios' ? headerHeight + 16 : 16;
 
-  const mainGridItems = useMemo<readonly TossfaceGridItem[]>(
-    () => [
-      {
-        id: 'notices',
-        title: t('home.tile.notices'),
-        emoji: '\u{1F4E2}',
-        isNew: true,
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'notices' });
-          router.navigate('/(tabs)/notices' as never);
-        },
-      },
-      // 오리지널 시리즈 — 임시 비노출 (2026-08-01). 라우트(/video-gallery)와
-      // 번역 키(home.tile.originalSeries)는 그대로 살아있으니 이 블록만 되살리면 복구된다.
-      // {
-      //   id: 'original_series',
-      //   title: t('home.tile.originalSeries'),
-      //   emoji: '\u{1F3AC}',
-      //   onPress: () => {
-      //     logHomeContentSelect({ content_type: 'tile', item_id: 'original_series' });
-      //     router.push('/video-gallery' as never);
-      //   },
-      // },
-      {
-        id: 'building_map',
-        title: t('home.tile.buildingMap'),
-        emoji: '\u{1F3E2}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'building_map' });
-          router.navigate('/(tabs)/campus' as never);
-          // 네이티브 SVG 지도. 서버는 이미 `route` → /map/hssc로 바뀌었는데 이 타일만
-          // 죽은 webview 지도(webview.skkuuniverse.com/#/map/hssc)를 계속 열고 있었다.
-          handleSduiAction({
-            actionType: 'route',
-            actionValue: '/map/hssc',
-          });
-        },
-      },
-      {
-        id: 'building_code',
-        title: t('home.tile.buildingCode'),
-        emoji: '\u{1F522}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'building_code' });
-          router.navigate('/(tabs)/campus' as never);
-          handleSduiAction({
-            actionType: 'route',
-            actionValue: '/search',
-          });
-        },
-      },
-      // 오리지널 시리즈가 빠지며 생긴 4번째 칸. 이동 탭 바로가기였다가 분실물로
-      // 교체 — 이동은 탭바에 이미 있어서 타일이 한 번 더 말하는 것뿐이었고,
-      // 분실물은 캠퍼스 탭 하단 시트에만 있어 탭을 옮겨야 닿는 항목이었다.
-      // 액션은 서버 `/ui/home/campus`의 lost_found 항목과 같은 값을 쓴다.
-      {
-        id: 'lost_found',
-        title: t('lostAndFound.title'),
-        emoji: '\u{1F9F3}',
-        onPress: () => {
-          logHomeContentSelect({ content_type: 'tile', item_id: 'lost_found' });
-          handleSduiAction({
-            actionType: 'webview',
-            actionValue: 'https://webview.skkuverse.com/skku/lostandfound',
-            webviewTitle: t('lostAndFound.title'),
-            webviewColor: '003626',
-          });
-        },
-      },
-    ],
-    [router, t],
+  // Home = server-driven sections (GET /ui/home), drawn in the server's order:
+  // the banner carousel and titled tile grids. Each tile names where its text
+  // and icon come from: a `miniapp` is joined from the mini-app registry, a
+  // `game` from the games bundled into this build, and a `link` carries its own.
+  // A tile this build cannot resolve (an id the registry does not know, a game
+  // it does not ship) is skipped, and a grid left with no tiles is dropped
+  // whole, title included.
+  //
+  // With no layout at all (first launch offline, or a server predating
+  // /ui/home) it draws the bundled copy of today's server layout instead.
+  const { data: fetched } = useHomeLayout();
+  const { data: miniApps } = useMiniAppIndex();
+  const layout = useMemo(() => fetched ?? defaultHomeLayout(t), [fetched, t]);
+  const sections = useMemo<RenderedSection[]>(() => {
+    const byId = new Map((miniApps ?? []).map((app) => [app.id, app]));
+    const out: RenderedSection[] = [];
+    for (const section of layout.sections) {
+      if (section.type === 'banner_carousel') {
+        out.push({ type: 'banner', key: section.id, section });
+        continue;
+      }
+      const items: TossfaceGridItem[] = [];
+      const gameIds: NativeGameId[] = [];
+      for (const tile of section.tiles) {
+        if (tile.kind === 'game') {
+          if (!isNativeGameId(tile.id)) continue;
+          items.push(gameTile(tile.id, t(NATIVE_GAMES[tile.id].titleKey)));
+          gameIds.push(tile.id);
+        } else if (tile.kind === 'miniapp') {
+          const app = byId.get(tile.id);
+          if (app) items.push(toTile(app));
+        } else {
+          items.push(linkTile(tile));
+        }
+      }
+      if (items.length > 0) {
+        out.push({ type: 'grid', key: section.id, title: section.title, items, gameIds });
+      }
+    }
+    return out;
+  }, [layout, miniApps, t]);
+  const unplacedGames = useMemo(() => {
+    const placed = new Set(sections.flatMap((s) => (s.type === 'grid' ? s.gameIds : [])));
+    return NATIVE_GAME_IDS.filter((id) => !placed.has(id));
+  }, [sections]);
+  // One Hall of Fame for every game on the screen, in the order their tiles
+  // appear, under the first grid that holds one — or, when no server grid
+  // does, under the app's own mini-games grid.
+  const hallGames = useMemo(
+    () => [...new Set([...sections.flatMap((s) => (s.type === 'grid' ? s.gameIds : [])), ...unplacedGames])],
+    [sections, unplacedGames],
   );
-
-  // 미니앱 그리드 — 임시 비노출 (2026-08-01). 서버 레지스트리(SSOT)에서 생성.
-  // 이름/URL/로고/순서 전부 서버에서. 로고는 원격 URL(`{uri}`) — 번들 require()
-  // 맵은 제거됨. 서버가 아직 응답하지 않았거나 로고가 없으면 undefined라 타일은
-  // 이모지 폴백으로 그려진다. 훅까지 같이 주석 처리해야 불필요한 /mini-apps
-  // 쿼리가 안 나간다 (JSX만 지우면 fetch는 계속 돎).
-  // const { data: miniApps } = useMiniAppIndex();
-  // const miniAppItems = useMemo<readonly TossfaceGridItem[]>(
-  //   () =>
-  //     (miniApps ?? []).map((app) => ({
-  //       id: app.id,
-  //       title: app.shortName ?? app.name,
-  //       imageSource: app.logo ? { uri: app.logo.uri } : undefined,
-  //       onPress: () => {
-  //         logHomeContentSelect({ content_type: 'tile', item_id: app.id });
-  //         openMiniAppById(app.id);
-  //       },
-  //     })),
-  //   [miniApps],
-  // );
+  const hallAfter = sections.find((s) => s.type === 'grid' && s.gameIds.length > 0)?.key ?? null;
 
   return (
     <View style={styles.container}>
@@ -146,38 +163,39 @@ export function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero Banner (auto-playing intro animation) ── */}
-        <HeroBanner />
+        {sections.map((section) =>
+          section.type === 'banner' ? (
+            <HomeBannerCarousel key={section.key} section={section.section} />
+          ) : (
+            <Fragment key={section.key}>
+              <View style={styles.gridWrap}>
+                {section.title ? (
+                  <View style={styles.sectionHeader}>
+                    <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                      {section.title}
+                    </Txt>
+                  </View>
+                ) : null}
+                <TossfaceButtonGrid items={section.items} />
+              </View>
+              {section.key === hallAfter && <HomeHallOfFame gameIds={hallGames} />}
+            </Fragment>
+          ),
+        )}
 
-        {/* ── Grid Menu (main app tiles) ── */}
-        <View style={styles.gridWrap}>
-          <TossfaceButtonGrid items={mainGridItems} />
-        </View>
-
-        {/* ── 미니앱 섹션 ── 임시 비노출 (2026-08-01). 되살릴 때 위쪽
-            useMiniAppIndex/miniAppItems 블록과 Pressable·CaretRightIcon·Txt
-            import도 함께 복구할 것.
-        <View style={styles.miniAppsSection}>
-          <View style={styles.sectionHeader}>
-            <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
-              미니앱
-            </Txt>
-            <Pressable
-              style={({ pressed }) => [
-                styles.sectionMoreBtn,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              hitSlop={8}
-            >
-              <Txt typography="t7" color={SdsColors.grey500}>
-                더보기
+        {/* The in-app games the server's grids do not place get a grid of
+            their own, fixed in the app, so none is ever unreachable. */}
+        {unplacedGames.length > 0 && (
+          <View style={styles.gridWrap}>
+            <View style={styles.sectionHeader}>
+              <Txt typography="t4" fontWeight="bold" color={SdsColors.grey900}>
+                {t('home.section.miniGames')}
               </Txt>
-              <CaretRightIcon size={12} color={SdsColors.grey400} />
-            </Pressable>
+            </View>
+            <TossfaceButtonGrid items={unplacedGames.map((id) => gameTile(id, t(NATIVE_GAMES[id].titleKey)))} />
           </View>
-          <TossfaceButtonGrid items={miniAppItems} />
-        </View>
-        */}
+        )}
+        {hallAfter === null && <HomeHallOfFame gameIds={hallGames} />}
 
         {/* ── Dept latest notices (top 3, gate handled inside) + 소식 ── */}
         <DeptNoticesSection />
@@ -221,21 +239,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  /* ── 미니앱 섹션 ── */
-  miniAppsSection: {
-    marginBottom: 28,
-  },
+  /* ── Mini-app section heading ── */
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     marginBottom: 12,
-  },
-  sectionMoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
   },
 
   /* ── Bottom Banner ── */

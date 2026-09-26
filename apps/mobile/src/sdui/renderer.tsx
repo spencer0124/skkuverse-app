@@ -22,6 +22,7 @@ import { ButtonGrid } from './widgets/ButtonGrid';
 import { SectionTitle } from './widgets/SectionTitle';
 import { Notice } from './widgets/Notice';
 import { Banner } from './widgets/Banner';
+import { BannerCarousel } from './widgets/BannerCarousel';
 
 function renderSection(section: SduiSection): React.ReactNode {
   switch (section.type) {
@@ -36,6 +37,9 @@ function renderSection(section: SduiSection): React.ReactNode {
 
     case 'banner':
       return <Banner key={section.id} section={section} />;
+
+    case 'banner_carousel':
+      return <BannerCarousel key={section.id} section={section} />;
 
     case 'spacer':
       return <View key={section.id} style={{ height: section.height }} />;

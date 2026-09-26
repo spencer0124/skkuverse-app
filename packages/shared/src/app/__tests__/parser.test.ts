@@ -139,3 +139,40 @@ describe('parseAppConfig — web.origin', () => {
     }
   });
 });
+
+describe('parseAppConfig — miniapps.origins', () => {
+  it('parses origin → mini-app id', () => {
+    const origins = {
+      'https://eskara.miniapp.skkuverse.com': 'eskara-2026',
+      'https://mukja.mini.skkuverse.com': 'mukja',
+    };
+    const cfg = parseAppConfig(envelope({ ...platforms, miniapps: { origins } }));
+    expect(cfg.miniapps.origins).toEqual(origins);
+  });
+
+  it('is empty when absent or malformed, which leaves every URL in /webview', () => {
+    for (const miniapps of [undefined, null, {}, { origins: null }, { origins: [] }, { origins: 'x' }]) {
+      expect(parseAppConfig(envelope({ ...platforms, miniapps })).miniapps.origins).toEqual({});
+    }
+  });
+
+  it('drops entries a page origin could never match, or whose id is not a registry id', () => {
+    const cfg = parseAppConfig(
+      envelope({
+        ...platforms,
+        miniapps: {
+          origins: {
+            'https://mukja.mini.skkuverse.com': 'mukja',
+            'http://playlist.mini.skkuverse.com': 'playlist',
+            'https://inja.mini.skkuverse.com/': 'inja',
+            'https://booth-box.mini.skkuverse.com/x': 'booth-box',
+            'not a url': 'eskara-2026',
+            'https://a.mini.skkuverse.com': 'Bad Id',
+            'https://b.mini.skkuverse.com': 42,
+          },
+        },
+      }),
+    );
+    expect(cfg.miniapps.origins).toEqual({ 'https://mukja.mini.skkuverse.com': 'mukja' });
+  });
+});

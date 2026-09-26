@@ -1,0 +1,31 @@
+/* A wrong key: the station name gives a short shake. */
+@keyframes subway-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+/* The transfer notice drops in and fades away on its own. */
+@keyframes subway-banner {
+  0% { transform: translateY(-8px); opacity: 0; }
+  12% { transform: none; opacity: 1; }
+  80% { transform: none; opacity: 1; }
+  100% { transform: none; opacity: 0; }
+}
+
+/* Each new station name slides in from the right, as the next stop would. */
+@keyframes subway-next {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Arriving: the last card pops in. */
+@keyframes subway-arrive {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

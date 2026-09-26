@@ -29,8 +29,8 @@ const place = (over: Partial<PinCandidate> & { id: string }): PinCandidate => ({
   ...over,
 });
 
-const DAY = { startAt: '2026-09-16T11:00:00.000Z', endAt: '2026-09-16T15:00:00.000Z' };
-const NIGHT = { startAt: '2026-09-16T18:00:00.000Z', endAt: '2026-09-17T00:00:00.000Z' };
+const DAY = { startAt: '2026-09-16T11:00:00.000Z', endAt: '2026-09-16T15:00:00.000Z', label: null };
+const NIGHT = { startAt: '2026-09-16T18:00:00.000Z', endAt: '2026-09-17T00:00:00.000Z', label: null };
 
 const ids = (out: PinCandidate[]) => out.map((m) => m.id);
 
@@ -84,7 +84,7 @@ describe('resolvePinCollisions — step 3, next opening soonest', () => {
     const tonight = place({ id: 'bar-a', hours: [NIGHT], pinPriority: 30 });
     const tomorrow = place({
       id: 'bar-b',
-      hours: [{ startAt: '2026-09-17T18:00:00.000Z', endAt: '2026-09-18T00:00:00.000Z' }],
+      hours: [{ startAt: '2026-09-17T18:00:00.000Z', endAt: '2026-09-18T00:00:00.000Z', label: null }],
       pinPriority: 30,
     });
     expect(ids(resolvePinCollisions([tomorrow, tonight], DAWN))).toEqual(['bar-a']);
@@ -94,7 +94,7 @@ describe('resolvePinCollisions — step 3, next opening soonest', () => {
     const finished = place({ id: 'finished', hours: [DAY] });
     const upcoming = place({
       id: 'upcoming',
-      hours: [{ startAt: '2026-09-19T11:00:00.000Z', endAt: '2026-09-19T15:00:00.000Z' }],
+      hours: [{ startAt: '2026-09-19T11:00:00.000Z', endAt: '2026-09-19T15:00:00.000Z', label: null }],
     });
     const afterEverything = Date.parse('2026-09-18T00:00:00.000Z');
     expect(ids(resolvePinCollisions([finished, upcoming], afterEverything))).toEqual(['upcoming']);

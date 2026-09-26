@@ -7,12 +7,12 @@
  */
 export const ApiEndpoints = {
   // ── Campus shuttle ──
-  campusEta: () => '/bus/campus/eta',
 
   // ── UI (Server-Driven) ──
   homeTransitList: () => '/ui/home/transitlist',
   homeScroll: () => '/ui/home/scroll',
   homeCampus: () => '/ui/home/campus',
+  homeLayout: () => '/ui/home',
 
   // ── Building ──
   buildingList: () => '/building/list',

@@ -30,7 +30,7 @@
 import { describe, it, expect } from 'vitest';
 import type { ApiEnvelope } from '../../api/types';
 import { parseMapConfig, parseOverlayData } from '../parser';
-import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from '../defaults';
+import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG, DEFAULT_NAVER_STYLE_ID } from '../defaults';
 
 const envelope = (data: unknown): ApiEnvelope<unknown> => ({
   meta: { code: 200 },
@@ -355,6 +355,29 @@ describe('parseOverlayData — tap and window', () => {
     expect(out[0]?.tap).toBeNull();
   });
 
+  it('reads a chip tap, which runs a chip instead of opening a place', () => {
+    // The 푸드트럭 구역: a shape standing for a list rather than one place.
+    const out = parseOne({ tap: { kind: 'chip', chipId: 'eskara26_view_food' } });
+    expect(out[0]?.tap).toEqual({ kind: 'chip', chipId: 'eskara26_view_food' });
+  });
+
+  it('makes a chip tap with no chip id inert rather than guessing', () => {
+    expect(parseOne({ tap: { kind: 'chip', chipId: '' } })[0]?.tap).toBeNull();
+    expect(parseOne({ tap: { kind: 'chip', placeId: 'x' } })[0]?.tap).toBeNull();
+  });
+
+  it('reads locationAccuracy, and treats a missing or unknown one as exact', () => {
+    const accuracy = (over: Record<string, unknown>) => {
+      const m = parseOne(over)[0];
+      return m?.kind === 'marker' ? m.locationAccuracy : undefined;
+    };
+    expect(accuracy({ locationAccuracy: 'area' })).toBe('area');
+    // Every server before the field, and every building, sends none: exact.
+    expect(accuracy({})).toBe('exact');
+    // A value this build does not know reads as the old behaviour, not a guess.
+    expect(accuracy({ locationAccuracy: 'roughly' })).toBe('exact');
+  });
+
   it('accepts tap: null, which is how a backdrop is drawn', () => {
     // A 통제 구간 outline and the degraded building fallback both ship this. The
     // renderer must read it as "draw, do not wire onTap".
@@ -365,9 +388,9 @@ describe('parseOverlayData — tap and window', () => {
     expect(parseOne({ hours: undefined })[0]?.hours).toEqual([]);
   });
 
-  it('keeps a fully bounded window verbatim', () => {
+  it('keeps a fully bounded window, with a null label when none is authored', () => {
     const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: '2026-09-16T11:00:00.000Z' }];
-    expect(parseOne({ hours })[0]?.hours).toEqual(hours);
+    expect(parseOne({ hours })[0]?.hours).toEqual([{ ...hours[0], label: null }]);
   });
 
   it('keeps every window of a place open on two days', () => {
@@ -380,9 +403,28 @@ describe('parseOverlayData — tap and window', () => {
     expect(parseOne({ hours })[0]?.hours).toHaveLength(2);
   });
 
-  it('drops a half-bounded window rather than admitting a second way to say "no limit"', () => {
-    const hours = [{ startAt: '2026-09-16T07:00:00.000Z', endAt: null }];
+  it('keeps an unannounced end as null — the start still gates it', () => {
+    const hours = [
+      { startAt: '2026-10-02T03:00:00.000Z', endAt: '2026-10-02T05:00:00.000Z', label: { ko: '단체 입장' } },
+      { startAt: '2026-10-02T05:00:00.000Z', endAt: null, label: { ko: '개별 입장', en: 'Individual entry' } },
+    ];
+    expect(parseOne({ hours })[0]?.hours).toEqual([
+      {
+        startAt: '2026-10-02T03:00:00.000Z',
+        endAt: '2026-10-02T05:00:00.000Z',
+        label: { ko: '단체 입장', en: '단체 입장' },
+      },
+      { startAt: '2026-10-02T05:00:00.000Z', endAt: null, label: { ko: '개별 입장', en: 'Individual entry' } },
+    ]);
+  });
+
+  it('drops a window without a start rather than admitting a second way to say "no limit"', () => {
+    const hours = [{ startAt: null, endAt: '2026-09-16T07:00:00.000Z' }];
     expect(parseOne({ hours })[0]?.hours).toEqual([]);
+  });
+
+  it('drops a present but unparseable end rather than reading it as unannounced', () => {
+    expect(parseOne({ hours: [{ startAt: '2026-09-16T07:00:00.000Z', endAt: 'late' }] })[0]?.hours).toEqual([]);
   });
 
   it('drops an unparseable bound rather than carrying NaN into the comparison', () => {
@@ -398,7 +440,7 @@ describe('parseOverlayData — tap and window', () => {
       geometry: { type: 'Polygon', coordinates: [RING] },
       hours,
     });
-    expect(out[0]?.hours).toEqual(hours);
+    expect(out[0]?.hours).toEqual([{ ...hours[0], label: null }]);
   });
 });
 
@@ -436,6 +478,38 @@ describe('parseOverlayData — the place document the card renders', () => {
       actions: [{ id: 'a1', label: { ko: 'X' }, actionType: 'teleport', actionValue: 'x' }],
     });
     expect(out[0]?.actions[0]?.actionType).toBe('unknown');
+  });
+
+  it('keeps a miniapp button whose value is a mini-app target', () => {
+    const out = parseOne({
+      actions: [
+        {
+          id: 'w',
+          label: { ko: '팔찌 배부 안내' },
+          actionType: 'miniapp',
+          actionValue: 'eskara-2026/eskara/wristband',
+        },
+      ],
+    });
+    expect(out[0]?.actions[0]).toMatchObject({
+      actionType: 'miniapp',
+      actionValue: 'eskara-2026/eskara/wristband',
+    });
+  });
+
+  it('drops a miniapp button whose value is not a target, and serves the place', () => {
+    const out = parseOne({
+      actions: [
+        {
+          id: 'w',
+          label: { ko: 'X' },
+          actionType: 'miniapp',
+          actionValue: 'https://eskara.miniapp.skkuverse.com/eskara',
+        },
+      ],
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0]?.actions).toEqual([]);
   });
 
   it('drops a button with no value, and serves the place without it', () => {
@@ -700,6 +774,7 @@ describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
         layerIds: ['eskara26_stage'],
       },
       isReset: false,
+      list: null,
     });
   });
 
@@ -818,5 +893,137 @@ describe('parseMapConfig — chips, where an unroutable one is dropped', () => {
     expect(parseChips([chip({ action: { kind: 'focus', camera: chip().action.camera } })])).toEqual(
       [],
     );
+  });
+});
+
+describe('parseMapConfig — naver.styleId, the map keeps its look without the server', () => {
+  const styleIdOf = (naver: unknown) =>
+    parseMapConfig(envelope({ naver, layers: [layer()] })).naver.styleId;
+
+  it('prefers the styleId on the wire, so a restyle ships without a release', () => {
+    expect(styleIdOf({ styleId: 'from-server' })).toBe('from-server');
+  });
+
+  it('falls back to the bundled styleId when the wire has none', () => {
+    expect(styleIdOf(undefined)).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({})).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: null })).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: '  ' })).toBe(DEFAULT_NAVER_STYLE_ID);
+    expect(styleIdOf({ styleId: 7 })).toBe(DEFAULT_NAVER_STYLE_ID);
+  });
+
+  it('carries the bundled styleId in the config a failed fetch falls back to', () => {
+    expect(DEFAULT_MAP_CONFIG.naver.styleId).toBe(DEFAULT_NAVER_STYLE_ID);
+  });
+});
+
+describe('parseMapConfig — a chip list, which only ever degrades toward showing more', () => {
+  const DAY = {
+    id: 'day',
+    label: '일자',
+    select: 'required',
+    options: [
+      {
+        id: 'day1',
+        label: '1일차',
+        window: { startAt: '2026-09-30T21:00:00.000Z', endAt: '2026-10-01T21:00:00.000Z' },
+      },
+      { id: 'day2', label: '2일차', window: { startAt: '2026-10-01T21:00:00.000Z', endAt: '2026-10-02T21:00:00.000Z' } },
+    ],
+  };
+  const ORG = {
+    id: 'org',
+    label: '운영',
+    select: 'optional',
+    options: [
+      { id: 'council', label: '총학생회', window: null },
+      { id: 'club', label: '학생단체', window: null },
+    ],
+  };
+  const listOf = (list: unknown) =>
+    parseMapConfig(
+      envelope({
+        chips: [
+          {
+            id: 'c',
+            label: '부스',
+            icon: null,
+            action: {
+              kind: 'focus',
+              camera: { lat: 37.29, lng: 126.97, zoom: 17, tilt: 0, bearing: 0, durationMs: 500 },
+              layerIds: ['eskara26_booth'],
+            },
+            list,
+          },
+        ],
+      }),
+    ).chips[0]!.list;
+
+  it('parses the booth list whole', () => {
+    expect(listOf({ facets: [DAY, ORG], sort: { key: 'order', scopeFacetId: 'day' } })).toEqual({
+      facets: [DAY, ORG],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+  });
+
+  it('reads an absent or non-object list as none', () => {
+    expect(listOf(undefined)).toBeNull();
+    expect(listOf('day')).toBeNull();
+  });
+
+  it('drops a facet it cannot draw, keeping the rest', () => {
+    const out = listOf({
+      facets: [{ ...DAY, select: 'many' }, { ...ORG, options: [{ id: 'x' }] }, { ...ORG, id: 'org2' }],
+      sort: { key: 'order', scopeFacetId: null },
+    });
+    expect(out?.facets.map((f) => f.id)).toEqual(['org2']);
+  });
+
+  it('keeps an option whose window is malformed, with no window', () => {
+    const out = listOf({
+      facets: [{ ...DAY, options: [{ id: 'day1', label: '1일차', window: { startAt: 'soon' } }] }],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+    expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);
+  });
+
+  it("refuses an open-ended day window — a day always ends, unlike a place's hours", () => {
+    const out = listOf({
+      facets: [
+        { ...DAY, options: [{ id: 'day1', label: '1일차', window: { startAt: '2026-09-30T21:00:00.000Z', endAt: null } }] },
+      ],
+      sort: { key: 'order', scopeFacetId: 'day' },
+    });
+    expect(out?.facets[0]?.options).toEqual([{ id: 'day1', label: '1일차', window: null }]);
+  });
+
+  it('falls back to order for an unknown sort, and clears a scope that is not a kept facet', () => {
+    expect(listOf({ facets: [DAY], sort: { key: 'price' } })?.sort).toEqual({ key: 'order', scopeFacetId: null });
+    expect(listOf({ facets: [DAY, ORG], sort: { key: 'order', scopeFacetId: 'org' } })?.sort).toEqual({
+      key: 'order',
+      scopeFacetId: 'org',
+    });
+    expect(listOf({ facets: [], sort: { key: 'order', scopeFacetId: 'day' } })?.sort.scopeFacetId).toBeNull();
+    expect(listOf({ facets: [DAY], sort: { key: 'title', scopeFacetId: 'day' } })?.sort).toEqual({
+      key: 'title',
+      scopeFacetId: null,
+    });
+  });
+});
+
+describe('parseOverlayData — facets and orderByOption', () => {
+  it('carries both through', () => {
+    const out = parseOne({ facets: { day: ['day1', 'day2'], org: ['council'] }, orderByOption: { day1: 3 } });
+    expect(out[0]?.facets).toEqual({ day: ['day1', 'day2'], org: ['council'] });
+    expect(out[0]?.orderByOption).toEqual({ day1: 3 });
+  });
+
+  it('reads an absent or malformed value as empty, never dropping the overlay', () => {
+    const out = parseOne({ facets: { day: 'day1', org: ['council', 7] }, orderByOption: { day1: 'x', day2: 4 } });
+    expect(out[0]?.facets).toEqual({ org: ['council'] });
+    expect(out[0]?.orderByOption).toEqual({ day2: 4 });
+    const bare = parseOne();
+    expect(bare[0]?.facets).toEqual({});
+    expect(bare[0]?.orderByOption).toEqual({});
   });
 });

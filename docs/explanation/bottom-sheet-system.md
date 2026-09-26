@@ -3,7 +3,7 @@ title: The bottom sheet system
 type: explanation
 status: accepted
 owner: zoyoong124@gmail.com
-last-updated: 2026-08-31
+last-updated: 2026-09-24
 audience: internal
 ---
 
@@ -166,7 +166,8 @@ opacity**, because it would take the glass with it.
 A related trap is recorded next door in
 [campus-map-reconciliation.md](campus-map-reconciliation.md): a `GlassView`
 renders fully transparent under a Reanimated parent carrying an `entering`
-layout animation. Gorhom's sheet body is a Reanimated `Animated.View`, so this
+layout animation — Reanimated mounts a view with `entering` at opacity 0 until its first
+frame, even when the animation itself only moves it. Gorhom's sheet body is a Reanimated `Animated.View`, so this
 was the main risk when the work started. It turns out an animated `style` is not
 the same thing as `entering`, and the glass renders here — but that was
 established by putting a throwaway `GlassView` in the background slot and
@@ -232,9 +233,8 @@ host measured its own root view and hoped the two agreed.
 
 They are the same 8pt for an inline sheet and they are not the same number for a
 modal, because the gap is measured from the card's own **container** and those
-containers differ. An inline sheet's container is the host screen's root view,
-whose bottom edge already sits above the tab bar. A modal is portalled to the
-root and its container is the whole window.
+containers differ. An inline sheet's container is the host screen's root view. A
+modal is portalled to the root and its container is the whole window.
 
 A gap chosen locally (the safe area, say) looks right on its own and then sits
 visibly above the card behind it. That was the first attempt, and it was obvious
@@ -252,15 +252,41 @@ schedule as the side inset.
 > against, so the same percentage yields a slightly shorter sheet than it did
 > while attached. Worth knowing before tuning that number.
 
+### The iOS 26 tab bar floats over an inline sheet
+
+Under JSX `<Tabs>` (iOS before 26, Android) a tab screen ends above its tab bar.
+Under iOS 26 NativeTabs it does not: react-native-screens hosts each tab as a
+`UITabBarController` child pinned to every edge, and the glass tab bar floats
+over the bottom of the full-window screen. The inline campus sheet's top detent
+reaches the window's bottom edge, so without help its last rows sit under the
+bar, visible and untappable. No bottom gap fixes that, because a gap only moves
+the card, and the rows are inside it.
+
+The scroll content clears the bar instead, with a bottom padding measured per
+screen. No API reports a native tab bar's height, but UIKit's per-view safe area
+includes it: a `SafeAreaListener` mounted inside the tab screen reads its own
+`safeAreaInsets` and reports the overlap. The root
+`SafeAreaProvider` cannot, because it sits above the tab controller and sees only
+the home indicator. It is the same per-view-controller rule
+[ios-modal-safe-area-provider.md](ios-modal-safe-area-provider.md) describes.
+`CampusScreen` keeps the value as `tabBarOverlap` and pads both sheet bodies
+with it. A listener rather than a nested provider, because a provider would
+also change `useSafeAreaInsets()` for everything else in the screen.
+
 ### A crossfading modal has to pay for its own gap
 
 A `detached` sheet gets its content box shrunk to the visible card for free. A
 crossfading one does not. Gorhom sizes the content to the container, so a long
 list keeps drawing below the card's bottom edge, over the map, at the low
-detent. `EventMapPeekSheet` is the only sheet in this position, and it adds
-`bottomGap` to its scroll content's bottom padding — constant rather than
-animated, because the extra band is invisible once the sheet attaches and the
-floating tab bar sits over it anyway.
+detent. `EventMapPeekSheet` is the only sheet in this position.
+
+Padding the scroll content by `bottomGap` only moves the last row clear of that
+band, and the floating tab bar does not cover it while the modal is up. The place
+sheet fills its collapsed card to the edge on purpose, so it clips instead:
+`SheetCardClip` wraps the header and the scroll view in a view whose height and
+bottom corners follow the card, computed from the same `sheetChromeAt`. Only
+that wrapper's height changes per frame — what it holds is laid out once at the
+body's full height — so a drag still re-lays out one view.
 
 ## The glass rounds itself
 
@@ -309,6 +335,25 @@ its own `height` and `paddingBottom` off `animatedPosition` on every frame of
 every drag, in production, today. If it ever does become a problem, the escape
 is to freeze the geometry below the middle detent, where it is nearly constant
 anyway, so only the final segment commits layout.
+
+### Read gorhom's position, not the copy
+
+The card's top edge is the body's `translateY`, which gorhom drives from its own
+internal `animatedPosition`. The bottom edge is a height computed from a
+position. Top and bottom agree only when both read the **same** shared value.
+
+The `animatedPosition` and `animatedIndex` a caller hands to `Sheet` are copies.
+Gorhom fills them in a `useAnimatedReaction`, and Reanimated does not order a
+style that reads a copy after the reaction that writes it. On any frame where the
+style runs first, the height uses the previous frame's position while the
+translate uses this one's, so the bottom edge overshoots by the finger's
+movement in one frame. On a drag that reads as the bottom edge shaking.
+
+So everything below the sheet that tracks the card's edges — the background and
+`SheetCardClip` — reads `useSheetMotion()`, which returns gorhom's internal
+values through `useBottomSheetInternal()`. The copies are for things outside the
+sheet, where the provider does not resolve. The locate button reads them, and so
+does the body's own side inset, whose few points hide a frame of lag.
 
 ## Matching the tab bar, and not matching it
 
@@ -370,7 +415,7 @@ Four sheets, and never two at once.
 | --- | --- | --- |
 | Campus sheet (inline) | `expandable` `small / medium / large`, low two overridden | glass, crossfading |
 | Filter / layers | `stuck` `medium`, not dismissible, backdrop | glass, static card |
-| Event peek | `expandable` `small / large` | glass, crossfading |
+| Event peek | `expandable` `small / large`, opening at `large` for an area pin | glass, crossfading |
 | Building detail | `stuck` `large` | attaches, so plain opaque |
 
 The building detail sheet is the one to look at twice. It used to be a floating
@@ -392,6 +437,31 @@ campus sheet closes first; the modal is held until gorhom reports the sheet
 closed, then rises from the bottom; and when the modal is dismissed the campus
 sheet returns to the detent it left. The user sees one sheet go down and another
 come up, in sequence, rather than one landing on top of the other.
+
+**Both moves are short timings in place of gorhom's default spring.** Under the
+spring the sequence read as a pause: a list row tapped, the list sinking slowly,
+then the place climbing up. The order is kept and the two moves are cut short.
+The values are `SHEET_HANDOFF_CLOSE` (`out`, 150 ms) and `SHEET_HANDOFF_RISE`
+(`expo`, 250 ms), in `packages/sds/src/components/sheet/motion.ts`. They are
+timings rather than springs because a hand-off gated on "the first one has
+landed" wants a length it can state. They are set through these knobs:
+
+- `SheetRef.close(animationConfigs?)` overrides one close only. The campus sheet
+  leaves fast for a modal and moves as before everywhere else.
+- The `animationConfigs` prop sets how every snap of a sheet animates, its rise
+  included. gorhom's `present()` takes no override, so a modal that must arrive
+  fast says so on the prop. The peek and building sheets do.
+
+On the iOS simulator at 60 fps, the close is gone in about four frames and the
+modal settles about six frames after it starts. A deep link still waits its own
+400 ms before presenting. That wait belongs to cold-start navigation, not to
+the hand-off.
+
+The peek sheet's opening detent is decided per place, just before it presents:
+`large` when the place's pin names only an area (`placeSheetOpensTall`, see
+`eventmap-rendering.md` §10.2), `small` otherwise. That works without touching
+the hand-off because a gorhom modal mounts afresh on every `present()`, so it
+reads the `index` it is handed at that moment.
 
 The decisions are a pure state machine in
 `apps/mobile/src/features/map/utils/sheetHandoff.ts`, tested under `node --test`

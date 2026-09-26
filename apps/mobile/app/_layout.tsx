@@ -23,6 +23,8 @@ import { miniAppDetailKey, miniAppRepository, useT } from '@skkuverse/shared';
 import { logScreenView } from '@/services/analytics';
 import { useNotificationHandler } from '@/hooks/useNotificationHandler';
 import { defaultHeaderOptions } from '@/lib/header-options';
+import { isNativeGameId } from '@/features/games/ids';
+import { pendingProfileSetup } from '@/features/profile/pendingSetup';
 import { pendingExternalNoticeLink } from '@/lib/pending-external-notice-link';
 import { pendingMiniAppLink } from '@/lib/pending-mini-app-link';
 import { pendingSduiAction } from '@/lib/pending-sdui-action';
@@ -72,6 +74,12 @@ const SCREEN_NAMES: Record<string, string> = {
   // Auth / onboarding
   '/login': 'login_screen',
   '/onboarding': 'onboarding_root',
+  '/profile-setup': 'profile_setup',
+  // In-app games
+  '/games/wave-run': 'game_wave_run',
+  '/games/wave-run/leaderboard': 'game_wave_run_leaderboard',
+  '/games/subway-typing': 'game_subway_typing',
+  '/games/subway-typing/leaderboard': 'game_subway_typing_leaderboard',
   // Mini-app shell (was absent while the route was named /in-app-browser, so
   // every mini-app open logged no screen_view at all).
   '/mini-app': 'mini_app_screen',
@@ -158,9 +166,30 @@ function PendingNoticeLinkConsumer() {
 }
 
 /**
+ * Opens /profile-setup when the intro's sign-in found no player profile.
+ * Same pattern as PendingNoticeLinkConsumer: wait for the navigation root,
+ * consume once, and keep listening for a flag raised later (the profile read
+ * finishes after the intro has already closed).
+ */
+function PendingProfileSetupConsumer() {
+  const navState = useRootNavigationState();
+  useEffect(() => {
+    if (!navState?.key) return;
+    const tryConsume = () => {
+      if (!pendingProfileSetup.consume()) return;
+      requestAnimationFrame(() => router.push('/profile-setup'));
+    };
+    tryConsume();
+    return pendingProfileSetup.subscribe(tryConsume);
+  }, [navState?.key]);
+  return null;
+}
+
+/**
  * Mini-app deep-link consumer — same pattern as PendingNoticeLinkConsumer.
- * `+native-intent.tsx` stashed a {id} for `/m/<slug>` and routed to home; once
- * the nav root is ready we open the mini-app shell on top.
+ * `+native-intent.tsx` stashed a {id, path?} for `/m/<target>` and routed to
+ * home; once the nav root is ready we open the mini-app shell on top, at `path`
+ * when one was given.
  *
  * This is also where REGISTRY MEMBERSHIP is checked. It used to happen in
  * `+native-intent.tsx` via a synchronous `isMiniAppId()` against bundled JSON,
@@ -191,6 +220,11 @@ function PendingMiniAppLinkConsumer() {
     const tryConsume = () => {
       const p = pendingMiniAppLink.consume();
       if (!p) return;
+      // A game bundled with the app needs no registry answer to open.
+      if (isNativeGameId(p.id)) {
+        requestAnimationFrame(() => openMiniAppById(p.id));
+        return;
+      }
       void queryClient
         .fetchQuery({
           queryKey: miniAppDetailKey(p.id),
@@ -200,7 +234,7 @@ function PendingMiniAppLinkConsumer() {
           // Defer a frame so the home navigate commits before we push the shell
           // (avoids RNScreens dedupe coalescing the two transitions).
           requestAnimationFrame(() => {
-            openMiniAppById(p.id);
+            openMiniAppById(p.id, p.path);
           });
         })
         .catch(() => {
@@ -405,6 +439,36 @@ export default function RootLayout() {
                     presentation: 'modal',
                   }}
                 />
+                {/* In-app games. Headerless fullScreenModal: the page draws to the
+                    edges and takes every touch (wave-run's left half is its duck
+                    control), so an edge swipe back would fight the player's thumb. */}
+                <Stack.Screen
+                  name="games/[id]/index"
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
+                  }}
+                />
+                {/* The Hall of Fame floats over the game (or home) as a card:
+                    transparent, so what opened it stays in view, dimmed. */}
+                <Stack.Screen
+                  name="games/[id]/leaderboard"
+                  options={{
+                    headerShown: false,
+                    presentation: 'transparentModal',
+                    animation: 'fade',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen
+                  name="profile-setup"
+                  options={{
+                    headerShown: false,
+                    presentation: 'fullScreenModal',
+                    gestureEnabled: false,
+                  }}
+                />
                 <Stack.Screen
                   name="sds-preview"
                   options={{
@@ -443,6 +507,7 @@ export default function RootLayout() {
                 />
               </Stack>
               <PendingNoticeLinkConsumer />
+              <PendingProfileSetupConsumer />
               <PendingMiniAppLinkConsumer />
               <PendingSduiActionConsumer />
               {/* The dev-only "you are pointed at the production API" strip is

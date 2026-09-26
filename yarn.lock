@@ -2159,10 +2159,10 @@
   resolved "https://registry.yarnpkg.com/@jsamr/react-native-li/-/react-native-li-2.3.1.tgz#12a5b5f6e3971cec77b96bee58104eed0ae9314a"
   integrity sha512-Qbo4NEj48SQ4k8FZJHFE2fgZDKTWaUGmVxcIQh3msg5JezLdTMMHuRRDYctfdHI6L0FZGObmEv3haWbIvmol8w==
 
-"@mj-studio/react-native-naver-map@2.7.1":
-  version "2.7.1"
-  resolved "https://registry.yarnpkg.com/@mj-studio/react-native-naver-map/-/react-native-naver-map-2.7.1.tgz#dda2677e2f2c96b1ec7c4ff5a8d8b86fd33aad77"
-  integrity sha512-p5SnHGM0BD21FacETcEBI9Sn1RD0f6DIgpY4uQsHTYR1JZrrwdlVbB1NidrRbVoqafPcjZIJwcZy7sXOLcs9BA==
+"@mj-studio/react-native-naver-map@2.8.0":
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/@mj-studio/react-native-naver-map/-/react-native-naver-map-2.8.0.tgz#5b49cda9989c7c2a95f67acea620cb4116f09014"
+  integrity sha512-f1EeQoGyZX2CChcZVMwYcH2jN6fevM58p+neBknhsfFqFtCGCfrC04Sqehi7Ri43pK00Z5/BmyNS1OosmIvvIQ==
   dependencies:
     object-hash "^3.0.0"
 
@@ -2912,6 +2912,18 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
+"@skkuverse/miniapp@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@skkuverse/miniapp/-/miniapp-0.2.0.tgz#94bec37064e5d7b353ac163933c23236acf46700"
+  integrity sha512-X7kCmv8advT9mcthK2uWFlR/P9ZDcxV4DbXd84Bn3wWT/h1GuT1ygAWeuAhCyamOzLxBML7qL2pKsVQCcdtrHQ==
+  dependencies:
+    "@skkuverse/tokens" "^0.1.0"
+
+"@skkuverse/tokens@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@skkuverse/tokens/-/tokens-0.1.0.tgz#691a41788fcd31a1ceac3a6e02dc6ca27577baf4"
+  integrity sha512-579PJd0THQN1hBcHMm0eYwalbq7aGKXeJr3pvKCJ53HqIT3AfW6T/wjt4+ITe1rLoWUXOW14sB0EJ4ngzfgSlA==
+
 "@standard-schema/spec@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@standard-schema/spec/-/spec-1.1.0.tgz#a79b55dbaf8604812f52d140b2c9ab41bc150bb8"
@@ -3051,6 +3063,11 @@
   integrity sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==
   dependencies:
     undici-types "~7.18.0"
+
+"@types/react-dom@~19.1.0":
+  version "19.1.11"
+  resolved "https://registry.yarnpkg.com/@types/react-dom/-/react-dom-19.1.11.tgz#f8146889e837d053d23494ad4be6d168bfe9bdce"
+  integrity sha512-3BKc/yGdNTYQVVw4idqHtSOcFsgGuBbMveKCOgF8wQ5QtrYOc3jDIlzg3jef04zcXFIHLelyGlj0T+BJ8+KN+w==
 
 "@types/react@~19.1.0":
   version "19.1.17"
@@ -9388,7 +9405,7 @@ vaul@^1.1.2:
   dependencies:
     "@radix-ui/react-dialog" "^1.1.1"
 
-"vite@^6.0.0 || ^7.0.0 || ^8.0.0":
+vite@8.0.8, "vite@^6.0.0 || ^7.0.0 || ^8.0.0":
   version "8.0.8"
   resolved "https://registry.yarnpkg.com/vite/-/vite-8.0.8.tgz#4e26a9bba77c4b27a00b6b10100a7dab48d546a3"
   integrity sha512-dbU7/iLVa8KZALJyLOBOQ88nOXtNG8vxKuOT4I2mD+Ya70KPceF4IAmDsmU0h1Qsn5bPrvsY9HJstCRh3hG6Uw==

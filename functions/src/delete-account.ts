@@ -2,6 +2,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { isLeaderboardEntryPath } from './games/profileProjection.ts';
 
 const REGION = 'asia-northeast3';
 
@@ -38,7 +39,8 @@ type ValidatedFeedback = {
  *   1. (optional) anonymous deletion feedback recorded — uid NOT stored
  *   2. recursive delete users/{uid}/bookmarks
  *   3. delete users/{uid}/preferences/main
- *   4. delete users/{uid}
+ *   4. delete users/{uid}, then the games data: users/{uid}/gameRuns and
+ *      every leaderboards/{gameId}/scores entry of the uid
  *   5. devices.where(uid==caller, active==true) → batched `active:false`
  *      with token/topics wipe. Soft-deactivate preserves "inactive doc is
  *      claimable" semantics for device recycling.
@@ -100,8 +102,22 @@ export const deleteAccount = onCall(
     // 3) Preferences doc.
     await db.doc(`users/${uid}/preferences/main`).delete();
 
-    // 4) User parent doc.
+    // 4) User parent doc. Before the games data: without the profile it
+    //    holds, the rules refuse any new leaderboard entry, so none can slip
+    //    in between the query below and the end of this call.
     await db.doc(`users/${uid}`).delete();
+
+    // 4b) Games: the run stamps under the user, and every leaderboard entry
+    //     the player made, in any game. Entries carry a nickname and a masked
+    //     email, so they go with the account.
+    await db.recursiveDelete(db.collection(`users/${uid}/gameRuns`));
+    const entries = await db.collectionGroup('scores').where('uid', '==', uid).get();
+    const own = entries.docs.filter((d) => isLeaderboardEntryPath(d.ref.path));
+    for (let i = 0; i < own.length; i += BATCH_LIMIT) {
+      const batch = db.batch();
+      for (const doc of own.slice(i, i + BATCH_LIMIT)) batch.delete(doc.ref);
+      await batch.commit();
+    }
 
     // 5) Devices owned by this uid → soft-deactivate. Whitelist update so we
     //    do not clobber per-device fields (deviceId, platform, lastActive)

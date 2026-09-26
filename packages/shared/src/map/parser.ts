@@ -7,6 +7,7 @@
  */
 
 import type { ApiEnvelope } from '../api/types';
+import { parseMiniAppTarget } from '../miniapps/target';
 import type {
   DailyWindow,
   I18nText,
@@ -20,6 +21,9 @@ import type {
   MapChipAction,
   MapChipCamera,
   MapChipIcon,
+  MapChipFacet,
+  MapChipFacetOption,
+  MapChipList,
   MapLayerDef,
   MapLayerStyle,
   MapOverlay,
@@ -27,14 +31,28 @@ import type {
   MarkerField,
   MarkerTap,
   LatLng,
+  OpeningWindow,
   TimeWindow,
 } from '../types/map';
+import {
+  PLACE_KINDS,
+  type PlaceAction,
+  type PlaceBlock,
+  type PlaceBlockType,
+  type PlaceDetail,
+  type PlaceListItem,
+  type PlaceTableRow,
+} from '../types/placeDetail';
 import { asMember, toFiniteNumber } from '../utils/allowlist';
 import { parseActionType } from '../types/sdui';
 import { CAMPUSES } from '../constants/campus';
 import { toMinutesOfDay } from './daily-window';
 import { toLatLng } from './geometry';
-import { DEFAULT_CAMERA_DEFAULTS, DEFAULT_MAP_CONFIG } from './defaults';
+import {
+  DEFAULT_CAMERA_DEFAULTS,
+  DEFAULT_MAP_CONFIG,
+  DEFAULT_NAVER_STYLE_ID,
+} from './defaults';
 
 /**
  * The renderers this build has. A `kind` outside the set drops that ONE
@@ -59,11 +77,12 @@ const MARKER_STYLES = [
  * the opposite of `MARKER_STYLES`'.
  */
 const MARKER_SHAPES = ['pin', 'dot', 'dotThenPin'] as const;
+const LOCATION_ACCURACIES = ['exact', 'area'] as const;
 /**
  * The tap kinds this build knows how to route. A kind outside the set leaves the
  * marker drawn but inert — see parseMarkerTap.
  */
-const TAP_KINDS = ['skku_building', 'event'] as const;
+const TAP_KINDS = ['skku_building', 'event', 'chip'] as const;
 /**
  * The chip actions this build can dispatch. A kind outside the set drops the
  * whole chip — see parseChip.
@@ -79,8 +98,10 @@ const ACTION_STYLES = ['primary', 'secondary'] as const;
 
 // ── Internal helpers ──
 
+/** A response without a usable styleId still gets the bundled one — see DEFAULT_NAVER_STYLE_ID. */
 function parseNaverConfig(raw: Record<string, unknown>): NaverConfig {
-  return { styleId: (raw.styleId as string) ?? undefined };
+  const styleId = typeof raw.styleId === 'string' ? raw.styleId.trim() : '';
+  return { styleId: styleId || DEFAULT_NAVER_STYLE_ID };
 }
 
 /**
@@ -343,6 +364,77 @@ function parseChipAction(
   return { kind, camera, layerIds };
 }
 
+const FACET_SELECTS = ['required', 'optional'] as const;
+
+function parseFacetOption(raw: unknown): MapChipFacetOption | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== 'string' || o.id === '') return null;
+  if (typeof o.label !== 'string' || o.label === '') return null;
+  // A malformed window costs only the "open on today" default; the option
+  // itself still filters, so it is kept with `null`.
+  const window = parseBoundedWindow(o.window);
+  return { id: o.id, label: o.label, window };
+}
+
+function parseFacet(raw: unknown): MapChipFacet | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const f = raw as Record<string, unknown>;
+  if (typeof f.id !== 'string' || f.id === '') return null;
+  if (typeof f.label !== 'string' || f.label === '') return null;
+  const select = asMember(f.select, FACET_SELECTS);
+  if (!select) return null;
+  const options = parseEach(f.options, parseFacetOption);
+  // A tab row with nothing to press is worse than no row.
+  if (options.length === 0) return null;
+  return { id: f.id, label: f.label, select, options };
+}
+
+/**
+ * A chip's list, or `null` — which the list reads as unfiltered and in
+ * `order`, what every chip meant before lists existed.
+ *
+ * Every failure degrades TOWARD SHOWING MORE. A dropped facet filters nothing,
+ * an unknown sort key falls back to `order`, and a scope that no longer names a
+ * kept facet is cleared — so a malformed list can reorder rows but never hide
+ * one.
+ */
+function parseChipList(raw: unknown): MapChipList | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const l = raw as Record<string, unknown>;
+  const facets = parseEach(l.facets, parseFacet);
+  const sortRaw = (l.sort && typeof l.sort === 'object' ? l.sort : {}) as Record<string, unknown>;
+  if (sortRaw.key === 'title') return { facets, sort: { key: 'title', scopeFacetId: null } };
+  const scope = sortRaw.scopeFacetId;
+  const scopeFacetId =
+    typeof scope === 'string' && facets.some((f) => f.id === scope)
+      ? scope
+      : null;
+  return { facets, sort: { key: 'order', scopeFacetId } };
+}
+
+/** `{ facetId: optionId[] }`. Anything else is `{}` — in no option, so filtered out only when filtering. */
+function parseFacetMembership(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    out[key] = value.filter((v): v is string => typeof v === 'string');
+  }
+  return out;
+}
+
+/** `{ optionId: number }`, keeping only finite numbers. */
+function parseOrderByOption(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const n = toFiniteNumber(value);
+    if (n !== null) out[key] = n;
+  }
+  return out;
+}
+
 /**
  * A chip, or `null`.
  *
@@ -367,7 +459,14 @@ function parseChip(
   // which is what every authored chip is — and it is the safe direction, since
   // mistaking a narrowing chip for a reset would silently drop the user's view
   // instead of applying the one they asked for.
-  return { id, label, icon: parseChipIcon(raw.icon), action, isReset: raw.isReset === true };
+  return {
+    id,
+    label,
+    icon: parseChipIcon(raw.icon),
+    action,
+    isReset: raw.isReset === true,
+    list: parseChipList(raw.list),
+  };
 }
 
 // ── Public parsers ──
@@ -427,6 +526,13 @@ function parseMarkerTap(raw: unknown): MarkerTap | null {
   const t = raw as Record<string, unknown>;
   const kind = asMember(t.kind, TAP_KINDS);
   if (!kind) return null;
+  if (kind === 'chip') {
+    // Runs a chip rather than opening a place. Which chip is checked where the
+    // tap lands, against the chips this build actually holds.
+    const chipId = t.chipId;
+    if (typeof chipId !== 'string' || chipId === '') return null;
+    return { kind, chipId };
+  }
   const placeId = t.placeId;
   if (typeof placeId !== 'string' || placeId === '') return null;
   return { kind, placeId };
@@ -451,30 +557,47 @@ function parseI18nText(raw: unknown): I18nText | null {
 }
 
 /**
- * Opening hours, dropping any window that is not fully bounded.
+ * Opening hours, dropping any window without a real start.
  *
- * **Both bounds are required and a half-bounded window is dropped, not
- * repaired.** The wire has exactly one way to say "no limit" — the empty array —
- * and admitting a one-ended window here would quietly restore the second way,
- * which is the ambiguity that forced a `status` field to exist in the first
- * place. An unparseable bound is the same case: `Date.parse` returning `NaN`
- * makes every comparison false, so the window would silently never be open.
+ * **The start is required; the end may be `null`** — an end the organiser has
+ * not announced. That is not a second way to say "no limit", because the start
+ * still gates the window. A window with no start WOULD be, and is dropped, not
+ * repaired: the wire has exactly one way to say "no limit" — the empty array —
+ * and a start-less window would quietly restore the second way, which is the
+ * ambiguity that forced a `status` field to exist in the first place. An
+ * unparseable bound is dropped the same way: `Date.parse` returning `NaN` makes
+ * every comparison false, so the window would silently never be open. An end
+ * that is present but unparseable drops the window too, rather than reading as
+ * unannounced.
  *
  * A place whose every window is malformed lands on `[]`, which reads as ALWAYS
  * OPEN rather than never. That is the deliberate direction: an ops typo shows a
  * booth that is always listed as open, which somebody notices and reports; the
  * other way it vanishes from the map with nothing to report.
  */
-function parseHours(raw: unknown): TimeWindow[] {
+function parseHours(raw: unknown): OpeningWindow[] {
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
+  return raw.flatMap((entry): OpeningWindow[] => {
     if (!entry || typeof entry !== 'object') return [];
     const w = entry as Record<string, unknown>;
     const { startAt, endAt } = w;
     if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt))) return [];
+    if (endAt == null) return [{ startAt, endAt: null, label: parseI18nText(w.label) }];
     if (typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt))) return [];
-    return [{ startAt, endAt }];
+    return [{ startAt, endAt, label: parseI18nText(w.label) }];
   });
+}
+
+/**
+ * A day option's span — BOTH bounds required, unlike a place's hours: a day
+ * always ends, and "open on today" is decided against its end.
+ */
+function parseBoundedWindow(raw: unknown): TimeWindow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { startAt, endAt } = raw as Record<string, unknown>;
+  if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt))) return null;
+  if (typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt))) return null;
+  return { startAt, endAt };
 }
 
 /** Card rows. A row missing either half is dropped; a half-drawn row says nothing. */
@@ -498,6 +621,11 @@ function parseFields(raw: unknown): MarkerField[] {
  * not. `actionType` is NOT a drop condition, because `parseActionType` already
  * degrades an unknown kind to `'unknown'`, which the action handler declines to
  * open. A button that does nothing is better than a booth that is missing.
+ *
+ * The one type-specific check is `miniapp`: a value that is not a mini-app
+ * target (`<miniAppId>[/path]`) has nowhere to go, and the pill would render
+ * with a logo lookup that finds nothing and a tap that does nothing. The server
+ * refuses the same values before it ships them, so this only fires on drift.
  */
 function parseActions(raw: unknown): MarkerAction[] {
   if (!Array.isArray(raw)) return [];
@@ -508,12 +636,14 @@ function parseActions(raw: unknown): MarkerAction[] {
     if (typeof a.id !== 'string' || a.id === '') return [];
     if (label === null) return [];
     if (typeof a.actionValue !== 'string' || a.actionValue === '') return [];
+    const actionType = parseActionType(a.actionType);
+    if (actionType === 'miniapp' && !parseMiniAppTarget(a.actionValue)) return [];
     const style = asMember(a.style, ACTION_STYLES);
     return [
       {
         id: a.id,
         label,
-        actionType: parseActionType(a.actionType),
+        actionType,
         actionValue: a.actionValue,
         ...(style ? { style } : {}),
       },
@@ -652,6 +782,8 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
       // `id`. `?? 0` rather than NaN, which would make every comparison in the
       // ladder false and the ladder non-total.
       order: toFiniteNumber(raw.order) ?? 0,
+      facets: parseFacetMembership(raw.facets),
+      orderByOption: parseOrderByOption(raw.orderByOption),
       // `null` is meaningful: a backdrop that is drawn and not pressable.
       tap: parseMarkerTap(raw.tap),
     };
@@ -671,6 +803,11 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
             // at, so unlike `order` this default is a fact rather than a
             // fallback.
             pinPriority: toFiniteNumber(raw.pinPriority) ?? 0,
+            // Absent from every server before it existed, and from buildings'
+            // meaning: a pin is the place's spot unless the server says it
+            // names only an area. An unknown value reads the same way — the
+            // old behaviour, not a guess.
+            locationAccuracy: asMember(raw.locationAccuracy, LOCATION_ACCURACIES) ?? 'exact',
           },
         ];
       }
@@ -688,4 +825,142 @@ export function parseOverlayData(envelope: ApiEnvelope<unknown>): MapOverlay[] {
       }
     }
   });
+}
+
+// ── Place details ─────────────────────────────────────────────────────────
+
+/**
+ * The block types this build can draw. A `type` outside the set drops that ONE
+ * block and leaves the rest of the body, the same way `OVERLAY_KINDS` absorbs
+ * an overlay kind — so the switch in `parsePlaceBlock` can be exhaustive
+ * without asserting `never`.
+ */
+const PLACE_BLOCK_TYPES = ['text', 'list', 'table', 'image', 'notice'] as const satisfies readonly PlaceBlockType[];
+
+/**
+ * `data` of `GET /map/overlays/event/details` — every served place's sheet
+ * body, keyed by the `tap.placeId` its overlay carries.
+ *
+ * Fail soft and as narrowly as the server does: a broken row drops from its
+ * block, a broken block or action drops from its detail, and a detail drops
+ * whole only when it has no id or its `kind` is not one this build knows
+ * (`PLACE_KINDS` is closed). A place with no detail is simply absent, which the
+ * sheet already reads as "draw the overlay alone".
+ *
+ * Keyed by the detail's own `placeId` rather than the record's key, so the id a
+ * sheet looks up is the one the server stated for that body.
+ */
+export function parsePlaceDetails(envelope: ApiEnvelope<unknown>): Record<string, PlaceDetail> {
+  const data = envelope.data as Record<string, unknown> | null;
+  const raw = data?.details;
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, PlaceDetail> = {};
+  for (const entry of Object.values(raw as Record<string, unknown>)) {
+    const detail = parsePlaceDetail(entry);
+    if (detail) out[detail.placeId] = detail;
+  }
+  return out;
+}
+
+function parsePlaceDetail(raw: unknown): PlaceDetail | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const d = raw as Record<string, unknown>;
+  if (typeof d.placeId !== 'string' || d.placeId === '') return null;
+  const kind = asMember(d.kind, PLACE_KINDS);
+  if (!kind) return null;
+  return {
+    placeId: d.placeId,
+    kind,
+    org: parseI18nText(d.org),
+    isUnion: d.isUnion === true,
+    locationLabel: parseI18nText(d.locationLabel),
+    actions: parseEach(d.actions, parsePlaceAction),
+    blocks: parseEach(d.blocks, parsePlaceBlock),
+  };
+}
+
+/** An absolute `https:` URL, or `null`. Everything the sheet opens or loads is one. */
+function httpsUrl(raw: unknown): string | null {
+  return typeof raw === 'string' && /^https:\/\/[^\s/]+/.test(raw) ? raw : null;
+}
+
+/** Keeps the entries `parse` accepts; an empty result is the caller's to reject. */
+function parseEach<T>(raw: unknown, parse: (entry: unknown) => T | null): T[] {
+  return Array.isArray(raw) ? raw.flatMap((entry) => parse(entry) ?? []) : [];
+}
+
+function parseListItem(raw: unknown): PlaceListItem | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const i = raw as Record<string, unknown>;
+  const title = parseI18nText(i.title);
+  if (title === null) return null;
+  return {
+    emoji: typeof i.emoji === 'string' && i.emoji !== '' ? i.emoji : null,
+    title,
+    description: parseI18nText(i.description),
+  };
+}
+
+function parseTableRow(raw: unknown): PlaceTableRow | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const label = parseI18nText(r.label);
+  const value = parseI18nText(r.value);
+  return label && value ? { label, value } : null;
+}
+
+/**
+ * One body block, or `null`. A list, table or notice with no readable row is
+ * dropped rather than drawn as a heading over nothing.
+ */
+function parsePlaceBlock(raw: unknown): PlaceBlock | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const type = asMember(b.type, PLACE_BLOCK_TYPES);
+  if (!type) return null;
+  if (typeof b.id !== 'string' || b.id === '') return null;
+  const id = b.id;
+  const title = parseI18nText(b.title);
+
+  switch (type) {
+    case 'text': {
+      const body = parseI18nText(b.body);
+      return body ? { type, id, title, body } : null;
+    }
+    case 'list': {
+      const items = parseEach(b.items, parseListItem);
+      return items.length > 0 ? { type, id, title, items } : null;
+    }
+    case 'table': {
+      const rows = parseEach(b.rows, parseTableRow);
+      return rows.length > 0 ? { type, id, title, rows } : null;
+    }
+    case 'image': {
+      const url = httpsUrl(b.url);
+      return url ? { type, id, title, url, caption: parseI18nText(b.caption) } : null;
+    }
+    case 'notice': {
+      const items = parseEach(b.items, parseI18nText);
+      return items.length > 0 ? { type, id, title, items } : null;
+    }
+  }
+}
+
+/** A sheet action, or `null`. An unknown `type` drops that one button. */
+function parsePlaceAction(raw: unknown): PlaceAction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.id !== 'string' || a.id === '') return null;
+  const label = parseI18nText(a.label);
+  if (label === null) return null;
+  if (a.type === 'link') {
+    const url = httpsUrl(a.url);
+    return url ? { type: 'link', id: a.id, label, url } : null;
+  }
+  if (a.type === 'instagram') {
+    const profileUrl = httpsUrl(a.profileUrl);
+    if (profileUrl === null) return null;
+    return { type: 'instagram', id: a.id, label, profileUrl, postUrl: httpsUrl(a.postUrl) };
+  }
+  return null;
 }

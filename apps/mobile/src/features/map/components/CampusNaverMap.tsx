@@ -14,7 +14,12 @@ import {
   type LocationTrackingMode,
   type NaverMapViewRef,
 } from '@mj-studio/react-native-naver-map';
-import type { ViewStyle, StyleProp } from 'react-native';
+import {
+  Platform,
+  type GestureResponderEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import type { MapConfig } from '@skkuverse/shared';
 import { useSettingsStore } from '@skkuverse/shared';
 
@@ -45,12 +50,50 @@ interface CampusNaverMapProps {
    * ref method exposes. See the note in `useLocationTracking`.
    */
   camera?: Camera;
+  /** A pinch is under way on a following map; see `utils/pinchLock.ts`. */
+  scrollLocked: boolean;
+  onTouchStart?: (e: GestureResponderEvent) => void;
+  onTouchMove?: (e: GestureResponderEvent) => void;
+  onTouchEnd?: (e: GestureResponderEvent) => void;
+  onTouchCancel?: (e: GestureResponderEvent) => void;
 }
 
 const HSSC_FALLBACK = {
   latitude: 37.587241,
   longitude: 126.992858,
   zoom: 15.8,
+};
+
+/**
+ * How far out the camera may pull. A client constant rather than a wire field:
+ * a camera limit is app UX, not layer content. Must stay below every campus's
+ * `defaultZoom`, or the first frame would be clamped.
+ */
+const MIN_CAMERA_ZOOM = 14;
+
+/**
+ * The location dot's anchors, iOS only.
+ *
+ * Passing no `locationOverlay` at all does not leave the SDK's dot alone on iOS:
+ * the library still sends a stub (`NaverMapView.tsx` ~807), and the native side
+ * applies every field of it (`RNCNaverMapViewImpl.mm:235-295`), codegen zeros
+ * included. The zeros that show are the anchors — (0,0) against the SDK's
+ * (0.5,0.5) and (0.5,1) — which drew the dot half an icon down and right of the
+ * user and swung the heading cone about its corner
+ * (mym0404/react-native-naver-map#172).
+ *
+ * Module level, because the native side re-applies ALL of it whenever the prop
+ * changes by value (`RNCNaverMapView.mm:212-228`), and `isVisible` is one of the
+ * fields: a new object would hide the dot again and zero its heading. As a
+ * constant it is applied once, at mount, exactly as the stub was. `isVisible`
+ * stays unset for the same reason the stub left it — the SDK shows the dot
+ * itself when tracking turns on. Android is sent nothing, as before; there the
+ * library passes no stub.
+ */
+const IOS_LOCATION_OVERLAY = {
+  anchor: { x: 0.5, y: 0.5 },
+  subAnchor: { x: 0.5, y: 1 },
+  circleOutlineWidth: 0,
 };
 
 const LAYER_GROUPS = {
@@ -74,6 +117,11 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
       onCameraChanged,
       onCameraIdle,
       camera,
+      scrollLocked,
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
     },
     ref,
   ) {
@@ -90,6 +138,8 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         latitude: campus?.centerLat ?? HSSC_FALLBACK.latitude,
         longitude: campus?.centerLng ?? HSSC_FALLBACK.longitude,
         zoom: campus?.defaultZoom ?? HSSC_FALLBACK.zoom,
+        tilt: campus?.defaultTilt ?? 0,
+        bearing: campus?.defaultBearing ?? 0,
       }),
       // Only compute once — camera moves via ref after initial render
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,7 +157,10 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         // align prop), and this map's compass has to sit above the locate button
         // and ride the sheet. `MapCompass` draws it instead.
         isShowCompass={false}
+        isScrollGesturesEnabled={!scrollLocked}
+        locationOverlay={Platform.OS === 'ios' ? IOS_LOCATION_OVERLAY : undefined}
         isExtentBoundedInKorea
+        minZoom={MIN_CAMERA_ZOOM}
         mapType="Basic"
         locale={lang}
         layerGroups={LAYER_GROUPS}
@@ -118,6 +171,10 @@ export const CampusNaverMap = forwardRef<NaverMapViewRef, CampusNaverMapProps>(
         onOptionChanged={onOptionChanged}
         onCameraChanged={onCameraChanged}
         onCameraIdle={onCameraIdle}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
         {...(camera && { camera })}
       >
         {children}

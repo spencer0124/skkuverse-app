@@ -60,7 +60,7 @@ export function applyTap(tap: NotificationTap): boolean {
       // PendingMiniAppLinkConsumer resolves the slug against GET /miniapps/:id
       // and drops it silently on a miss, so a stale id leaves the user where
       // they were rather than on an error screen.
-      pendingMiniAppLink.set({ id: tap.id });
+      pendingMiniAppLink.set(tap.path ? { id: tap.id, path: tap.path } : { id: tap.id });
       break;
 
     case 'sdui-action':

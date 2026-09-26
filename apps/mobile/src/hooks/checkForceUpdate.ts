@@ -20,6 +20,7 @@ import {
   parseAppConfig,
   setCachedAppConfig,
   isVersionLessThan,
+  API_TIMEOUT_MS,
 } from '@skkuverse/shared';
 
 export interface ForceUpdateResult {
@@ -32,7 +33,7 @@ export async function checkForceUpdate(): Promise<ForceUpdateResult> {
   const platform: 'ios' | 'android' = Platform.OS === 'ios' ? 'ios' : 'android';
 
   const result = await safeGet(ApiEndpoints.appConfig(), parseAppConfig, {
-    timeout: 5_000,
+    timeout: API_TIMEOUT_MS.boot,
   });
 
   if (!result.ok) {

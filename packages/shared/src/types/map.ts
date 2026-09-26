@@ -117,6 +117,12 @@ export interface MapLayerStyle {
 export type MarkerShape = 'pin' | 'dot' | 'dotThenPin';
 
 /**
+ * How precisely a place marker's point locates it. See
+ * `MapOverlay['locationAccuracy']`. A literal union so `asMember` can check it.
+ */
+export type LocationAccuracy = 'exact' | 'area';
+
+/**
  * One daily recurring window, in KST wall-clock `"HH:MM"`, half-open
  * `[start, end)`.
  *
@@ -306,6 +312,58 @@ export interface MapChip {
    * does for every chip; this says what the tap MEANS within it.
    */
   isReset: boolean;
+  /**
+   * The filters and sort of the list this chip opens, or `null` for a list that
+   * is unfiltered and in `order` — the reset chip, and any chip the festival
+   * authored no list for.
+   *
+   * The server decides everything here, including which places are on which
+   * day (each overlay's `facets`). The app draws the controls, matches ids and
+   * runs `sortForList`; it never works out a day from a date. Contract:
+   * skkuverse-server `docs/reference/map-overlays-api.md` §8.8.
+   */
+  list: MapChipList | null;
+}
+
+export interface MapChipFacetOption {
+  id: string;
+  /** Already localised. */
+  label: string;
+  /**
+   * On a `day`-style facet's options, the interval the option covers; `null`
+   * on a tag's. Read for one thing only: opening a `required` facet on the
+   * option that contains now. Membership rides on each overlay's `facets`.
+   */
+  window: TimeWindow | null;
+}
+
+export type MapChipFacetSelect = 'required' | 'optional';
+
+export interface MapChipFacet {
+  id: string;
+  label: string;
+  /**
+   * `required`: exactly one option selected — tabs, opening on the option whose
+   * window contains now, else the first. `optional`: zero or one, with an
+   * app-drawn "전체" meaning none.
+   */
+  select: MapChipFacetSelect;
+  /** Never empty — the parser drops a facet with no usable option. */
+  options: MapChipFacetOption[];
+}
+
+/**
+ * `order`: `orderByOption[<selected option of scopeFacetId>] ?? order`. A scope
+ * always names a `required` facet of the same list, so an option is selected.
+ * `title`: the Korean title in code-point order, which is 가나다 for Hangul.
+ */
+export type MapListSort =
+  | { key: 'order'; scopeFacetId: string | null }
+  | { key: 'title'; scopeFacetId: null };
+
+export interface MapChipList {
+  facets: MapChipFacet[];
+  sort: MapListSort;
 }
 
 /**
@@ -317,7 +375,11 @@ export interface MapChip {
  * different places and could disagree about how close "close" is.
  */
 export interface MapCameraDefaults {
-  /** Focusing a tapped marker, a search result, or a deep link. */
+  /**
+   * Focusing a tapped marker, a search result, or a deep link. The client
+   * takes tilt and bearing from the place's campus instead (`CampusDef`), so
+   * these two apply only when the campus is unknown.
+   */
   markerFocus: MapCameraMotion;
   /**
    * Switching campus. Only the duration lives here: the zoom, tilt and bearing
@@ -352,10 +414,16 @@ export interface MapConfig {
  *
  * This replaced a bare `skkuId?: number`, which could only ever address a
  * building.
+ *
+ * `chip` addresses no place: the tap runs that chip exactly as the chip row
+ * would — its layers, camera and list. It is for a shape that stands for a
+ * whole list, like the festival's 푸드트럭 구역, whose trucks have no spots of
+ * their own. It is never a list row, and it opens no sheet.
  */
 export type MarkerTap =
   | { kind: 'skku_building'; placeId: string }
-  | { kind: 'event'; placeId: string };
+  | { kind: 'event'; placeId: string }
+  | { kind: 'chip'; chipId: string };
 
 /**
  * Every language the server holds, not the one matching `Accept-Language`.
@@ -373,17 +441,34 @@ export interface I18nText {
 }
 
 /**
- * One interval a place is open.
+ * A fully bounded interval — a `day` facet option's span. Both bounds are real.
  *
- * **Both bounds are real, and half-bounded is not expressible.** That is the
- * server's rule, not a narrowing applied here: you write two windows, or none.
- * Allowing one open end would give the field a second way to say "no limit",
- * which is exactly the ambiguity that made a `status` field load-bearing before
- * — both-bounds-null had to mean an always-on 화장실 AND a rain-cancelled bar.
+ * Not a place's opening hours: those are `OpeningWindow`, whose end may be
+ * unannounced. The two are kept apart so a day's bounds can never be null.
  */
 export interface TimeWindow {
   startAt: string;
   endAt: string;
+}
+
+/**
+ * One interval a place is open.
+ *
+ * **The start is always real; the end is `null` when it has not been
+ * announced** — the 팔찌 배부 booths close when the artist stage does. That is
+ * not a second way to say "no limit": the start still gates the window, so the
+ * place reads closed until then, and `hours: []` stays the one spelling of
+ * always open. (Both-bounds-null used to mean an always-on 화장실 AND a
+ * rain-cancelled bar, which is what made a `status` field load-bearing.) A
+ * window without a start is dropped by the parser.
+ *
+ * `label` names the window when one place runs differently across its windows
+ * — the 성균인 booth's 단체 입장 then 개별 입장. `null` otherwise.
+ */
+export interface OpeningWindow {
+  startAt: string;
+  endAt: string | null;
+  label: I18nText | null;
 }
 
 /** One card row, in authored order, carrying its own label. */
@@ -469,13 +554,24 @@ interface OverlayBase {
    * a booth open on both festival days had to be TWO documents, and the list
    * showed every place twice with nothing to tell the rows apart.
    */
-  hours: TimeWindow[];
+  hours: OpeningWindow[];
   /** Card rows in authored order. Empty for a building. */
   fields: MarkerField[];
   /** Sheet buttons in authored order. Empty for a building. */
   actions: MarkerAction[];
   /** Author's sort position, and the last tiebreak in a coordinate collision. Lower wins. */
   order: number;
+  /**
+   * The list-facet options this overlay is in, keyed by facet id —
+   * `{ day: ['day1', 'day2'], org: ['council'] }`. Decided by the server; `{}`
+   * for a building or when the server sent none. See `MapChipList`.
+   */
+  facets: Record<string, string[]>;
+  /**
+   * Sort position inside one facet option — a booth's running order per day.
+   * Read only by a list sorted on that option's facet; `{}` when unauthored.
+   */
+  orderByOption: Record<string, number>;
   /**
    * What a tap opens, or `null` for an overlay that is inert.
    *
@@ -524,6 +620,13 @@ export type MapOverlay =
        * the others rather than merely unused.
        */
       pinPriority: number;
+      /**
+       * Whether this pin is the place's spot (`'exact'`) or only names the area
+       * it is somewhere in (`'area'`) — the festival's food trucks, placed on the
+       * day and stacked on one point. A fact, not an instruction: what follows
+       * from it (a place sheet that opens tall) is this app's decision.
+       */
+      locationAccuracy: LocationAccuracy;
     })
   | (OverlayBase & {
       kind: 'polygon';

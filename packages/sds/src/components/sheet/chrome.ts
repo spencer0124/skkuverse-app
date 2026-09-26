@@ -26,9 +26,9 @@
  *
  * The BOTTOM gap is not this constant. It is passed in per sheet, because the
  * card's bottom edge is measured from its own container and those containers
- * differ: an inline sheet's is the screen's root view, above the tab bar, while
- * a modal is portalled out and its container is the whole window. Both cards
- * still have to land on one line. See `Sheet.tsx`.
+ * differ: an inline sheet's is the screen's root view (which the iOS 26 tab bar
+ * floats over), while a modal is portalled out and its container is the whole
+ * window. Both cards still have to land on one line. See `Sheet.tsx`.
  */
 export const SHEET_FLOAT_INSET = 8;
 

@@ -4,7 +4,7 @@
  * The rule this suite exists to pin, restated from map-markers-api §3:
  *
  * ```text
- * hours.length === 0 || hours.some(w => now >= w.startAt && now < w.endAt)
+ * hours.length === 0 || hours.some(w => now >= w.startAt && (w.endAt === null || now < w.endAt))
  * ```
  *
  * The empty-list case is the one worth a test of its own. It replaced a
@@ -14,10 +14,21 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isOpenNow, nextOpeningAfter, nextWindowBoundaryAfter, toEpochMs } from '../window';
+import type { OpeningWindow } from '../../types/map';
+import {
+  currentOpenRun,
+  isOpenNow,
+  nextOpeningAfter,
+  nextWindowBoundaryAfter,
+  toEpochMs,
+} from '../window';
 
 const NOON = Date.parse('2026-09-16T12:00:00.000Z');
-const w = (startAt: string, endAt: string) => ({ startAt, endAt });
+const w = (startAt: string, endAt: string | null, label: OpeningWindow['label'] = null): OpeningWindow => ({
+  startAt,
+  endAt,
+  label,
+});
 
 describe('isOpenNow', () => {
   it('treats an empty list as always open, and only that', () => {
@@ -102,5 +113,55 @@ describe('toEpochMs', () => {
     expect(toEpochMs('soon')).toBeNull();
     expect(toEpochMs(null)).toBeNull();
     expect(toEpochMs(undefined)).toBeNull();
+  });
+});
+
+describe('an unannounced end', () => {
+  it('is shut before its start — not a second spelling of always open', () => {
+    expect(isOpenNow([w('2026-09-16T13:00:00.000Z', null)], NOON)).toBe(false);
+  });
+
+  it('stays open from its start on', () => {
+    expect(isOpenNow([w('2026-09-16T12:00:00.000Z', null)], NOON)).toBe(true);
+    expect(isOpenNow([w('2026-09-16T12:00:00.000Z', null)], Date.parse('2026-09-17T03:00:00.000Z'))).toBe(
+      true,
+    );
+  });
+
+  it('contributes only its start as a boundary', () => {
+    expect(nextWindowBoundaryAfter([w('2026-09-16T13:00:00.000Z', null)], NOON)).toBe(
+      Date.parse('2026-09-16T13:00:00.000Z'),
+    );
+    expect(nextWindowBoundaryAfter([w('2026-09-16T11:00:00.000Z', null)], NOON)).toBeNull();
+  });
+});
+
+describe('currentOpenRun', () => {
+  // The 성균인 팔찌 booth: 단체 입장 then 개별 입장, touching at 14:00 KST.
+  const GROUP = w('2026-10-02T03:00:00.000Z', '2026-10-02T05:00:00.000Z');
+  const SOLO = w('2026-10-02T05:00:00.000Z', null);
+  const at = (iso: string) => Date.parse(iso);
+
+  it('is null when nothing is open', () => {
+    expect(currentOpenRun([GROUP, SOLO], at('2026-10-02T02:00:00.000Z'))).toBeNull();
+    expect(currentOpenRun([], NOON)).toBeNull();
+  });
+
+  it('runs touching windows together, so 13:00 does not read as closing at 14:00', () => {
+    expect(currentOpenRun([GROUP, SOLO], at('2026-10-02T04:00:00.000Z'))).toEqual({ until: null });
+  });
+
+  it('ends at the last bounded window of the run', () => {
+    const LATER = w('2026-10-02T05:00:00.000Z', '2026-10-02T07:00:00.000Z');
+    expect(currentOpenRun([GROUP, LATER], at('2026-10-02T04:00:00.000Z'))).toEqual({
+      until: at('2026-10-02T07:00:00.000Z'),
+    });
+  });
+
+  it('does not join windows with a gap between them', () => {
+    const AFTER_GAP = w('2026-10-02T06:00:00.000Z', null);
+    expect(currentOpenRun([GROUP, AFTER_GAP], at('2026-10-02T04:00:00.000Z'))).toEqual({
+      until: at('2026-10-02T05:00:00.000Z'),
+    });
   });
 });

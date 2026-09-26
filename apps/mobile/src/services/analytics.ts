@@ -312,6 +312,7 @@ export type HomeContentType =
   | 'profile'
   | 'settings'
   | 'hero'
+  | 'banner'
   | 'tile'
   | 'notice_more'
   | 'notice_row'
@@ -388,8 +389,11 @@ export type CampusContentType =
   // `logLayerToggle` per layer the chip switched: one tap would emit five layer
   // events and drown the signal the user actually gave.
   | 'map_chip'
-  | 'eventmap_sort'
-  | 'eventmap_list_row';
+  | 'eventmap_list_row'
+  // A tab press in a place sheet; `item_id` is the tab (`home` / `menu` / `info`).
+  | 'eventmap_detail_tab'
+  // A list filter segment; `item_id` is `<facet>:<option>`, `all` for 전체.
+  | 'eventmap_list_facet';
 export function logCampusContentSelect(params: { content_type: CampusContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
 }
@@ -419,6 +423,35 @@ export function logSettingsContentSelect(params: { content_type: SettingsContent
 export type SduiContentType = 'banner' | 'notice_widget' | 'button_grid_item';
 export function logSduiContentSelect(params: { content_type: SduiContentType; item_id: string }) {
   logSelectContent(params.content_type, params.item_id);
+}
+
+// ── Mini-app pages ─────────────────────────────────────────────────
+
+/**
+ * An event a mini-app page reports through the miniapp protocol's
+ * `analytics.track`. One GA4 event name for all of them, with the page's own
+ * name as a param: a page names its events freely, and letting each become a
+ * top-level event would spend the property's event-name quota on strings the
+ * app never reviewed. The page's params are not forwarded for the same reason.
+ */
+export function logMiniAppEvent(params: { miniAppId: string; event: string }) {
+  logEvent('miniapp_event', {
+    miniapp_id: truncate(params.miniAppId),
+    event: truncate(params.event),
+  });
+}
+
+// ── Map ────────────────────────────────────────────────────────────
+
+/**
+ * A link asked the map for a place it does not have — a mini app's
+ * `map.openPlace`, an SDUI `map` action, a `?place=` deep link. The map lands
+ * with no sheet and nothing on screen says why, so this is the only trace of a
+ * stale or mistyped place id (inja once sent `event:shuttle-queue-welfare` for
+ * `event:eskara-2026-shuttle-queue-welfare`).
+ */
+export function logMapPlaceNotFound(params: { placeId: string }) {
+  logEvent('map_place_not_found', { place_id: truncate(params.placeId) });
 }
 
 // ── Custom typed wrappers (funnel / state change) ──────────────────

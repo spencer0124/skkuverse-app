@@ -16,15 +16,25 @@
  * join key, the deep-link path (`/m/<id>`), the cache key, and the analytics id,
  * so it must survive renames and translations.
  */
+import {
+  DEFAULT_SHELL,
+  mergeShell,
+  parseShellFields,
+  type ShellBar,
+  type ShellConfig,
+} from '@skkuverse/miniapp/protocol';
 
 /** Bump only on BREAKING schema changes (removed/renamed/retyped field). */
 export const MINIAPP_REGISTRY_VERSION = 1;
 
-/** Logo source. Server-hosted only — bundled `require()` logos are gone. */
-export interface MiniAppLogo {
-  kind: 'remote';
-  uri: string;
-}
+/**
+ * Logo source. Server-hosted image (`remote`), or an emoji rendered inline
+ * (`emoji`) for a mini-app that has no icon asset. Bundled `require()` logos
+ * are gone either way.
+ */
+export type MiniAppLogo =
+  | { kind: 'remote'; uri: string }
+  | { kind: 'emoji'; emoji: string };
 
 /** Index entry — only what the home grid + deep-link resolution need. */
 export interface MiniAppIndexEntry {
@@ -34,8 +44,20 @@ export interface MiniAppIndexEntry {
   /** Short label for the home grid tile; falls back to `name`. */
   shortName?: string;
   order: number;
-  /** null when the server sent no usable logo — the tile still renders. */
-  logo: MiniAppLogo | null;
+  /**
+   * Logo for the home grid tile. The server always sends both `homeLogo` and
+   * `shellLogo` (it has already applied its own fallback), but each is parsed
+   * independently and null when unusable — one being unusable never nulls the
+   * other.
+   */
+  homeLogo: MiniAppLogo | null;
+  /** Logo for the mini-app shell (header pill, map pill, info sheet). */
+  shellLogo: MiniAppLogo | null;
+  /**
+   * Kept off the home grid, but still resolvable by deep links, map buttons
+   * and the mini-app shell (which still reads its name/logo).
+   */
+  hidden?: boolean;
 }
 
 export interface MiniAppIndex {
@@ -53,6 +75,16 @@ export interface MiniAppNoticeBanner {
   subtitle: string;
 }
 
+/**
+ * The shell the app draws around a mini-app: where the name pill goes (`bar`),
+ * whether the page runs under a transparent header (`header`), the status bar
+ * icon colour and the background behind the WebView. The shape and its parser
+ * are the miniapp protocol's (`@skkuverse/miniapp/protocol`, source of truth in
+ * skkuverse-miniapp), so the server, the SDK and this app read one definition.
+ */
+export type MiniAppShell = ShellConfig;
+export type MiniAppShellBar = ShellBar;
+
 /** Per-service detail — heavier content, needed when opening the mini-app. */
 export interface MiniAppDetail {
   version: number;
@@ -64,6 +96,12 @@ export interface MiniAppDetail {
   description?: string;
   relatedLinks: MiniAppLink[];
   noticeBanner?: MiniAppNoticeBanner;
+  /**
+   * Always complete: a field the server omits or garbles falls back to
+   * `DEFAULT_SHELL`, so a mini-app with no `shell` at all opens with the
+   * default bottom bar and an opaque header.
+   */
+  shell: MiniAppShell;
 }
 
 const HTTP_RE = /^https?:\/\//;
@@ -84,11 +122,22 @@ function asHttpUrl(v: unknown): string | undefined {
   return typeof v === 'string' && HTTP_RE.test(v) ? v : undefined;
 }
 
-function parseLogo(raw: unknown): MiniAppLogo | null {
+/** Also parses a home `link` tile's icon, which the server sends in this shape. */
+export function parseLogo(raw: unknown): MiniAppLogo | null {
   const obj = asRecord(raw);
-  if (!obj || obj.kind !== 'remote') return null;
-  const uri = asHttpUrl(obj.uri);
-  return uri ? { kind: 'remote', uri } : null;
+  if (!obj) return null;
+  switch (obj.kind) {
+    case 'remote': {
+      const uri = asHttpUrl(obj.uri);
+      return uri ? { kind: 'remote', uri } : null;
+    }
+    case 'emoji': {
+      const emoji = asString(obj.emoji);
+      return emoji ? { kind: 'emoji', emoji } : null;
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -111,7 +160,9 @@ function parseIndexEntry(
     name,
     ...(shortName ? { shortName } : {}),
     order: typeof obj.order === 'number' ? obj.order : fallbackOrder,
-    logo: parseLogo(obj.logo),
+    homeLogo: parseLogo(obj.homeLogo),
+    shellLogo: parseLogo(obj.shellLogo),
+    ...(obj.hidden === true ? { hidden: true } : {}),
   };
 }
 
@@ -157,6 +208,22 @@ function parseNoticeBanner(raw: unknown): MiniAppNoticeBanner | undefined {
 }
 
 /**
+ * A complete shell from whatever the server sent. Each field is validated on
+ * its own by the protocol's `parseShellFields` and a bad one falls back to the
+ * default rather than taking the whole shell with it — a miscoerced value would
+ * hide chrome the server never meant to hide.
+ *
+ * `bar: 'hide'` is the registry's name for what the protocol calls `none`, from
+ * before the shell moved into the protocol. A cached detail or an older server
+ * may still send it.
+ */
+function parseShell(raw: unknown): MiniAppShell {
+  const obj = asRecord(raw);
+  const fields = parseShellFields(obj?.bar === 'hide' ? { ...obj, bar: 'none' } : raw);
+  return mergeShell(DEFAULT_SHELL, fields);
+}
+
+/**
  * Parse `GET /miniapps/:id`. Returns null when the payload has no usable
  * `startUrl` — the shell exists to load that URL, so there is nothing to show
  * without it. A non-http scheme counts as absent: `startUrl` is handed straight
@@ -179,5 +246,6 @@ export function parseMiniAppDetail(raw: unknown): MiniAppDetail | null {
     ...(description ? { description } : {}),
     relatedLinks: parseLinks(obj.relatedLinks),
     ...(noticeBanner ? { noticeBanner } : {}),
+    shell: parseShell(obj.shell),
   };
 }

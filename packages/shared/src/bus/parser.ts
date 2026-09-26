@@ -34,7 +34,6 @@ import type {
   DaySchedule,
   ScheduleEntry,
   ScheduleNotice,
-  CampusEta,
 } from '../types/bus';
 
 // ── Helpers ──
@@ -148,7 +147,6 @@ function parseRouteBadge(raw: Raw): RouteBadge {
 
 function parseHeroCard(raw: Raw): HeroCard {
   return {
-    etaEndpoint: raw.etaEndpoint as string,
     showUntilMinutesBefore: raw.showUntilMinutesBefore as number,
   };
 }
@@ -283,22 +281,5 @@ export function parseSmartSchedule(envelope: ApiEnvelope<unknown>): SmartSchedul
     days: ((data.days as Raw[]) ?? []).map(parseDaySchedule),
     ...(data.resumeDate != null && { resumeDate: data.resumeDate as string }),
     ...(data.message != null && { message: data.message as string }),
-  };
-}
-
-// ── Campus ETA parser ──
-
-/**
- * Parses campus ETA from `GET /bus/campus/eta`.
- * `envelope.data.inja.duration` and `envelope.data.jain.duration` in milliseconds.
- */
-export function parseCampusEta(envelope: ApiEnvelope<unknown>): CampusEta {
-  const data = envelope.data as Raw;
-  const inja = data.inja as Raw | null;
-  const jain = data.jain as Raw | null;
-
-  return {
-    inja: inja != null ? ((inja.duration as number) ?? null) : null,
-    jain: jain != null ? ((jain.duration as number) ?? null) : null,
   };
 }

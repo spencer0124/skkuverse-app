@@ -20,16 +20,16 @@ import { QueryClient } from '@tanstack/react-query';
  * Individual queries override via queryOptions.
  *
  * gcTime: 5 min — garbage-collect inactive queries after 5 minutes.
- * retry: 1 — one retry (the network layer already has axios-retry for
- * transient errors).
+ * retry: false — axios owns every retry (`packages/shared/src/api/interceptors/retry.ts`).
+ * A second layer here multiplied them: a failing query sent up to 6 requests, on
+ * fixed delays, from every device that failed at once.
  */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
       gcTime: 5 * 60_000,
-      retry: 1,
-      retryDelay: 1_000,
+      retry: false,
     },
   },
 });

@@ -361,7 +361,11 @@ const styles = StyleSheet.create({
   alignCenter: {
     alignSelf: 'center',
   },
-  textsContainer: {
-    flex: 1,
-  },
+  // No `flex: 1`. `contentsSlot` is a column, so `flex` here grows the texts
+  // VERTICALLY: Yoga's legacy flex-basis errata stretches a `flexBasis: 0`
+  // child to its parent's at-most height, and whenever `left` or `right` is
+  // taller than the texts, the slot filled the row and pinned a one-line title
+  // to its top edge instead of the row's centre. The width already comes from
+  // the slot's default `alignItems: 'stretch'`.
+  textsContainer: {},
 });

@@ -12,7 +12,11 @@ import {
   type Campus,
   type TabSource,
 } from '@skkuverse/shared';
-import { GoogleAuthError } from '@/services/google-auth';
+import {
+  signInErrorCode,
+  signInErrorMessageKey,
+  type GoogleSignInErrorCode,
+} from '@/services/google-auth';
 import { authStore } from '@skkuverse/shared';
 import { signInWithDeviceMigration } from '@/services/auth-flow';
 import { GoogleIcon } from '@/components/GoogleIcon';
@@ -43,7 +47,17 @@ import { NotificationStep } from './components/NotificationStep';
 import { NoticeCategoriesStep } from './components/NoticeCategoriesStep';
 import { CompletionStep } from './components/CompletionStep';
 import { ExitDialog } from './components/ExitDialog';
+import { decideOnboardingCompletion } from './completion';
 import { assembleOnboardingPickerSelections } from './utils/assemblePickerSelections';
+import { fillProfileIfMissing } from '@/features/profile/service';
+
+// The analytics `detail` the screen reported for these before the codes were
+// shared, kept so the funnel's series continue. (A non-GoogleAuthError, once
+// 'unknown', now reports 'UNKNOWN' like the rest.)
+const ONBOARDING_ERROR_DETAIL: Partial<Record<GoogleSignInErrorCode, string>> = {
+  DOMAIN_NOT_ALLOWED: 'domain_not_allowed',
+  CANCELLED: 'cancelled',
+};
 
 const STEP_KEYS: Record<number, OnboardingStepKey> = {
   1: 'campus',
@@ -76,6 +90,11 @@ export function OnboardingScreen() {
   });
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  // A ref, not the state: the button only disables on the next render, and two
+  // taps within one render both read the state as false. Android then rejects
+  // the first flow with IN_PROGRESS, whose finally clears the spinner while the
+  // second flow's sheet is still open.
+  const signInInFlight = useRef(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Per-step funnel: each step enter fires both screen_view + onboarding_step
@@ -152,33 +171,30 @@ export function OnboardingScreen() {
   // 2026-05-25: step 5 auto-skip 제거. 권한 상태와 무관하게 항상 "받을까요?"
   // 페이지를 노출하여 명시적 선택을 유도. checkPermission 호출도 불필요.
   const handleSignIn = useCallback(async () => {
-    setLoginLoading(true);
-    setLoginError(null);
-    logOnboardingStep({ step: 'login', action: 'signin_attempt' });
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     try {
+      setLoginLoading(true);
+      setLoginError(null);
+      logOnboardingStep({ step: 'login', action: 'signin_attempt' });
       const user = await signInWithDeviceMigration('onboarding');
       logOnboardingStep({ step: 'login', action: 'signin_success' });
       dispatch({ type: 'SET_USER', name: user.displayName ?? '' });
       dispatch({ type: 'NEXT' });
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        switch (err.code) {
-          case 'DOMAIN_NOT_ALLOWED':
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'domain_not_allowed' });
-            setLoginError(t('onboarding.oauthErrorTitle'));
-            break;
-          case 'CANCELLED':
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'cancelled' });
-            break;
-          default:
-            logOnboardingStep({ step: 'login', action: 'signin_error', detail: err.code });
-            setLoginError(t('onboarding.oauthErrorRetry'));
-        }
-      } else {
-        logOnboardingStep({ step: 'login', action: 'signin_error', detail: 'unknown' });
-        setLoginError(t('onboarding.oauthErrorRetry'));
-      }
+      const code = signInErrorCode(err);
+      logOnboardingStep({
+        step: 'login',
+        action: 'signin_error',
+        detail: ONBOARDING_ERROR_DETAIL[code] ?? code,
+      });
+      // The domain case keeps the wizard's own headline; every other failure
+      // says what went wrong (it used to show the button label "다시 해보기").
+      const key = signInErrorMessageKey(code);
+      if (code === 'DOMAIN_NOT_ALLOWED') setLoginError(t('onboarding.oauthErrorTitle'));
+      else if (key) setLoginError(t(key));
     } finally {
+      signInInFlight.current = false;
       setLoginLoading(false);
     }
   }, [t]);
@@ -307,50 +323,69 @@ export function OnboardingScreen() {
     const campus: Campus = state.campus;
 
     const uid = authStore.getState().uid;
-    if (uid) {
-      const picker =
-        state.seededPickerSelections ??
-        assembleOnboardingPickerSelections({
-          campus,
-          primaryDeptId: state.primaryDeptId,
-          interestDeptIds: state.interestDeptIds,
-          tabsConfig,
-        });
-      try {
-        if (state.notificationsAccepted === true) {
-          await withRetry(() => finalizeOnboardingAccepted(uid, picker));
-        } else {
-          await withRetry(() =>
-            seedOnboardingPreferences(uid, picker, {
-              enabled: false,
-              finalize: true,
-            }),
-          );
-        }
-      } catch (err) {
-        logHandledError('onboarding/finalize', err);
-        Alert.alert(
-          t('onboarding.seedErrorTitle'),
-          t('onboarding.seedErrorMessage'),
-        );
-        return; // 완료 게이트 유지 — 사용자가 재시도 가능
-      }
-    } else {
-      // login step(4) 뒤라 uid는 보장돼야 정상 — null이면 버그 신호.
-      // 완료는 진행하되 (UX를 여기서 브릭하지 않음) 시끄럽게 기록.
-      // useAppInit의 ensurePreferencesDoc self-heal이 다음 auth 확립 시
-      // MMKV에 남은 선택으로 문서를 복원한다.
+    const decision = decideOnboardingCompletion({
+      uid,
+      notificationsAccepted: state.notificationsAccepted,
+    });
+
+    if (decision === 'abort-no-uid' || !uid) {
+      // 예전에는 여기서 로그만 남기고 completeOnboarding()으로 흘러내려갔다.
+      // 그 결과가 유령 상태(MMKV는 완료, Firestore엔 문서 없음)이고, 그
+      // 상태에서 학과 picker의 update()는 영구히 실패한다 — 2026-07 사고의
+      // 원인이자 2026-09 재발의 경로. 이제는 write 실패 분기와 똑같이
+      // 취급한다: 게이트를 열지 않고 재시도를 요구한다.
+      //
+      // "self-heal이 나중에 고쳐준다"는 근거는 쓰지 않는다. 그 self-heal은
+      // onAuthStateChanged 안에 있고, Android linkWithCredential은 uid를
+      // 보존하므로 그 콜백을 발화시키지 않는다.
       logHandledError(
         'onboarding/complete-no-uid',
         new Error('uid null at onboarding completion'),
       );
+      Alert.alert(
+        t('onboarding.seedErrorTitle'),
+        t('onboarding.seedErrorMessage'),
+      );
+      return;
     }
 
+    const picker =
+      state.seededPickerSelections ??
+      assembleOnboardingPickerSelections({
+        campus,
+        primaryDeptId: state.primaryDeptId,
+        interestDeptIds: state.interestDeptIds,
+        tabsConfig,
+      });
+    try {
+      if (decision === 'finalize') {
+        await withRetry(() => finalizeOnboardingAccepted(uid, picker));
+      } else {
+        await withRetry(() =>
+          seedOnboardingPreferences(uid, picker, {
+            enabled: false,
+            finalize: true,
+          }),
+        );
+      }
+    } catch (err) {
+      logHandledError('onboarding/finalize', err);
+      Alert.alert(
+        t('onboarding.seedErrorTitle'),
+        t('onboarding.seedErrorMessage'),
+      );
+      return; // 완료 게이트 유지 — 사용자가 재시도 가능
+    }
+
+    // 순서 불변식의 실제 집행 지점: 여기 도달했다는 것은 Firestore write가
+    // 성공했다는 뜻이다. 이 호출을 위 분기 밖으로 옮기지 말 것.
     useSettingsStore.getState().completeOnboarding({
       campus,
       primaryDeptId: state.primaryDeptId,
       interestDeptIds: state.interestDeptIds,
     });
+    // The same campus makes the player profile, if there is none yet.
+    fillProfileIfMissing(uid, { campus });
 
     router.dismissAll();
   }, [

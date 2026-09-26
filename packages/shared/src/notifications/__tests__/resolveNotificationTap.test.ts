@@ -73,6 +73,30 @@ describe('resolveNotificationTap', () => {
     });
   });
 
+  describe('miniapp — a page of the same mini app', () => {
+    it('opens the page a miniapp target names', () => {
+      expect(
+        resolveNotificationTap({
+          type: 'miniapp',
+          miniAppId: 'eskara-2026',
+          actionType: 'miniapp',
+          actionValue: 'eskara-2026/eskara/wristband',
+        }),
+      ).toEqual({ kind: 'miniapp', id: 'eskara-2026', path: '/eskara/wristband' });
+    });
+
+    it('opens the start page for a bare target', () => {
+      expect(
+        resolveNotificationTap({
+          type: 'miniapp',
+          miniAppId: 'eskara-2026',
+          actionType: 'miniapp',
+          actionValue: 'eskara-2026',
+        }),
+      ).toEqual({ kind: 'miniapp', id: 'eskara-2026' });
+    });
+  });
+
   describe('miniapp — falling back to the mini app itself', () => {
     it('falls back when the payload names no target', () => {
       expect(resolveNotificationTap({ type: 'miniapp', miniAppId: 'eskara' })).toEqual({
@@ -91,13 +115,28 @@ describe('resolveNotificationTap', () => {
       expect(tap).toEqual({ kind: 'miniapp', id: 'eskara' });
     });
 
-    it.each(['content', 'miniapp'])('falls back for the non-navigable type %s', (actionType) => {
+    it.each(['content', 'miniapp'])('falls back for %s with a URL value', (actionType) => {
+      // A `miniapp` value is a target, never a URL — a URL is not opened.
       expect(
         resolveNotificationTap({
           type: 'miniapp',
           miniAppId: 'eskara',
           actionType,
           actionValue: 'https://x.test/a',
+        }),
+      ).toEqual({ kind: 'miniapp', id: 'eskara' });
+    });
+
+    it.each([
+      ['another mini app', 'hssc/notice'],
+      ['a path that escapes the origin', 'eskara//evil.com'],
+    ])('ignores a miniapp target naming %s', (_label, actionValue) => {
+      expect(
+        resolveNotificationTap({
+          type: 'miniapp',
+          miniAppId: 'eskara',
+          actionType: 'miniapp',
+          actionValue,
         }),
       ).toEqual({ kind: 'miniapp', id: 'eskara' });
     });

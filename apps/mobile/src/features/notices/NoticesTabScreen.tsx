@@ -52,6 +52,7 @@ import {
   useNotificationStore,
   useT,
 } from '@skkuverse/shared';
+import { logHandledError } from '@/services/crashlytics';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeSelector } from './NoticeSelector';
 import { NoticesTabStrip } from './components/NoticesTabStrip';
@@ -111,7 +112,23 @@ export function NoticesTabScreen() {
   const pickerSelectedIds = useMemo(
     () =>
       activeTab && activeTab.tabMode === 'picker' && activeTab.picker
-        ? resolvePickerSelection(activeTab, pickerSelections[activeTab.key])
+        ? resolvePickerSelection(
+            activeTab,
+            pickerSelections[activeTab.key],
+            // Rung 3 reached: nothing stored resolved, and this tab has no
+            // server defaultIds, so the user is being shown sources[0] —
+            // 건축학과 on the dept tab. Legitimate for a genuine first-time
+            // user, and the signature of a silently failed save for everyone
+            // else. Reported so the next occurrence surfaces here instead of
+            // in a support message, as it did in 2026-07 and 2026-09.
+            () =>
+              logHandledError(
+                'notices/picker-fallback-first-source',
+                new Error(
+                  `picker fell back to sources[0] on tab '${activeTab.key}'`,
+                ),
+              ),
+          )
         : [],
     [activeTab, pickerSelections],
   );

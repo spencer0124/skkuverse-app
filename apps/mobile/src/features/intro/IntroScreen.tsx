@@ -21,7 +21,12 @@ import {
   classifyAndRestoreOnboarding,
   signInWithDeviceMigration,
 } from '@/services/auth-flow';
-import { GoogleAuthError } from '@/services/google-auth';
+import { requestProfileSetupIfMissing } from '@/features/profile/service';
+import {
+  signInErrorCode,
+  signInErrorMessageKey,
+  type GoogleSignInErrorCode,
+} from '@/services/google-auth';
 import { logIntroStep, logScreenView, type IntroStepKey } from '@/services/analytics';
 import { IntroDots } from './components/IntroDots';
 import { IntroEmojiField } from './components/IntroEmojiField';
@@ -32,6 +37,15 @@ import { IntroPage } from './components/IntroPage';
 const PAGE_KEYS: IntroStepKey[] = ['shuttle', 'map', 'notices', 'login'];
 
 const LOGIN_INDEX = PAGE_KEYS.length - 1;
+
+// The analytics `detail` the screen reported for these before the codes were
+// shared, kept so the funnel's series continue. (A non-GoogleAuthError, once
+// 'unknown', now reports 'UNKNOWN' like the rest.)
+const INTRO_ERROR_DETAIL: Partial<Record<GoogleSignInErrorCode, string>> = {
+  DOMAIN_NOT_ALLOWED: 'domain_not_allowed',
+  CANCELLED: 'cancelled',
+  PLAY_SERVICES_UNAVAILABLE: 'play_services',
+};
 
 interface Props {
   /**
@@ -64,6 +78,11 @@ export function IntroScreen({ onDone }: Props) {
   const [index, setIndex] = useState(0);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  // A ref, not the state: the button only disables on the next render, and two
+  // taps within one render both read the state as false. Android then rejects
+  // the first flow with IN_PROGRESS, whose finally clears the spinner while the
+  // second flow's sheet is still open.
+  const signInInFlight = useRef(false);
 
   const pageKey = PAGE_KEYS[index] ?? PAGE_KEYS[0]!;
 
@@ -116,11 +135,12 @@ export function IntroScreen({ onDone }: Props) {
   }, [onDone]);
 
   const handleSignIn = useCallback(async () => {
-    if (signingIn) return;
-    setSigningIn(true);
-    setSignInError(null);
-    logIntroStep({ step: 'login', action: 'signin_attempt' });
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     try {
+      setSigningIn(true);
+      setSignInError(null);
+      logIntroStep({ step: 'login', action: 'signin_attempt' });
       const user = await signInWithDeviceMigration('intro');
       logIntroStep({ step: 'login', action: 'signin_success' });
       // Side effect only. A returning user's `onboardedAt` + dept mirror land in
@@ -129,34 +149,21 @@ export function IntroScreen({ onDone }: Props) {
       // is the last step of the intro, and a new user meets the notices wizard
       // later, on their own terms.
       await classifyAndRestoreOnboarding(user.uid, 'intro');
+      // A Google player always has a campus: one without a profile is asked
+      // for it once the app is on screen.
+      requestProfileSetupIfMissing(user.uid);
       onDone();
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        switch (err.code) {
-          case 'DOMAIN_NOT_ALLOWED':
-            logIntroStep({ step: 'login', action: 'signin_error', detail: 'domain_not_allowed' });
-            setSignInError(t('auth.domainNotAllowed'));
-            break;
-          case 'CANCELLED':
-            // Dismissing the Google sheet is not an error — stay put, say nothing.
-            logIntroStep({ step: 'login', action: 'signin_error', detail: 'cancelled' });
-            break;
-          case 'PLAY_SERVICES_UNAVAILABLE':
-            logIntroStep({ step: 'login', action: 'signin_error', detail: 'play_services' });
-            setSignInError(t('auth.playServicesError'));
-            break;
-          default:
-            logIntroStep({ step: 'login', action: 'signin_error', detail: err.code });
-            setSignInError(t('auth.unknownError'));
-        }
-      } else {
-        logIntroStep({ step: 'login', action: 'signin_error', detail: 'unknown' });
-        setSignInError(t('auth.unknownError'));
-      }
+      const code = signInErrorCode(err);
+      logIntroStep({ step: 'login', action: 'signin_error', detail: INTRO_ERROR_DETAIL[code] ?? code });
+      // A dismissed Google sheet has no message: stay put, say nothing.
+      const key = signInErrorMessageKey(code);
+      if (key) setSignInError(t(key));
     } finally {
+      signInInFlight.current = false;
       setSigningIn(false);
     }
-  }, [onDone, signingIn, t]);
+  }, [onDone, t]);
 
   const onLoginPage = index === LOGIN_INDEX;
 

@@ -4,7 +4,6 @@ import {
   signInWithCredential,
   linkWithCredential,
   signOut,
-  signInAnonymously,
   updateProfile,
   reload,
 } from '@react-native-firebase/auth';
@@ -12,13 +11,18 @@ import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import {
   GoogleSignin,
   isSuccessResponse,
-  isErrorWithCode,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import { authStore } from '@skkuverse/shared';
 import { getOrCreateDeviceId } from '@/services/device-id';
 import { unregisterDevice } from '@/services/firestore-notifications';
 import { logHandledError } from '@/services/crashlytics';
+import { anonymousSession } from '@/services/anon-session-instance';
+import {
+  GoogleAuthError,
+  classifySignInError,
+  shouldSignInInsteadOfLink,
+} from '@/services/google-auth-errors';
 import { GOOGLE_WEB_CLIENT_ID } from '../../config/constants';
 
 const ALLOWED_DOMAIN = '@g.skku.edu';
@@ -38,19 +42,12 @@ export function configureGoogleSignIn() {
 }
 
 // ── Typed error ──────────────────────────────────────────────────────
+//
+// Lives in google-auth-errors.ts, native-free so node tests can load it.
+// Re-exported so callers keep importing from here.
 
-export type GoogleSignInErrorCode =
-  | 'DOMAIN_NOT_ALLOWED'
-  | 'CANCELLED'
-  | 'PLAY_SERVICES_UNAVAILABLE'
-  | 'UNKNOWN';
-
-export class GoogleAuthError extends Error {
-  constructor(public code: GoogleSignInErrorCode) {
-    super(code);
-    this.name = 'GoogleAuthError';
-  }
-}
+export { GoogleAuthError, signInErrorMessageKey, signInErrorCode } from '@/services/google-auth-errors';
+export type { GoogleSignInErrorCode } from '@/services/google-auth-errors';
 
 // ── Profile sync ─────────────────────────────────────────────────────
 //
@@ -109,7 +106,15 @@ export async function syncProfileFromProviderData(
 
 // ── Sign-in ──────────────────────────────────────────────────────────
 
-export async function signInWithGoogle() {
+/**
+ * @param opts.beforeAccountSwitch awaited right before a sign-in that changes
+ *   the uid (the link fallback, or a switch between Google accounts):
+ *   Firestore queues pending writes per uid, so anything the old user still
+ *   has queued must land first.
+ */
+export async function signInWithGoogle(
+  opts: { beforeAccountSwitch?: () => Promise<void> } = {},
+) {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
@@ -126,7 +131,10 @@ export async function signInWithGoogle() {
 
     // Domain check BEFORE creating Firebase credential
     if (!googleProfile.email.endsWith(ALLOWED_DOMAIN)) {
-      await GoogleSignin.revokeAccess();
+      // Best effort: a failed revoke must not turn "SKKU accounts only" into
+      // "try again", which the student would do forever. Signing out instead
+      // at least keeps the account from being reused without the chooser.
+      await GoogleSignin.revokeAccess().catch(() => GoogleSignin.signOut().catch(() => {}));
       throw new GoogleAuthError('DOMAIN_NOT_ALLOWED');
     }
 
@@ -139,15 +147,22 @@ export async function signInWithGoogle() {
     if (currentUser?.isAnonymous) {
       try {
         result = await linkWithCredential(currentUser, googleCredential);
-      } catch (linkErr: any) {
-        console.warn('[google-auth] linkWithCredential failed:', linkErr.code, linkErr.message);
-        if (linkErr.code !== 'auth/credential-already-in-use') {
-          // Fallback: try signInWithCredential instead of failing
-          console.warn('[google-auth] Falling back to signInWithCredential');
-        }
+      } catch (linkErr) {
+        // Mostly a returning student: the Google identity already has an
+        // account, and signing into it is the expected outcome, not a failure,
+        // so it is no longer recorded as `google-auth/link-fallback`. The
+        // anonymous user's `preferences/main` stays behind under a uid nothing
+        // reads again; `devices/{id}` is reclaimed by auth-flow phase C.
+        // Anything else (offline above all) is thrown — see
+        // shouldSignInInsteadOfLink for why it must not fall through.
+        if (!shouldSignInInsteadOfLink(linkErr)) throw linkErr;
+        await opts.beforeAccountSwitch?.();
         result = await signInWithCredential(getAuth(), googleCredential);
       }
     } else {
+      // Signed in with Google already (choosing another account) changes the
+      // uid too. With nobody signed in there is nothing queued to wait for.
+      if (currentUser) await opts.beforeAccountSwitch?.();
       result = await signInWithCredential(getAuth(), googleCredential);
     }
 
@@ -160,17 +175,11 @@ export async function signInWithGoogle() {
 
     return result;
   } catch (err) {
-    if (err instanceof GoogleAuthError) throw err;
-    if (isErrorWithCode(err)) {
-      switch (err.code) {
-        case statusCodes.SIGN_IN_CANCELLED:
-          throw new GoogleAuthError('CANCELLED');
-        case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-          throw new GoogleAuthError('PLAY_SERVICES_UNAVAILABLE');
-      }
-    }
-    logHandledError('google-auth/signin-unexpected', err);
-    throw new GoogleAuthError('UNKNOWN');
+    // A GoogleAuthError thrown above passes through with its code; only a
+    // missing idToken (UNKNOWN) is reported.
+    const { code, report } = classifySignInError(err, statusCodes);
+    if (report) logHandledError('google-auth/signin-unexpected', err);
+    throw new GoogleAuthError(code);
   }
 }
 
@@ -198,13 +207,11 @@ export async function signOutFromGoogle() {
     await GoogleSignin.signOut();
     await signOut(getAuth());
 
-    try {
-      await signInAnonymously(getAuth());
-    } catch (err) {
-      console.warn('[google-auth] Anonymous re-sign-in failed', err);
-      logHandledError('notifications/signout-anon-resign-in', err);
-      // Next app launch: useAppInit retries anon sign-in at line ~121.
-    }
+    // Never rejects; a failure is logged as auth/anon-signin and retried in
+    // the background. Going through the session rather than calling
+    // signInAnonymously directly keeps a foreground retry from racing this
+    // one into a second anonymous account.
+    await anonymousSession.ensure();
   } finally {
     authStore.getState().setSigningOut(false);
   }

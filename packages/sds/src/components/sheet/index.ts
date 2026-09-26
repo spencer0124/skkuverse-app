@@ -1,7 +1,8 @@
-export { Sheet, type SheetProps, type SheetRef } from './Sheet';
+export { Sheet, type SheetAnimationConfig, type SheetProps, type SheetRef } from './Sheet';
 export { SheetHeader, type SheetHeaderProps } from './SheetHeader';
 export { SheetCloseButton } from './SheetCloseButton';
 export { SheetHandle } from './SheetHandle';
+export { useSheetMotion, type SheetMotion } from './useSheetMotion';
 export {
   type SheetDetent,
   type SheetPosition,
@@ -13,4 +14,8 @@ export {
   SHEET_RADIUS_FLOATING,
   SHEET_RADIUS_ATTACHED,
   DISPLAY_CORNER_RADIUS,
+  sheetChromeAt,
+  bottomCornerRadius,
+  type SheetChrome,
 } from './chrome';
+export { SHEET_HANDOFF_CLOSE, SHEET_HANDOFF_RISE } from './motion';

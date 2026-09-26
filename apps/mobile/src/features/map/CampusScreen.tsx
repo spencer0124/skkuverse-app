@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaListener, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { Camera, NaverMapViewRef } from '@mj-studio/react-native-naver-map';
 import { CrosshairSimpleIcon } from 'phosphor-react-native';
@@ -31,8 +31,8 @@ import {
   useCampusSections,
   useMapConfig,
   useMapLayerStore,
-  useSettingsStore,
   useLayerOverlays,
+  usePlaceDetails,
   useWindowClock,
   useEventMapStore,
   useT,
@@ -40,12 +40,17 @@ import {
   resolveChipLayerVisibility,
   selectVisibleOverlays,
   sortPlaces,
+  defaultFacetSelection,
+  filterByFacets,
+  sortForList,
+  type FacetSelection,
   isFestivalLayer,
   withoutFestival,
   DEFAULT_CAMERA_DEFAULTS,
   SdsColors,
   type Campus,
   type MapChip,
+  type MapCameraMotion,
   type MapChipCamera,
   type MarkerTap,
   type MapOverlay,
@@ -54,7 +59,14 @@ import {
 import { SduiSectionList } from '@/sdui/renderer';
 import { EventMapPeekSheet } from '@/features/eventmap/EventMapPeekSheet';
 import { EventListPanel } from '@/features/eventmap/EventListPanel';
-import { GlassIconButton, Sheet, SHEET_FLOAT_INSET, type SheetRef } from '@skkuverse/sds';
+import { ListFacetSheet } from '@/features/eventmap/ListFacetSheet';
+import {
+  GlassIconButton,
+  Sheet,
+  SHEET_FLOAT_INSET,
+  SHEET_HANDOFF_CLOSE,
+  type SheetRef,
+} from '@skkuverse/sds';
 import { isFestivalUnlocked } from './festivalGate';
 import { CampusNaverMap } from './components/CampusNaverMap';
 import { MapOverlayLayer } from './components/MapOverlayLayer';
@@ -96,8 +108,10 @@ import {
   logConnectionTap,
   logCampusContentSelect,
   logCampusSwitch,
+  logMapPlaceNotFound,
   type BuildingDetailSource,
 } from '@/services/analytics';
+import { devLog } from '@/services/dev-log';
 
 // 시트 본문은 서버가 보내는 `sections` 배열을 그 순서대로 그린다. 앱에는
 // 하드코딩된 사본이 없다 — 예전에 이 자리에 CAMPUS_GRID_ITEMS가 있어서 서버가
@@ -184,6 +198,9 @@ const LOCATE_ANCHOR_SNAP_INDEX = 1;
  * from `LOCATE_ANCHOR_SNAP_INDEX` because they only happen to agree.
  */
 const EVENT_LIST_SNAP_INDEX = 1;
+
+/** One shared empty set, so an unfiltered map keeps a stable prop. */
+const NO_IDS: ReadonlySet<string> = new Set();
 
 export function CampusScreen() {
   const insets = useSafeAreaInsets();
@@ -308,9 +325,10 @@ export function CampusScreen() {
 
   /**
    * Measured rather than taken from `useWindowDimensions`: the sheet's percentage
-   * snaps resolve against ITS container, which is this screen's root view, and
-   * that is not the window once safe areas and the tab bar are accounted for.
-   * Using the window height would put the parking spot a tab bar's worth off.
+   * snaps resolve against ITS container, which is this screen's root view. Under
+   * JSX `<Tabs>` (iOS < 26, Android) that root stops above the tab bar and is
+   * not the window. Under iOS 26 NativeTabs it IS the window, and the floating
+   * tab bar is drawn over its bottom — see `tabBarOverlap`.
    */
   const [sheetContainerHeight, setSheetContainerHeight] = useState(0);
   const handleRootLayout = useCallback((e: LayoutChangeEvent) => {
@@ -335,6 +353,29 @@ export function CampusScreen() {
         : SHEET_FLOAT_INSET,
     [windowHeight, sheetContainerHeight],
   );
+
+  /**
+   * How much of this screen's bottom the tab bar covers, in points.
+   *
+   * iOS 26 NativeTabs lays each tab full-window and floats its glass tab bar
+   * over the bottom, so the inline sheet's top detent runs under it. Nothing
+   * reports that bar's height to JS. What does is UIKit's per-view safe area:
+   * the `SafeAreaListener` at the end of this screen measures its OWN
+   * `safeAreaInsets`, which inside the tab's view controller includes the bar
+   * (83pt on an iPhone 17 Pro, home indicator included). The root provider
+   * sits above the tab controller and reports only the home indicator, which is
+   * why `useSafeAreaInsets()` cannot answer this.
+   *
+   * 0 under JSX `<Tabs>`, whose screen already ends above its bar, and 0 until
+   * the first measurement.
+   */
+  const [tabBarOverlap, setTabBarOverlap] = useState(0);
+  const handleSafeAreaChange = useCallback(
+    ({ insets: measured }: { insets: { bottom: number } }) => setTabBarOverlap(measured.bottom),
+    [],
+  );
+  /** Room under the campus sheet's last row: clear of the tab bar, never less than 32. */
+  const sheetContentBottom = Math.max(32, tabBarOverlap + 16);
 
   // ── Sheet detents ──
   /**
@@ -402,7 +443,9 @@ export function CampusScreen() {
     handoff.current = state;
     if (close) {
       waitingModal.current = modal;
-      sheetRef.current?.close();
+      // Short, because the modal waits for it: the default spring made the
+      // hand-off read as a pause between the tap and the sheet that answers it.
+      sheetRef.current?.close(SHEET_HANDOFF_CLOSE);
     }
     // `present` is optional on a SheetRef — an inline sheet has none — and
     // every modal this hands off to is a modal, so the call always lands.
@@ -437,6 +480,8 @@ export function CampusScreen() {
 
   const {
     mode: trackingMode,
+    scrollLocked,
+    mapTouchHandlers,
     bearing: cameraBearing,
     permissionGranted,
     requestPermission,
@@ -459,6 +504,25 @@ export function CampusScreen() {
    * dependency.
    */
   const cameraDefaults = mapConfig?.cameraDefaults ?? DEFAULT_CAMERA_DEFAULTS;
+
+  /**
+   * `markerFocus` for a place on `campusId`, with that campus's attitude.
+   *
+   * The zoom and duration are the server's marker settings, but tilt and
+   * bearing belong to the campus, the same split `campusFocus` makes. The
+   * natural-sciences campus is rotated to square its grid to the screen, so
+   * the global `markerFocus` bearing would swing the map back to north on
+   * every pin tap. Its own tilt and bearing apply only to an unknown campus.
+   */
+  const markerFocusOn = useCallback(
+    (campusId: Campus): MapCameraMotion => {
+      const campus = mapConfig?.campuses.find((c) => c.id === campusId);
+      return campus
+        ? { ...cameraDefaults.markerFocus, tilt: campus.defaultTilt, bearing: campus.defaultBearing }
+        : cameraDefaults.markerFocus;
+    },
+    [mapConfig, cameraDefaults],
+  );
 
   /**
    * The screen's one camera mover.
@@ -573,6 +637,9 @@ export function CampusScreen() {
   );
   const eventQuery = useLayerOverlays(eventEndpoint ?? '', eventEndpoint !== null);
   const eventOverlays = useMemo(() => eventQuery.data ?? [], [eventQuery.data]);
+  // The sheet bodies ride their own route beside the overlays, under the same
+  // gate: no festival endpoint, no request. See `usePlaceDetails`.
+  const placeDetails = usePlaceDetails(eventEndpoint).data;
 
   /**
    * Every daily window the served layers declare.
@@ -605,20 +672,8 @@ export function CampusScreen() {
    */
   const now = useWindowClock(eventOverlays, layerWindows);
 
-  const sortId = useEventMapStore((s) => s.sortId);
-  const appLanguage = useSettingsStore((s) => s.appLanguage);
   const setSelectedPlaceId = useEventMapStore((s) => s.setSelectedPlaceId);
   const selectedPlaceId = useEventMapStore((s) => s.selectedPlaceId);
-  const syncLayerSet = useEventMapStore((s) => s.syncLayerSet);
-
-  /** The live layer set, for keying the persisted sort. `chipGroupId` is its id. */
-  const activeLayerSetId = useMemo(
-    () => mapConfig?.layers.find(isFestivalLayer)?.chipGroupId ?? null,
-    [mapConfig],
-  );
-  useEffect(() => {
-    syncLayerSet(activeLayerSetId);
-  }, [activeLayerSetId, syncLayerSet]);
 
   /**
    * placeId → place. Built from EVERY event overlay rather than the listed ones,
@@ -640,6 +695,7 @@ export function CampusScreen() {
   }, [eventOverlays]);
 
   const selectedPlace = selectedPlaceId ? (placesById.get(selectedPlaceId) ?? null) : null;
+  const selectedDetail = selectedPlaceId ? (placeDetails?.[selectedPlaceId] ?? null) : null;
 
   /**
    * Whether the marker request has come back at least once.
@@ -694,9 +750,9 @@ export function CampusScreen() {
       if (!campus) return;
       // `defaultTilt` and `defaultBearing` were parsed and then dropped here for
       // as long as they have existed, so framing a campus could never straighten
-      // a map the user had rotated. Both are 0 today, so passing them makes
-      // "frame this campus" mean north-up again — and makes the attitude the
-      // server's to set, the same way a chip's is.
+      // a map the user had rotated. Passing them makes "frame this campus" mean
+      // the campus's own attitude again — and makes it the server's to set, the
+      // same way a chip's is.
       moveTo({
         lat: campus.centerLat,
         lng: campus.centerLng,
@@ -955,20 +1011,6 @@ export function CampusScreen() {
   // ── The event list in the sheet ──
 
   /**
-   * What the campus sheet shows: the event list while a chip has narrowed the
-   * map, the server's campus feed otherwise.
-   *
-   * Narrowed, not merely "an event is on": the feed is the sheet's resting
-   * content, and a chip tap is the moment the user asks what is in the view
-   * they just chose. The reset chip CLEARS the narrowing, so it flies to the
-   * festival and leaves the feed in place — the same outcome the old derived
-   * form reached by reading the restored defaults as "narrowed to nothing".
-   * `eventActive` keeps the list off a campus the event is not on: the toggle
-   * can be flipped away while the festival layers stay narrowed.
-   */
-  const showEventList = narrowedChip !== null && eventActive;
-
-  /**
    * The layer ids whose markers compete for a coordinate: the FESTIVAL layers
    * currently drawn.
    *
@@ -990,7 +1032,7 @@ export function CampusScreen() {
   );
 
   /**
-   * The list's rows: the places whose layer is drawn, in the active sort.
+   * The list's rows: the places whose layer is drawn, in the author's order.
    *
    * `selectVisibleOverlays` reads the same `isLayerVisible` the render loop below
    * does — deliberately not a second copy — so a row is listed exactly when its
@@ -998,23 +1040,112 @@ export function CampusScreen() {
    * still gets a row: that ladder answers which pin is drawn there, not whether
    * the place exists.
    */
-  const listedPlaces = useMemo(
+  const layerPlaces = useMemo(
     () =>
       mapConfig
-        ? sortPlaces(
-            selectVisibleOverlays({
-              markers: eventOverlays,
-              layers: mapConfig.layers,
-              state: layerState,
-              now,
-            }),
-            sortId,
-            appLanguage,
+        ? selectVisibleOverlays({
+            markers: eventOverlays,
+            layers: mapConfig.layers,
+            state: layerState,
             now,
-          )
+          })
         : [],
-    [mapConfig, eventOverlays, layerState, sortId, appLanguage, now],
+    [mapConfig, eventOverlays, layerState, now],
   );
+
+  /**
+   * The narrowed chip's list filters, and what the user picked in them.
+   *
+   * The pick is tied to the store's chip OBJECT, not its id: every narrowing
+   * writes a fresh one, so tapping 주점 again — or coming back to it later —
+   * opens on its default (전체, and today's 일자) rather than wherever the last
+   * visit left it. Until the user picks, the default is re-read on the clock,
+   * so a list left open across the 06:00 cut-over moves to the new day.
+   */
+  const narrowedList = narrowedChip?.list ?? null;
+  const [facetPick, setFacetPick] = useState<{
+    chip: typeof activeChip;
+    selection: FacetSelection;
+  } | null>(null);
+  const facetSelection = useMemo<FacetSelection>(() => {
+    if (!narrowedList) return {};
+    if (facetPick && facetPick.chip === activeChip) return facetPick.selection;
+    return defaultFacetSelection(narrowedList, now);
+  }, [narrowedList, facetPick, activeChip, now]);
+  const handleSelectFacet = useCallback(
+    (facetId: string, held: readonly string[]) => {
+      setFacetPick({ chip: activeChip, selection: { ...facetSelection, [facetId]: held } });
+      // A single choice is made in one tap, so the sheet closes behind it; a
+      // checklist stays up for the next toggle.
+      if (narrowedList?.facets.find((f) => f.id === facetId)?.select === 'required') {
+        facetSheetRef.current?.dismiss?.();
+      }
+    },
+    [activeChip, facetSelection, narrowedList],
+  );
+
+  /**
+   * The option sheet a list filter chip opens. Which facet it shows is state;
+   * the sheet itself floats beside the campus card like the filter sheet, so
+   * it needs no hand-off.
+   */
+  const facetSheetRef = useRef<SheetRef>(null);
+  const [openFacetId, setOpenFacetId] = useState<string | null>(null);
+  const openFacet = narrowedList?.facets.find((f) => f.id === openFacetId) ?? null;
+  const handleOpenFacet = useCallback((facetId: string) => {
+    setOpenFacetId(facetId);
+    facetSheetRef.current?.present?.();
+  }, []);
+
+  /**
+   * The rows: filtered and ordered as the chip's `list` says, or in the
+   * author's `order` for a chip with none. Every decision was the server's —
+   * which day a place is on, how the list sorts — so this only matches ids.
+   */
+  const listedPlaces = useMemo(
+    () =>
+      narrowedList
+        ? sortForList(filterByFacets(layerPlaces, narrowedList, facetSelection), narrowedList, facetSelection)
+        : sortPlaces(layerPlaces),
+    [layerPlaces, narrowedList, facetSelection],
+  );
+
+  /**
+   * The places the list filters took out, hidden from the map as well, so the
+   * pins and the rows describe the same view: 주점 on 2일차 shows 2일차's pubs
+   * on both. Empty while nothing is narrowed or the chip has no list.
+   *
+   * The selected place is never taken out: a link to 2일차's pub while 1일차 is
+   * narrowed still draws that one pin under its sheet. The rows are unaffected,
+   * since the list filters `layerPlaces` itself.
+   */
+  const filteredOutIds = useMemo<ReadonlySet<string>>(() => {
+    if (!narrowedList) return NO_IDS;
+    const kept = new Set(filterByFacets(layerPlaces, narrowedList, facetSelection));
+    return new Set(
+      layerPlaces.filter((p) => !kept.has(p) && p !== selectedPlace).map((p) => p.id),
+    );
+  }, [layerPlaces, narrowedList, facetSelection, selectedPlace]);
+
+  /**
+   * What the campus sheet shows: the event list while a chip has narrowed the
+   * map, the server's campus feed otherwise.
+   *
+   * Narrowed, not merely "an event is on": the feed is the sheet's resting
+   * content, and a chip tap is the moment the user asks what is in the view
+   * they just chose. The reset chip CLEARS the narrowing, so it flies to the
+   * festival and leaves the feed in place — the same outcome the old derived
+   * form reached by reading the restored defaults as "narrowed to nothing".
+   * `eventActive` keeps the list off a campus the event is not on: the toggle
+   * can be flipped away while the festival layers stay narrowed.
+   *
+   * And only with a row to show. A chip whose layers hold nothing tappable —
+   * the 통제 zones are drawn, not pressed — has nothing to list, so it moves
+   * the camera and leaves the sheet where it was, as the reset chip does. That
+   * is read off `layerPlaces` rather than declared on the chip: a flag saying
+   * "this chip opens no list" could disagree with the places actually served.
+   */
+  const showEventList = narrowedChip !== null && eventActive && layerPlaces.length > 0;
 
   // When the list appears, bring the sheet up to the middle detent — enough to
   // read it, with the map still showing the pins it describes. An effect on the
@@ -1042,6 +1173,12 @@ export function CampusScreen() {
     const tryConsume = () => {
       const p = pendingMapPlaceLink.consume();
       if (!p) return;
+      // An explicit place beats the round-trip restore. Leaving the peek sheet
+      // for a web shell arms `restorePeekOnFocus`; if that shell then sends the
+      // user back here at ANOTHER place (a mini app's "지도에서 보기"), the
+      // return focus would re-raise the old place's sheet on top of the new one.
+      // `openMapAtPlace` sets the link before it navigates, so this runs first.
+      restorePeekOnFocus.current = false;
       // A building is resolvable on its own — `/building/:id` needs nothing but
       // the id — so it does not wait on the event markers the way a booth does.
       // A bare id (no prefix) keeps its historical meaning: an event place.
@@ -1078,7 +1215,11 @@ export function CampusScreen() {
     // 2. Animate camera
     if (payload.lat !== 0 && payload.lng !== 0) {
       setTimeout(() => {
-        moveTo({ lat: payload.lat, lng: payload.lng, ...cameraDefaults.markerFocus });
+        moveTo({
+          lat: payload.lat,
+          lng: payload.lng,
+          ...markerFocusOn(payload.campus ?? selectedCampus),
+        });
       }, 100);
     }
 
@@ -1095,7 +1236,7 @@ export function CampusScreen() {
     selectedCampus,
     setSelectedCampus,
     moveTo,
-    cameraDefaults,
+    markerFocusOn,
     presentOverSheet,
   ]);
 
@@ -1136,8 +1277,13 @@ export function CampusScreen() {
     setPendingPlaceId(null); // one shot, resolvable or not
     const place = placesById.get(pendingPlaceId);
     // An id that matches nothing lands on the campus tab with no sheet. That is
-    // the documented behaviour, not a swallowed error.
-    if (!place) return;
+    // the documented behaviour, but it is logged: nothing on screen says why,
+    // so the event is the only way a stale or mistyped id gets noticed.
+    if (!place) {
+      devLog('campus.placeNotFound', { placeId: pendingPlaceId });
+      logMapPlaceNotFound({ placeId: pendingPlaceId });
+      return;
+    }
 
     if (place.campus !== selectedCampus) setSelectedCampus(place.campus);
     // Same 100ms → camera(500ms) → 400ms → present choreography as the search
@@ -1145,7 +1291,7 @@ export function CampusScreen() {
     setTimeout(() => {
       // `overlayAnchor`, not `place.lat` — a zone has no single coordinate, and
       // this is the one point that represents any overlay.
-      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
+      moveTo({ ...overlayAnchor(place), ...markerFocusOn(place.campus) });
     }, 100);
     setSelectedPlaceId(pendingPlaceId);
     setTimeout(() => {
@@ -1159,7 +1305,7 @@ export function CampusScreen() {
     setSelectedCampus,
     setSelectedPlaceId,
     moveTo,
-    cameraDefaults,
+    markerFocusOn,
     presentOverSheet,
   ]);
 
@@ -1204,9 +1350,17 @@ export function CampusScreen() {
           handleSelectPlace(tap.placeId);
           return;
         }
+        // A shape that stands for a list — the 푸드트럭 구역 — runs its chip,
+        // exactly as the chip row would. A chip this build was not served opens
+        // nothing, the same as a place id that resolves to no marker.
+        case 'chip': {
+          const chip = mapConfig?.chips.find((c) => c.id === tap.chipId);
+          if (chip) handleChipPress(chip);
+          return;
+        }
       }
     },
-    [placesById, handleSelectPlace, presentOverSheet],
+    [placesById, handleSelectPlace, presentOverSheet, mapConfig, handleChipPress],
   );
 
   // A list row is the same way into a pin that the pin itself is, plus the
@@ -1217,13 +1371,13 @@ export function CampusScreen() {
   // list rather than stacking a second grab handle on it.
   const handleSelectFromList = useCallback(
     (place: MapOverlay) => {
-      moveTo({ ...overlayAnchor(place), ...cameraDefaults.markerFocus });
+      moveTo({ ...overlayAnchor(place), ...markerFocusOn(place.campus) });
       // Every listed place is an event marker, so `tap` is non-null and carries
-      // the place's own id. Falling back to `id` keeps this total anyway: the two
-      // are the same string for an event marker.
-      handleSelectPlace(place.tap?.placeId ?? place.id);
+      // the place's own id (a chip tap is never listed). Falling back to `id`
+      // keeps this total anyway: the two are the same string for an event marker.
+      handleSelectPlace(place.tap && place.tap.kind !== 'chip' ? place.tap.placeId : place.id);
     },
-    [moveTo, cameraDefaults, handleSelectPlace],
+    [moveTo, markerFocusOn, handleSelectPlace],
   );
 
   /**
@@ -1323,6 +1477,8 @@ export function CampusScreen() {
             onCameraChanged={handleCameraChanged}
             onCameraIdle={handleCameraIdle}
             camera={cameraCommand}
+            scrollLocked={scrollLocked}
+            {...mapTouchHandlers}
           >
             {mapConfig.layers.map((layer) => {
               // The chip's narrowing, the user's toggle, or the layer's own
@@ -1331,7 +1487,23 @@ export function CampusScreen() {
               // from its snapshot, which made this a chain every reader had to
               // reproduce exactly; it is one function call now, and `now` is the
               // same one the list beside it reads.
-              if (!isLayerVisible(layer, layerState, now)) return null;
+              //
+              // One exception, and it is not a tier: the place the sheet is
+              // open on is drawn even when its layer is off, as that single
+              // pin (see `onlyId`). Nothing is written to the layer store.
+              if (!isLayerVisible(layer, layerState, now)) {
+                if (selectedPlace?.layerId !== layer.id) return null;
+                return (
+                  <MapOverlayLayer
+                    key={layer.id}
+                    layer={layer}
+                    collisionPeers={collisionPeers}
+                    selectedPlaceId={selectedPlaceId}
+                    onMarkerTap={handleMarkerTap}
+                    onlyId={selectedPlace.id}
+                  />
+                );
+              }
 
               // ONE component per layer, whatever that layer draws. The
               // `layer.type === 'polyline'` branch that used to stand here is
@@ -1345,6 +1517,7 @@ export function CampusScreen() {
                   collisionPeers={collisionPeers}
                   selectedPlaceId={selectedPlaceId}
                   onMarkerTap={handleMarkerTap}
+                  hiddenIds={filteredOutIds}
                 />
               );
             })}
@@ -1500,6 +1673,10 @@ export function CampusScreen() {
           {showEventList ? (
             <EventListPanel
               places={listedPlaces}
+              list={narrowedList}
+              selection={facetSelection}
+              onOpenFacet={handleOpenFacet}
+              bottomPadding={sheetContentBottom}
               now={now}
               onSelectPlace={handleSelectFromList}
             />
@@ -1509,7 +1686,7 @@ export function CampusScreen() {
                still moves it. It stays mounted even when the feed is empty. */
             <Sheet.ScrollView
               style={styles.sheetContent}
-              contentContainerStyle={styles.sheetFeed}
+              contentContainerStyle={[styles.sheetFeed, { paddingBottom: sheetContentBottom }]}
             >
               {/* Empty while the gate is shut, and the GATE is what says so —
                   not the disabled query. `enabled: false` stops refetching but
@@ -1543,6 +1720,13 @@ export function CampusScreen() {
               bottomGap={modalCardBottomGap}
               now={now}
             />
+            <ListFacetSheet
+              ref={facetSheetRef}
+              facet={openFacet}
+              held={openFacet ? (facetSelection[openFacet.id] ?? []) : []}
+              onChange={handleSelectFacet}
+              bottomGap={modalCardBottomGap}
+            />
           </>
         )}
 
@@ -1551,10 +1735,18 @@ export function CampusScreen() {
         <EventMapPeekSheet
           ref={peekSheetRef}
           place={selectedPlace}
+          detail={selectedDetail}
           now={now}
           bottomGap={modalCardBottomGap}
           onDismiss={handlePeekDismiss}
           onNavigateAway={handlePeekNavigateAway}
+        />
+        {/* Measures, draws nothing. Last, full-size and untouchable, so it
+            moves no layout and takes no touches. See `tabBarOverlap`. */}
+        <SafeAreaListener
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+          onChange={handleSafeAreaChange}
         />
       </View>
   );
@@ -1610,9 +1802,6 @@ const styles = StyleSheet.create({
     // widgets deliberately carry none (see sdui/renderer.tsx).
     paddingHorizontal: 16,
     paddingTop: 8,
-    // Clears the floating tab bar at the top detent, where the feed is the only
-    // thing that scrolls. Matches HomeScreen's 32; confirm against a long feed
-    // on device, since nothing here measures the bar.
-    paddingBottom: 32,
+    // paddingBottom is `sheetContentBottom`, measured against the tab bar.
   },
 });

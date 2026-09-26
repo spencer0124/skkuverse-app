@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useAuthStore, useSettingsStore, useT } from '@skkuverse/shared';
@@ -6,7 +6,7 @@ import { NoticesTabScreen } from '@/features/notices/NoticesTabScreen';
 import { OnboardingLanding } from '@/features/notices/components/OnboardingLanding';
 import { NoticesSearchFallbackBar } from '@/features/notices/components/NoticesSearchFallbackBar';
 import { useTabFocusTracking } from '@/hooks/useTabFocusTracking';
-import { GoogleAuthError } from '@/services/google-auth';
+import { signInErrorCode, signInErrorMessageKey } from '@/services/google-auth';
 import {
   signInWithDeviceMigration,
   classifyAndRestoreOnboarding,
@@ -34,6 +34,11 @@ export default function NoticesTab() {
 
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  // A ref, not the state: the button only disables on the next render, and two
+  // taps within one render both read the state as false. Android then rejects
+  // the first flow with IN_PROGRESS, whose finally clears the spinner while the
+  // second flow's sheet is still open.
+  const signInInFlight = useRef(false);
 
   // "이미 가입한 적 있어요" 단축경로 — Google 로그인 후 Firestore prefs SSOT
   // 에서 onboardedAt 시그널 + dept 미러를 즉시 가져와서 게이트 해제. listener
@@ -45,10 +50,11 @@ export default function NoticesTab() {
   // server-side functions/src/notifications/tabsContract.ts에도 'dept' picker
   // tab key가 hardcoded — 셋 다 함께 수정 필요한 cross-cutting hard-code.
   async function handleExistingAccountSignIn() {
-    if (signingIn) return;
-    setSigningIn(true);
-    setSignInError(null);
+    if (signInInFlight.current) return;
+    signInInFlight.current = true;
     try {
+      setSigningIn(true);
+      setSignInError(null);
       const user = await signInWithDeviceMigration('notices');
       const result = await classifyAndRestoreOnboarding(user.uid, 'notices');
       switch (result.kind) {
@@ -65,23 +71,10 @@ export default function NoticesTab() {
           break;
       }
     } catch (err) {
-      if (err instanceof GoogleAuthError) {
-        switch (err.code) {
-          case 'DOMAIN_NOT_ALLOWED':
-            setSignInError(t('auth.domainNotAllowed'));
-            break;
-          case 'CANCELLED':
-            break;
-          case 'PLAY_SERVICES_UNAVAILABLE':
-            setSignInError(t('auth.playServicesError'));
-            break;
-          default:
-            setSignInError(t('auth.unknownError'));
-        }
-      } else {
-        setSignInError(t('auth.unknownError'));
-      }
+      const key = signInErrorMessageKey(signInErrorCode(err));
+      if (key) setSignInError(t(key));
     } finally {
+      signInInFlight.current = false;
       setSigningIn(false);
     }
   }
