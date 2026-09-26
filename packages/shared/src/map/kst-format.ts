@@ -60,7 +60,7 @@ export function formatKstDateTime(epochMs: number, t: Translate): string {
 }
 
 /**
- * `"M/D(요일) HH:MM–HH:MM"`, `"M/D(요일) HH:MM~"` when the end is unannounced,
+ * `"M/D(요일) HH:MM~HH:MM"`, `"M/D(요일) HH:MM~"` when the end is unannounced,
  * or `null` for a window that does not parse.
  *
  * The START decides the date, so a 주점 open 18:00–00:00 is dated by the
@@ -74,5 +74,5 @@ export function formatTimeWindow(w: OpeningWindow, t: Translate): string | null 
   if (w.endAt === null) return `${formatKstDateTime(start, t)}~`;
   const end = toEpochMs(w.endAt);
   if (end === null) return null;
-  return `${formatKstDateTime(start, t)}–${formatKstTime(end)}`;
+  return `${formatKstDateTime(start, t)}~${formatKstTime(end)}`;
 }
