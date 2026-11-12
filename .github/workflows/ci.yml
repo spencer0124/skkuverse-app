@@ -5,8 +5,9 @@ name: CI
 # `workspace` says this repo's own code is, and `prose` says the writing drifted. Conflating them
 # makes the failure name useless.
 on:
-  # main only, and every job runs on both events. dev has no CI: run
-  # `yarn typecheck`, `yarn lint` and `yarn test` locally before pushing there.
+  # main only. `workspace` runs on both events, and `conventions` and `prose`
+  # on the push alone (their WHY). dev has no CI: run `yarn typecheck`,
+  # `yarn lint` and `yarn test` locally before pushing there.
   pull_request:
     branches: [main]
   push:
@@ -28,7 +29,13 @@ jobs:
   # Offline and dependency-free: ubuntu-latest ships python3 and the umbrella's
   # exported/ scripts are stdlib-only, so adopting the fleet's rules costs no
   # install step and no entry in any manifest here.
+  #
+  # WHY: the umbrella's deploy key sits in the `umbrella` environment, which admits only `main`, so a workflow
+  # pushed to another branch cannot read it. A pull request runs on its merge ref, which the environment refuses,
+  # so this job and `prose` are skipped there (a skipped job passes its required check) and run on the merge.
   conventions:
+    if: github.event_name == 'push'
+    environment: umbrella
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -154,6 +161,9 @@ jobs:
   # advice. The one advisory rule is the umbrella's own EmDashDensity, at
   # `level: warning`, which the exit code ignores.
   prose:
+    # WHY: as `conventions`: the deploy key is in an environment that admits only `main`.
+    if: github.event_name == 'push'
+    environment: umbrella
     runs-on: ubuntu-latest
     env:
       VALE_VERSION: 3.17.0

@@ -24,7 +24,7 @@ npx expo prebuild --clean  # after a native change, then yarn ios or yarn androi
 ```
 
 - Node is pinned to 22 in `.nvmrc`, which `--experimental-strip-types` requires. Expo Go is not used: the custom native modules make every run a native build (CNG).
-- **CI runs on `main` only** (`.github/workflows/ci.yml`, jobs `conventions`, `workspace` and `prose`): a pull request to `main` and a push to `main` run every job, a newer push to a pull request cancels the run it supersedes, and a `main` run is never cancelled. `dev` has no CI, so run `yarn typecheck`, `yarn lint` and `yarn test` locally before pushing there (the local commit gate runs the light checks). **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist; without it the file is untracked and never runs, with no error.
+- **CI runs on `main` only** (`.github/workflows/ci.yml`, jobs `conventions`, `workspace` and `prose`): a pull request to `main` and a push to `main` run `workspace`, while `conventions` and `prose`, which clone the private umbrella with a key only a `main` run can read, are skipped on the pull request and run on the push; a newer push to a pull request cancels the run it supersedes, and a `main` run is never cancelled. `dev` has no CI, so run `yarn typecheck`, `yarn lint` and `yarn test` locally before pushing there (the local commit gate runs the light checks). **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist; without it the file is untracked and never runs, with no error.
 
 ## Architecture
 

@@ -14,7 +14,7 @@ The backend of the app is not in this repository. A change that touches Firebase
 
 Workflows on a pull request from a fork wait for a maintainer's approval before they run.
 
-A maintainer may ask Claude about a pull request with `@claude`. On a pull request from a fork, that works only in a top-level comment: GitHub runs a review or a review comment from a fork without the secret Claude needs.
+A maintainer may ask Claude about a pull request with `@claude` in a top-level comment. A review or a review comment does not start Claude: it runs on the pull request's merge ref, and Claude's token is available only to a run on `main`.
 
 ## How changes flow
 

@@ -1,12 +1,11 @@
 name: Claude Code
 
 on:
-  issue_comment:
+  # WHY: the token sits in the `claude` environment, which admits only `main`, where an issue comment runs; a review
+  # or review comment runs on the merge ref, which it refuses. zizmor flags issue_comment: the jobs start only for
+  # an OWNER, MEMBER or COLLABORATOR, and the workflow that runs is `main`'s.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
-  pull_request_review_comment:
-    types: [created]
-  pull_request_review:
-    types: [submitted]
 
 permissions: {}
 
@@ -34,13 +33,10 @@ env:
 jobs:
   # WHY: the repository is public and the jobs below hold CLAUDE_CODE_OAUTH_TOKEN, so nothing starts unless a
   # maintainer asked; anyone else's `@claude` starts nothing. An issue comment runs in this repository's context,
-  # with its secrets, even when it sits on a fork's pull request; a review or review comment there runs without
-  # them, so it is skipped instead of failing. `read` and `edit` need this job, so they are skipped with it.
+  # with its secrets, even when it sits on a fork's pull request. `read` and `edit` need this job.
   mode:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
-      (github.event_name == 'pull_request_review_comment' && !github.event.pull_request.head.repo.fork && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
-      (github.event_name == 'pull_request_review' && !github.event.pull_request.head.repo.fork && contains(github.event.review.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -51,8 +47,8 @@ jobs:
       - name: Choose mode
         id: mode
         env:
-          BODY: ${{ github.event.comment.body || github.event.review.body }}
-          ASSOCIATION: ${{ github.event.comment.author_association || github.event.review.author_association }}
+          BODY: ${{ github.event.comment.body }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
         run: |
           mode="read"
           opt_in='(^|[[:space:]])@claude[[:space:]]+edit([^[:alnum:]_-]|$)'
@@ -70,6 +66,7 @@ jobs:
   read:
     needs: mode
     if: needs.mode.outputs.mode == 'read'
+    environment: claude
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -110,6 +107,7 @@ jobs:
   edit:
     needs: mode
     if: needs.mode.outputs.mode == 'edit'
+    environment: claude
     runs-on: ubuntu-latest
     permissions:
       contents: read
