@@ -39,6 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # WHY: no step pushes, so the token is not left in .git/config for the steps that follow.
+          persist-credentials: false
 
       # Cloned to RUNNER_TEMP rather than into the workspace, where the lint
       # and typecheck jobs would see it.
@@ -87,6 +90,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # WHY: no step pushes, so the token is not left in .git/config for the code under check.
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -169,6 +174,9 @@ jobs:
       VALE_VERSION: 3.17.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # WHY: no step pushes, so the token is not left in .git/config for the steps that follow.
+          persist-credentials: false
 
       - name: Fetch umbrella tooling
         # The umbrella repo is private; clone it with its read-only deploy key

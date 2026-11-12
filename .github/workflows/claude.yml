@@ -80,6 +80,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # WHY: the action sets its own git credentials (the QUIRK above), so the checkout's token has no use here.
+          persist-credentials: false
 
       # QUIRK(claude-code): under CLAUDE_CODE_SUBPROCESS_ENV_SCRUB a Bash command runs in bubblewrap or not at all,
       # and that sandbox needs socat beside bubblewrap and a user namespace, which Ubuntu's AppArmor can refuse.
@@ -122,6 +124,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # WHY: the action sets its own git credentials (the QUIRK above), so the checkout's token has no use here.
+          persist-credentials: false
 
       - name: Install the subprocess sandbox
         run: |
