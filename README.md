@@ -15,7 +15,7 @@
 The app reads public data (buses, notices, buildings, the map) from skkuverse-server, and keeps
 user data in Firebase Auth and Firestore. The server-side rules and functions it talks to are kept
 outside this repository. The pages it opens in a web view come from
-[skkuverse-web](https://github.com/spencer0124/skkuverse-web), and the notices from
+skkuverse-web, a repository outside this one, and the notices from
 skkuverse-crawler and skkuverse-ai.
 
 ## Repository layout

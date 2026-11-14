@@ -53,7 +53,7 @@ removed the web view, but it adds a native module and so a `runtimeVersion` bump
 store release for every change to the renderer. A bundled page goes out over OTA, like any other
 JS.
 
-This does not reopen [umbrella ADR 0005](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0005-web-surfaces-dedicated-repo.md).
+This does not reopen umbrella ADR 0005, which is kept outside this repository.
 That ADR puts browser surfaces, meaning pages served from a host, in skkuverse-web. A bundled
 game page is never served; it has no origin, cannot navigate, and speaks only to its host.
 

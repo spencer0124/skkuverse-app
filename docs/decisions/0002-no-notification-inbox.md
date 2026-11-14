@@ -49,7 +49,7 @@ data in the notices tab. The content stays reachable whether or not an inbox exi
 > ESKARA 2026 (2026-09-30 to 10-02). The feed is rendered by a native screen,
 > `/miniapp-feed/[id]` (`apps/mobile/src/features/web/feed/`), not by the mini app's webview page as
 > the bullet below says; that page still exists, unlinked. The amendment itself stands. What is left
-> is tracked in [skkuverse#49](https://github.com/spencer0124/skkuverse/issues/49).
+> is tracked in an issue outside this repository.
 
 The condition in the last consequence fired. The ESKARA 2026 mini app sends notifications that
 are not notices — a rain delay, or a shuttle change partway through the day. Neither has an
@@ -97,4 +97,4 @@ features whose absence is the reason the decision could be narrowed rather than 
 Related: the FCM section of `CLAUDE.md` and `docs/explanation/fcm-architecture.md` (the current
 SSOT). The mini-app push architecture the revisit sits inside is
 [ADR 0006](0006-miniapp-webview-push-architecture.md), sections 6 to 8. The work is tracked in
-spencer0124/skkuverse#17.
+an issue outside this repository.

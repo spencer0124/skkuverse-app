@@ -72,7 +72,7 @@ routing and the server's shell-manifest poller never see one. The game screen de
 message's grant from the origin of the document that posted it, checked against the origin
 `games.origins` maps to the opened id. It refuses navigation away from that origin and answers
 any request `unsupported`. The mini-app shell is typed to grant mini-app methods alone, so it
-drops `game.*`. [Umbrella ADR 0005](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0005-web-surfaces-dedicated-repo.md)'s
+drops `game.*`. Umbrella ADR 0005's
 fourth invariant applies to games too: a new game origin grants nothing until the server lists
 it.
 
