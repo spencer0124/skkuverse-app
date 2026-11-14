@@ -40,7 +40,14 @@ async function fetchServerFile({ base, lock }, path) {
   }
   if (res.status === 404) return null;
   if (!res.ok) throw new NetworkError(`${url} answered HTTP ${res.status}`);
-  return res.json();
+  let body;
+  try {
+    body = await res.text();
+  } catch (err) {
+    const cause = err.cause?.code ?? err.cause?.message ?? err.message;
+    throw new NetworkError(`could not read ${url} (network: ${cause})`);
+  }
+  return JSON.parse(body);
 }
 
 /** One result per entry: `equal`, `differs` or `missing` (no such file at the pinned commit). */

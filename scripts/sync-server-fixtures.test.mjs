@@ -1,6 +1,6 @@
 // sync-server-fixtures.mjs against a local fixture server: an equal copy, a
 // differing one and its --write, a server path that does not exist, and a
-// server that cannot be reached.
+// server that cannot be reached or cuts a body short.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -121,4 +121,39 @@ test('an unreachable server fails with the network cause and compares nothing', 
     Object.assign(console, { error, log });
   }
   assert.match(messages.join('\n'), /network: ECONNREFUSED.*No fixture was compared/);
+});
+
+test('a connection cut mid-body is a network failure, not a crash', async () => {
+  const t = tree({ 'a.json': { data: { n: 1 } } }, [{ local: 'a.json', server: 'fixtures/one.json' }]);
+  const cut = createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json', 'content-length': '100' });
+    res.write('{"data":');
+    setTimeout(() => res.destroy(), 10);
+  });
+  await new Promise((done) => cut.listen(0, '127.0.0.1', done));
+  const messages = [];
+  const { error, log } = console;
+  console.error = (m) => messages.push(m);
+  console.log = () => {};
+  try {
+    assert.equal(await main(['--check'], { ...t, base: `http://127.0.0.1:${cut.address().port}` }), 2);
+  } finally {
+    Object.assign(console, { error, log });
+    cut.close();
+  }
+  assert.match(messages.join('\n'), /could not read .*fixtures\/one\.json.*No fixture was compared/);
+});
+
+test('a body that is not JSON is not reported as a network failure', async () => {
+  const t = tree({ 'a.json': { data: { n: 1 } } }, [{ local: 'a.json', server: 'fixtures/one.json' }]);
+  const bad = createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end('not json');
+  });
+  await new Promise((done) => bad.listen(0, '127.0.0.1', done));
+  try {
+    await assert.rejects(quiet(() => main(['--check'], { ...t, base: `http://127.0.0.1:${bad.address().port}` })), SyntaxError);
+  } finally {
+    bad.close();
+  }
 });
