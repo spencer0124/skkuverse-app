@@ -178,3 +178,20 @@ test('drops every game method: a mini-app origin is granted none, and the shell 
   expect(outcome).toBe('dropped');
   expect(calls).toStrictEqual([]);
 });
+
+/** WHY: one valid notification per method, so a method a newer SDK adds fails here by name until it has a case. */
+const VALID_NOTIFICATION: Record<string, unknown> = {
+  'haptic.impact': { style: 'medium' },
+  'link.open': { url: 'https://open.spotify.com/track/1' },
+  'map.openPlace': { place: 'booth:b12' },
+  'miniapp.open': { target: 'setlist/today' },
+  'share.open': { url: 'https://skkuverse.com/p/x' },
+  'analytics.track': { event: 'vote' },
+  'app.ready': {},
+  'shell.set': { header: 'overlay' },
+};
+
+test.each([...NOTIFY_METHODS])('%s, which the SDK grants, is handled', (method) => {
+  expect(VALID_NOTIFICATION, `no valid example for ${method}`).toHaveProperty([method]);
+  expect(send({ method, params: VALID_NOTIFICATION[method] }).outcome, method).toBe('handled');
+});
