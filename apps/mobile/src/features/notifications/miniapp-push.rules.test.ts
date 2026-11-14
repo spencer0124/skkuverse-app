@@ -188,7 +188,7 @@ describe('hasMiniAppPush — which mini apps show the subscription toggle', () =
     expect(hasMiniAppPush(undefined, during)).toBe(false);
     expect(hasMiniAppPush('', during)).toBe(false);
   });
-  test('ESKARA 2026 shows no toggle once its window closes (spencer0124/skkuverse#49, D7)', () => {
+  test('ESKARA 2026 shows no toggle once its window closes (an issue outside this repository, D7)', () => {
     // Arrange
     const reverified = Date.parse('2026-10-22T12:00:00+09:00');
 
@@ -198,7 +198,7 @@ describe('hasMiniAppPush — which mini apps show the subscription toggle', () =
   });
 });
 
-describe('hasMiniAppPushToggle — the switch stays while it is the way off (spencer0124/skkuverse#49, D7)', () => {
+describe('hasMiniAppPushToggle — the switch stays while it is the way off (an issue outside this repository, D7)', () => {
   const during = Date.parse('2026-10-02T22:00:00+09:00');
   const after = Date.parse('2026-10-03T00:00:00+09:00');
 

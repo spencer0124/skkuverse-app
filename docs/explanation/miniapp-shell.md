@@ -122,4 +122,4 @@ not receive it sees the box ask for it, and a fresh entry makes the box glow.
 ## Related
 
 - [ADR 0006](../decisions/0006-miniapp-webview-push-architecture.md): why the two screens are apart
-- The mini-app repository's protocol reference, for the messages, the manifest, the viewport and the host object
+- The mini-app repository's [protocol reference](https://github.com/spencer0124/skkuverse-miniapp/blob/main/docs/reference/protocol.md), for the messages, the manifest, the viewport and the host object
