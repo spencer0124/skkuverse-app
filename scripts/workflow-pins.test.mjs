@@ -5,8 +5,9 @@
 //     `<owner>/<repo>[/<path>]@<40 hex>` followed by `# v<version>`, so a tag
 //     moved upstream cannot change what runs, and a reader still sees which
 //     release it is;
-//   - `.github/dependabot.yml` updates the `github-actions` ecosystem only,
-//     monthly, seven days after a release, as one grouped pull request into `dev`.
+//   - `.github/dependabot.yml` updates the `github-actions` ecosystem monthly,
+//     seven days after a release, as one grouped pull request into `dev`, and on
+//     npm only the `@skkuverse/*` packages.
 //
 // Patterns rather than a YAML parser: the repo avoids the dependency.
 import { test } from 'node:test';
@@ -61,10 +62,15 @@ test('.github/workflows pins every external action to a commit SHA with its vers
   assert.deepEqual(unpinned, []);
 });
 
-test('.github/dependabot.yml updates the github-actions pins only, monthly, seven days after a release, in one grouped pull request into dev', () => {
+test('.github/dependabot.yml updates the github-actions pins monthly in one grouped pull request, and the @skkuverse/* packages alone on npm, seven days after a release, into dev', () => {
   const config = readFileSync(join(root, '.github/dependabot.yml'), 'utf8');
   const ecosystems = [...config.matchAll(/^\s*- package-ecosystem: (\S+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(ecosystems, ['github-actions']);
+  assert.deepEqual(ecosystems, ['github-actions', 'npm']);
+  const npm = config.slice(config.indexOf('- package-ecosystem: npm'));
+  const allow = npm.slice(npm.indexOf('\n    allow:\n') + 1).split('\n').slice(1).filter((line) => /^ {6}\S/.test(line));
+  assert.deepEqual(allow, ['      - dependency-name: "@skkuverse/*"']);
+  assert.match(npm, /^ {4}target-branch: dev$/m);
+  assert.match(npm, /^ {4}cooldown:\n {6}default-days: 7$/m);
   assert.match(config, /^ {4}schedule:\n {6}interval: monthly$/m);
   assert.match(config, /^ {4}cooldown:\n {6}default-days: 7$/m);
   assert.match(config, /^ {4}target-branch: dev$/m);

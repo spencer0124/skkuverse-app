@@ -1,7 +1,8 @@
 # Keeps the SHA-pinned actions current: one grouped pull request a month for
 # every `uses:` in .github/workflows/, each pin rewritten with its new version
-# comment. npm is left out on purpose: dependencies are bumped one package per
-# change by hand (CLAUDE.md). A release is offered only once it is seven days
+# comment. npm is limited to the @skkuverse/* SDK packages, so a release that adds a
+# bridge method opens a pull request whose tests name any method the app does not
+# handle yet; every other package is bumped one per change by hand. A release is offered only once it is seven days
 # old, so a compromised version pulled upstream within days never reaches a
 # pull request. scripts/workflow-pins.test.mjs pins this file and the SHA pins
 # it maintains.
@@ -18,3 +19,12 @@ updates:
       github-actions:
         patterns:
           - "*"
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    allow:
+      - dependency-name: "@skkuverse/*"

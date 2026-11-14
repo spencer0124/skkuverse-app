@@ -117,6 +117,23 @@ describe('readHostedMessage', () => {
   });
 });
 
+/** WHY: one valid notification per method, so a method a newer SDK adds fails here by name until it has a case. */
+const VALID_GAME_NOTIFICATION: Record<string, unknown> = {
+  'game.ready': {},
+  'game.start': {},
+  'game.phase': { phase: 'paused' },
+  'game.haptic': { style: 'success' },
+  'game.layout': { rect: RECT },
+  'game.over': { score: 120, ticks: 3600, hit: 'timeout', revives: 0, revivesLeft: 0 },
+};
+
+describe('every granted game method', () => {
+  test.each([...GAME_NOTIFY_METHODS])('%s is handled', (method) => {
+    expect(VALID_GAME_NOTIFICATION, `no valid example for ${method}`).toHaveProperty([method]);
+    expect(read({ method, params: VALID_GAME_NOTIFICATION[method] }).kind, method).not.toBe('dropped');
+  });
+});
+
 describe('isHostedNavigation', () => {
   it.each([
     [PAGE, true],
