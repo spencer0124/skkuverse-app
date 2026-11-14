@@ -40,7 +40,7 @@ Crashlytics. Without them a native crash shows there as `lib*.so + 0x...` only.
 
 - The upload needs outbound network access, and no credential beyond the app ID that
   `google-services.json` carries.
-- Symbols are matched by build ID, so they come from the build that ships, never from a rebuild of
+- Symbols are matched by build ID, so they come from the build that is released, never from a rebuild of
   the same commit.
 
 ## Troubleshooting
@@ -74,7 +74,7 @@ Execution failed for task ':app:mergeReleaseResources'.
 > ERROR: .../assets_video_subsposter.png: AAPT: error: file failed to compile.
 ```
 
-The file's extension disagrees with its contents, typically JPEG data named `.png`. AAPT trusts
+The file's extension disagrees with its contents, typically JPEG data in a file whose name ends in `.png`. AAPT trusts
 the extension and refuses. Only `mergeReleaseResources` in an Android release build runs AAPT:
 Apple's toolchain reads the file header, and an Android debug build gets the asset from Metro. So
 the mismatch can sit in the repo unseen until a store build. Find any others with:

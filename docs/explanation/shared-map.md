@@ -54,8 +54,8 @@ locked ?? stackLens ?? userToggle ?? tabDefault ?? defaultVisibleAt(layer, now)
 
 Every tier is a fallback, never an assignment. `useMapStore` holds only what the user expressed,
 and a chip is an entry on its tab's stack, so releasing it writes nothing. A resolved value written
-into the store would freeze the schedule at its first read, make the user's choice
-indistinguishable from the server's, and let clearing a chip wipe the user's choices.
+into the store would freeze the schedule at its first read. It would also make the user's choice
+indistinguishable from the server's, so clearing a chip would wipe the user's choices.
 
 ## Lenses: what an open sheet lays over the map
 
@@ -80,7 +80,7 @@ what carries a place from one tab into the other (ADR 0022 rule 2).
 
 The camera is the visible map. The host pads the SDK's content area by the top chrome, the focused
 tab's sheet and the tab bar (`visibleMapPadding`), and the SDK keeps the visible map still when the
-padding changes, so a frame lands in the band between the chrome and the sheet. A view frames only
+padding changes, so a frame is placed in the band between the chrome and the sheet. A view frames only
 after the host reports `visibleMapReady`, and the padding follows a drag only between levels whose
 framing is `fit`.
 
@@ -110,19 +110,19 @@ names transit only through `import type` (`TransitSheetRequest` in
 (`scripts/architecture/feature-cycles.test.mjs`) counts runtime imports only, so the graph keeps one
 edge, transit to map, and a runtime import of transit from a map file fails it.
 
-The two meet in `SharedMapShell`, which composes `TransitSheetViews` beside `MapSheetViews` and
+Transit and map meet in `SharedMapShell`, which composes `TransitSheetViews` beside `MapSheetViews` and
 mounts `TransitPlaceFeed` inside `MapHost` to feed the stops and stations as places. A place kind
 from a third feature takes the same path: a request type the map imports as a type, a row in
 `SHEET_KIND_HOME_TAB`, a view table and a feed. Its view def carries what the map cannot know about
 a kind it does not own (`keyOf`, `fromPlace`, `layersFromFeed`).
 
-## What the shared shell re-implements
+## What the shared shell rebuilds
 
 The shell owes what NativeTabs gave for free (ADR 0023 decision 3), decided in
 `apps/mobile/src/bootstrap/tab-bar.rules.ts`. Each item below names the trap, where there is one:
 
 - **The tab slot.** `TabSlot` keeps `detachInactiveScreens={false}`, because the default native
-  screen container takes every touch, out of reach of `pointerEvents`. Box-none goes in the slot's
+  screen container takes every touch, and `pointerEvents` cannot stop it. Box-none goes in the slot's
   `style`, since `TabSlot` ignores a `pointerEvents` prop. The shell renders its own slot because
   upstream's `renderFadingTabScreen` took every touch, and it moves a hidden tab off screen, since
   Fabric unmounts and remounts a `display: 'none'` tab natively on every switch.

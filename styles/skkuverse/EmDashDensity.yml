@@ -1,4 +1,4 @@
-# An em dash is fine. Twelve on a page is the tell.
+# One em dash in a paragraph is fine. A second one is the tell.
 #
 # ai-tells.EmDashUsage flags every one, which is unusable on real prose, and
 # neither the Google nor the Microsoft package measures density at all - both

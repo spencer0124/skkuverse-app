@@ -1,4 +1,4 @@
-// SEE: docs/explanation/shared-map.md ("What the shared shell re-implements"), each NativeTabs behavior this shell owes.
+// SEE: docs/explanation/shared-map.md ("What the shared shell rebuilds"), each NativeTabs behavior this shell owes.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, View } from 'react-native';
@@ -99,7 +99,7 @@ export function SharedMapShell() {
 
   // QUIRK(expo-router): `renderFadingTabScreen`'s views take every touch, so a pan over the map moved nothing.
   // QUIRK(react-native): Fabric remounts `display: 'none'` natively on every switch, so a hidden tab moves off screen.
-  // SEE: docs/explanation/shared-map.md ("What the shared shell re-implements")
+  // SEE: docs/explanation/shared-map.md ("What the shared shell rebuilds")
   const renderTab = useCallback(
     (descriptor: TabsDescriptor, { isFocused, loaded }: TabsSlotRenderOptions) => {
       if (!loaded && !isFocused) return null;
