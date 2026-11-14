@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Moves the server commit server-fixtures.lock.json pins to the head of the public server's main. Dependabot owns every other update.",
+  "enabledManagers": ["custom.regex"],
+  "baseBranchPatterns": ["dev"],
+  "dependencyDashboard": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^server-fixtures\\.lock\\.json$/"],
+      "matchStrings": [
+        "\"repo\": \"(?<depName>[^\"]+)\",\\s*\"ref\": \"(?<currentValue>[^\"]+)\",\\s*\"sha\": \"(?<currentDigest>[0-9a-f]{40})\""
+      ],
+      "datasourceTemplate": "git-refs",
+      "packageNameTemplate": "https://github.com/spencer0124/{{depName}}"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["custom.regex"],
+      "commitMessageTopic": "the server fixtures pin",
+      "prBodyNotes": ["Run `node scripts/sync-server-fixtures.mjs --write` on this branch when the `workspace` job fails on a fixture."]
+    }
+  ]
+}

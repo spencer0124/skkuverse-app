@@ -1,0 +1,157 @@
+[
+  {
+    "local": "apps/mobile/src/features/games/__fixtures__/game-detail.apple-game.json",
+    "server": "contracts/produced/fixtures/games.gameEntry/apple-game.json"
+  },
+  {
+    "local": "apps/mobile/src/features/games/__fixtures__/game-index.apple-game-listed.json",
+    "server": "contracts/produced/fixtures/games.gameIndex/apple-game-listed.json"
+  },
+  {
+    "local": "apps/mobile/src/features/games/__fixtures__/game-index.empty.json",
+    "server": "contracts/produced/fixtures/games.gameIndex/empty.json"
+  },
+  {
+    "local": "apps/mobile/src/features/home/__fixtures__/banner-carousel.campus-image.json",
+    "server": "contracts/produced/fixtures/ui.bannerCarousel/campus-image.json"
+  },
+  {
+    "local": "apps/mobile/src/features/home/__fixtures__/banner-carousel.home-top.json",
+    "server": "contracts/produced/fixtures/ui.bannerCarousel/home-top.json"
+  },
+  {
+    "local": "apps/mobile/src/features/home/__fixtures__/home-layout.production-en.json",
+    "server": "contracts/produced/fixtures/ui-home.homeLayout/production-en.json"
+  },
+  {
+    "local": "apps/mobile/src/features/home/__fixtures__/home-layout.production-ko.json",
+    "server": "contracts/produced/fixtures/ui-home.homeLayout/production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-event-details.booth-synthetic.json",
+    "server": "contracts/produced/fixtures/map-event-details.eventPlaceDetails/booth-synthetic.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-event-details.production-ko.json",
+    "server": "contracts/produced/fixtures/map-event-details.eventPlaceDetails/production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-config.base-chips-ko.json",
+    "server": "contracts/produced/fixtures/map-config.mapConfig/base-chips-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-config.festival-synthetic.json",
+    "server": "contracts/produced/fixtures/map-config.mapConfig/festival-synthetic.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-config.production-ko.json",
+    "server": "contracts/produced/fixtures/map-config.mapConfig/production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-config.transit-tabs-ko.json",
+    "server": "contracts/produced/fixtures/map-config.mapConfig/transit-tabs-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-overlays.campus-production-ko.json",
+    "server": "contracts/produced/fixtures/map.mapOverlays/campus-production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-overlays.event-production-ko.json",
+    "server": "contracts/produced/fixtures/map.mapOverlays/event-production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/__fixtures__/server-map-overlays.event-synthetic.json",
+    "server": "contracts/produced/fixtures/map.mapOverlays/event-synthetic.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.building-hit.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchData/building-hit.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.building-hit.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchMeta/building-hit.json",
+    "key": "meta"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.empty.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchData/empty.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.empty.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchMeta/empty.json",
+    "key": "meta"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.space-hit.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchData/space-hit.json"
+  },
+  {
+    "local": "apps/mobile/src/features/map/building/__fixtures__/building-search.space-hit.json",
+    "server": "contracts/produced/fixtures/building-search.buildingSearchMeta/space-hit.json",
+    "key": "meta"
+  },
+  {
+    "local": "apps/mobile/src/features/meals/__fixtures__/meals-daily.hssc-2026-10-14.json",
+    "server": "contracts/produced/fixtures/meals-menus.dailyMeals/hssc.json"
+  },
+  {
+    "local": "apps/mobile/src/features/meals/__fixtures__/meals-daily.nsc-2026-10-14.json",
+    "server": "contracts/produced/fixtures/meals-menus.dailyMeals/nsc.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-detail-screen.json",
+    "server": "contracts/produced/fixtures/notices-detail.noticeDetail/screen.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-detail.json",
+    "server": "contracts/produced/fixtures/notices-detail.noticeDetail/production.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-list-rows.json",
+    "server": "contracts/produced/fixtures/notices-list.noticeList/rows.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-list.json",
+    "server": "contracts/produced/fixtures/notices-list.noticeList/production.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-screen-open-call.json",
+    "server": "contracts/produced/fixtures/notices.noticeScreen/open-call-with-one-link.json"
+  },
+  {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-tabs.json",
+    "server": "contracts/produced/fixtures/notices-tabs.noticeTabs/production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/transit/subway/__fixtures__/hyehwa.json",
+    "server": "contracts/produced/fixtures/subway-arrivals.subwayStationArrivals/hyehwa.json"
+  },
+  {
+    "local": "apps/mobile/src/features/transit/subway/__fixtures__/jeongja.json",
+    "server": "contracts/produced/fixtures/subway-arrivals.subwayStationArrivals/jeongja.json"
+  },
+  {
+    "local": "apps/mobile/src/features/transit/subway/__fixtures__/stations.json",
+    "server": "contracts/produced/fixtures/subway-station-list.subwayStationList/all-stations.json"
+  },
+  {
+    "local": "apps/mobile/src/features/transit/subway/__fixtures__/sungkyunkwan.json",
+    "server": "contracts/produced/fixtures/subway-arrivals.subwayStationArrivals/sungkyunkwan.json"
+  },
+  {
+    "local": "apps/mobile/src/features/web/__fixtures__/miniapp-detail.eskara-2026.json",
+    "server": "contracts/produced/fixtures/miniapps.miniAppDetail/eskara-2026.json"
+  },
+  {
+    "local": "apps/mobile/src/features/web/__fixtures__/miniapp-detail.hssc.json",
+    "server": "contracts/produced/fixtures/miniapps.miniAppDetail/hssc.json"
+  },
+  {
+    "local": "apps/mobile/src/features/web/__fixtures__/miniapp-feed.production-ko.json",
+    "server": "contracts/produced/fixtures/miniapps-notifications.miniAppFeed/production-ko.json"
+  },
+  {
+    "local": "apps/mobile/src/features/web/__fixtures__/miniapp-index.production-ko.json",
+    "server": "contracts/produced/fixtures/miniapps-catalog.miniAppIndex/production-ko.json"
+  }
+]

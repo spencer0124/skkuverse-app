@@ -224,7 +224,7 @@ describe('the notice schemas over the server fixtures', () => {
         "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice02.do?mode=view&articleNo=140482&article.offset=0&articleLimit=10",
         "summary": {
           "details": {
-            "action": "첨부 서류와 함께 aicoss@skku.edu로 이메일 신청",
+            "action": "첨부 서류와 함께 office@example.com로 이메일 신청",
             "host": "인공지능혁신융합대학사업단",
             "impact": "타 대학 과목은 전공 또는 일반선택으로만 인정되며, 승인 후 포기 시 F학점이 부과될 수 있음",
             "target": "학사과정 2개 학기 이상 이수 학생 (2027년 2월 졸업예정자 제외)",
@@ -232,7 +232,7 @@ describe('the notice schemas over the server fixtures', () => {
           "generatedAt": "2026-10-12T02:20:15.269Z",
           "locations": [],
           "model": "claude-haiku-5-5",
-          "oneLiner": "전남대 4개 과목 교류, 이메일 aicoss@skku.edu로 신청, 본교 계절수업과 합산 6학점 이내",
+          "oneLiner": "전남대 4개 과목 교류, 이메일 office@example.com로 신청, 본교 계절수업과 합산 6학점 이내",
           "periods": [
             {
               "endDate": "2026-10-25",

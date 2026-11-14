@@ -1,5 +1,5 @@
 {
-  "_about": "Copied 2026-10-28 from skkuverse-server contracts/produced/fixtures/notices-detail.noticeDetail/screen.json (server commit b65646a0, 2026-10-28), untrimmed. Its own note: GET /notices/biz-undergrad/227123 served by the server at this commit over the _dev notices on 2026-10-28 (npm run verify:serve, Accept-Language ko); a public notice that carries a screen, its body and summary text cut to 120 characters, its author set to null (a poster's name), and every e-mail address and phone number in the screen replaced with a synthetic one",
+  "_about": "Copied by `node scripts/sync-server-fixtures.mjs --write`: data from skkuverse-server contracts/produced/fixtures/notices-detail.noticeDetail/screen.json at 4e2c67ad1486cedf2cb085951924f92d5174a08f. Its own note: GET /notices/biz-undergrad/227123 served by the server at this commit over the _dev notices on 2026-10-28 (npm run verify:serve, Accept-Language ko); a public notice that carries a screen, its body and summary text cut to 120 characters, its author set to null (a poster's name), and every e-mail address and phone number in the screen replaced with a synthetic one",
   "data": {
     "id": "6ad71879b9824ffd69686f01",
     "sourceId": "biz-undergrad",
@@ -61,7 +61,7 @@
             {
               "text": "광고업계 취업을 희망하는 누구나",
               "sub": null,
-              "fromPoster": false,
+              "source": "body",
               "actions": [],
               "quote": "광고업계 취업을 희망하는 누구나"
             }
@@ -76,7 +76,7 @@
             {
               "text": "사전신청",
               "sub": null,
-              "fromPoster": false,
+              "source": "body",
               "actions": [
                 {
                   "kind": "link",
@@ -96,7 +96,7 @@
             {
               "text": "11/6(금) 10시~18시 개최",
               "sub": "잠실 한국광고문화회관 2층",
-              "fromPoster": false,
+              "source": "body",
               "actions": [],
               "quote": "2026년 11월 6일(금) 10:00~18:00"
             }
@@ -118,7 +118,8 @@
         "links": [
           {
             "role": "사전신청",
-            "domain": "forms.gle"
+            "domain": "forms.gle",
+            "url": "https://forms.gle/WWPGKVxiUoXXLBBe6"
           }
         ]
       }

@@ -172,7 +172,7 @@ describe('the screen over the server fixtures', () => {
       ],
       action: { label: '사전신청', action: { kind: 'link', url: 'https://forms.gle/WWPGKVxiUoXXLBBe6' } },
       collapsed: null,
-      original: { posterCount: 1, attachments: [], links: [{ role: '사전신청', domain: 'forms.gle', url: null }] },
+      original: { posterCount: 1, attachments: [], links: [{ role: '사전신청', domain: 'forms.gle', url: 'https://forms.gle/WWPGKVxiUoXXLBBe6' }] },
       isStaffOnly: false,
       isPosterOnly: false,
     });

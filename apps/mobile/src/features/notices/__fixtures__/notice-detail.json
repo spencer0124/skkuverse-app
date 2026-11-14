@@ -1,5 +1,5 @@
 {
-  "_about": "Copied 2026-10-20 from skkuverse-server contracts/produced/fixtures/notices-detail.noticeDetail/production.json (server commit f084746e, 2026-10-14), untrimmed. Its own note: GET /notices/skku-notice02/140482 captured from production 2026-10-14 (stage 11 shape snapshot); a public notice, its body and summary text cut to 120 characters, its attachments and edit history to one entry. Its markdown carries no image or link, so content-ref cases with those build their markdown inline.",
+  "_about": "Copied by `node scripts/sync-server-fixtures.mjs --write`: data from skkuverse-server contracts/produced/fixtures/notices-detail.noticeDetail/production.json at 4e2c67ad1486cedf2cb085951924f92d5174a08f. Its own note: GET /notices/skku-notice02/140482 captured from production 2026-10-14 (stage 11 shape snapshot); a public notice, its body and summary text cut to 120 characters, its attachments and edit history to one entry, the office email address in its summary replaced with a synthetic one; the capture predates the screen, so `screen` is null as the detail serves a notice with no facts",
   "data": {
     "id": "6acc38239cb01d9a98e2a2b9",
     "sourceId": "skku-notice02",
@@ -37,7 +37,7 @@
     },
     "summary": {
       "text": "인공지능혁신융합대학사업 협력교와의 2026학년도 겨울 계절수업 학점교류를 신청할 수 있어요. 전남대의 인공지능기초(3학점) 등 4개 과목이 대상이며, 추천 마감은 2026년 10월 25일(일)까지예요. 첨부된 대학별",
-      "oneLiner": "전남대 4개 과목 교류, 이메일 aicoss@skku.edu로 신청, 본교 계절수업과 합산 6학점 이내",
+      "oneLiner": "전남대 4개 과목 교류, 이메일 office@example.com로 신청, 본교 계절수업과 합산 6학점 이내",
       "type": "action_required",
       "periods": [
         {
@@ -53,12 +53,13 @@
       "locations": [],
       "details": {
         "target": "학사과정 2개 학기 이상 이수 학생 (2027년 2월 졸업예정자 제외)",
-        "action": "첨부 서류와 함께 aicoss@skku.edu로 이메일 신청",
+        "action": "첨부 서류와 함께 office@example.com로 이메일 신청",
         "host": "인공지능혁신융합대학사업단",
         "impact": "타 대학 과목은 전공 또는 일반선택으로만 인정되며, 승인 후 포기 시 F학점이 부과될 수 있음"
       },
       "model": "claude-haiku-5-5",
       "generatedAt": "2026-10-12T02:20:15.269Z"
-    }
+    },
+    "screen": null
   }
 }
