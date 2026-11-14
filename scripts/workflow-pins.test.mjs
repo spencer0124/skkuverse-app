@@ -67,7 +67,8 @@ test('.github/dependabot.yml updates the github-actions pins monthly in one grou
   const ecosystems = [...config.matchAll(/^\s*- package-ecosystem: (\S+)$/gm)].map((m) => m[1]);
   assert.deepEqual(ecosystems, ['github-actions', 'npm']);
   const npm = config.slice(config.indexOf('- package-ecosystem: npm'));
-  assert.deepEqual([...npm.matchAll(/^ {6}- dependency-name: "(\S+)"$/gm)].map((m) => m[1]), ['@skkuverse/*']);
+  const allow = npm.slice(npm.indexOf('\n    allow:\n') + 1).split('\n').slice(1).filter((line) => /^ {6}\S/.test(line));
+  assert.deepEqual(allow, ['      - dependency-name: "@skkuverse/*"']);
   assert.match(npm, /^ {4}target-branch: dev$/m);
   assert.match(npm, /^ {4}cooldown:\n {6}default-days: 7$/m);
   assert.match(config, /^ {4}schedule:\n {6}interval: monthly$/m);
