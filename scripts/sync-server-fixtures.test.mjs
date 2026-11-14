@@ -90,6 +90,21 @@ test('a server path missing at the pinned commit fails, in both modes', async ()
   });
 });
 
+test('a pin where no listed path exists points at the lock, not the list', async () => {
+  const t = tree({ 'a.json': { data: { n: 1 } } }, [{ local: 'a.json', server: 'fixtures/one.json' }]);
+  t.lock = { ...t.lock, sha: '0'.repeat(40) };
+  const messages = [];
+  const { error, log } = console;
+  console.error = (m) => messages.push(m);
+  console.log = () => {};
+  try {
+    await withServer(async (base) => assert.equal(await main(['--check'], { ...t, base }), 1));
+  } finally {
+    Object.assign(console, { error, log });
+  }
+  assert.match(messages.join('\n'), /check the sha in server-fixtures\.lock\.json/);
+});
+
 test('an unreachable server fails with the network cause and compares nothing', async () => {
   const t = tree({ 'a.json': { data: { n: 1 } } }, [{ local: 'a.json', server: 'fixtures/one.json' }]);
   const closed = createServer();

@@ -90,7 +90,11 @@ export async function main(argv, config = loadConfig()) {
   for (const r of results) console.log(`${r.status.padEnd(7)} ${r.entry.local} (${r.entry.key}) <- ${r.entry.server}`);
   const missing = results.filter((r) => r.status === 'missing');
   if (missing.length > 0) {
-    console.error(`\n${missing.length} server path(s) do not exist at skkuverse-server ${config.lock.sha}. Fix apps/mobile/server-fixtures.json.`);
+    const fix =
+      missing.length === results.length
+        ? 'No listed path exists there, so check the sha in server-fixtures.lock.json first.'
+        : 'Fix apps/mobile/server-fixtures.json.';
+    console.error(`\n${missing.length} server path(s) do not exist at skkuverse-server ${config.lock.sha}. ${fix}`);
     return 1;
   }
   if (mode === '--write') {
