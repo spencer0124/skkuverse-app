@@ -54,8 +54,11 @@ locked ?? stackLens ?? userToggle ?? tabDefault ?? defaultVisibleAt(layer, now)
 
 Every tier is a fallback, never an assignment. `useMapStore` holds only what the user expressed,
 and a chip is an entry on its tab's stack, so releasing it writes nothing. A resolved value written
-into the store would freeze the schedule at its first read. It would also make the user's choice
-indistinguishable from the server's, so clearing a chip would wipe the user's choices.
+into the store would:
+
+- freeze the schedule at its first read
+- make the user's choice look the same as the server's
+- let clearing a chip wipe the user's choices
 
 ## Lenses: what an open sheet lays over the map
 

@@ -1,6 +1,6 @@
 {
   "lockVersion": 1,
   "repo": "app",
-  "note": "Written by sync_contracts.py. Do not hand-edit, and never resolve a merge conflict here by hand - take either side, then re-run `pull --repo app`.",
+  "note": "Each entry is a file this repository vendors from another one. scripts/architecture/comments/tree.mjs exempts those files from the comment rule. None today.",
   "contracts": {}
 }

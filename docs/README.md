@@ -42,7 +42,7 @@ audience: internal | public
 ---
 ```
 
-- The umbrella's `lint_conventions.py` checks the `status` and `audience` values. The `type` list is this repo's convention, which the checker requires as a key only, so a typo there fails review rather than CI.
+- `scripts/conventions/lint_conventions.py` checks the `status` and `audience` values. The `type` list is this repo's convention, which the checker requires as a key only, so a typo there fails review rather than CI.
 - A `superseded` or `deprecated` document opens its body with a link to the current SSOT. Update `last-updated` whenever you change what the document says.
 
 ## 3. Point at the source, do not copy the value
@@ -52,7 +52,7 @@ audience: internal | public
 ## 4. File names and formatting
 
 - **kebab-case, lowercase, `.md`**, as in `ios-build-deploy.md`. ADRs are `NNNN-kebab-title.md`, zero-padded and preferably starting with a verb. Postmortems are `YYYY-MM-topic.md`. ALL-CAPS names are kept for the files GitHub treats specially: `README`, `CONTRIBUTING`, `LICENSE`.
-- **Write in English**, the fleet policy the umbrella's `lint_conventions.py` enforces. Korean that is itself the product, such as a UX copy example, carries a `<!-- conventions:allow-korean: reason -->` comment on its line, or a whole product-data path is declared under `productCopy` in `.conventions.json`.
+- **Write in English**, the fleet policy `scripts/conventions/lint_conventions.py` enforces. Korean that is itself the product, such as a UX copy example, carries a `<!-- conventions:allow-korean: reason -->` comment on its line, or a whole product-data path is declared under `productCopy` in `.conventions.json`.
 - Every code fence declares a language (`ts`, not `typescript`). Structured facts go in tables, and warnings in GitHub admonitions, `> [!NOTE]` and `> [!WARNING]`. `yarn lint:md` runs markdownlint-cli2 with the rules in `.markdownlint.jsonc`, and `.markdownlint-cli2.jsonc` names the paths to lint.
 
 ## 5. Lifecycle

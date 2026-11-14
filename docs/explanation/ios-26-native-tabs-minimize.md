@@ -217,8 +217,8 @@ needs a sticky effect, use SectionList's sticky header instead:
 The first attempt at fixing the notices tab put the picker selector in an overlay with
 `position: 'absolute'`, `<View style={{position:'absolute', top:0, ...}}><Selector/></View>`, as
 the second child of a Fragment. The chain rule was satisfied and the selector was invisible
-anyway. The exact cause is in the RNSScreen coordinate space, the nav bar
-overlap, or the order of the iOS layout pass, but the practical conclusion is that an
+anyway. The exact cause is not known. It lies in the RNSScreen coordinate space, the nav bar
+overlap, or the order of the iOS layout pass. The practical conclusion is that an
 absolute overlay risks being silently invisible. The fix was to absorb the selector into the
 SectionList's `ListHeaderComponent`, which guarantees visibility and satisfies the chain rule
 at once.
