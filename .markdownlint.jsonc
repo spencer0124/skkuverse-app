@@ -1,14 +1,7 @@
-// Canonical markdownlint rules for every SKKUverse repository.
-//
-// Declared as the contract `conventions.markdownlint`, which each consumer
-// vendors as `.markdownlint.jsonc` and pins by content hash. Whether that
-// contract is enforced yet is state, so it is generated onto the landing page
-// rather than written here. Never edit a vendored copy: edit this file and run
-// `sync_contracts.py pull --all`.
+// The markdownlint rules for SKKUverse repositories.
 //
 // This file carries only the rule set. Each repo names its own paths in its
-// own `.markdownlint-cli2.jsonc`, for the reason given in
-// conventions/README.md.
+// own `.markdownlint-cli2.jsonc`.
 //
 // Consume it like this:
 //

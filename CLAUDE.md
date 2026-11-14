@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Documentation
 
-**Before writing or editing any document, read `docs/README.md`**, the SSOT for the writing rules: a doc holds only what the code cannot say, its frontmatter, kebab-case names, and pointing at the source of a value rather than copying it. `yarn lint:md`, chained into `yarn lint`, runs the umbrella's vendored `.markdownlint.jsonc`, which is edited upstream only. `docs/`, `README.md` and this file are English by fleet policy; Korean product copy carries a `conventions:allow-korean` marker on its line.
+**Before writing or editing any document, read `docs/README.md`**, the SSOT for the writing rules: a doc holds only what the code cannot say, its frontmatter, kebab-case names, and pointing at the source of a value rather than copying it. `yarn lint:md`, chained into `yarn lint`, runs `.markdownlint.jsonc`, and the CI `prose` job runs Vale with `.vale.ini`. `docs/`, `README.md` and this file are English by fleet policy; Korean product copy carries a `conventions:allow-korean` marker on its line.
 
 Skkuverse is the SKKU campus app, a **Yarn workspaces monorepo**: the Expo app in `apps/mobile/`, and `packages/shared`, `packages/sds` and `packages/bridge` (`README.md` has the layout). Every browser surface, the pages the app loads in a web view and the admin console, lives in [skkuverse-web](https://github.com/spencer0124/skkuverse-web) ([umbrella ADR 0005](https://github.com/spencer0124/skkuverse/blob/main/docs/decisions/0005-web-surfaces-dedicated-repo.md)).
 
@@ -24,7 +24,7 @@ npx expo prebuild --clean  # after a native change, then yarn ios or yarn androi
 ```
 
 - Node is pinned to 22 in `.nvmrc`, which `--experimental-strip-types` requires. Expo Go is not used: the custom native modules make every run a native build (CNG).
-- **CI runs on `main` only** (`.github/workflows/ci.yml`, jobs `conventions`, `workspace` and `prose`): a pull request to `main` and a push to `main` run `workspace`, while `conventions` and `prose`, which clone the private umbrella with a key only a `main` run can read, are skipped on the pull request and run on the push; a newer push to a pull request cancels the run it supersedes, and a `main` run is never cancelled. `dev` has no CI, so run `yarn typecheck`, `yarn lint` and `yarn test` locally before pushing there (the local commit gate runs the light checks). **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist; without it the file is untracked and never runs, with no error.
+- **CI runs on pull requests to `main` and `dev` and on pushes to `main`** (`.github/workflows/ci.yml`, jobs `conventions`, `workspace` and `prose`), with no secret and no environment; a newer push to a pull request cancels the run it supersedes, and a `main` run is never cancelled. `conventions` runs `scripts/conventions/lint_conventions.py`, a byte-identical copy of the server's public linter whose source commit the job's comment names. A push to `dev` runs nothing, so run `yarn typecheck`, `yarn lint` and `yarn test` locally first (the local commit gate runs the light checks). **A new workflow file needs a `!` line in `.gitignore`**, which makes `.github/` an allowlist; without it the file is untracked and never runs, with no error.
 
 ## Architecture
 

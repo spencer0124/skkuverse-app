@@ -2,30 +2,5 @@
   "lockVersion": 1,
   "repo": "app",
   "note": "Written by sync_contracts.py. Do not hand-edit, and never resolve a merge conflict here by hand - take either side, then re-run `pull --repo app`.",
-  "contracts": {
-    "conventions.docs-template": {
-      "path": "docs/_template.md",
-      "sha256": "7097688707123a8ddd9392ee147dba66e74133b8472bae44424923ca4073da94",
-      "producer": {
-        "repo": "umbrella",
-        "path": "docs/_template.md",
-        "ref": "main",
-        "commit": "39ffd7c9e56552563a4c9a9f90df4791aebd787e",
-        "sha256": "7097688707123a8ddd9392ee147dba66e74133b8472bae44424923ca4073da94"
-      },
-      "syncedAt": "2026-10-28T09:17:35Z"
-    },
-    "conventions.markdownlint": {
-      "path": ".markdownlint.jsonc",
-      "sha256": "e9657ea55ddfdca15b1a7a3e81be94c8d4845fd6da452f6d5689f12dabb865a5",
-      "producer": {
-        "repo": "umbrella",
-        "path": "conventions/markdownlint.jsonc",
-        "ref": "main",
-        "commit": "39ffd7c9e56552563a4c9a9f90df4791aebd787e",
-        "sha256": "e9657ea55ddfdca15b1a7a3e81be94c8d4845fd6da452f6d5689f12dabb865a5"
-      },
-      "syncedAt": "2026-08-10T04:06:01Z"
-    }
-  }
+  "contracts": {}
 }
