@@ -57,7 +57,7 @@ export function checkFiles(files, read, ctx) {
     .map(({ rule, file, line, message }) => ({ rule, file, line, message }));
 }
 
-/** WHY: a hash-locked vendored file (.contracts.lock.json) is edited upstream, never here. */
+/** WHY: a vendored file listed in .contracts.lock.json is edited at its source, never here. */
 function vendoredSources() {
   const lock = JSON.parse(readFileSync(join(repoRoot, '.contracts.lock.json'), 'utf8'));
   return new Set(Object.values(lock.contracts).map((contract) => contract.path));

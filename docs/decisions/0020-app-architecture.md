@@ -355,7 +355,7 @@ features/cafeteria/
 app/cafeteria.tsx           export { CafeteriaScreen as default }
 ```
 
-A Firestore source adds a `.repository`. A second source that must be combined with the first, or a flow that runs outside React, adds a `.service`. A second flow with its own data becomes a sub-feature folder of the same shape. The data hook exists only once another feature reads the menus.
+A Firestore source adds a `.repository`. A `.service` comes with a second source that must be combined with the first, or with a flow that runs outside React. A second flow with its own data becomes a sub-feature folder of the same shape. The data hook exists only once another feature reads the menus.
 
 ## Related
 
