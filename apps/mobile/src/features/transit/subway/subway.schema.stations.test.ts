@@ -44,6 +44,10 @@ describe('the subway station list', () => {
       'sadang',
       'geumjeong',
       'jongno-5-ga',
+      'migeum',
+      'bokjeong',
+      'garak-market',
+      'songpa',
     ]);
     expect(reports).toStrictEqual([]);
   });
@@ -82,6 +86,10 @@ describe('the subway station list', () => {
       ['sadang', null],
       ['geumjeong', null],
       ['jongno-5-ga', null],
+      ['migeum', null],
+      ['bokjeong', null],
+      ['garak-market', null],
+      ['songpa', null],
     ]);
   });
 
@@ -136,6 +144,10 @@ describe('the subway station list', () => {
       'sadang',
       'geumjeong',
       'jongno-5-ga',
+      'migeum',
+      'bokjeong',
+      'garak-market',
+      'songpa',
     ]);
   });
 

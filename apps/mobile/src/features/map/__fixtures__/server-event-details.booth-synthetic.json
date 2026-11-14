@@ -1,5 +1,5 @@
 {
-  "_about": "Copied 2026-10-20 from skkuverse-server contracts/produced/fixtures/map-event-details.eventPlaceDetails/booth-synthetic.json, untrimmed. Its own note: Synthetic: no festival was live at capture; generated 2026-10-11 by the real map services over an in-memory repository with the shipped eskara-2026 layer set and an open activation; one booth with every block type and both action types",
+  "_about": "Copied by `node scripts/sync-server-fixtures.mjs --write`: data from skkuverse-server contracts/produced/fixtures/map-event-details.eventPlaceDetails/booth-synthetic.json at 4e2c67ad1486cedf2cb085951924f92d5174a08f. Its own note: Synthetic: no festival was live at capture; generated 2026-10-11 by the real map services over an in-memory repository with the shipped eskara-2026 layer set and an open activation; one booth with every block type and both action types",
   "data": {
     "details": {
       "eskara-2026-booth-01": {
@@ -22,7 +22,7 @@
               "ko": "인스타그램",
               "en": "인스타그램"
             },
-            "profileUrl": "https://www.instagram.com/skku_council",
+            "profileUrl": "https://www.instagram.com/example_council",
             "postUrl": "https://www.instagram.com/p/C1abc"
           },
           {

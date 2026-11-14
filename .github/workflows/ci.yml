@@ -74,6 +74,10 @@ jobs:
       # hoisted one made every fresh install open on "No QueryClient set".
       - name: One copy of each singleton library
         run: node scripts/check-singletons.mjs
+      # Red means a copy of a server fixture under apps/mobile differs from the public server commit
+      # server-fixtures.lock.json pins; the log names the fix. Reads raw.githubusercontent.com.
+      - name: Server fixtures match the pinned server commit
+        run: node scripts/sync-server-fixtures.mjs --check
       - run: yarn typecheck
       - run: yarn lint
       # `yarn lint` runs the ratchet against HEAD, which here is the commit

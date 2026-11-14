@@ -1,5 +1,5 @@
 {
-  "_about": "Copied 2026-10-20 from skkuverse-server contracts/produced/fixtures/notices-list.noticeList/production.json (server commit f084746e, 2026-10-14), untrimmed. Its own note: GET /notices/source/skku-notice06?limit=50&type=action_required and GET /notices?sourceIds=… captured from production 2026-10-14 (stage 11 shape snapshot); public notices, trimmed to an action_required badge with a time, an informational range and, where the capture had one, an unsummarized notice",
+  "_about": "Copied by `node scripts/sync-server-fixtures.mjs --write`: data from skkuverse-server contracts/produced/fixtures/notices-list.noticeList/production.json at 4e2c67ad1486cedf2cb085951924f92d5174a08f. Its own note: GET /notices/source/skku-notice06?limit=50&type=action_required and GET /notices?sourceIds=… captured from production 2026-10-14 (stage 11 shape snapshot); public notices, trimmed to an action_required badge with a time, an informational range and, where the capture had one, an unsummarized notice; `row: null` added by hand to each item, because the capture predates the notice facts and production served no row",
   "data": {
     "notices": [
       {
@@ -28,7 +28,8 @@
             "time": "18:00",
             "label": "공고 및 서류 접수"
           }
-        }
+        },
+        "row": null
       },
       {
         "id": "6acf2f809cb01d9a98eb3c7b",
@@ -56,7 +57,8 @@
             "time": null,
             "label": "신청기간"
           }
-        }
+        },
+        "row": null
       }
     ],
     "nextCursor": "eyJkIjoiMjAyNi0wOS0zMCIsImMiOiIyMDI2LTEwLTEyVDA1OjEwOjE2LjIwOFoiLCJpIjoiNmFiY2MxOGFiMGMyN2QzOTkwYmI4M2NiIn0",

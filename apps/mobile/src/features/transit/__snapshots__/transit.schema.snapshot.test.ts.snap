@@ -5327,6 +5327,113 @@ exports[`subway stations > all stations 1`] = `
     ],
     "title": "종로5가역",
   },
+  {
+    "campus": null,
+    "coords": {
+      "lat": 37.35003,
+      "lng": 127.108914,
+    },
+    "id": "migeum",
+    "lines": [
+      {
+        "code": "D1",
+        "color": "D4003B",
+        "marker": {
+          "color": "D4003B",
+          "text": "신",
+        },
+        "name": "신분당선",
+      },
+      {
+        "code": "K1",
+        "color": "F5A200",
+        "marker": {
+          "color": "A26B00",
+          "text": "수",
+        },
+        "name": "수인분당선",
+      },
+    ],
+    "title": "미금역",
+  },
+  {
+    "campus": null,
+    "coords": {
+      "lat": 37.47055,
+      "lng": 127.126696,
+    },
+    "id": "bokjeong",
+    "lines": [
+      {
+        "code": "8",
+        "color": "E6186C",
+        "marker": {
+          "color": "E4186B",
+          "text": "8",
+        },
+        "name": "8호선",
+      },
+      {
+        "code": "K1",
+        "color": "F5A200",
+        "marker": {
+          "color": "A26B00",
+          "text": "수",
+        },
+        "name": "수인분당선",
+      },
+    ],
+    "title": "복정역",
+  },
+  {
+    "campus": null,
+    "coords": {
+      "lat": 37.492567,
+      "lng": 127.118078,
+    },
+    "id": "garak-market",
+    "lines": [
+      {
+        "code": "3",
+        "color": "EF7C1C",
+        "marker": {
+          "color": "BB5C0D",
+          "text": "3",
+        },
+        "name": "3호선",
+      },
+      {
+        "code": "8",
+        "color": "E6186C",
+        "marker": {
+          "color": "E4186B",
+          "text": "8",
+        },
+        "name": "8호선",
+      },
+    ],
+    "title": "가락시장역",
+  },
+  {
+    "campus": null,
+    "coords": {
+      "lat": 37.499703,
+      "lng": 127.112183,
+    },
+    "id": "songpa",
+    "lines": [
+      {
+        "code": "8",
+        "color": "E6186C",
+        "marker": {
+          "color": "E4186B",
+          "text": "8",
+        },
+        "name": "8호선",
+      },
+    ],
+    "title": "송파역",
+  },
 ]
 `;
 

@@ -1,5 +1,5 @@
 {
-  "_about": "Copied 2026-10-28 from skkuverse-server contracts/produced/fixtures/notices.noticeScreen/open-call-with-one-link.json (server commit b65646a0, 2026-10-28), untrimmed. Its own note: The `screen` of GET /notices/skku-main/140223 served by the server at this commit over the _dev notices on 2026-10-28 (npm run verify:serve, Accept-Language ko); a public notice with an open call and one sign-up link, every e-mail address and phone number replaced with a synthetic one",
+  "_about": "Copied by `node scripts/sync-server-fixtures.mjs --write`: data from skkuverse-server contracts/produced/fixtures/notices.noticeScreen/open-call-with-one-link.json at 4e2c67ad1486cedf2cb085951924f92d5174a08f. Its own note: The `screen` of GET /notices/skku-main/140223 served by the server at this commit over the _dev notices on 2026-10-28 (npm run verify:serve, Accept-Language ko); a public notice with an open call and one sign-up link, every e-mail address and phone number replaced with a synthetic one",
   "data": {
     "header": {
       "firstSeen": "9/30(수) 처음 올라옴",
@@ -19,14 +19,14 @@
           {
             "text": "전국 대학생(예비 창업)팀",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "전국 대학생(예비 창업)팀"
           },
           {
             "text": "휴학생 참여 가능, 단 상금 지급 불가",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "휴학생 참여 가능, 단 상금 지급 불가"
           }
@@ -41,35 +41,35 @@
           {
             "text": "한양대학교 총장상",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "한양대학교 총장상"
           },
           {
             "text": "대상 1개팀 (200만원)",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "대상 1개팀 (200만원)"
           },
           {
             "text": "최우수상 1개팀 (150만원)",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "최우수상 1개팀 (150만원)"
           },
           {
             "text": "우수상 1개팀 (100만원)",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "우수상 1개팀 (100만원)"
           },
           {
             "text": "장려상 3개팀 (50만원)",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "장려상 3개팀 (50만원)"
           }
@@ -84,7 +84,7 @@
           {
             "text": "신청 및 운영 홈페이지 링크",
             "sub": null,
-            "fromPoster": false,
+            "source": "body",
             "actions": [
               {
                 "kind": "link",
@@ -104,14 +104,14 @@
           {
             "text": "9/28(월)~12/5(토)",
             "sub": "온라인 · 한양대학교 ERICA 캠퍼스",
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "2026.09.28(월) ~ 12.05(토)"
           },
           {
             "text": "11/2(월)~12/5(토)",
             "sub": "온라인 · 한양대학교 ERICA 캠퍼스",
-            "fromPoster": false,
+            "source": "body",
             "actions": [],
             "quote": "2026.11.02(월) ~ 12.05(토)"
           }
@@ -126,11 +126,12 @@
           {
             "text": "한양대학교ERICA SW중심대학사업단 contact@example.com",
             "sub": "문의",
-            "fromPoster": false,
+            "source": "body",
             "actions": [
               {
                 "kind": "email",
-                "target": "contact@example.com"
+                "target": "contact@example.com",
+                "subject": null
               }
             ],
             "quote": "contact@example.com"
@@ -153,7 +154,8 @@
       "links": [
         {
           "role": "신청 및 운영 홈페이지 링크",
-          "domain": "histarter.wixsite.com"
+          "domain": "histarter.wixsite.com",
+          "url": "https://histarter.wixsite.com/2026ericasw"
         }
       ]
     }
