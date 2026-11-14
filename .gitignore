@@ -99,6 +99,11 @@ firestore-export/
 # explain-diff plugin output — generated HTML walkthroughs, regenerable
 explain-diff/
 
+# Vale styles: `vale sync` downloads the third-party packages .vale.ini pins
+# into styles/. styles/skkuverse/ is our own source and is committed.
+/styles/*
+!/styles/skkuverse/
+
 # Local, maintainer-only notes. Outside the docs conventions (language,
 # frontmatter) on purpose; never committed.
 docs/private/

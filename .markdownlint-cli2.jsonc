@@ -1,13 +1,8 @@
 {
   // markdownlint-cli2 config - the docs convention gate (see docs/README.md).
   "config": {
-    // The rules come from .markdownlint.jsonc, vendored from the umbrella by the
-    // `conventions.markdownlint` contract and hash-locked in .contracts.lock.json.
-    // Never edit that file: edit conventions/markdownlint.jsonc in the umbrella
-    // and run `sync_contracts.py pull --repo app`, or CI fails on the hash.
-    //
-    // Rules central, globs local. Which paths this repo lints is genuinely
-    // repo-specific, so that half stays below.
+    // The rules live in .markdownlint.jsonc and the paths below, so the rule
+    // set can be shared with another repository unchanged.
     "extends": ".markdownlint.jsonc"
   },
   "globs": ["**/*.md"],

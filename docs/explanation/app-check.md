@@ -42,11 +42,11 @@ In a `__DEV__` build, this is the only path that reliably decides which debug to
 - **Do not trust the UserDefaults fallback.** Writing `GACAppCheckDebugToken` into UserDefaults is
   silently ignored on the iOS simulator with this Expo prebuild: no error, and an automatically
   generated token is used instead.
-- **No shipped artifact carries the token.** `app.config.ts` adds it to the extras only when
+- **No build or update contains the token.** `app.config.ts` adds it to the extras only when
   neither `EAS_BUILD_PROFILE` nor `RELEASE_CHANNEL` is set, so every EAS build profile and every
   OTA publish leaves it out, and a release path it does not know fails safe.
 - **No dev server serves the token.** Metro hands the app config, extras included, to anyone who
-  can reach it. So the extras carry the token only when expo-constants' build script evaluates
+  can reach it. So the extras hold the token only when expo-constants' build script evaluates
   `app.config.ts`, which Xcode and Gradle run on every native build, by any route, and Metro never
   does. A build without a dev client reads the extras compiled into it, never Metro's. An
   environment variable could not draw this line, since a Metro started in the same shell inherits it.

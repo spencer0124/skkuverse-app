@@ -5,15 +5,14 @@ name: CI
 # `workspace` says this repo's own code is, and `prose` says the writing drifted. Conflating them
 # makes the failure name useless.
 on:
-  # main only, and every job runs on both events. dev has no CI: run
-  # `yarn typecheck`, `yarn lint` and `yarn test` locally before pushing there.
+  # A pull request to main or dev runs every job, and a push to main runs them
+  # again as the record of what shipped.
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches: [main]
 
-# Every job only reads the checkout. The umbrella clone authenticates with its
-# own deploy key, never with the GITHUB_TOKEN.
+# Every job only reads the checkout.
 permissions:
   contents: read
 
@@ -25,50 +24,26 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Offline and dependency-free: ubuntu-latest ships python3 and the umbrella's
-  # exported/ scripts are stdlib-only, so adopting the fleet's rules costs no
-  # install step and no entry in any manifest here.
+  # Offline and dependency-free: ubuntu-latest ships python3 and the linter is
+  # stdlib-only, so this job installs nothing.
   conventions:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # WHY: no step pushes, so the token is not left in .git/config for the steps that follow.
+          persist-credentials: false
 
-      # Cloned to RUNNER_TEMP rather than into the workspace, where the lint
-      # and typecheck jobs would see it.
-      - name: Fetch umbrella tooling
-        # The umbrella repo is private; clone it with its read-only deploy key
-        # and GitHub's pinned host key.
-        env:
-          UMBRELLA_DEPLOY_KEY: ${{ secrets.UMBRELLA_DEPLOY_KEY }}
-        run: |
-          key="$RUNNER_TEMP/umbrella_key"
-          printf '%s\n' "$UMBRELLA_DEPLOY_KEY" > "$key"
-          chmod 600 "$key"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$RUNNER_TEMP/known_hosts"
-          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts" \
-            git clone --depth 1 git@github.com:spencer0124/skkuverse.git "$RUNNER_TEMP/sv"
-          rm -f "$key"
-
-      # tabsContract.generated.ts mirrors skkuverse-server's categories.json.
-      # Adding a *fixed* tab without updating the mirror is otherwise
-      # undetectable — derive() warns on an unknown picker key, but a missing
-      # fixed key just means that tab's subscribers receive nothing, with no
-      # error anywhere. Offline: it compares against this repo's own
-      # .contracts.lock.json, so it can never go red because someone edited a
-      # category upstream.
-      - name: Contract integrity
-        run: python3 "$RUNNER_TEMP/sv/exported/sync_contracts.py" check --repo app --root .
-
-      # The shared conventions, defined once in the umbrella. Same clone, so
-      # this adds no dependency.
-      #
       # The full set, with no --only. `language` scans docs/, README.md and
       # CLAUDE.md, and passes because they are English. Korean that is the
       # product keeps a `conventions:allow-korean` marker on its own line,
       # which is the exception this repo declares in place of exempting whole
       # files in .conventions.json.
+      #
+      # WHY: a byte-identical copy of skkuverse-server's public
+      # .github/contract-tools/exported/lint_conventions.py at 4e2c67ad1486cedf2cb085951924f92d5174a08f.
       - name: Conventions
-        run: python3 "$RUNNER_TEMP/sv/exported/lint_conventions.py" --root .
+        run: python3 -I scripts/conventions/lint_conventions.py --root .
 
   # apps/ and packages/ — 316 tests and the whole ESLint + markdownlint surface
   # that had only ever run on a laptop.
@@ -80,6 +55,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # WHY: no step pushes, so the token is not left in .git/config for the code under check.
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -146,12 +123,10 @@ jobs:
       - name: No .env file reaches a bundle
         run: node scripts/check-bundle-secrets.mjs
 
-  # The fleet's prose rules, defined once in the umbrella. Deliberately not a
-  # contract: vale takes --config as a path, so this reads the umbrella's copy
-  # directly and a file fetched fresh at CI time cannot drift.
+  # The prose rules in .vale.ini and styles/skkuverse/.
   #
   # Every ai-tells rule ships at `level: error`, so this job is a hard gate, not
-  # advice. The one advisory rule is the umbrella's own EmDashDensity, at
+  # advice. The one advisory rule is our own EmDashDensity, at
   # `level: warning`, which the exit code ignores.
   prose:
     runs-on: ubuntu-latest
@@ -159,20 +134,9 @@ jobs:
       VALE_VERSION: 3.17.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Fetch umbrella tooling
-        # The umbrella repo is private; clone it with its read-only deploy key
-        # and GitHub's pinned host key.
-        env:
-          UMBRELLA_DEPLOY_KEY: ${{ secrets.UMBRELLA_DEPLOY_KEY }}
-        run: |
-          key="$RUNNER_TEMP/umbrella_key"
-          printf '%s\n' "$UMBRELLA_DEPLOY_KEY" > "$key"
-          chmod 600 "$key"
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > "$RUNNER_TEMP/known_hosts"
-          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts" \
-            git clone --depth 1 git@github.com:spencer0124/skkuverse.git "$RUNNER_TEMP/sv"
-          rm -f "$key"
+        with:
+          # WHY: no step pushes, so the token is not left in .git/config for the steps that follow.
+          persist-credentials: false
 
       - name: Install Vale
         run: |
@@ -180,10 +144,9 @@ jobs:
             | sudo tar -xz -C /usr/local/bin vale
           vale --version
 
-      # docs/ and README.md, which is the scope conventions/prose.md publishes
-      # for a consumer. CLAUDE.md is left out on purpose: it is dense reference
-      # prose whose opening line is boilerplate the rules reject, and making it
-      # clean is separate work.
+      # docs/ and README.md. CLAUDE.md is left out on purpose: it is dense
+      # reference prose whose opening line is boilerplate the rules reject, and
+      # making it clean is separate work.
       - name: Prose
         shell: bash
         run: |
@@ -192,8 +155,7 @@ jobs:
           # would exit with tee's status and this job would pass while printing
           # findings.
           set -o pipefail
-          # StylesPath is relative to the config file, so sync writes into the
-          # umbrella clone under RUNNER_TEMP and never touches this checkout.
-          vale sync --config="$RUNNER_TEMP/sv/.vale.ini"
-          vale --config="$RUNNER_TEMP/sv/.vale.ini" --glob='!node_modules/**' docs/ README.md \
+          # sync writes the pinned packages into styles/, which .gitignore keeps untracked.
+          vale sync --config=.vale.ini
+          vale --config=.vale.ini --glob='!node_modules/**' docs/ README.md \
             | tee -a "$GITHUB_STEP_SUMMARY"

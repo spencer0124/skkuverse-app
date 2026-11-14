@@ -35,8 +35,9 @@ jobs:
     steps:
       # Full history: `merge-base` needs the real graph, and a shallow clone
       # would make the ancestry test answer from a truncated view.
+      # WHY: the fast-forward pushes with the credential this checkout persists, and no step uploads the workspace.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
+        with: # zizmor: ignore[artipacked]
           fetch-depth: 0
 
       - name: Fast-forward dev to main

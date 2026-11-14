@@ -65,7 +65,7 @@ Both behaviours run through this native path in the installed `react-native-scre
    out. On the first render, before props arrive, the call is deferred until they do.
    `RNSScrollViewHelper` then runs the finder to locate the chain root ScrollView and flips
    only its `contentInsetAdjustmentBehavior` to `Automatic`, which is its single
-   responsibility. UITabBarController's minimize tracking runs off the same
+   responsibility. UITabBarController's `minimize-on-scroll` tracking runs off the same
    first-descendant chain.
 
 2. **The finder's algorithm**, in `RNSScrollViewFinder.mm`:
@@ -88,10 +88,10 @@ Both behaviours run through this native path in the installed `react-native-scre
    root element, such as swapping a `<View>` for a `<ScrollView>`, which makes React Native
    unmount and remount the RNSScreen's first child.
 
-The deferral on the first render can let a deeper chain resolve, because the children may
-have mounted by the time props arrive, but nothing guarantees it. So in practice **only one
+A deeper chain can resolve when the first render is deferred, because the children may
+have mounted by the time props arrive. Nothing guarantees it. So in practice **only one
 level of depth is guaranteed**. The RNSScreen's direct child has to
-be a UIScrollView for either minimize or the automatic contentInset to work.
+be a UIScrollView for either `minimize-on-scroll` or the automatic contentInset to work.
 
 ### Verified by experiment
 
@@ -148,7 +148,7 @@ return <SectionList .../>;               // swapping the root makes RN unmount a
 ```
 
 Changing the kind of root element makes the RNSScreen's first child unmount and remount,
-which calls the native finder again and lets it discover the new SectionList. Minimize does
+which calls the native finder again and lets it discover the new SectionList. `minimize-on-scroll` does
 not work during the transient, while only the Skeleton is on screen.
 
 ### A screen with branches or an overlay
@@ -176,7 +176,7 @@ are guaranteed.
 
 The `header: () => <CustomHeader />` callback from `expo-router/Stack` is mounted by the
 native `react-native-screens` native stack as a UINavigationBar customView, which puts it
-outside the RNSScreen subviews tree. It therefore has no effect on the chain, which has been
+outside the RNSScreen subviews tree, so it has no effect on the chain, which has been
 verified. Both `headerShown: true` and a `header` callback are safe.
 
 ## Anti-patterns
@@ -199,8 +199,8 @@ return <SectionList ... />;
 
 **The absolute overlay pattern is also discouraged.** It satisfies the chain rule, but the
 RNSScreen coordinate space, overlap with the navigation bar area, view ordering and
-safe-area insets can combine to make the overlay silently invisible. When a sticky effect is
-genuinely needed, use SectionList's sticky header instead:
+safe-area insets can combine to make the overlay silently invisible. When a screen
+needs a sticky effect, use SectionList's sticky header instead:
 
 ```tsx
 // ⚠️ absolute overlay — can end up invisible, as it did in NoticesTabScreen
@@ -214,11 +214,11 @@ genuinely needed, use SectionList's sticky header instead:
 
 ### Failure case: the selector absolute overlay (2026-04-26)
 
-The first attempt at fixing the notices tab put the picker selector in an absolutely
-positioned overlay, `<View style={{position:'absolute', top:0, ...}}><Selector/></View>`, as
+The first attempt at fixing the notices tab put the picker selector in an overlay with
+`position: 'absolute'`, `<View style={{position:'absolute', top:0, ...}}><Selector/></View>`, as
 the second child of a Fragment. The chain rule was satisfied and the selector was invisible
-anyway. The exact cause sits somewhere in the RNSScreen coordinate space, the nav bar
-overlap, or the order of the iOS layout pass, but the practical conclusion is that an
+anyway. The exact cause is not known. It lies in the RNSScreen coordinate space, the nav bar
+overlap, or the order of the iOS layout pass. The practical conclusion is that an
 absolute overlay risks being silently invisible. The fix was to absorb the selector into the
 SectionList's `ListHeaderComponent`, which guarantees visibility and satisfies the chain rule
 at once.
@@ -265,7 +265,7 @@ The fix in `apps/mobile/src/features/notices/`:
 
 - callstack/react-native-bottom-tabs issue
   [#496](https://github.com/callstack/react-native-bottom-tabs/issues/496) — nested Stack and
-  minimize compatibility, the same mechanism
+  `minimize-on-scroll` compatibility, the same mechanism
 - Apple's `UITabBarMinimizeBehavior` (iOS 26 and later), with its four values: automatic,
   never, onScrollDown, onScrollUp
 - The native source, locally:
