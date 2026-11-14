@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const config = JSON.parse(readFileSync(join(root, 'repo-links.json'), 'utf8'));
 
-const REPO = '(skkuverse[\\w.-]*?)(?:\\.git)?(?=[/#?)"\'\\s`>\\]]|$)';
+const REPO = '(skkuverse[\\w-]*)(?![\\w-])';
 const PATTERNS = [
   { kind: 'link', re: new RegExp(`github\\.com[:/]([\\w-]+)/${REPO}`, 'g') },
   { kind: 'link', re: new RegExp(`\\b([\\w-]+)\\.github\\.io/${REPO}`, 'g') },
@@ -47,9 +47,13 @@ test('a link to a public repository under the configured owner passes', () => {
   assert.deepEqual(badReferences(text, cfg), []);
 });
 
-test('a link under the wrong owner fails', () => {
-  const text = url('https://github.com', 'skkuverse', 'skkuverse-server');
-  assert.deepEqual(badReferences(text, cfg).map((r) => r.kind), ['link']);
+test('a link under the wrong owner fails, whatever follows it', () => {
+  const text = [
+    url('https://github.com', 'skkuverse', 'skkuverse-server'),
+    `${url('https://github.com', 'another-owner', 'skkuverse-web')}, followed by text`,
+    `${url('https://github.com', 'skkuverse', 'skkuverse-app')}.`,
+  ].join('\n');
+  assert.deepEqual(badReferences(text, cfg).map((r) => r.kind), ['link', 'link', 'link']);
 });
 
 test('a link to a private repository fails, the github.io form included', () => {
@@ -84,6 +88,6 @@ test(`every tracked file links only to ${config.owner}'s public repositories`, (
     [],
     'Point each one at a repository in repo-links.json, or write "outside this repository" for a private one' +
       ' ("an issue outside this repository" for an issue). After an owner change in repo-links.json, rewrite every link with:\n' +
-      `  git ls-files -z | xargs -0 perl -pi -e 's#github\\.com([:/])<old>/${names}#github.com$1${config.owner}/$2#g; s#\\b<old>\\.github\\.io/${names}#${config.owner}.github.io/$1#g'`,
+      `  git ls-files -z | xargs -0 perl -pi -e 's#github\\.com([:/])<old>/${names}#github.com$1${config.owner}/$2#g; s#\\b<old>\\.github\\.io/${names}#${config.owner}.github.io/$1#g; s{\\b<old>/${names}#(\\d)}{${config.owner}/$1#$2}g'`,
   );
 });
