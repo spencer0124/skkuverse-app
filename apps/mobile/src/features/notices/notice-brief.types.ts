@@ -7,7 +7,7 @@ export interface NoticeBriefSource {
 }
 
 export interface NoticeBriefAnswer {
-  question: string;
+  question: string | null;
   bullets: { text: string }[];
 }
 
@@ -31,8 +31,6 @@ export interface NoticeBriefAttachment {
 export interface NoticeBriefLink {
   url: string;
   domain: string;
-  title: string | null;
-  siteName: string | null;
 }
 
 export interface NoticeBriefPhone {

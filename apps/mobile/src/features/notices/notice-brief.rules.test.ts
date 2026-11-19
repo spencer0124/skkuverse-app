@@ -126,21 +126,21 @@ describe('toFullBodyMarkdown', () => {
 });
 
 describe('toNoticeBrief', () => {
-  it('carries a live notice over with no bullets, its attachments and the refs found in its body', () => {
+  it('carries a live notice over with no question, no bullets, its attachments and the refs found in its body', () => {
     // Arrange
     const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
-    const refs = { images: [], links: [{ url: 'https://a.example/x', text: null, domain: 'a.example' }], emails: ['a@b.c'], phones: ['02-1-2'] };
+    const refs = { images: [], links: [{ url: 'https://a.example/x', text: '신청하기', domain: 'a.example' }], emails: ['a@b.c'], phones: ['02-1-2'] };
 
     // Act
-    const brief = toNoticeBrief({ notice, boardName: 'Board', refs, question: 'Q' });
+    const brief = toNoticeBrief({ notice, boardName: 'Board', refs });
 
     // Assert
     expect(brief.title).toBe(notice.title);
     expect(brief.source.boardName).toBe('Board');
     expect(brief.source.url).toBe(notice.sourceUrl);
-    expect(brief.answer).toEqual({ question: 'Q', bullets: [] });
+    expect(brief.answer).toEqual({ question: null, bullets: [] });
     expect(brief.refs.attachments).toHaveLength(notice.attachments.length);
-    expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example', title: null, siteName: null }]);
+    expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example' }]);
     expect(brief.refs.emails).toEqual([{ address: 'a@b.c', label: null }]);
     expect(brief.refs.phones).toEqual([{ number: '02-1-2', label: null }]);
   });
@@ -165,27 +165,27 @@ describe('the dummy briefs', () => {
     expect(all.some((b) => b.refs.attachments.some((a) => a.isForm))).toBe(true);
   });
 
-  it('cover every row shape: a titled link with its site name, a bare link, labelled and bare phones, a labelled email', () => {
+  it('cover every row shape: links as a URL and a domain alone, labelled and bare phones, a labelled email, a long label', () => {
     // Arrange
     const links = all.flatMap((b) => b.refs.links);
     const phones = all.flatMap((b) => b.refs.phones);
     const emails = all.flatMap((b) => b.refs.emails);
 
     // Act & Assert
-    expect(links.some((l) => l.title && l.siteName)).toBe(true);
-    expect(links.some((l) => l.title && !l.siteName)).toBe(true);
-    expect(links.some((l) => !l.title)).toBe(true);
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((l) => Object.keys(l).sort().join() === 'domain,url')).toBe(true);
     expect(phones.some((p) => p.label)).toBe(true);
     expect(phones.some((p) => !p.label)).toBe(true);
-    expect(emails.some((e) => e.label)).toBe(true);
     expect(phones.some((p) => (p.label?.length ?? 0) >= 16)).toBe(true);
+    expect(emails.some((e) => e.label)).toBe(true);
   });
 
-  it('cover an English notice whose question and bullets are shown as sent', () => {
+  it('cover a notice with no question, and an English notice whose question and bullets are shown as sent', () => {
     // Arrange
     const english = all.filter((b) => /^[\x20-\x7E]+$/.test(b.title));
 
     // Act & Assert
+    expect(all.some((b) => b.answer.question === null && b.answer.bullets.length > 0)).toBe(true);
     expect(english.length).toBeGreaterThan(0);
     for (const brief of english) {
       expect(brief.answer.question).toMatch(/^[\x20-\x7E]+$/);

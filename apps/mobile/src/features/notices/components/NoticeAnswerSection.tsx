@@ -18,15 +18,17 @@ export function NoticeAnswerSection({ answer, posters, sourceUrl, onPosterPress,
 
   return (
     <View>
-      <ListHeader
-        style={styles.header}
-        title={
-          <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
-            {answer.question}
-          </ListHeader.TitleParagraph>
-        }
-      />
-      <View style={styles.bullets}>
+      {answer.question !== null ? (
+        <ListHeader
+          style={styles.header}
+          title={
+            <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
+              {answer.question}
+            </ListHeader.TitleParagraph>
+          }
+        />
+      ) : null}
+      <View style={[styles.bullets, answer.question === null ? styles.bulletsWithoutHeader : null]}>
         {answer.bullets.length > 0 ? (
           answer.bullets.map((bullet, index) => (
             <View key={index} style={styles.bullet}>
@@ -80,6 +82,10 @@ const useStyles = createThemedStyles(() => ({
     paddingHorizontal: SdsSpacing.gutter,
     paddingBottom: SdsSpacing.x6,
     gap: SdsSpacing.x3,
+  },
+  // WHY: the header's own top padding, kept so the gap under the title pill is the same with or without one.
+  bulletsWithoutHeader: {
+    paddingTop: SdsSpacing.x8,
   },
   posters: {
     paddingBottom: SdsSpacing.x6,

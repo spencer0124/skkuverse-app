@@ -46,8 +46,8 @@ export function NoticeRefsSection({
         <RefRow
           key={link.url}
           Icon={LinkSimpleIcon}
-          title={link.title ?? link.domain}
-          subtitle={link.title ? (link.siteName ?? link.domain) : t('notices.brief.link')}
+          title={link.domain}
+          subtitle={t('notices.brief.link')}
           onPress={() => onLinkPress(link)}
         />
       ))}

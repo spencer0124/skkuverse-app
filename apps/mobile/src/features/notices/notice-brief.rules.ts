@@ -77,11 +77,10 @@ export interface ToNoticeBriefInputs {
   notice: NoticeDetail;
   boardName: string | null;
   refs: ContentRefs;
-  question: string;
 }
 
 /** WHY: until the server sends the brief, a live notice still opens in this layout, with no bullets. */
-export function toNoticeBrief({ notice, boardName, refs, question }: ToNoticeBriefInputs): NoticeBrief {
+export function toNoticeBrief({ notice, boardName, refs }: ToNoticeBriefInputs): NoticeBrief {
   return {
     id: `${notice.sourceId}-${notice.articleNo}`,
     title: notice.title,
@@ -92,11 +91,11 @@ export function toNoticeBrief({ notice, boardName, refs, question }: ToNoticeBri
       isEdited: (notice.editInfo?.count ?? 0) > 0,
       url: notice.sourceUrl,
     },
-    answer: { question, bullets: [] },
+    answer: { question: null, bullets: [] },
     body: { markdown: notice.contentMarkdown, posters: [] },
     refs: {
       attachments: notice.attachments.map((a) => ({ name: a.name, url: a.url, isForm: false })),
-      links: refs.links.map((link) => ({ url: link.url, domain: link.domain, title: link.text, siteName: null })),
+      links: refs.links.map((link) => ({ url: link.url, domain: link.domain })),
       phones: refs.phones.map((number) => ({ number, label: null })),
       emails: refs.emails.map((address) => ({ address, label: null })),
     },
