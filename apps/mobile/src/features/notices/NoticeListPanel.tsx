@@ -25,7 +25,6 @@ import { NoticeRow } from './NoticeRow';
 import { NoticeFactRow } from './components/NoticeFactRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './NoticeEmptyState';
-import { useSetNoticeSiblings } from './useSetNoticeSiblings';
 import { logNoticesContentSelect } from '@/platform/analytics';
 import { useClock } from '@/platform/clock';
 import { isGateOpen } from '@/platform/ota';
@@ -132,24 +131,15 @@ export function NoticeListPanel(props: Props) {
   }, [hasDayHeaders, dataUpdatedAt, now, refetch]);
 
   const navSourceId = multi ? undefined : props.sourceId;
-  const setSiblings = useSetNoticeSiblings();
   const handleSelect = useCallback(
     (n: NoticeListItem) => {
       logNoticesContentSelect({
         content_type: 'list_row',
         item_id: `${navSourceId ?? n.sourceId}/${n.articleNo}`,
       });
-      // WHY: store the route's own sourceId (the item's on a multi-source tab), or the detail's params never match.
-      setSiblings(
-        items.map((it) => ({
-          sourceId: navSourceId ?? it.sourceId,
-          articleNo: it.articleNo,
-          title: it.title,
-        })),
-      );
       router.push(`/notices/${navSourceId ?? n.sourceId}/${n.articleNo}` as never);
     },
-    [router, navSourceId, items, setSiblings],
+    [router, navSourceId],
   );
 
   const onEndReached = useCallback(() => {

@@ -52,7 +52,8 @@ npx expo prebuild --clean  # after a native change, then yarn ios or yarn androi
 - **The gate branch unmounts the header and the bottom accessory** (`headerShown: false`, the accessory prop `undefined`); hiding or covering them does not work.
 - **The first-launch intro is not the notices wizard.** The tour (`src/features/tour/`) is a branch of `apps/mobile/src/bootstrap/InitGate.tsx`, not a route, shown once to anyone not signed in with Google; `seen.intro` never unlocks the notices tab, and the wizard's `skipLogin` is frozen at mount, never recomputed from the live `isAnonymous`. Their reasons are comments in `InitGate.tsx` and `features/notices/onboarding/useOnboarding.ts`.
 
-- **The server's rows and detail screen (umbrella ADR 0009, outside this repository) render behind the `noticeFacts` gate.** A list item's `row` and a detail's `screen` parse in `notice-facts.schema.ts`, and a null one, or a closed gate, keeps today's row or detail for that notice. Their strings are the server's, rendered as sent. An action target opens only through its kind's allowlist (`toNoticeAction`, `notice-action.rules.ts`), where a map target must parse as a `skku_building` `parseMapPlaceRef`, so a target this build cannot open drops silently.
+- **The server's rows (umbrella ADR 0009, outside this repository) render behind the `noticeFacts` gate.** A list item's `row` parses in `notice-facts.schema.ts`, and a null one, or a closed gate, keeps today's row for that notice. Their strings are the server's, rendered as sent.
+- **The detail screen renders a `NoticeBrief`** (`notice-brief.types.ts`): the title and a source pill, one question with its bullets, and the refs. Until the server sends it, a debug build opens the dummies in `features/notices/__fixtures__/notice-briefs.json` by their notice path (`skkuverse://notices/<sourceId>/<articleNo>`), and a live notice is adapted with no bullets (`toNoticeBrief`).
 
 ### In-app games (`src/features/games/`)
 

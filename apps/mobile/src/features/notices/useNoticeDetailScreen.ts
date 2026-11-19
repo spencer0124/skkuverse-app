@@ -8,18 +8,18 @@ import { useSemanticColors, type SheetRef } from '@skkuverse/sds';
 import { logNoticeView, logNoticesContentSelect } from '@/platform/analytics';
 import { isPageReturn } from '@/platform/analytics.rules';
 import { openExternalUrl, openInAppBrowser, shareContent } from '@/platform/handoff';
-import { isGateOpen } from '@/platform/ota';
 import { useReviewPrompt } from '@/features/feedback/useReviewPrompt';
 import { THREE_DAYS_MS } from '@/features/feedback/feedback.constants';
 import { useBookmark } from './useBookmark';
 import { useNoticeDetail } from './useNoticeDetail';
 import { useNoticeTabs } from './useNoticeTabs';
-import { useNoticeScreenActions } from './components/useNoticeScreenActions';
 import { toSourceName } from './notices.rules';
 import { extractContentRefs } from './content-refs.rules';
 import { buildAttachmentUrl, canPreview } from './attachment.rules';
 import { decideNoticeDetailState } from './notice-detail.rules';
-import type { NoticeAttachment } from './notices.types';
+import { toFullBodyMarkdown, toNoticeBrief } from './notice-brief.rules';
+import type { NoticeBriefAttachment, NoticeBriefLink } from './notice-brief.types';
+import { dummyNoticeBrief } from './notices.client';
 
 const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
   presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
@@ -40,10 +40,13 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   const { t } = useT();
   const color = useSemanticColors();
   const router = useRouter();
-  const { data, isLoading, isError, error, refetch } = useNoticeDetail(sourceId, articleNo);
+  const dummy = useMemo(() => dummyNoticeBrief(sourceId, articleNo), [sourceId, articleNo]);
+  const { data, isLoading, isError, error, refetch } = useNoticeDetail(
+    dummy ? null : sourceId,
+    dummy ? null : articleNo,
+  );
   const { data: tabsConfig } = useNoticeTabs();
   const [toastText, setToastText] = useState<string | null>(null);
-  const [sheetQuote, setSheetQuote] = useState<{ quote: string | null; tapId: number }>({ quote: null, tapId: 0 });
   const [isRemoving, setIsRemoving] = useState(false);
 
   const review = useReviewPrompt({
@@ -64,8 +67,6 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     onReviewEligible: review.triggerIfEligible,
   });
 
-  const state = decideNoticeDetailState({ isLoading, isError, error, data, bookmark: bookmarkEntry });
-  const screen = data && isGateOpen('noticeFacts') ? data.screen : null;
   const boardName = data ? (toSourceName(tabsConfig, data.sourceId) ?? data.department) : null;
 
   const onRemoveBookmark = useCallback(() => {
@@ -95,7 +96,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
       sourceId,
       articleNo,
       hasSummary: data.summary != null,
-      hasScreen: screen !== null,
+      hasScreen: false,
       summaryType: data.summary?.type,
     });
   }, [sourceId, articleNo, data?.summary?.type]); // eslint-disable-line react-hooks/exhaustive-deps -- one view per notice and summary type, not per refetch (comment above)
@@ -121,44 +122,42 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     [data?.contentMarkdown, data?.attachments],
   );
 
+  const brief = useMemo(
+    () =>
+      dummy ??
+      (data
+        ? toNoticeBrief({
+            notice: data,
+            boardName,
+            refs: contentRefs,
+            question: t('notices.brief.defaultQuestion'),
+            label: t('notices.brief.label'),
+          })
+        : undefined),
+    [dummy, data, boardName, contentRefs, t],
+  );
+  const state = decideNoticeDetailState({ isLoading, isError, error, data: brief, bookmark: bookmarkEntry });
+  const fullBody = useMemo(() => (brief ? toFullBodyMarkdown(brief.body) : null), [brief]);
+  const itemId = `${sourceId}/${articleNo}`;
+
   const sourceSheetRef = useRef<SheetRef>(null);
   const openSourceSheet = useCallback(() => {
-    const current = dataRef.current;
-    if (current) {
-      logNoticesContentSelect({
-        content_type: 'detail_view_source',
-        item_id: `${current.sourceId}/${current.articleNo}`,
-      });
-    }
-    setSheetQuote((previous) => ({ quote: null, tapId: previous.tapId + 1 }));
+    logNoticesContentSelect({ content_type: 'detail_view_source', item_id: itemId });
     sourceSheetRef.current?.present?.();
-  }, []);
-
-  const openQuote = useCallback((quote: string | null) => {
-    setSheetQuote((previous) => ({ quote, tapId: previous.tapId + 1 }));
-    sourceSheetRef.current?.present?.();
-  }, []);
+  }, [itemId]);
 
   const closeSourceSheet = useCallback(() => {
     sourceSheetRef.current?.dismiss?.();
   }, []);
 
-  const screenActions = useNoticeScreenActions({ sourceId, articleNo, onCopy, openQuote });
-
   // WHY: the external browser, not the in-app shell: this opens from inside the source sheet, and a
   // router.push from there lands behind the sheet, so nothing seems to happen.
-  const sourceUrl = data?.sourceUrl;
+  const sourceUrl = brief?.source.url;
   const openOriginal = useCallback(() => {
-    const current = dataRef.current;
-    if (current) {
-      logNoticesContentSelect({
-        content_type: 'detail_open_original',
-        item_id: `${current.sourceId}/${current.articleNo}`,
-      });
-    }
+    logNoticesContentSelect({ content_type: 'detail_open_original', item_id: itemId });
     if (!sourceUrl) return;
     void openExternalUrl(sourceUrl);
-  }, [sourceUrl]);
+  }, [sourceUrl, itemId]);
 
   const openAttachment = useCallback(
     (url: string, mode: 'inline' | 'download', name?: string) => {
@@ -172,8 +171,18 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     [sourceUrl, color],
   );
 
-  const onAttachmentPreview = useCallback(
-    (a: NoticeAttachment) => {
+  const onSourcePress = useCallback(() => {
+    logNoticesContentSelect({ content_type: 'detail_open_original', item_id: itemId });
+    if (!sourceUrl) return;
+    void openInAppBrowser(sourceUrl, {
+      ...inAppBrowserOptions,
+      controlsColor: color.fg.brand,
+      toolbarColor: color.bg.layerDefault,
+    });
+  }, [sourceUrl, itemId, color]);
+
+  const onAttachmentPress = useCallback(
+    (a: NoticeBriefAttachment) => {
       const previewable = canPreview(a.name);
       logNoticesContentSelect({
         content_type: previewable
@@ -187,16 +196,19 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     [openAttachment],
   );
 
-  const onAttachmentDownload = useCallback(
-    (a: NoticeAttachment) => {
-      logNoticesContentSelect({
-        content_type: 'detail_attachment_download',
-        item_id: a.name,
-      });
-      openAttachment(a.url, 'download', a.name);
-    },
-    [openAttachment],
-  );
+  const onLinkPress = useCallback((link: NoticeBriefLink) => {
+    void openExternalUrl(link.url);
+  }, []);
+
+  const onPhonePress = useCallback((phone: string) => {
+    void openExternalUrl(`tel:${phone.replace(/[^\d+]/g, '')}`);
+  }, []);
+
+  const onEmailPress = useCallback((email: string) => {
+    void openExternalUrl(`mailto:${email}`);
+  }, []);
+
+  const onAnswerInfo = useCallback(() => setToastText(t('notices.brief.answerInfo')), [t]);
 
   const onSave = useCallback(() => {
     const current = dataRef.current;
@@ -230,14 +242,9 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
 
   return {
     ...state,
-    ...screenActions,
-    screen,
-    boardName,
     saved,
     isRemoving,
-    contentRefs,
-    sourceMarkdown: data?.contentMarkdown ?? null,
-    sheetQuote,
+    fullBody,
     sourceUrl,
     sourceSheetRef,
     toastText,
@@ -250,8 +257,12 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     openSourceSheet,
     closeSourceSheet,
     openOriginal,
-    onAttachmentPreview,
-    onAttachmentDownload,
+    onSourcePress,
+    onAttachmentPress,
+    onLinkPress,
+    onPhonePress,
+    onEmailPress,
+    onAnswerInfo,
     onToastClose: () => setToastText(null),
   };
 }

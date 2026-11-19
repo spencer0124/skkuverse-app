@@ -7,7 +7,6 @@ import { useT, SdsSpacing } from '@skkuverse/shared';
 import { Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
 import { GLOW_BLUR, GlowBackdrop } from '@/components/GlowBackdrop';
 import { logNoticesContentSelect, track } from '@/platform/analytics';
-import { useSetNoticeSiblings } from '../useSetNoticeSiblings';
 import { NoticeOverviewCard } from './NoticeOverviewCard';
 import { NoticeOverviewSkeleton } from './NoticeOverviewSkeleton';
 import { overviewOutcome } from './overview.rules';
@@ -31,7 +30,6 @@ export function NoticeOverviewSection({ q, sourceIds }: Props) {
   const styles = useStyles();
   const { t } = useT();
   const router = useRouter();
-  const setSiblings = useSetNoticeSiblings();
   const query = useNoticeOverview({ q, sourceIds });
   const { data, isError } = query;
   const overview = data?.overview ?? null;
@@ -70,12 +68,9 @@ export function NoticeOverviewSection({ q, sourceIds }: Props) {
         content_type: 'overview_source',
         item_id: `${source.sourceId}/${source.articleNo}`,
       });
-      setSiblings(
-        sources.map((s) => ({ sourceId: s.sourceId, articleNo: s.articleNo, title: s.title })),
-      );
       router.push(`/notices/${source.sourceId}/${source.articleNo}` as never);
     },
-    [overview, router, setSiblings],
+    [overview, router],
   );
 
   const announced = useRef<string | null>(null);

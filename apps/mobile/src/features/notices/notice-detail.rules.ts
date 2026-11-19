@@ -1,29 +1,28 @@
 import type { AppFailure, BookmarkEntry } from '@skkuverse/shared';
-import type { NoticeDetail } from './notices.types';
 
-export type NoticeDetailState =
+export type NoticeDetailState<T> =
   | { status: 'loading' }
   | { status: 'deleted'; entry: BookmarkEntry }
   | { status: 'error' }
-  | { status: 'ready'; notice: NoticeDetail };
+  | { status: 'ready'; notice: T };
 
-export interface DecideNoticeDetailStateInputs {
+export interface DecideNoticeDetailStateInputs<T> {
   isLoading: boolean;
   isError: boolean;
   error: AppFailure | null;
-  data: NoticeDetail | undefined;
+  data: T | undefined;
   bookmark: BookmarkEntry | null;
 }
 
 // WHY: the tombstone is only for a deleted notice the user saved; any other 404 keeps the plain
 // error and retry, as the server's notices API decision says.
-export function decideNoticeDetailState({
+export function decideNoticeDetailState<T>({
   isLoading,
   isError,
   error,
   data,
   bookmark,
-}: DecideNoticeDetailStateInputs): NoticeDetailState {
+}: DecideNoticeDetailStateInputs<T>): NoticeDetailState<T> {
   if (isLoading) return { status: 'loading' };
   if (isError && error?.type === 'server' && error.statusCode === 404 && bookmark !== null) {
     return { status: 'deleted', entry: bookmark };

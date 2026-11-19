@@ -6,7 +6,6 @@
 import { create } from 'zustand';
 import { createPendingSlot } from '@skkuverse/shared';
 import { devLog } from '@/platform/dev-log';
-import type { NoticeSibling } from './siblings.rules';
 
 interface NoticesUiState {
   activeTabKey: string;
@@ -20,18 +19,6 @@ export const useNoticesUiStore = create<NoticesUiState>((set) => ({
   setActiveTabKey: (key) => set({ activeTabKey: key }),
   accessorySearchQuery: '',
   setAccessorySearchQuery: (q) => set({ accessorySearchQuery: q }),
-}));
-
-interface NoticeSiblingsState {
-  items: NoticeSibling[];
-  setItems: (items: NoticeSibling[]) => void;
-  clear: () => void;
-}
-
-export const useNoticeSiblingsStore = create<NoticeSiblingsState>((set) => ({
-  items: [],
-  setItems: (items) => set({ items }),
-  clear: () => set({ items: [] }),
 }));
 
 // WHY: module state is safe to share with `+native-intent.tsx`, which runs outside React in the same bundle;

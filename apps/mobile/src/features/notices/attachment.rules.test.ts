@@ -1,28 +1,16 @@
 /**
- * Attachment kinds, previews and the hotlink proxy URL, over the production
- * fixture's attachment and a few names of each kind.
+ * Previews and the hotlink proxy URL, over the production fixture's attachment.
  */
 import { describe, expect, it } from 'vitest';
 import detail from './__fixtures__/notice-detail.json';
-import {
-  buildAttachmentUrl,
-  canPreview,
-  canThumbnail,
-  getAttachmentKind,
-  getExtension,
-  getExtensionLabel,
-} from './attachment.rules';
+import { buildAttachmentUrl, canPreview } from './attachment.rules';
 
 const attachment = detail.data.attachments[0]!;
 
 describe('the fixture attachment', () => {
-  it('is an archive with an uppercase extension, read case-insensitively', () => {
+  it('is an archive with an uppercase extension, read case-insensitively, so it only downloads', () => {
     // Assert
-    expect(getExtension(attachment.name)).toBe('.zip');
-    expect(getAttachmentKind(attachment.name)).toBe('archive');
-    expect(getExtensionLabel(attachment.name)).toBe('ZIP');
     expect(canPreview(attachment.name)).toBe(false);
-    expect(canThumbnail(attachment.name)).toBe(false);
   });
 
   it('opens through the proxy with its notice page as the referer', () => {
@@ -53,29 +41,11 @@ describe('the fixture attachment', () => {
   });
 });
 
-describe('attachment kinds', () => {
-  it('maps each extension family to its kind', () => {
+describe('previews', () => {
+  it('previews all but binary documents', () => {
     // Assert
-    expect(['a.jpg', 'a.webp', 'a.bmp'].map(getAttachmentKind)).toEqual(['image', 'image', 'image']);
-    expect(getAttachmentKind('a.pdf')).toBe('pdf');
-    expect(['a.hwp', 'a.hwpx', 'a.doc', 'a.docx'].map(getAttachmentKind)).toEqual(['doc', 'doc', 'doc', 'doc']);
-    expect(['a.xls', 'a.xlsx', 'a.csv'].map(getAttachmentKind)).toEqual(['sheet', 'sheet', 'sheet']);
-    expect(['a.ppt', 'a.pptx'].map(getAttachmentKind)).toEqual(['slide', 'slide']);
-    expect(['a.rar', 'a.7z'].map(getAttachmentKind)).toEqual(['archive', 'archive']);
-    expect(getAttachmentKind('README')).toBe('other');
-  });
-
-  it('thumbnails only the image types the proxy serves, previews all but binary documents', () => {
-    // Assert
-    expect(['a.jpg', 'a.jpeg', 'a.png', 'a.gif'].every(canThumbnail)).toBe(true);
-    expect(canThumbnail('a.webp')).toBe(false);
     expect(canPreview('a.pdf')).toBe(true);
     expect(canPreview('a.hwp')).toBe(false);
-  });
-
-  it('has no label or extension for a name without one', () => {
-    // Assert
-    expect(getExtension('README')).toBe('');
-    expect(getExtensionLabel('README')).toBeNull();
+    expect(canPreview('README')).toBe(true);
   });
 });

@@ -2,7 +2,7 @@
 // cannot render without is required, and every other field keeps its default.
 import { z } from 'zod';
 import { openEnum, openUnionArray, text, tolerantArray } from '@skkuverse/shared';
-import { listOrEmpty, noticeListRowSchema, noticeScreenSchema, nullOr } from './notice-facts.schema';
+import { listOrEmpty, noticeListRowSchema, nullOr } from './notice-facts.schema';
 import type { NoticeAttachment, NoticeDetail, NoticeDetailSummary, NoticeEditInfo, NoticeEndAt, NoticeListItem, NoticeListItemSummary, NoticeLocation, NoticePage, NoticePeriod, NoticeStartAt, NoticeSummaryDetails, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
 const str = (fallback = '') => z.string().catch(fallback);
@@ -137,7 +137,6 @@ export const noticeDetailSchema = z
     crawledAt: str(),
     editInfo: editInfoSchema,
     summary: detailSummarySchema,
-    screen: noticeScreenSchema,
   })
   .transform((detail): NoticeDetail => detail);
 

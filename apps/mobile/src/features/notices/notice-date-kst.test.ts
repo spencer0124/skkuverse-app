@@ -1,13 +1,13 @@
 /**
  * Notice dates are KST calendar dates (spec notices/notice-dates): the badge
- * and the timeline judge "today", "D-n" and "past" on the KST day of the
- * instant they are given, so a phone set to New York reads what a phone in
+ * and the first-seen age judge "today", "D-n" and "yesterday" on the KST day
+ * of the instant they are given, so a phone set to New York reads what a phone in
  * Seoul reads. Only the device zone is set; every case passes its instant.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildNoticeTimeline } from './timeline.rules';
+import { toNoticeBriefAge } from './notice-brief.rules';
 import { formatDeadlineBadge } from './deadline.rules';
-import type { NoticeListItemSummary, NoticePeriod } from './notices.types';
+import type { NoticeListItemSummary } from './notices.types';
 
 const ORIGINAL_TZ = process.env.TZ;
 
@@ -32,14 +32,6 @@ const deadline = (date: string): NoticeListItemSummary => ({
   endAt: { date, time: null, label: null },
 });
 
-const period = (startDate: string, endDate: string): NoticePeriod => ({
-  label: null,
-  startDate,
-  startTime: null,
-  endDate,
-  endTime: null,
-});
-
 describe('notice dates on the KST calendar', () => {
   it('runs in a zone other than KST', () => {
     // Assert
@@ -62,20 +54,12 @@ describe('notice dates on the KST calendar', () => {
     expect(badge?.pill).toEqual({ text: '마감', variant: 'closed' });
   });
 
-  it('marks a period current at 23:30 KST inside it', () => {
+  it('ages a notice first seen at 23:00 KST as yesterday at 00:30 KST, while New York sees one day', () => {
     // Act
-    const timeline = buildNoticeTimeline([period('2026-10-19', '2026-10-21')], atKst(2026, 10, 20, 23, 30));
+    const age = toNoticeBriefAge('2026-10-18T23:00:00+09:00', atKst(2026, 10, 19, 0, 30));
 
     // Assert
-    expect(timeline.entries[0]?.status).toBe('current');
-  });
-
-  it('marks a period current from its first KST morning, while New York is still on the day before', () => {
-    // Act
-    const timeline = buildNoticeTimeline([period('2026-10-19', '2026-10-21')], atKst(2026, 10, 19, 8, 0));
-
-    // Assert
-    expect(timeline.entries[0]?.status).toBe('current');
+    expect(age).toEqual({ kind: 'yesterday' });
   });
 
   it('gives the same badge for the same instant, whatever the wall clock says', () => {

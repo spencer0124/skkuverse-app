@@ -1,5 +1,5 @@
 /** CONTRACT(skkuverse-server): skkuverse-server/docs/reference/notices-api.md */
-import type { NoticeListRow, NoticeScreen } from './notice-facts.types';
+import type { NoticeListRow } from './notice-facts.types';
 
 export type NoticeSummaryType =
   | 'action_required'
@@ -161,5 +161,4 @@ export interface NoticeDetail {
   crawledAt: string;
   editInfo: NoticeEditInfo | null;
   summary: NoticeDetailSummary | null;
-  screen: NoticeScreen | null;
 }

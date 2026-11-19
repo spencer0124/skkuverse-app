@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View, type Animated } from 'react-native';
 import type { NativeStackNavigationOptions } from 'expo-router';
 import { BookmarkIcon, ShareNetworkIcon } from 'phosphor-react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
 import { useSemanticColors } from '@skkuverse/sds';
 import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { NoticeCollapsedTitle } from './NoticeCollapsedTitle';
 
 const ICON_BOOKMARK = require('../../../../assets/header-icons/bookmark-simple.png');
 const ICON_BOOKMARK_FILL = require('../../../../assets/header-icons/bookmark-simple-fill.png');
@@ -15,6 +16,8 @@ interface UseNoticeDetailHeaderOptionsInputs {
   saved: boolean;
   onSave(): void;
   onShare(): void;
+  collapsedTitle: string | null;
+  titleOpacity: Animated.Value;
 }
 
 export function useNoticeDetailHeaderOptions({
@@ -22,6 +25,8 @@ export function useNoticeDetailHeaderOptions({
   saved,
   onSave,
   onShare,
+  collapsedTitle,
+  titleOpacity,
 }: UseNoticeDetailHeaderOptionsInputs): NativeStackNavigationOptions {
   const { t } = useT();
   const color = useSemanticColors();
@@ -29,6 +34,9 @@ export function useNoticeDetailHeaderOptions({
   // the changed one; `label: ''` keeps the Liquid Glass capsule from flashing its title on each refresh.
   return useMemo<NativeStackNavigationOptions>(() => {
     // WHY: a tombstone hides both buttons: save would early-return on null data, and the shared link 404s.
+    const headerTitle = collapsedTitle
+      ? () => <NoticeCollapsedTitle title={collapsedTitle} opacity={titleOpacity} />
+      : undefined;
     if (tombstone) {
       return Platform.OS === 'ios'
         ? { title: '', unstable_headerRightItems: () => [] }
@@ -37,6 +45,7 @@ export function useNoticeDetailHeaderOptions({
     return Platform.OS === 'ios'
       ? {
           title: '',
+          headerTitle,
           unstable_headerRightItems: () => [
             {
               type: 'button' as const,
@@ -64,6 +73,7 @@ export function useNoticeDetailHeaderOptions({
         }
       : {
           title: '',
+          headerTitle,
           headerRight: () => (
             <View style={styles.headerRight}>
               <HeaderIconButton
@@ -85,7 +95,7 @@ export function useNoticeDetailHeaderOptions({
             </View>
           ),
         };
-  }, [tombstone, saved, t, onSave, onShare, color]);
+  }, [tombstone, saved, t, onSave, onShare, color, collapsedTitle, titleOpacity]);
 }
 
 const styles = StyleSheet.create({

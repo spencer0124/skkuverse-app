@@ -15,6 +15,9 @@ import {
 import { multiSourceNoticePageSchema, noticeDetailSchema, noticePageSchema, noticeTabsSchema } from './notices.schema';
 import { canRequestOverview, normalizeOverviewQuery } from './overview/overview.rules';
 import { parseNoticeOverview } from './overview/overview.schema';
+import dummyBriefs from './__fixtures__/notice-briefs.json';
+import { findNoticeBrief } from './notice-brief.rules';
+import type { NoticeBrief } from './notice-brief.types';
 import type { NoticeDetail, NoticePage, NoticeSummaryType, NoticeTabsConfig } from './notices.types';
 import type { NoticeOverviewResult } from './overview/overview.types';
 
@@ -137,6 +140,11 @@ export function noticeDetailQueryOptions(sourceId: string | null, articleNo: num
     enabled: sourceId != null && articleNo != null,
     staleTime: 10 * 60_000,
   });
+}
+
+/** WHY: the server does not send the brief yet, so a debug build opens these dummies by their notice path. */
+export function dummyNoticeBrief(sourceId: string, articleNo: number): NoticeBrief | null {
+  return __DEV__ ? findNoticeBrief(dummyBriefs as NoticeBrief[], sourceId, articleNo) : null;
 }
 
 export function noticeTabsQueryOptions() {

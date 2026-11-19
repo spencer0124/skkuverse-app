@@ -219,7 +219,6 @@ describe('the notice schemas over the server fixtures', () => {
         },
         "id": "6acc38239cb01d9a98e2a2b9",
         "lastModified": null,
-        "screen": null,
         "sourceId": "skku-notice02",
         "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice02.do?mode=view&articleNo=140482&article.offset=0&articleLimit=10",
         "summary": {
