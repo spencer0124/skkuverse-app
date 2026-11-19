@@ -1,18 +1,19 @@
 import { View } from 'react-native';
-import { InfoIcon } from 'phosphor-react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
-import { Border, ListHeader, Pressable, TextButton, Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
-import type { NoticeBriefAnswer } from '../notice-brief.types';
+import { Border, ListHeader, TextButton, Txt, createThemedStyles } from '@skkuverse/sds';
+import type { NoticeBriefAnswer, NoticeBriefPoster } from '../notice-brief.types';
+import { NoticePosterStrip } from './NoticePosterStrip';
 
 interface Props {
   answer: NoticeBriefAnswer;
-  onInfoPress: () => void;
+  posters: NoticeBriefPoster[];
+  sourceUrl: string;
+  onPosterPress: () => void;
   onViewAll: (() => void) | null;
 }
 
-export function NoticeAnswerSection({ answer, onInfoPress, onViewAll }: Props) {
+export function NoticeAnswerSection({ answer, posters, sourceUrl, onPosterPress, onViewAll }: Props) {
   const styles = useStyles();
-  const color = useSemanticColors();
   const { t } = useT();
 
   return (
@@ -20,22 +21,10 @@ export function NoticeAnswerSection({ answer, onInfoPress, onViewAll }: Props) {
       <ListHeader
         style={styles.header}
         title={
-          <View style={styles.titleRow}>
-            <ListHeader.TitleParagraph typography="t9" fontWeight="bold" style={styles.shrink}>
-              {answer.question}
-            </ListHeader.TitleParagraph>
-            <Pressable
-              onPress={onInfoPress}
-              accessibilityRole="button"
-              accessibilityLabel={t('notices.brief.answerInfo')}
-              hitSlop={SdsSpacing.x2}
-              bg="transparent"
-            >
-              <InfoIcon size={20} color={color.fg.neutralSubtle} />
-            </Pressable>
-          </View>
+          <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
+            {answer.question}
+          </ListHeader.TitleParagraph>
         }
-        right={<ListHeader.RightText typography="t3" color="neutralSubtle">{answer.label}</ListHeader.RightText>}
       />
       <View style={styles.bullets}>
         {answer.bullets.length > 0 ? (
@@ -55,6 +44,11 @@ export function NoticeAnswerSection({ answer, onInfoPress, onViewAll }: Props) {
           </Txt>
         )}
       </View>
+      {posters.length > 0 ? (
+        <View style={styles.posters}>
+          <NoticePosterStrip posters={posters} sourceUrl={sourceUrl} onPress={onPosterPress} />
+        </View>
+      ) : null}
       {onViewAll ? (
         <>
           <Border variant="full" />
@@ -79,11 +73,6 @@ const useStyles = createThemedStyles(() => ({
     paddingTop: SdsSpacing.x8,
     paddingBottom: SdsSpacing.x3,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SdsSpacing.x1_5,
-  },
   shrink: {
     flexShrink: 1,
   },
@@ -91,6 +80,9 @@ const useStyles = createThemedStyles(() => ({
     paddingHorizontal: SdsSpacing.gutter,
     paddingBottom: SdsSpacing.x6,
     gap: SdsSpacing.x3,
+  },
+  posters: {
+    paddingBottom: SdsSpacing.x6,
   },
   bullet: {
     flexDirection: 'row',

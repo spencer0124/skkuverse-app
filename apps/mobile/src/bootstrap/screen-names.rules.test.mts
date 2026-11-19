@@ -73,6 +73,7 @@ describe('resolveScreenName', () => {
     assert.equal(resolveScreenName('/notices/saved', {}), 'notices_bookmarks');
     assert.equal(resolveScreenName('/notices/cs', {}), 'notices_list');
     assert.equal(resolveScreenName('/notices/cs/123', {}), 'notice_detail');
+    assert.equal(resolveScreenName('/notices/cs/123/body', {}), 'notice_body');
     assert.equal(resolveScreenName('/routes/hssc-to-nsc', {}), 'campus_route');
     assert.equal(resolveScreenName('/games/wave-run', {}), 'game_wave_run');
     assert.equal(resolveScreenName('/games/subway-typing/leaderboard', {}), 'game_subway_typing_leaderboard');

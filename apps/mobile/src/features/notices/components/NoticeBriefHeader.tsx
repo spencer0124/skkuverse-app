@@ -1,9 +1,12 @@
-import { View, type LayoutChangeEvent } from 'react-native';
-import { MegaphoneSimpleIcon } from 'phosphor-react-native';
+import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useT, SdsRadius, SdsSpacing } from '@skkuverse/shared';
-import { Pressable, Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
+import { Pressable, Txt, createThemedStyles } from '@skkuverse/sds';
 import { toNoticeBriefAge, type NoticeBriefAge } from '../notice-brief.rules';
 import type { NoticeBriefSource } from '../notice-brief.types';
+
+const EMBLEM = require('../../../../assets/images/skku-emblem.png');
+const EMBLEM_SIZE = 20;
+const SOURCE_COUNT = 1;
 
 interface Props {
   title: string;
@@ -15,10 +18,9 @@ interface Props {
 
 export function NoticeBriefHeader({ title, source, now, onSourcePress, onTitleLayout }: Props) {
   const styles = useStyles();
-  const color = useSemanticColors();
   const { t, tpl } = useT();
   const age = formatAge(toNoticeBriefAge(source.firstSeenAt, now), t, tpl);
-  const meta = [source.boardName, age, source.isEdited ? t('notices.edited') : null]
+  const meta = [tpl('notices.brief.sourceCount', SOURCE_COUNT), age, source.isEdited ? t('notices.edited') : null]
     .filter((part) => part)
     .join(' · ');
 
@@ -35,12 +37,12 @@ export function NoticeBriefHeader({ title, source, now, onSourcePress, onTitleLa
       </Txt>
       <Pressable
         onPress={onSourcePress}
-        accessibilityRole="link"
-        accessibilityLabel={`${meta}, ${t('notices.openOriginal')}`}
+        accessibilityRole="button"
+        accessibilityLabel={`${t('notices.brief.sourcesTitle')}, ${meta}`}
         bg="neutralWeak"
         style={styles.pill}
       >
-        <MegaphoneSimpleIcon size={16} color={color.fg.neutralSubtle} weight="fill" />
+        <Image source={EMBLEM} style={styles.emblem} />
         <Txt typography="t4" color="neutralMuted" numberOfLines={1} style={styles.shrink}>
           {meta}
         </Txt>
@@ -68,7 +70,7 @@ function formatAge(
   }
 }
 
-const useStyles = createThemedStyles(() => ({
+const useStyles = createThemedStyles(({ color }) => ({
   wrap: {
     paddingHorizontal: SdsSpacing.gutter,
     paddingTop: SdsSpacing.x4,
@@ -83,6 +85,14 @@ const useStyles = createThemedStyles(() => ({
     paddingHorizontal: SdsSpacing.x3,
     paddingVertical: SdsSpacing.x1_5,
     borderRadius: SdsRadius.full,
+    overflow: 'hidden',
+  },
+  emblem: {
+    width: EMBLEM_SIZE,
+    height: EMBLEM_SIZE,
+    borderRadius: SdsRadius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: color.stroke.neutralSubtle,
     overflow: 'hidden',
   },
   shrink: {

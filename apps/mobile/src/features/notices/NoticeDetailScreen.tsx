@@ -13,7 +13,7 @@ import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
 import { NoticeAnswerSection } from './components/NoticeAnswerSection';
 import { NoticeBriefHeader } from './components/NoticeBriefHeader';
 import { NoticeRefsSection } from './components/NoticeRefsSection';
-import { NoticeSourceSheet } from './components/NoticeSourceSheet';
+import { NoticeSourcesSheet } from './components/NoticeSourcesSheet';
 import { useCollapsingTitle } from './components/useCollapsingTitle';
 import { useNoticeDetailHeaderOptions } from './components/useNoticeDetailHeaderOptions';
 import { hasNoticeBriefRefs } from './notice-brief.rules';
@@ -30,7 +30,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
   const { t } = useT();
   const color = useSemanticColors();
   const [now] = useState(() => new Date());
-  const { sourceSheetRef, ...vm } = useNoticeDetailScreen({
+  const vm = useNoticeDetailScreen({
     sourceId,
     articleNo,
     source,
@@ -71,22 +71,21 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
             title={vm.notice.title}
             source={vm.notice.source}
             now={now}
-            onSourcePress={vm.onSourcePress}
+            onSourcePress={vm.openSources}
             onTitleLayout={collapsing.onTitleLayout}
           />
           <NoticeAnswerSection
             answer={vm.notice.answer}
-            onInfoPress={vm.onAnswerInfo}
-            onViewAll={vm.fullBody ? vm.openSourceSheet : null}
+            posters={vm.notice.body.posters}
+            sourceUrl={vm.notice.source.url}
+            onPosterPress={vm.openFullBody}
+            onViewAll={vm.hasFullBody ? vm.openFullBody : null}
           />
           {hasNoticeBriefRefs(vm.notice) ? (
             <>
               <Border variant="height16" />
               <NoticeRefsSection
                 refs={vm.notice.refs}
-                posters={vm.notice.body.posters}
-                sourceUrl={vm.notice.source.url}
-                onPosterPress={vm.openSourceSheet}
                 onAttachmentPress={vm.onAttachmentPress}
                 onLinkPress={vm.onLinkPress}
                 onPhonePress={vm.onPhonePress}
@@ -99,14 +98,16 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
           <InlineBanner unitId={AdUnitIds.noticeDetailBanner} maxHeight={250} />
         </ScrollView>
       )}
-      <NoticeSourceSheet
-        ref={sourceSheetRef}
-        markdown={vm.fullBody}
-        sourceUrl={vm.sourceUrl}
-        onCopyText={vm.onCopy}
-        onOpenOriginal={vm.openOriginal}
-        onClose={vm.closeSourceSheet}
-      />
+      {vm.status === 'ready' ? (
+        <NoticeSourcesSheet
+          open={vm.sourcesOpen}
+          title={vm.notice.title}
+          source={vm.notice.source}
+          onRowPress={vm.openBodyFromSources}
+          onClose={vm.closeSources}
+          onDismiss={vm.onSourcesDismiss}
+        />
+      ) : null}
       <Toast
         open={vm.toastText !== null}
         text={vm.toastText ?? ''}

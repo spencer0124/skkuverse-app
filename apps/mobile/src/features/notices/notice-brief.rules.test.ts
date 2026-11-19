@@ -10,6 +10,7 @@ import {
   toFullBodyMarkdown,
   toNoticeBrief,
   toNoticeBriefAge,
+  toPostedMonthDay,
 } from './notice-brief.rules';
 import type { NoticeBrief } from './notice-brief.types';
 
@@ -53,6 +54,20 @@ describe('toNoticeBriefAge', () => {
   });
 });
 
+describe('toPostedMonthDay', () => {
+  it('reads the KST calendar day from a bare date or from KST midnight', () => {
+    // Act & Assert
+    expect(toPostedMonthDay('2026-11-19')).toEqual({ month: 11, day: 19 });
+    expect(toPostedMonthDay('2026-03-05T00:00:00+09:00')).toEqual({ month: 3, day: 5 });
+  });
+
+  it('gives null for a date it cannot read, so the caller drops the segment', () => {
+    // Act & Assert
+    expect(toPostedMonthDay('')).toBeNull();
+    expect(toPostedMonthDay('not a date')).toBeNull();
+  });
+});
+
 describe('sortFormsFirst', () => {
   it('puts forms first and keeps the order within each group', () => {
     // Arrange
@@ -72,7 +87,7 @@ describe('sortFormsFirst', () => {
 });
 
 describe('hasNoticeBriefRefs', () => {
-  it('hides the refs section only when every group, posters included, is empty', () => {
+  it('hides the refs section when every group is empty, posters not counting as refs', () => {
     // Arrange
     const noRefs = findNoticeBrief(all, 'skku-main', 139500)!;
     const postersOnly = findNoticeBrief(all, 'skku-main', 139533)!;
@@ -80,7 +95,7 @@ describe('hasNoticeBriefRefs', () => {
 
     // Act & Assert
     expect(hasNoticeBriefRefs(noRefs)).toBe(false);
-    expect(hasNoticeBriefRefs(postersOnly)).toBe(true);
+    expect(hasNoticeBriefRefs(postersOnly)).toBe(false);
     expect(hasNoticeBriefRefs(phoneOnly)).toBe(true);
   });
 });
@@ -117,17 +132,17 @@ describe('toNoticeBrief', () => {
     const refs = { images: [], links: [{ url: 'https://a.example/x', text: null, domain: 'a.example' }], emails: ['a@b.c'], phones: ['02-1-2'] };
 
     // Act
-    const brief = toNoticeBrief({ notice, boardName: 'Board', refs, question: 'Q', label: 'L' });
+    const brief = toNoticeBrief({ notice, boardName: 'Board', refs, question: 'Q' });
 
     // Assert
     expect(brief.title).toBe(notice.title);
     expect(brief.source.boardName).toBe('Board');
     expect(brief.source.url).toBe(notice.sourceUrl);
-    expect(brief.answer).toEqual({ question: 'Q', label: 'L', bullets: [] });
+    expect(brief.answer).toEqual({ question: 'Q', bullets: [] });
     expect(brief.refs.attachments).toHaveLength(notice.attachments.length);
-    expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example', label: null }]);
-    expect(brief.refs.emails).toEqual(['a@b.c']);
-    expect(brief.refs.phones).toEqual(['02-1-2']);
+    expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example', title: null, siteName: null }]);
+    expect(brief.refs.emails).toEqual([{ address: 'a@b.c', label: null }]);
+    expect(brief.refs.phones).toEqual([{ number: '02-1-2', label: null }]);
   });
 });
 
@@ -148,5 +163,20 @@ describe('the dummy briefs', () => {
     expect(all.some((b) => b.body.posters.length >= 2)).toBe(true);
     expect(all.some((b) => b.title.length >= 60)).toBe(true);
     expect(all.some((b) => b.refs.attachments.some((a) => a.isForm))).toBe(true);
+  });
+
+  it('cover every row shape: a titled link with its site name, a bare link, labelled and bare phones, a labelled email', () => {
+    // Arrange
+    const links = all.flatMap((b) => b.refs.links);
+    const phones = all.flatMap((b) => b.refs.phones);
+    const emails = all.flatMap((b) => b.refs.emails);
+
+    // Act & Assert
+    expect(links.some((l) => l.title && l.siteName)).toBe(true);
+    expect(links.some((l) => l.title && !l.siteName)).toBe(true);
+    expect(links.some((l) => !l.title)).toBe(true);
+    expect(phones.some((p) => p.label)).toBe(true);
+    expect(phones.some((p) => !p.label)).toBe(true);
+    expect(emails.some((e) => e.label)).toBe(true);
   });
 });

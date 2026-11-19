@@ -35,14 +35,21 @@ export function toNoticeBriefAge(firstSeenAt: string, now: Date): NoticeBriefAge
   return { kind: 'date', label: sameYear ? formatListDate(date) : formatDisplayDate(date) };
 }
 
+/** WHY: `postedAt` is a KST day, sent as a bare date or as KST midnight; either reads as the same calendar day here. */
+export function toPostedMonthDay(postedAt: string): { month: number; day: number } | null {
+  const ms = Date.parse(postedAt);
+  if (Number.isNaN(ms)) return null;
+  const [, month, day] = toKstDate(ms).split('-').map(Number);
+  return { month, day };
+}
+
 export function sortFormsFirst(attachments: readonly NoticeBriefAttachment[]): NoticeBriefAttachment[] {
   return [...attachments.filter((a) => a.isForm), ...attachments.filter((a) => !a.isForm)];
 }
 
 export function hasNoticeBriefRefs(brief: NoticeBrief): boolean {
-  const { refs, body } = brief;
+  const { refs } = brief;
   return (
-    body.posters.length > 0 ||
     refs.attachments.length > 0 ||
     refs.links.length > 0 ||
     refs.phones.length > 0 ||
@@ -71,11 +78,10 @@ export interface ToNoticeBriefInputs {
   boardName: string | null;
   refs: ContentRefs;
   question: string;
-  label: string;
 }
 
 /** WHY: until the server sends the brief, a live notice still opens in this layout, with no bullets. */
-export function toNoticeBrief({ notice, boardName, refs, question, label }: ToNoticeBriefInputs): NoticeBrief {
+export function toNoticeBrief({ notice, boardName, refs, question }: ToNoticeBriefInputs): NoticeBrief {
   return {
     id: `${notice.sourceId}-${notice.articleNo}`,
     title: notice.title,
@@ -86,13 +92,13 @@ export function toNoticeBrief({ notice, boardName, refs, question, label }: ToNo
       isEdited: (notice.editInfo?.count ?? 0) > 0,
       url: notice.sourceUrl,
     },
-    answer: { question, label, bullets: [] },
+    answer: { question, bullets: [] },
     body: { markdown: notice.contentMarkdown, posters: [] },
     refs: {
       attachments: notice.attachments.map((a) => ({ name: a.name, url: a.url, isForm: false })),
-      links: refs.links.map((link) => ({ url: link.url, domain: link.domain, label: link.text })),
-      phones: refs.phones,
-      emails: refs.emails,
+      links: refs.links.map((link) => ({ url: link.url, domain: link.domain, title: link.text, siteName: null })),
+      phones: refs.phones.map((number) => ({ number, label: null })),
+      emails: refs.emails.map((address) => ({ address, label: null })),
     },
   };
 }

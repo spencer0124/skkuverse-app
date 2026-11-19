@@ -84,6 +84,7 @@ export function resolveScreenName(pathname: string, params: Params): string | nu
   if (segments[0] === 'routes' && segments.length === 2) return 'campus_route';
   if (segments[0] === 'notices') {
     if (segments.length === 3) return 'notice_detail';
+    if (segments.length === 4 && segments[3] === 'body') return 'notice_body';
     if (segments.length === 2 && !['picker', 'search', 'saved'].includes(segments[1] ?? '')) {
       return 'notices_list';
     }

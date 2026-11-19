@@ -334,7 +334,7 @@ function markdownStylesFor(color: SemanticColors): MarkedStyles {
 
 export function NoticeMarkdownView({ markdown, sourceUrl, onCopyText }: Props) {
   const { width } = useWindowDimensions();
-  // WHY: NoticeSourceSheet pads the body 20 on each side; a wider image overflows it.
+  // WHY: NoticeBodyScreen pads the body 20 on each side; a wider image overflows it.
   const contentWidth = width - 40;
   const noop = useMemo(() => () => {}, []);
 

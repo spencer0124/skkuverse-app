@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import { useT } from '@skkuverse/shared';
-import { useSemanticColors, type SheetRef } from '@skkuverse/sds';
+import { useSemanticColors } from '@skkuverse/sds';
 import { logNoticeView, logNoticesContentSelect } from '@/platform/analytics';
 import { isPageReturn } from '@/platform/analytics.rules';
 import { openExternalUrl, openInAppBrowser, shareContent } from '@/platform/handoff';
 import { useReviewPrompt } from '@/features/feedback/useReviewPrompt';
 import { THREE_DAYS_MS } from '@/features/feedback/feedback.constants';
 import { useBookmark } from './useBookmark';
-import { useNoticeDetail } from './useNoticeDetail';
-import { useNoticeTabs } from './useNoticeTabs';
-import { toSourceName } from './notices.rules';
-import { extractContentRefs } from './content-refs.rules';
+import { useNoticeBrief } from './useNoticeBrief';
 import { buildAttachmentUrl, canPreview } from './attachment.rules';
 import { decideNoticeDetailState } from './notice-detail.rules';
-import { toFullBodyMarkdown, toNoticeBrief } from './notice-brief.rules';
+import { toFullBodyMarkdown } from './notice-brief.rules';
 import type { NoticeBriefAttachment, NoticeBriefLink } from './notice-brief.types';
-import { dummyNoticeBrief } from './notices.client';
 
-const inAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
+export const noticeInAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
   presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
   dismissButtonStyle: 'close',
   showTitle: true,
@@ -40,14 +35,11 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   const { t } = useT();
   const color = useSemanticColors();
   const router = useRouter();
-  const dummy = useMemo(() => dummyNoticeBrief(sourceId, articleNo), [sourceId, articleNo]);
-  const { data, isLoading, isError, error, refetch } = useNoticeDetail(
-    dummy ? null : sourceId,
-    dummy ? null : articleNo,
-  );
-  const { data: tabsConfig } = useNoticeTabs();
+  const { data, isLoading, isError, error, refetch, brief } = useNoticeBrief(sourceId, articleNo);
   const [toastText, setToastText] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const bodyAfterDismiss = useRef(false);
 
   const review = useReviewPrompt({
     reason: 'second_bookmark',
@@ -66,8 +58,6 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   } = useBookmark(sourceId, articleNo, {
     onReviewEligible: review.triggerIfEligible,
   });
-
-  const boardName = data ? (toSourceName(tabsConfig, data.sourceId) ?? data.department) : null;
 
   const onRemoveBookmark = useCallback(() => {
     setIsRemoving(true);
@@ -108,62 +98,25 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     dataRef.current = data;
   }, [data]);
 
-  const onCopy = useCallback((text: string) => {
-    void Clipboard.setStringAsync(text);
-    setToastText(t('notices.copied'));
-  }, [t]);
-
-  const contentRefs = useMemo(
-    () =>
-      extractContentRefs(
-        data?.contentMarkdown,
-        data?.attachments.map((a) => a.url) ?? [],
-      ),
-    [data?.contentMarkdown, data?.attachments],
-  );
-
-  const brief = useMemo(
-    () =>
-      dummy ??
-      (data
-        ? toNoticeBrief({
-            notice: data,
-            boardName,
-            refs: contentRefs,
-            question: t('notices.brief.defaultQuestion'),
-            label: t('notices.brief.label'),
-          })
-        : undefined),
-    [dummy, data, boardName, contentRefs, t],
-  );
   const state = decideNoticeDetailState({ isLoading, isError, error, data: brief, bookmark: bookmarkEntry });
   const fullBody = useMemo(() => (brief ? toFullBodyMarkdown(brief.body) : null), [brief]);
   const itemId = `${sourceId}/${articleNo}`;
 
-  const sourceSheetRef = useRef<SheetRef>(null);
-  const openSourceSheet = useCallback(() => {
+  const openFullBody = useCallback(() => {
     logNoticesContentSelect({ content_type: 'detail_view_source', item_id: itemId });
-    sourceSheetRef.current?.present?.();
-  }, [itemId]);
+    router.push({
+      pathname: '/notices/[sourceId]/[articleNo]/body',
+      params: { sourceId, articleNo: String(articleNo) },
+    });
+  }, [itemId, router, sourceId, articleNo]);
 
-  const closeSourceSheet = useCallback(() => {
-    sourceSheetRef.current?.dismiss?.();
-  }, []);
-
-  // WHY: the external browser, not the in-app shell: this opens from inside the source sheet, and a
-  // router.push from there lands behind the sheet, so nothing seems to happen.
   const sourceUrl = brief?.source.url;
-  const openOriginal = useCallback(() => {
-    logNoticesContentSelect({ content_type: 'detail_open_original', item_id: itemId });
-    if (!sourceUrl) return;
-    void openExternalUrl(sourceUrl);
-  }, [sourceUrl, itemId]);
 
   const openAttachment = useCallback(
     (url: string, mode: 'inline' | 'download', name?: string) => {
       const proxyUrl = buildAttachmentUrl(url, sourceUrl ?? '', mode, name);
       void openInAppBrowser(proxyUrl, {
-        ...inAppBrowserOptions,
+        ...noticeInAppBrowserOptions,
         controlsColor: color.fg.brand,
         toolbarColor: color.bg.layerDefault,
       });
@@ -171,15 +124,19 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     [sourceUrl, color],
   );
 
-  const onSourcePress = useCallback(() => {
-    logNoticesContentSelect({ content_type: 'detail_open_original', item_id: itemId });
-    if (!sourceUrl) return;
-    void openInAppBrowser(sourceUrl, {
-      ...inAppBrowserOptions,
-      controlsColor: color.fg.brand,
-      toolbarColor: color.bg.layerDefault,
-    });
-  }, [sourceUrl, itemId, color]);
+  const openSources = useCallback(() => setSourcesOpen(true), []);
+  const closeSources = useCallback(() => setSourcesOpen(false), []);
+  const openBodyFromSources = useCallback(() => {
+    bodyAfterDismiss.current = true;
+    setSourcesOpen(false);
+  }, []);
+  // QUIRK(gorhom-bottom-sheet): a modal paints over a screen pushed beneath it, so the body route is pushed only once the sheet has dismissed.
+  const onSourcesDismiss = useCallback(() => {
+    setSourcesOpen(false);
+    if (!bodyAfterDismiss.current) return;
+    bodyAfterDismiss.current = false;
+    openFullBody();
+  }, [openFullBody]);
 
   const onAttachmentPress = useCallback(
     (a: NoticeBriefAttachment) => {
@@ -207,8 +164,6 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   const onEmailPress = useCallback((email: string) => {
     void openExternalUrl(`mailto:${email}`);
   }, []);
-
-  const onAnswerInfo = useCallback(() => setToastText(t('notices.brief.answerInfo')), [t]);
 
   const onSave = useCallback(() => {
     const current = dataRef.current;
@@ -244,25 +199,23 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     ...state,
     saved,
     isRemoving,
-    fullBody,
-    sourceUrl,
-    sourceSheetRef,
+    hasFullBody: fullBody !== null,
+    sourcesOpen,
     toastText,
     reviewHost: review.host,
     onRetry: refetch,
     onRemoveBookmark,
     onSave,
     onShare,
-    onCopy,
-    openSourceSheet,
-    closeSourceSheet,
-    openOriginal,
-    onSourcePress,
+    openFullBody,
+    openSources,
+    closeSources,
+    openBodyFromSources,
+    onSourcesDismiss,
     onAttachmentPress,
     onLinkPress,
     onPhonePress,
     onEmailPress,
-    onAnswerInfo,
     onToastClose: () => setToastText(null),
   };
 }

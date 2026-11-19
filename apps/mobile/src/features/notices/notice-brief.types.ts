@@ -8,7 +8,6 @@ export interface NoticeBriefSource {
 
 export interface NoticeBriefAnswer {
   question: string;
-  label: string;
   bullets: { text: string }[];
 }
 
@@ -32,14 +31,25 @@ export interface NoticeBriefAttachment {
 export interface NoticeBriefLink {
   url: string;
   domain: string;
+  title: string | null;
+  siteName: string | null;
+}
+
+export interface NoticeBriefPhone {
+  number: string;
+  label: string | null;
+}
+
+export interface NoticeBriefEmail {
+  address: string;
   label: string | null;
 }
 
 export interface NoticeBriefRefs {
   attachments: NoticeBriefAttachment[];
   links: NoticeBriefLink[];
-  phones: string[];
-  emails: string[];
+  phones: NoticeBriefPhone[];
+  emails: NoticeBriefEmail[];
 }
 
 export interface NoticeBrief {
