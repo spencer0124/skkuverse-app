@@ -52,5 +52,5 @@ test('the gates are exactly the features a store build leaves out', () => {
   // Act
   const gates = [...PRERELEASE_GATES].sort();
   // Assert
-  expect(gates).toStrictEqual(['buildingCounts', 'directionsChips', 'noticeFacts', 'noticeSearchOverview', 'thisWeekPage', 'thisWeekSheet']);
+  expect(gates).toStrictEqual(['buildingCounts', 'directionsChips', 'noticeSearchOverview', 'thisWeekPage', 'thisWeekSheet']);
 });

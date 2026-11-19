@@ -99,24 +99,12 @@
     "server": "contracts/produced/fixtures/meals-menus.dailyMeals/nsc.json"
   },
   {
-    "local": "apps/mobile/src/features/notices/__fixtures__/notice-detail-screen.json",
-    "server": "contracts/produced/fixtures/notices-detail.noticeDetail/screen.json"
-  },
-  {
     "local": "apps/mobile/src/features/notices/__fixtures__/notice-detail.json",
     "server": "contracts/produced/fixtures/notices-detail.noticeDetail/production.json"
   },
   {
-    "local": "apps/mobile/src/features/notices/__fixtures__/notice-list-rows.json",
-    "server": "contracts/produced/fixtures/notices-list.noticeList/rows.json"
-  },
-  {
     "local": "apps/mobile/src/features/notices/__fixtures__/notice-list.json",
     "server": "contracts/produced/fixtures/notices-list.noticeList/production.json"
-  },
-  {
-    "local": "apps/mobile/src/features/notices/__fixtures__/notice-screen-open-call.json",
-    "server": "contracts/produced/fixtures/notices.noticeScreen/open-call-with-one-link.json"
   },
   {
     "local": "apps/mobile/src/features/notices/__fixtures__/notice-tabs.json",

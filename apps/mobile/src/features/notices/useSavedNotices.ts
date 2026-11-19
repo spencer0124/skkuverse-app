@@ -8,6 +8,7 @@ import {
 } from '@skkuverse/shared';
 import { logBookmarksListOpen } from '@/platform/analytics';
 import { useBookmarks } from './useBookmarks';
+import { useNoticeTabs } from './useNoticeTabs';
 import type { NoticeListItem } from './notices.types';
 
 export function useSavedNotices() {
@@ -15,6 +16,7 @@ export function useSavedNotices() {
   const router = useRouter();
   const isAnonymous = useAuthStore((s) => s.isAnonymous);
   const { list } = useBookmarks();
+  const { data: tabsConfig } = useNoticeTabs();
 
   useEffect(() => {
     logBookmarksListOpen();
@@ -22,10 +24,9 @@ export function useSavedNotices() {
 
   const items = useMemo(() => list.map(bookmarkToListItem), [list]);
 
-  return { t, router, isAnonymous, items };
+  return { t, router, isAnonymous, items, tabsConfig };
 }
 
-/** WHY: a summary is synthesized only with a cached `summaryType`; without one the row would show a wrong D-day. */
 function bookmarkToListItem(entry: BookmarkEntry): NoticeListItem {
   return {
     id: bookmarkKey(entry.sourceId, entry.articleNo),
@@ -36,19 +37,9 @@ function bookmarkToListItem(entry: BookmarkEntry): NoticeListItem {
     author: null,
     department: entry.department,
     date: entry.date,
-    views: 0,
     sourceUrl: entry.sourceUrl,
     hasContent: entry.hasContent,
     hasAttachments: entry.hasAttachments,
     isEdited: false,
-    summary: entry.summaryType
-      ? {
-          oneLiner: entry.summaryOneLiner,
-          type: entry.summaryType,
-          startAt: null,
-          endAt: null,
-        }
-      : null,
-    row: null,
   };
 }

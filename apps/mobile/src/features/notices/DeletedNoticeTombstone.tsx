@@ -47,15 +47,6 @@ export function DeletedNoticeTombstone({ entry, onRemove, isRemoving }: Props) {
             </>
           ) : null}
         </View>
-        {entry.summaryOneLiner ? (
-          <Txt
-            typography="t5"
-            color="neutralMuted"
-            style={styles.summary}
-          >
-            {entry.summaryOneLiner}
-          </Txt>
-        ) : null}
       </View>
 
       <View style={styles.actions}>
@@ -108,9 +99,6 @@ const useStyles = createThemedStyles(({ color }) => ({
     height: 2,
     borderRadius: SdsRadius.full,
     backgroundColor: color.stroke.control,
-  },
-  summary: {
-    marginTop: SdsSpacing.x1,
   },
   actions: {
     marginTop: 'auto',

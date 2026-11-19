@@ -7,9 +7,8 @@ import {
   orderBy,
   query,
   setDoc,
-  updateDoc,
 } from '@react-native-firebase/firestore';
-import type { BookmarkEntry, BookmarkSummaryType } from '@skkuverse/shared';
+import type { BookmarkEntry } from '@skkuverse/shared';
 import { logHandledError } from '@/platform/crashlytics';
 import { primeAppCheck } from '@/platform/app-check';
 
@@ -42,19 +41,6 @@ export async function saveBookmark(
 export async function removeBookmark(uid: string, key: string): Promise<void> {
   await primeAppCheck();
   await deleteDoc(bookmarkDocRef(uid, key));
-}
-
-/**
- * WHY: updateDoc, never setDoc, which would re-stamp `savedAt` and jump the bookmark to the top. The
- * summary is non-null on purpose: this fills a summary and never clears one.
- */
-export async function updateBookmarkSummary(
-  uid: string,
-  key: string,
-  patch: { summaryOneLiner: string; summaryType: BookmarkSummaryType },
-): Promise<void> {
-  await primeAppCheck();
-  await updateDoc(bookmarkDocRef(uid, key), patch);
 }
 
 /**

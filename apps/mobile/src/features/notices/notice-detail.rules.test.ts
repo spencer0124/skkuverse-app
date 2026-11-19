@@ -18,8 +18,6 @@ const saved: BookmarkEntry = {
   department: notice.department,
   date: notice.date,
   sourceUrl: notice.sourceUrl,
-  summaryOneLiner: null,
-  summaryType: null,
   hasContent: true,
   hasAttachments: true,
 };

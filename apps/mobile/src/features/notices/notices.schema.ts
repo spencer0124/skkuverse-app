@@ -1,35 +1,24 @@
 // CONTRACT(skkuverse-server): skkuverse-server/src/notices/ writes these shapes; only a field the screen
 // cannot render without is required, and every other field keeps its default.
 import { z } from 'zod';
-import { openEnum, openUnionArray, text, tolerantArray } from '@skkuverse/shared';
-import { listOrEmpty, noticeListRowSchema, nullOr } from './notice-facts.schema';
-import type { NoticeAttachment, NoticeDetail, NoticeDetailSummary, NoticeEditInfo, NoticeEndAt, NoticeListItem, NoticeListItemSummary, NoticeLocation, NoticePage, NoticePeriod, NoticeStartAt, NoticeSummaryDetails, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
+import { openUnionArray, parsedBy, text, tolerantArray } from '@skkuverse/shared';
+import type { NoticeAttachment, NoticeDetail, NoticeEditInfo, NoticeListItem, NoticePage, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
 const str = (fallback = '') => z.string().catch(fallback);
 const nullableStr = z.string().nullable().catch(null);
 const num = (fallback: number) => z.number().catch(fallback);
 const bool = (fallback: boolean) => z.boolean().catch(fallback);
 
-const summaryType = openEnum(['action_required', 'event', 'informational'] as const, 'informational');
+// WHY: a missing or non-list field reads as an empty list.
+const listOrEmpty = parsedBy((raw) => (Array.isArray(raw) ? raw : []));
+
+function nullOr<S extends z.ZodType>(objectSchema: S) {
+  return z.union([z.null(), z.undefined()]).transform(() => null).or(objectSchema);
+}
 
 function anyObject<S extends z.ZodObject>(shape: S) {
   return shape.catch(() => shape.parse({}));
 }
-
-const startAtSchema = anyObject(z.object({ date: nullableStr, time: nullableStr })).transform(
-  ({ date, time }): NoticeStartAt | null => (date === null && time === null ? null : { date, time }),
-);
-
-const endAtSchema = anyObject(z.object({ date: nullableStr, time: nullableStr, label: nullableStr })).transform(
-  ({ date, time, label }): NoticeEndAt | null =>
-    date === null && time === null && label === null ? null : { date, time, label },
-);
-
-const listItemSummarySchema = nullOr(
-  anyObject(
-    z.object({ oneLiner: nullableStr, type: summaryType, startAt: startAtSchema, endAt: endAtSchema }),
-  ).transform((summary): NoticeListItemSummary => summary),
-);
 
 const listItemSchema = z
   .object({
@@ -42,13 +31,10 @@ const listItemSchema = z
     department: nullableStr,
     // WHY: some sources send "YYYY-MM-DD HH:MM"; the first ten characters are the contract's date.
     date: str().transform((date) => date.slice(0, 10)),
-    views: num(0),
     sourceUrl: str(),
     contentHash: z.unknown().optional(),
     hasAttachments: bool(false),
     editCount: num(0),
-    summary: listItemSummarySchema,
-    row: noticeListRowSchema,
   })
   .transform(
     ({ contentHash, editCount, ...item }): NoticeListItem => ({
@@ -83,42 +69,6 @@ const editInfoSchema = nullOr(
   anyObject(z.object({ count: num(0), history: listOrEmpty })).transform((info): NoticeEditInfo => info),
 );
 
-const periodSchema = anyObject(
-  z.object({
-    label: nullableStr,
-    startDate: nullableStr,
-    startTime: nullableStr,
-    endDate: nullableStr,
-    endTime: nullableStr,
-  }),
-).transform((period): NoticePeriod => period);
-
-const locationSchema = anyObject(z.object({ label: nullableStr, detail: str().transform((d) => d.trim()) }));
-
-const summaryDetailsSchema = nullOr(
-  anyObject(z.object({ target: nullableStr, action: nullableStr, host: nullableStr, impact: nullableStr })).transform(
-    (details): NoticeSummaryDetails => details,
-  ),
-);
-
-const detailSummarySchema = nullOr(
-  anyObject(
-    z.object({
-      text: nullableStr,
-      oneLiner: nullableStr,
-      type: summaryType,
-      periods: listOrEmpty.pipe(tolerantArray(periodSchema, 'notices.detail.periods')),
-      // WHY: a location with a blank detail has nothing to show, so it is left out silently.
-      locations: listOrEmpty
-        .pipe(tolerantArray(locationSchema, 'notices.detail.locations'))
-        .transform((locations): NoticeLocation[] => locations.filter((location) => location.detail !== '')),
-      details: summaryDetailsSchema,
-      model: nullableStr,
-      generatedAt: str(),
-    }),
-  ).transform((summary): NoticeDetailSummary => summary),
-);
-
 export const noticeDetailSchema = z
   .object({
     id: str(),
@@ -129,14 +79,12 @@ export const noticeDetailSchema = z
     author: nullableStr,
     department: nullableStr,
     date: str(),
-    views: num(0),
     contentMarkdown: nullableStr,
     attachments: listOrEmpty.pipe(tolerantArray(attachmentSchema, 'notices.detail.attachments')),
     sourceUrl: str(),
     lastModified: nullableStr,
     crawledAt: str(),
     editInfo: editInfoSchema,
-    summary: detailSummarySchema,
   })
   .transform((detail): NoticeDetail => detail);
 

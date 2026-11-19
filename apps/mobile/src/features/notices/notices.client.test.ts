@@ -12,14 +12,14 @@ import {
 } from './notices.client';
 
 describe('notice query keys', () => {
-  it('keys a source list by source, type and query', () => {
+  it('keys a source list by source and query', () => {
     // Act
     const all = noticeListQueryOptions({ sourceId: 'skku-notice02' }).queryKey;
-    const typed = noticeListQueryOptions({ sourceId: 'cse', type: 'action_required', q: '장학' }).queryKey;
+    const searched = noticeListQueryOptions({ sourceId: 'cse', q: '장학' }).queryKey;
 
     // Assert
     expect(all).toStrictEqual(['notices', 'source', 'skku-notice02', { type: 'all', q: '' }]);
-    expect(typed).toStrictEqual(['notices', 'source', 'cse', { type: 'action_required', q: '장학' }]);
+    expect(searched).toStrictEqual(['notices', 'source', 'cse', { type: 'all', q: '장학' }]);
   });
 
   it('keys a multi-source list by its sorted sources', () => {

@@ -18,7 +18,7 @@ import { parseNoticeOverview } from './overview/overview.schema';
 import dummyBriefs from './__fixtures__/notice-briefs.json';
 import { findNoticeBrief } from './notice-brief.rules';
 import type { NoticeBrief } from './notice-brief.types';
-import type { NoticeDetail, NoticePage, NoticeSummaryType, NoticeTabsConfig } from './notices.types';
+import type { NoticeDetail, NoticePage, NoticeTabsConfig } from './notices.types';
 import type { NoticeOverviewResult } from './overview/overview.types';
 
 export const NOTICE_LIST_KEY = ['notices', 'source'] as const;
@@ -31,14 +31,12 @@ const PAGE_LIMIT = 20;
 
 export interface NoticeListInputs {
   sourceId: string;
-  type?: NoticeSummaryType;
   q?: string;
   enabled?: boolean;
 }
 
 export interface MultiSourceNoticeListInputs {
   sourceIds: string[];
-  type?: NoticeSummaryType;
   q?: string;
   enabled?: boolean;
 }
@@ -49,7 +47,7 @@ export interface NoticeOverviewInputs {
   enabled?: boolean;
 }
 
-export function noticeListQueryOptions({ sourceId, type, q, enabled = true }: NoticeListInputs) {
+export function noticeListQueryOptions({ sourceId, q, enabled = true }: NoticeListInputs) {
   return infiniteQueryOptions<
     NoticePage,
     Error,
@@ -58,11 +56,10 @@ export function noticeListQueryOptions({ sourceId, type, q, enabled = true }: No
     string | null
   >({
     // WHY: q is part of the key, so two searches never share a cache.
-    queryKey: [...NOTICE_LIST_KEY, sourceId, { type: type ?? 'all', q: q ?? '' }],
+    queryKey: [...NOTICE_LIST_KEY, sourceId, { type: 'all', q: q ?? '' }],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = { limit: PAGE_LIMIT };
-      if (type) params.type = type;
       if (q) params.q = q;
       if (pageParam) params.cursor = pageParam;
       const result = await safeGet(
@@ -85,7 +82,6 @@ export function noticeListQueryOptions({ sourceId, type, q, enabled = true }: No
 
 export function multiSourceNoticeListQueryOptions({
   sourceIds,
-  type,
   q,
   enabled = true,
 }: MultiSourceNoticeListInputs) {
@@ -99,14 +95,13 @@ export function multiSourceNoticeListQueryOptions({
     readonly unknown[],
     string | null
   >({
-    queryKey: [...NOTICE_MULTI_KEY, sortedKey, { type: type ?? 'all', q: q ?? '' }],
+    queryKey: [...NOTICE_MULTI_KEY, sortedKey, { type: 'all', q: q ?? '' }],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = {
         limit: PAGE_LIMIT,
         sourceIds: sortedKey,
       };
-      if (type) params.type = type;
       if (q) params.q = q;
       if (pageParam) params.cursor = pageParam;
       const result = await safeGet(

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useT } from '@skkuverse/shared';
 import { useNoticeDetail } from './useNoticeDetail';
 import { useNoticeTabs } from './useNoticeTabs';
-import { toSourceName } from './notices.rules';
+import { toBoardName } from './notices.rules';
 import { extractContentRefs } from './content-refs.rules';
 import { toNoticeBrief } from './notice-brief.rules';
 import { dummyNoticeBrief } from './notices.client';
@@ -19,7 +19,7 @@ export function useNoticeBrief(sourceId: string, articleNo: number) {
     if (!data) return undefined;
     return toNoticeBrief({
       notice: data,
-      boardName: toSourceName(tabsConfig, data.sourceId) ?? data.department,
+      boardName: toBoardName(tabsConfig, data),
       refs: extractContentRefs(data.contentMarkdown, data.attachments.map((a) => a.url)),
       question: t('notices.brief.defaultQuestion'),
     });

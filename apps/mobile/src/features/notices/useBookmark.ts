@@ -6,11 +6,7 @@ import {
   useBookmarkStore,
   type BookmarkEntry,
 } from '@skkuverse/shared';
-import {
-  saveBookmark,
-  removeBookmark,
-  updateBookmarkSummary,
-} from './notices.repository';
+import { saveBookmark, removeBookmark } from './notices.repository';
 import { logBookmarkSave, logBookmarkUnsave } from '@/platform/analytics';
 import { logHandledError } from '@/platform/crashlytics';
 import { DEV_ALWAYS_SHOW } from '@/features/feedback/feedback.constants';
@@ -20,7 +16,7 @@ import type { NoticeDetail } from './notices.types';
 /** WHY: outcomes, not throws: a tap is fire-and-forget, so only outcomes that need UX are signaled. */
 export type ToggleOutcome = 'saved' | 'removed' | 'auth-required' | 'failed';
 
-/** WHY: read at fire time through a ref, so a refetch's new `summary` never invalidates the toggle's memo. */
+/** WHY: read at fire time through a ref, so a new callback from the caller never invalidates the toggle's memo. */
 export interface UseBookmarkOptions {
   onReviewEligible?: (count: number) => void;
 }
@@ -42,10 +38,6 @@ export function useBookmark(
   useEffect(() => {
     optsRef.current = options;
   }, [options]);
-
-  // WHY: a background refetch hands the effect a new `notice` before the first write resolves, and
-  // without this guard each refetch spends one redundant Firestore write.
-  const refreshInFlightRef = useRef(false);
 
   const toggle = useCallback(
     async (notice: NoticeDetail): Promise<ToggleOutcome> => {
@@ -108,37 +100,6 @@ export function useBookmark(
     [key, sourceId, articleNo],
   );
 
-  /**
-   * WHY: the server writes the one-liner and the summary type from one summarizer, so a new one-liner
-   * means both arrived; revisit if they ever split. `savedAt` stays, so the saved list does not reorder.
-   */
-  const refreshSummaryIfNewlyAvailable = useCallback(
-    async (notice: NoticeDetail): Promise<void> => {
-      if (refreshInFlightRef.current) return;
-      const auth = authStore.getState();
-      if (auth.isAnonymous || !auth.uid) return;
-      const prior = useBookmarkStore.getState().entries[key];
-      if (!prior) return;
-      if (prior.summaryOneLiner !== null) return;
-      const liveOneLiner = notice.summary?.oneLiner;
-      const liveType = notice.summary?.type;
-      if (liveOneLiner == null || liveType == null) return;
-
-      refreshInFlightRef.current = true;
-      try {
-        await updateBookmarkSummary(auth.uid, key, {
-          summaryOneLiner: liveOneLiner,
-          summaryType: liveType,
-        });
-      } catch (err) {
-        logHandledError('bookmarks/refresh-summary', err);
-      } finally {
-        refreshInFlightRef.current = false;
-      }
-    },
-    [key],
-  );
-
   /** WHY: the tombstone has no live NoticeDetail for `toggle()`; an entry already gone is 'removed'. */
   const unsave = useCallback(async (): Promise<ToggleOutcome> => {
     const auth = authStore.getState();
@@ -162,7 +123,7 @@ export function useBookmark(
     }
   }, [key, sourceId, articleNo]);
 
-  return { isSaved, entry, toggle, unsave, refreshSummaryIfNewlyAvailable };
+  return { isSaved, entry, toggle, unsave };
 }
 
 function buildBookmarkEntry(notice: NoticeDetail): BookmarkEntry {
@@ -174,8 +135,6 @@ function buildBookmarkEntry(notice: NoticeDetail): BookmarkEntry {
     department: notice.department,
     date: notice.date,
     sourceUrl: notice.sourceUrl,
-    summaryOneLiner: notice.summary?.oneLiner ?? null,
-    summaryType: notice.summary?.type ?? null,
     hasContent: Boolean(notice.contentMarkdown),
     hasAttachments: (notice.attachments?.length ?? 0) > 0,
   };

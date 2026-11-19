@@ -1,10 +1,4 @@
 /** CONTRACT(skkuverse-server): skkuverse-server/docs/reference/notices-api.md */
-import type { NoticeListRow } from './notice-facts.types';
-
-export type NoticeSummaryType =
-  | 'action_required'
-  | 'event'
-  | 'informational';
 
 export interface NoticeSource {
   id: string;
@@ -13,24 +7,6 @@ export interface NoticeSource {
   category: string | null;
   hasCategory: boolean;
   hasAuthor: boolean;
-}
-
-export interface NoticeStartAt {
-  date: string | null;
-  time: string | null;
-}
-
-export interface NoticeEndAt {
-  date: string | null;
-  time: string | null;
-  label: string | null;
-}
-
-export interface NoticeListItemSummary {
-  oneLiner: string | null;
-  type: NoticeSummaryType;
-  startAt: NoticeStartAt | null;
-  endAt: NoticeEndAt | null;
 }
 
 export interface NoticeListItem {
@@ -42,13 +18,10 @@ export interface NoticeListItem {
   author: string | null;
   department: string | null;
   date: string;
-  views: number;
   sourceUrl: string;
   hasContent: boolean;
   hasAttachments: boolean;
   isEdited: boolean;
-  summary: NoticeListItemSummary | null;
-  row: NoticeListRow | null;
 }
 
 export interface NoticePage {
@@ -65,37 +38,6 @@ export interface NoticeAttachment {
 export interface NoticeEditInfo {
   count: number;
   history: unknown[];
-}
-
-export interface NoticeSummaryDetails {
-  target: string | null;
-  action: string | null;
-  host: string | null;
-  impact: string | null;
-}
-
-export interface NoticePeriod {
-  label: string | null;
-  startDate: string | null;
-  startTime: string | null;
-  endDate: string | null;
-  endTime: string | null;
-}
-
-export interface NoticeLocation {
-  label: string | null;
-  detail: string;
-}
-
-export interface NoticeDetailSummary {
-  text: string | null;
-  oneLiner: string | null;
-  type: NoticeSummaryType;
-  periods: NoticePeriod[];
-  locations: NoticeLocation[];
-  details: NoticeSummaryDetails | null;
-  model: string | null;
-  generatedAt: string;
 }
 
 /** WHY: only keys whose copy is also bundled as an old-server fallback; the server ships copy for new keys. */
@@ -153,12 +95,10 @@ export interface NoticeDetail {
   author: string | null;
   department: string | null;
   date: string;
-  views: number;
   contentMarkdown: string | null;
   attachments: NoticeAttachment[];
   sourceUrl: string;
   lastModified: string | null;
   crawledAt: string;
   editInfo: NoticeEditInfo | null;
-  summary: NoticeDetailSummary | null;
 }

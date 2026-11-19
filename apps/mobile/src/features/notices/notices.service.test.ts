@@ -109,8 +109,6 @@ describe('listenToBookmarks', () => {
     department: null,
     date: '2026-10-28',
     sourceUrl: `https://example.com/${articleNo}`,
-    summaryOneLiner: null,
-    summaryType: null,
     hasContent: true,
     hasAttachments: false,
   });

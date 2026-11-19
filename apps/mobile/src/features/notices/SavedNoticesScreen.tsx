@@ -5,6 +5,7 @@ import { logNoticesContentSelect } from '@/platform/analytics';
 import { NoticeRow } from './NoticeRow';
 import { NoticeEmptyState } from './NoticeEmptyState';
 import { NoticeLoginGate } from './components/NoticeLoginGate';
+import { toBoardName } from './notices.rules';
 import { useSavedNotices } from './useSavedNotices';
 
 /**
@@ -13,7 +14,7 @@ import { useSavedNotices } from './useSavedNotices';
  */
 export function SavedNoticesScreen() {
   const styles = useStyles();
-  const { t, router, isAnonymous, items } = useSavedNotices();
+  const { t, router, isAnonymous, items, tabsConfig } = useSavedNotices();
 
   if (isAnonymous) {
     return (
@@ -44,7 +45,7 @@ export function SavedNoticesScreen() {
               });
               router.push(`/notices/${n.sourceId}/${n.articleNo}` as never);
             }}
-            showDepartment
+            board={toBoardName(tabsConfig, item)}
           />
         )}
         contentContainerStyle={styles.contentContainer}

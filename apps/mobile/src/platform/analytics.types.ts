@@ -10,7 +10,6 @@ import type { AppCheckFailureKind } from './app-check.rules';
 import type { HandoffKind } from './handoff.rules';
 import type { AnonTrigger } from '@/features/auth/anon-session.rules';
 import type { AnonFailureClass, AuthFailureClass } from '@/features/auth/sign-in-errors.rules';
-import type { NoticeSummaryType } from '@/features/notices/notices.types';
 import type { OverviewOutcome } from '@/features/notices/overview/overview.rules';
 import type { ServiceSource } from '@/features/transit/schedule/schedule-config.rules';
 import type { TransitItemKind } from '@/features/transit/transit.types';
@@ -150,7 +149,6 @@ export type NoticesContentType =
   | 'search_back'
   | 'overview_source'
   | 'detail_share'
-  | 'detail_open_original'
   | 'detail_view_source'
   | 'detail_sibling_prev'
   | 'detail_sibling_next'
@@ -328,20 +326,6 @@ export interface LogNoticeViewInputs {
   sourceId: string;
   articleNo: number;
   tabKey?: string;
-  hasSummary: boolean;
-  hasScreen: boolean;
-  summaryType?: NoticeSummaryType;
-}
-
-export interface LogAiSummaryViewInputs {
-  sourceId: string;
-  articleNo: number;
-  summaryType: NoticeSummaryType;
-  hasOneLiner: boolean;
-  hasPeriods: boolean;
-  hasLocations: boolean;
-  hasDetails: boolean;
-  model?: string | null;
 }
 
 export interface LogHomeContentSelectInputs {

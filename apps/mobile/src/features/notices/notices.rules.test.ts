@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { parseOrThrow } from '@skkuverse/shared';
 import tabs from './__fixtures__/notice-tabs.json';
 import { noticeTabsSchema } from './notices.schema';
-import { showsOnboardingLanding, toSourceName } from './notices.rules';
+import { showsOnboardingLanding, toBoardName, toSourceName } from './notices.rules';
 
 describe('showsOnboardingLanding', () => {
   it.each([
@@ -39,5 +39,27 @@ describe('toSourceName', () => {
   it('names nothing before the config arrives', () => {
     // Act & Assert
     expect(toSourceName(undefined, 'skku-notice02')).toBeNull();
+  });
+});
+
+describe('toBoardName', () => {
+  const config = parseOrThrow(noticeTabsSchema, tabs.data, 'notices.tabs');
+
+  it('names a listed source by the tab config, not by the notice', () => {
+    // Act & Assert
+    expect(toBoardName(config, { sourceId: 'cheme', department: '화학공학과 홈페이지' })).toBe('화학공학과');
+  });
+
+  it.each([
+    ['a source no tab lists', config],
+    ['a config that has not arrived', undefined],
+  ])('falls back to the notice department for %s', (_name, noConfig) => {
+    // Act & Assert
+    expect(toBoardName(noConfig, { sourceId: 'nowhere', department: '학사과' })).toBe('학사과');
+  });
+
+  it('names nothing when the notice has no department either', () => {
+    // Act & Assert
+    expect(toBoardName(config, { sourceId: 'nowhere', department: null })).toBeNull();
   });
 });

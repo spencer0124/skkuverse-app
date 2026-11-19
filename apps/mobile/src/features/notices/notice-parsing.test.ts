@@ -32,24 +32,9 @@ describe('the notice schemas over the server fixtures', () => {
             "hasContent": false,
             "id": "6acee22b9cb01d9a98e90cc0",
             "isEdited": false,
-            "row": null,
             "sourceId": "skku-notice06",
             "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice06.do?mode=view&articleNo=140562&article.offset=0&articleLimit=10",
-            "summary": {
-              "endAt": {
-                "date": "2026-11-13",
-                "label": "공고 및 서류 접수",
-                "time": "18:00",
-              },
-              "oneLiner": "국내 4년제 학부생 대상, 홈페이지에서 신청서·서류 업로드",
-              "startAt": {
-                "date": "2026-10-14",
-                "time": null,
-              },
-              "type": "action_required",
-            },
             "title": "2027년도 두산연강재단 장학생 선발 안내",
-            "views": 2723,
           },
           {
             "articleNo": 140575,
@@ -61,24 +46,9 @@ describe('the notice schemas over the server fixtures', () => {
             "hasContent": false,
             "id": "6acf2f809cb01d9a98eb3c7b",
             "isEdited": false,
-            "row": null,
             "sourceId": "skku-notice06",
             "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice06.do?mode=view&articleNo=140575&article.offset=0&articleLimit=10",
-            "summary": {
-              "endAt": {
-                "date": "2026-10-30",
-                "label": "신청기간",
-                "time": null,
-              },
-              "oneLiner": "화학 계열 대학원생 대상, 이메일로 지원서 접수",
-              "startAt": {
-                "date": "2026-10-15",
-                "time": null,
-              },
-              "type": "informational",
-            },
             "title": "(대학원)2026년도 동진장학연구재단 동진장학금 선발 안내",
-            "views": 1630,
           },
         ],
       }
@@ -221,31 +191,7 @@ describe('the notice schemas over the server fixtures', () => {
         "lastModified": null,
         "sourceId": "skku-notice02",
         "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice02.do?mode=view&articleNo=140482&article.offset=0&articleLimit=10",
-        "summary": {
-          "details": {
-            "action": "첨부 서류와 함께 office@example.com로 이메일 신청",
-            "host": "인공지능혁신융합대학사업단",
-            "impact": "타 대학 과목은 전공 또는 일반선택으로만 인정되며, 승인 후 포기 시 F학점이 부과될 수 있음",
-            "target": "학사과정 2개 학기 이상 이수 학생 (2027년 2월 졸업예정자 제외)",
-          },
-          "generatedAt": "2026-10-12T02:20:15.269Z",
-          "locations": [],
-          "model": "claude-haiku-5-5",
-          "oneLiner": "전남대 4개 과목 교류, 이메일 office@example.com로 신청, 본교 계절수업과 합산 6학점 이내",
-          "periods": [
-            {
-              "endDate": "2026-10-25",
-              "endTime": null,
-              "label": "추천 마감일",
-              "startDate": null,
-              "startTime": null,
-            },
-          ],
-          "text": "인공지능혁신융합대학사업 협력교와의 2026학년도 겨울 계절수업 학점교류를 신청할 수 있어요. 전남대의 인공지능기초(3학점) 등 4개 과목이 대상이며, 추천 마감은 2026년 10월 25일(일)까지예요. 첨부된 대학별",
-          "type": "action_required",
-        },
         "title": "[인공지능혁신융합대학사업] 2026학년도 인공지능혁신융합대학사업 겨울 계절학기 학점교류 수강 안내 (상시 업데이트)",
-        "views": 4685,
       }
     `);
   });

@@ -24,7 +24,7 @@ import {
   type ViewName,
 } from './analytics.rules';
 import type {
-  BusContentType, CampusContentType, EventMap, LogAiSummaryViewInputs, LogAuthEventInputs, LogBuildingViewInputs,
+  BusContentType, CampusContentType, EventMap, LogAuthEventInputs, LogBuildingViewInputs,
   LogBusRouteOpenInputs, LogHomeContentSelectInputs, LogIntroStepInputs, LogNoticeViewInputs,
   LogNotificationTabToggleInputs, LogOnboardingStepInputs, LogSearchPerformInputs, LogSearchResultTapInputs,
   LogSettingsActionInputs, MealsContentType, NoticesContentType, SduiContentType, SearchContentType,
@@ -255,23 +255,7 @@ export function logNoticeView(params: LogNoticeViewInputs) {
   logEvent('notice_view', {
     source_id: params.sourceId,
     article_no: params.articleNo,
-    has_summary: params.hasSummary ? 'true' : 'false',
-    has_screen: params.hasScreen ? 'true' : 'false',
     ...(params.tabKey && { tab_key: params.tabKey }),
-    ...(params.summaryType && { summary_type: params.summaryType }),
-  });
-}
-
-export function logAiSummaryView(params: LogAiSummaryViewInputs) {
-  logEvent('notice_ai_summary_view', {
-    source_id: params.sourceId,
-    article_no: params.articleNo,
-    summary_type: params.summaryType,
-    has_one_liner: params.hasOneLiner ? 'true' : 'false',
-    has_periods: params.hasPeriods ? 'true' : 'false',
-    has_locations: params.hasLocations ? 'true' : 'false',
-    has_details: params.hasDetails ? 'true' : 'false',
-    ...(params.model && { model: truncate(params.model) }),
   });
 }
 

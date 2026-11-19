@@ -1,7 +1,5 @@
 import type { FieldValue, Timestamp } from '@react-native-firebase/firestore';
 
-export type BookmarkSummaryType = 'action_required' | 'event' | 'informational';
-
 /**
  * WHY: the display fields are labels frozen at save time; the detail screen re-fetches the live
  * notice, so drift stays in the saved-list row.
@@ -15,8 +13,6 @@ export interface BookmarkEntry {
   department: string | null;
   date: string;
   sourceUrl: string;
-  summaryOneLiner: string | null;
-  summaryType: BookmarkSummaryType | null;
   hasContent: boolean;
   hasAttachments: boolean;
 }

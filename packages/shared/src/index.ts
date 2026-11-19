@@ -88,7 +88,7 @@ export type {
 export { useBookmarkStore, bookmarkStore } from './store/bookmarks';
 export type { BookmarkStore } from './store/bookmarks';
 
-export type { BookmarkEntry, BookmarkSummaryType } from './store/bookmarks.types';
+export type { BookmarkEntry } from './store/bookmarks.types';
 export { bookmarkKey, parseBookmarkKey } from './store/bookmarks.types';
 
 export {

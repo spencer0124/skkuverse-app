@@ -4,15 +4,7 @@
  * on any machine.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  diffDays,
-  formatDisplayDate,
-  formatHourMinute,
-  formatListDate,
-  parseLocalDate,
-  startOfLocalDay,
-  toEffectiveDateTime,
-} from './notice-date.rules';
+import { diffDays, formatDisplayDate, formatListDate, startOfLocalDay } from './notice-date.rules';
 
 const ORIGINAL_TZ = process.env.TZ;
 
@@ -40,32 +32,6 @@ describe('localDate', () => {
     expect(start).toBe(new Date(2026, 9, 14).getTime());
   });
 
-  it('parses a date-only string as local midnight, not UTC', () => {
-    // Act
-    const date = parseLocalDate('2026-10-25');
-
-    // Assert
-    expect([date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()]).toEqual([
-      2026, 9, 25, 0,
-    ]);
-  });
-
-  it('reads a deadline without a time as the end of its day', () => {
-    // Act
-    const end = toEffectiveDateTime('2026-10-25', null);
-
-    // Assert
-    expect(end.getTime()).toBe(new Date(2026, 9, 25, 23, 59, 59, 999).getTime());
-  });
-
-  it('reads a deadline with a time at that time', () => {
-    // Act
-    const end = toEffectiveDateTime('2026-10-25', '17:30:15');
-
-    // Assert
-    expect(end.getTime()).toBe(new Date(2026, 9, 25, 17, 30, 15, 0).getTime());
-  });
-
   it('counts whole days between two midnights', () => {
     // Arrange
     const from = startOfLocalDay(new Date(2026, 9, 14, 9));
@@ -76,13 +42,6 @@ describe('localDate', () => {
 
     // Assert
     expect(days).toBe(11);
-  });
-
-  it('formats a time as H:mm, keeping two minute digits', () => {
-    // Assert
-    expect(formatHourMinute('09:05:00')).toBe('9:05');
-    expect(formatHourMinute('17:30')).toBe('17:30');
-    expect(formatHourMinute('8:5')).toBe('8:05');
   });
 });
 

@@ -5,7 +5,7 @@
  */
 
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,27 +14,19 @@ import {
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import {
-  useT,
-  SdsSpacing,
-  type TabRoute,
-  type TranslationKey,
-} from '@skkuverse/shared';
-import { ListHeader, Loader, Txt, createThemedStyles } from '@skkuverse/sds';
+import { useT, SdsSpacing, type TabRoute } from '@skkuverse/shared';
+import { Loader, Txt, createThemedStyles } from '@skkuverse/sds';
 import { NoticeRow } from './NoticeRow';
-import { NoticeFactRow } from './components/NoticeFactRow';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './NoticeEmptyState';
 import { logNoticesContentSelect } from '@/platform/analytics';
-import { useClock } from '@/platform/clock';
-import { isGateOpen } from '@/platform/ota';
 import { useScrollToTopOnRetap } from '@/components/useScrollToTopOnRetap';
 import { useTabBarInset } from '@/components/useTabBarInset';
 import { useMinimizeOnScroll } from '@/components/useTabBarMinimize';
 import { useNoticeList } from './useNoticeList';
 import { useMultiSourceNoticeList } from './useMultiSourceNoticeList';
-import { isFromEarlierKstDay, toNextKstMidnight, toNoticeListEntries, type NoticeListEntry } from './notice-list.rules';
-import type { NoticeListRowDay } from './notice-facts.types';
+import { useNoticeTabs } from './useNoticeTabs';
+import { toBoardName } from './notices.rules';
 import type { NoticeListItem, NoticePage } from './notices.types';
 
 type Props = (
@@ -50,32 +42,9 @@ type Props = (
   scrollsToTopOn?: TabRoute;
 };
 
-/** QUIRK(react-native): a FlatList separator never sees its trailing item, so each entry carries whether a line follows it. */
-function RowDivider({ leadingItem }: { leadingItem: NoticeListEntry }) {
+function RowDivider() {
   const styles = useStyles();
-  return leadingItem.hasDividerBelow ? <View style={styles.divider} /> : null;
-}
-
-const DAY_LABEL: Record<NoticeListRowDay, TranslationKey> = {
-  today: 'notices.day.today',
-  yesterday: 'notices.day.yesterday',
-  thisWeek: 'notices.day.thisWeek',
-  earlier: 'notices.day.earlier',
-};
-
-function DayHeader({ day }: { day: NoticeListRowDay }) {
-  const styles = useStyles();
-  const { t } = useT();
-  return (
-    <ListHeader
-      style={styles.dayHeader}
-      title={
-        <ListHeader.TitleParagraph typography="t4" fontWeight="bold" color="neutralSubtle">
-          {t(DAY_LABEL[day])}
-        </ListHeader.TitleParagraph>
-      }
-    />
-  );
+  return <View style={styles.divider} />;
 }
 
 // WHY: the picker tabs' chrome height; overestimating briefly shows blank space, while under would cover the first row.
@@ -103,7 +72,6 @@ export function NoticeListPanel(props: Props) {
 
   const {
     data,
-    dataUpdatedAt,
     isLoading,
     isError,
     isRefetching,
@@ -117,18 +85,9 @@ export function NoticeListPanel(props: Props) {
     () => data?.pages.flatMap((p: NoticePage) => p.notices) ?? [],
     [data],
   );
-  const withFacts = isGateOpen('noticeFacts');
-  const sourceCount = multi ? props.sourceIds!.length : 1;
-  const entries = useMemo(
-    () => toNoticeListEntries(items, { withFacts, sourceCount }),
-    [items, withFacts, sourceCount],
-  );
-
-  const now = useClock(toNextKstMidnight);
-  const hasDayHeaders = entries.some((entry) => entry.kind === 'day');
-  useEffect(() => {
-    if (hasDayHeaders && isFromEarlierKstDay(dataUpdatedAt, now)) void refetch();
-  }, [hasDayHeaders, dataUpdatedAt, now, refetch]);
+  const { data: tabsConfig } = useNoticeTabs();
+  // WHY: one board needs no label on each row, since the tab or the page title already names it.
+  const showsBoard = multi && props.sourceIds!.length >= 2;
 
   const navSourceId = multi ? undefined : props.sourceId;
   const handleSelect = useCallback(
@@ -147,17 +106,15 @@ export function NoticeListPanel(props: Props) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const renderItem = useCallback(
-    ({ item: entry }: { item: NoticeListEntry }) => {
-      switch (entry.kind) {
-        case 'day':
-          return <DayHeader day={entry.day} />;
-        case 'fact':
-          return <NoticeFactRow item={entry.item} row={entry.row} onPress={handleSelect} highlightQuery={q} />;
-        case 'plain':
-          return <NoticeRow item={entry.item} onPress={handleSelect} showDepartment={multi} highlightQuery={q} />;
-      }
-    },
-    [handleSelect, multi, q],
+    ({ item }: { item: NoticeListItem }) => (
+      <NoticeRow
+        item={item}
+        onPress={handleSelect}
+        board={showsBoard ? toBoardName(tabsConfig, item) : null}
+        highlightQuery={q}
+      />
+    ),
+    [handleSelect, showsBoard, tabsConfig, q],
   );
 
   const [chromeHeight, setChromeHeight] = useState(ESTIMATED_CHROME_HEIGHT);
@@ -167,7 +124,7 @@ export function NoticeListPanel(props: Props) {
   }, [chromeHeight]);
 
   const tabBarInset = useTabBarInset();
-  const listRef = useRef<Animated.FlatList<NoticeListEntry>>(null);
+  const listRef = useRef<Animated.FlatList<NoticeListItem>>(null);
   const scrollToTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
@@ -184,8 +141,8 @@ export function NoticeListPanel(props: Props) {
         onScroll={props.scrollsToTopOn ? minimizeTabBar : undefined}
         scrollEventThrottle={16}
         style={[styles.list, listHeader ? { marginTop: chromeHeight } : null]}
-        data={entries}
-        keyExtractor={(entry) => entry.key}
+        data={items}
+        keyExtractor={(item) => item.id}
         renderItem={renderItem}
         ItemSeparatorComponent={RowDivider}
         ListHeaderComponent={listContentHeader}
@@ -255,10 +212,6 @@ const useStyles = createThemedStyles(({ color }) => ({
     height: StyleSheet.hairlineWidth,
     backgroundColor: color.stroke.neutralSubtle,
     marginLeft: SdsSpacing.x6,
-  },
-  dayHeader: {
-    backgroundColor: color.bg.layerDefault,
-    paddingBottom: SdsSpacing.x1,
   },
   footer: {
     paddingVertical: SdsSpacing.x5,

@@ -54,7 +54,6 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     entry: bookmarkEntry,
     toggle: toggleBookmark,
     unsave: unsaveBookmark,
-    refreshSummaryIfNewlyAvailable,
   } = useBookmark(sourceId, articleNo, {
     onReviewEligible: review.triggerIfEligible,
   });
@@ -74,22 +73,12 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     });
   }, [unsaveBookmark, router, t]);
 
-  // WHY: heals a bookmark saved before the server summarized the notice; a no-op otherwise.
+  // WHY: keyed on whether the notice has loaded, so a background refetch does not log a second view.
+  const isLoaded = data !== undefined;
   useEffect(() => {
-    if (data) void refreshSummaryIfNewlyAvailable(data);
-  }, [data, refreshSummaryIfNewlyAvailable]);
-
-  // WHY: keyed on (id, summary type), so a background refetch does not log a second view.
-  useEffect(() => {
-    if (!data || isPageReturn(source)) return;
-    logNoticeView({
-      sourceId,
-      articleNo,
-      hasSummary: data.summary != null,
-      hasScreen: false,
-      summaryType: data.summary?.type,
-    });
-  }, [sourceId, articleNo, data?.summary?.type]); // eslint-disable-line react-hooks/exhaustive-deps -- one view per notice and summary type, not per refetch (comment above)
+    if (!isLoaded || isPageReturn(source)) return;
+    logNoticeView({ sourceId, articleNo });
+  }, [isLoaded, source, sourceId, articleNo]);
 
   // QUIRK(ios): a new `data` reference would rebuild the header options, and react-native-screens
   // re-applying the bar items is the window in which UIBarButtonItem flashes its title. Read at call time.

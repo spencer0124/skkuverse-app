@@ -21,3 +21,10 @@ export function toSourceName(config: NoticeTabsConfig | undefined, sourceId: str
   }
   return null;
 }
+
+export function toBoardName(
+  config: NoticeTabsConfig | undefined,
+  { sourceId, department }: { sourceId: string; department: string | null },
+): string | null {
+  return toSourceName(config, sourceId) ?? department;
+}
