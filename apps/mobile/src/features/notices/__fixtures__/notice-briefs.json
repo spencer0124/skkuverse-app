@@ -15,7 +15,7 @@
     "refs": {
       "attachments": [],
       "links": [ { "url": "https://example.edu/scholarship/merit", "domain": "example.edu", "title": "성적우수장학금 선발 기준과 지급 절차", "siteName": null } ],
-      "phones": [ { "number": "031-290-5832", "label": "소프트웨어융합대학 행정실" } ],
+      "phones": [ { "number": "031-290-5832", "label": "소프트웨어융합대학 학사지원 행정실 담당 홍길동 주임" } ],
       "emails": []
     }
   },
@@ -128,6 +128,26 @@
       "links": [],
       "phones": [ { "number": "02-760-1092", "label": null } ],
       "emails": []
+    }
+  },
+  {
+    "id": "skku-main-139644",
+    "title": "Spring 2027 Exchange Student Program: Information Session and Application Guide",
+    "source": { "boardName": "Office of International Affairs", "postedAt": "2026-11-18T00:00:00+09:00", "firstSeenAt": "2026-11-18T15:20:00+09:00", "isEdited": false, "url": "https://example.edu/notice/139644" },
+    "answer": {
+      "question": "Who can apply, and by when?",
+      "bullets": [
+        { "text": "Undergraduates who have finished at least two semesters and hold a GPA of 3.0 or higher can apply" },
+        { "text": "Applications close on December 5 at 18:00, through the online form" },
+        { "text": "An information session is held on November 27 at 16:00 in Room 33301, Humanities and Social Sciences Campus" }
+      ]
+    },
+    "body": { "markdown": "The Office of International Affairs will accept applications for the Spring 2027 exchange student program.\n\n1. Eligibility: undergraduates with two or more completed semesters and a GPA of 3.0 or higher\n2. Application period: November 19 to December 5, 18:00\n3. Information session: November 27, 16:00, Room 33301", "posters": [] },
+    "refs": {
+      "attachments": [],
+      "links": [ { "url": "https://example.edu/exchange/apply", "domain": "example.edu", "title": null, "siteName": null } ],
+      "phones": [],
+      "emails": [ { "address": "exchange@example.edu", "label": "Exchange Program Office" } ]
     }
   }
 ]

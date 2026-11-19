@@ -178,5 +178,19 @@ describe('the dummy briefs', () => {
     expect(phones.some((p) => p.label)).toBe(true);
     expect(phones.some((p) => !p.label)).toBe(true);
     expect(emails.some((e) => e.label)).toBe(true);
+    expect(phones.some((p) => (p.label?.length ?? 0) >= 16)).toBe(true);
+  });
+
+  it('cover an English notice whose question and bullets are shown as sent', () => {
+    // Arrange
+    const english = all.filter((b) => /^[\x20-\x7E]+$/.test(b.title));
+
+    // Act & Assert
+    expect(english.length).toBeGreaterThan(0);
+    for (const brief of english) {
+      expect(brief.answer.question).toMatch(/^[\x20-\x7E]+$/);
+      expect(brief.answer.bullets.length).toBeGreaterThanOrEqual(2);
+      expect(brief.answer.bullets.every((b) => /^[\x20-\x7E]+$/.test(b.text))).toBe(true);
+    }
   });
 });
