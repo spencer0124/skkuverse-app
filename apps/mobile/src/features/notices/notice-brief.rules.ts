@@ -93,6 +93,7 @@ export function toNoticeBrief({ notice, boardName, refs }: ToNoticeBriefInputs):
     },
     answer: { question: null, bullets: [] },
     body: { markdown: notice.contentMarkdown, posters: [] },
+    schedule: notice.schedule,
     refs: {
       attachments: notice.attachments.map((a) => ({ name: a.name, url: a.url, isForm: false })),
       links: refs.links.map((link) => ({ url: link.url, domain: link.domain })),

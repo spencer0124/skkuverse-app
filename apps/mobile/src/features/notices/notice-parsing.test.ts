@@ -189,6 +189,7 @@ describe('the notice schemas over the server fixtures', () => {
         },
         "id": "6acc38239cb01d9a98e2a2b9",
         "lastModified": null,
+        "schedule": null,
         "sourceId": "skku-notice02",
         "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice02.do?mode=view&articleNo=140482&article.offset=0&articleLimit=10",
         "title": "[인공지능혁신융합대학사업] 2026학년도 인공지능혁신융합대학사업 겨울 계절학기 학점교류 수강 안내 (상시 업데이트)",

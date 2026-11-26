@@ -157,6 +157,7 @@ export type NoticesContentType =
   | 'detail_markdown_link'
   | 'detail_markdown_contact'
   | 'detail_line_map'
+  | 'detail_schedule_map'
   | 'detail_line_search'
   | 'detail_line_call'
   | 'detail_line_email'

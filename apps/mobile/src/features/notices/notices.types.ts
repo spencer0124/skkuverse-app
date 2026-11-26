@@ -1,4 +1,5 @@
 /** CONTRACT(skkuverse-server): skkuverse-server/docs/reference/notices-api.md */
+import type { NoticeScheduleItem } from './notice-schedule.types';
 
 export interface NoticeSource {
   id: string;
@@ -101,4 +102,5 @@ export interface NoticeDetail {
   lastModified: string | null;
   crawledAt: string;
   editInfo: NoticeEditInfo | null;
+  schedule: NoticeScheduleItem[] | null;
 }

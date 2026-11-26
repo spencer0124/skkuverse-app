@@ -12,6 +12,7 @@ import { NoticeEmptyState } from './NoticeEmptyState';
 import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
 import { NoticeAnswerSection } from './components/NoticeAnswerSection';
 import { NoticeBriefHeader } from './components/NoticeBriefHeader';
+import { NoticeScheduleSection } from './components/NoticeScheduleSection';
 import { NoticeRefsSection } from './components/NoticeRefsSection';
 import { NoticeSourcesSheet } from './components/NoticeSourcesSheet';
 import { useCollapsingTitle } from './components/useCollapsingTitle';
@@ -81,6 +82,16 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
             onPosterPress={vm.openFullBody}
             onViewAll={vm.hasFullBody ? vm.openFullBody : null}
           />
+          {vm.notice.schedule !== null && vm.notice.schedule.length > 0 ? (
+            <>
+              <Border variant="height16" />
+              <NoticeScheduleSection
+                schedule={vm.notice.schedule}
+                now={now}
+                onMapPress={vm.onScheduleMapPress}
+              />
+            </>
+          ) : null}
           {hasNoticeBriefRefs(vm.notice) ? (
             <>
               <Border variant="height16" />

@@ -1,3 +1,5 @@
+import type { NoticeScheduleItem } from './notice-schedule.types';
+
 export interface NoticeBriefSource {
   boardName: string;
   postedAt: string;
@@ -56,5 +58,6 @@ export interface NoticeBrief {
   source: NoticeBriefSource;
   answer: NoticeBriefAnswer;
   body: NoticeBriefBody;
+  schedule: NoticeScheduleItem[] | null;
   refs: NoticeBriefRefs;
 }

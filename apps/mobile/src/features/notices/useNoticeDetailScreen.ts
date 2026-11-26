@@ -7,6 +7,7 @@ import { useSemanticColors } from '@skkuverse/sds';
 import { logNoticeView, logNoticesContentSelect } from '@/platform/analytics';
 import { isPageReturn } from '@/platform/analytics.rules';
 import { openExternalUrl, openInAppBrowser, shareContent } from '@/platform/handoff';
+import { openMapPlace } from '@/features/web/web.service';
 import { useReviewPrompt } from '@/features/feedback/useReviewPrompt';
 import { THREE_DAYS_MS } from '@/features/feedback/feedback.constants';
 import { useBookmark } from './useBookmark';
@@ -15,6 +16,7 @@ import { buildAttachmentUrl, canPreview } from './attachment.rules';
 import { decideNoticeDetailState } from './notice-detail.rules';
 import { toFullBodyMarkdown } from './notice-brief.rules';
 import type { NoticeBriefAttachment, NoticeBriefLink } from './notice-brief.types';
+import type { NoticeScheduleMapTarget } from './components/useNoticeScheduleSection';
 
 export const noticeInAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
   presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
@@ -150,6 +152,18 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     void openExternalUrl(`tel:${phone.replace(/[^\d+]/g, '')}`);
   }, []);
 
+  const onScheduleMapPress = useCallback(
+    (target: NoticeScheduleMapTarget) => {
+      logNoticesContentSelect({ content_type: 'detail_schedule_map', item_id: itemId });
+      const place = { kind: 'skku_building', placeId: String(target.skkuId) } as const;
+      openMapPlace(target.spaceCd === null ? place : { ...place, highlightSpaceCd: target.spaceCd }, 'notice', {
+        href: '/notices/[sourceId]/[articleNo]',
+        params: { sourceId, articleNo: String(articleNo) },
+      });
+    },
+    [itemId, sourceId, articleNo],
+  );
+
   const onEmailPress = useCallback((email: string) => {
     void openExternalUrl(`mailto:${email}`);
   }, []);
@@ -205,6 +219,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     onLinkPress,
     onPhonePress,
     onEmailPress,
+    onScheduleMapPress,
     onToastClose: () => setToastText(null),
   };
 }

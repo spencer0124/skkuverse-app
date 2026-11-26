@@ -193,4 +193,16 @@ describe('the dummy briefs', () => {
       expect(brief.answer.bullets.every((b) => /^[\x20-\x7E]+$/.test(b.text))).toBe(true);
     }
   });
+
+  it('carries the schedule a live notice came with', () => {
+    // Arrange
+    const schedule = [{ id: 'a', title: '설명회', start: { date: '2026-12-02' }, except: [], slots: [], status: 'scheduled' as const }];
+    const notice = { ...parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail'), schedule };
+
+    // Act
+    const brief = toNoticeBrief({ notice, boardName: null, refs: { images: [], links: [], emails: [], phones: [] } });
+
+    // Assert
+    expect(brief.schedule).toEqual(schedule);
+  });
 });

@@ -2,6 +2,7 @@
 // cannot render without is required, and every other field keeps its default.
 import { z } from 'zod';
 import { openUnionArray, parsedBy, text, tolerantArray } from '@skkuverse/shared';
+import { noticeScheduleSchema } from './notice-schedule.schema';
 import type { NoticeAttachment, NoticeDetail, NoticeEditInfo, NoticeListItem, NoticePage, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
 const str = (fallback = '') => z.string().catch(fallback);
@@ -85,6 +86,7 @@ export const noticeDetailSchema = z
     lastModified: nullableStr,
     crawledAt: str(),
     editInfo: editInfoSchema,
+    schedule: noticeScheduleSchema,
   })
   .transform((detail): NoticeDetail => detail);
 
