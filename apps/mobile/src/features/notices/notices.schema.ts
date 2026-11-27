@@ -2,6 +2,7 @@
 // cannot render without is required, and every other field keeps its default.
 import { z } from 'zod';
 import { openUnionArray, parsedBy, text, tolerantArray } from '@skkuverse/shared';
+import { noticeBriefSchema } from './notice-brief.schema';
 import { noticeScheduleSchema } from './notice-schedule.schema';
 import type { NoticeAttachment, NoticeDetail, NoticeEditInfo, NoticeListItem, NoticePage, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
@@ -87,6 +88,7 @@ export const noticeDetailSchema = z
     crawledAt: str(),
     editInfo: editInfoSchema,
     schedule: noticeScheduleSchema,
+    brief: noticeBriefSchema,
   })
   .transform((detail): NoticeDetail => detail);
 

@@ -5,6 +5,7 @@ import detail from './__fixtures__/notice-detail.json';
 import { noticeDetailSchema } from './notices.schema';
 import {
   findNoticeBrief,
+  hasNoticeBriefAnswerSection,
   hasNoticeBriefRefs,
   sortFormsFirst,
   toFullBodyMarkdown,
@@ -100,6 +101,23 @@ describe('hasNoticeBriefRefs', () => {
   });
 });
 
+describe('hasNoticeBriefAnswerSection', () => {
+  const brief = findNoticeBrief(all, 'skku-main', 139500)!;
+
+  it('shows for an answer, a poster or the way to the full body, and hides when there is none of them', () => {
+    // Arrange
+    const poster = { url: 'https://example.com/a.png', width: null, height: null };
+    const answer = { question: null, bullets: [{ text: 'a' }] };
+    const bare = { ...brief, answer: null, body: { markdown: null, posters: [] } };
+
+    // Act & Assert
+    expect(hasNoticeBriefAnswerSection({ ...bare, answer }, false)).toBe(true);
+    expect(hasNoticeBriefAnswerSection({ ...bare, body: { markdown: null, posters: [poster] } }, false)).toBe(true);
+    expect(hasNoticeBriefAnswerSection(bare, true)).toBe(true);
+    expect(hasNoticeBriefAnswerSection(bare, false)).toBe(false);
+  });
+});
+
 describe('toFullBodyMarkdown', () => {
   it('puts the posters above the body, with their size hint', () => {
     // Arrange
@@ -126,7 +144,7 @@ describe('toFullBodyMarkdown', () => {
 });
 
 describe('toNoticeBrief', () => {
-  it('carries a live notice over with no question, no bullets, its attachments and the refs found in its body', () => {
+  it('carries a live notice over with its attachments and the refs found in its body', () => {
     // Arrange
     const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
     const refs = { images: [], links: [{ url: 'https://a.example/x', text: '신청하기', domain: 'a.example' }], emails: ['a@b.c'], phones: ['02-1-2'] };
@@ -138,11 +156,50 @@ describe('toNoticeBrief', () => {
     expect(brief.title).toBe(notice.title);
     expect(brief.source.boardName).toBe('Board');
     expect(brief.source.url).toBe(notice.sourceUrl);
-    expect(brief.answer).toEqual({ question: null, bullets: [] });
     expect(brief.refs.attachments).toHaveLength(notice.attachments.length);
     expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example' }]);
     expect(brief.refs.emails).toEqual([{ address: 'a@b.c', label: null }]);
     expect(brief.refs.phones).toEqual([{ number: '02-1-2', label: null }]);
+  });
+});
+
+describe('toNoticeBrief answer', () => {
+  const noRefs = { images: [], links: [], emails: [], phones: [] };
+  const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
+
+  it('takes the question and the bullets of the brief the server sent', () => {
+    // Arrange
+    const sent = { question: '언제까지 낼까?', bullets: [{ text: '12/5까지' }] };
+
+    // Act
+    const brief = toNoticeBrief({ notice: { ...notice, brief: sent }, boardName: null, refs: noRefs });
+
+    // Assert
+    expect(brief.answer).toEqual(sent);
+  });
+
+  it('keeps a null question with its bullets', () => {
+    // Act
+    const brief = toNoticeBrief({ notice: { ...notice, brief: { question: null, bullets: [{ text: 'a' }] } }, boardName: null, refs: noRefs });
+
+    // Assert
+    expect(brief.answer).toEqual({ question: null, bullets: [{ text: 'a' }] });
+  });
+
+  it('has no answer when the brief is null, so nothing shows, not even an empty-state line', () => {
+    // Act
+    const brief = toNoticeBrief({ notice: { ...notice, brief: null }, boardName: null, refs: noRefs });
+
+    // Assert
+    expect(brief.answer).toBeNull();
+  });
+
+  it('has no answer when the brief has no bullets, since a heading over nothing says nothing', () => {
+    // Act
+    const brief = toNoticeBrief({ notice: { ...notice, brief: { question: '무엇을 할까?', bullets: [] } }, boardName: null, refs: noRefs });
+
+    // Assert
+    expect(brief.answer).toBeNull();
   });
 });
 
@@ -151,15 +208,15 @@ describe('the dummy briefs', () => {
     // Act & Assert
     expect(new Set(all.map((b) => b.id)).size).toBe(all.length);
     for (const brief of all) {
-      expect(brief.answer.bullets.length).toBeLessThanOrEqual(5);
+      expect(brief.answer?.bullets.length ?? 0).toBeLessThanOrEqual(5);
       expect(brief.source.url).toMatch(/^https:\/\//);
       expect(brief.id).toMatch(/^[a-z0-9-]+-\d+$/);
     }
   });
 
-  it('cover the empty answer, the empty refs, the poster-only and the long title cases', () => {
+  it('cover the null brief, the empty refs, the poster-only and the long title cases', () => {
     // Act & Assert
-    expect(all.some((b) => b.answer.bullets.length === 0 && !hasNoticeBriefRefs(b))).toBe(true);
+    expect(all.some((b) => b.answer === null && !hasNoticeBriefRefs(b))).toBe(true);
     expect(all.some((b) => b.body.posters.length >= 2)).toBe(true);
     expect(all.some((b) => b.title.length >= 60)).toBe(true);
     expect(all.some((b) => b.refs.attachments.some((a) => a.isForm))).toBe(true);
@@ -185,12 +242,12 @@ describe('the dummy briefs', () => {
     const english = all.filter((b) => /^[\x20-\x7E]+$/.test(b.title));
 
     // Act & Assert
-    expect(all.some((b) => b.answer.question === null && b.answer.bullets.length > 0)).toBe(true);
+    expect(all.some((b) => b.answer !== null && b.answer.question === null && b.answer.bullets.length > 0)).toBe(true);
     expect(english.length).toBeGreaterThan(0);
     for (const brief of english) {
-      expect(brief.answer.question).toMatch(/^[\x20-\x7E]+$/);
-      expect(brief.answer.bullets.length).toBeGreaterThanOrEqual(2);
-      expect(brief.answer.bullets.every((b) => /^[\x20-\x7E]+$/.test(b.text))).toBe(true);
+      expect(brief.answer?.question).toMatch(/^[\x20-\x7E]+$/);
+      expect(brief.answer?.bullets.length).toBeGreaterThanOrEqual(2);
+      expect(brief.answer?.bullets.every((b) => /^[\x20-\x7E]+$/.test(b.text))).toBe(true);
     }
   });
 

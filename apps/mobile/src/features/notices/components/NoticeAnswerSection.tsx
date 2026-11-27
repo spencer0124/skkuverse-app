@@ -5,7 +5,7 @@ import type { NoticeBriefAnswer, NoticeBriefPoster } from '../notice-brief.types
 import { NoticePosterStrip } from './NoticePosterStrip';
 
 interface Props {
-  answer: NoticeBriefAnswer;
+  answer: NoticeBriefAnswer | null;
   posters: NoticeBriefPoster[];
   sourceUrl: string;
   onPosterPress: () => void;
@@ -18,36 +18,34 @@ export function NoticeAnswerSection({ answer, posters, sourceUrl, onPosterPress,
 
   return (
     <View>
-      {answer.question !== null ? (
-        <ListHeader
-          style={styles.header}
-          title={
-            <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
-              {answer.question}
-            </ListHeader.TitleParagraph>
-          }
-        />
+      {answer !== null ? (
+        <>
+          {answer.question !== null ? (
+            <ListHeader
+              style={styles.header}
+              title={
+                <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
+                  {answer.question}
+                </ListHeader.TitleParagraph>
+              }
+            />
+          ) : null}
+          <View style={[styles.bullets, answer.question === null ? styles.bulletsWithoutHeader : null]}>
+            {answer.bullets.map((bullet, index) => (
+              <View key={index} style={styles.bullet}>
+                <Txt typography="t7" color="neutralMuted" style={styles.dot}>
+                  {'•'}
+                </Txt>
+                <Txt typography="t7" color="neutralMuted" lineBreakStrategyIOS="hangul-word" style={styles.shrink}>
+                  {bullet.text}
+                </Txt>
+              </View>
+            ))}
+          </View>
+        </>
       ) : null}
-      <View style={[styles.bullets, answer.question === null ? styles.bulletsWithoutHeader : null]}>
-        {answer.bullets.length > 0 ? (
-          answer.bullets.map((bullet, index) => (
-            <View key={index} style={styles.bullet}>
-              <Txt typography="t7" color="neutralMuted" style={styles.dot}>
-                {'•'}
-              </Txt>
-              <Txt typography="t7" color="neutralMuted" lineBreakStrategyIOS="hangul-word" style={styles.shrink}>
-                {bullet.text}
-              </Txt>
-            </View>
-          ))
-        ) : (
-          <Txt typography="t7" color="neutralSubtle">
-            {t('notices.brief.empty')}
-          </Txt>
-        )}
-      </View>
       {posters.length > 0 ? (
-        <View style={styles.posters}>
+        <View style={[styles.posters, answer === null ? styles.postersWithoutAnswer : null]}>
           <NoticePosterStrip posters={posters} sourceUrl={sourceUrl} onPress={onPosterPress} />
         </View>
       ) : null}
@@ -89,6 +87,10 @@ const useStyles = createThemedStyles(() => ({
   },
   posters: {
     paddingBottom: SdsSpacing.x6,
+  },
+  // WHY: the header's own top padding, kept so the gap above the posters is the same without an answer.
+  postersWithoutAnswer: {
+    paddingTop: SdsSpacing.x8,
   },
   bullet: {
     flexDirection: 'row',

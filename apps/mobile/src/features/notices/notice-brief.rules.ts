@@ -57,6 +57,10 @@ export function hasNoticeBriefRefs(brief: NoticeBrief): boolean {
   );
 }
 
+export function hasNoticeBriefAnswerSection(brief: NoticeBrief, hasFullBody: boolean): boolean {
+  return brief.answer !== null || brief.body.posters.length > 0 || hasFullBody;
+}
+
 export function toFullBodyMarkdown(body: NoticeBriefBody): string | null {
   const posters = body.posters.map((poster) =>
     poster.width && poster.height ? `![{${poster.width}x${poster.height}}](${poster.url})` : `![](${poster.url})`,
@@ -79,7 +83,11 @@ export interface ToNoticeBriefInputs {
   refs: ContentRefs;
 }
 
-/** WHY: until the server sends the brief, a live notice still opens in this layout, with no bullets. */
+/** WHY: a brief with no bullets reads as none, since a question over nothing is a heading with no answer; the server sends null for it too. */
+function toAnswer(brief: NoticeDetail['brief']): NoticeBrief['answer'] {
+  return brief !== null && brief.bullets.length > 0 ? brief : null;
+}
+
 export function toNoticeBrief({ notice, boardName, refs }: ToNoticeBriefInputs): NoticeBrief {
   return {
     id: `${notice.sourceId}-${notice.articleNo}`,
@@ -91,7 +99,7 @@ export function toNoticeBrief({ notice, boardName, refs }: ToNoticeBriefInputs):
       isEdited: (notice.editInfo?.count ?? 0) > 0,
       url: notice.sourceUrl,
     },
-    answer: { question: null, bullets: [] },
+    answer: toAnswer(notice.brief),
     body: { markdown: notice.contentMarkdown, posters: [] },
     schedule: notice.schedule,
     refs: {

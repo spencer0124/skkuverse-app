@@ -56,7 +56,7 @@ export interface NoticeBrief {
   id: string;
   title: string;
   source: NoticeBriefSource;
-  answer: NoticeBriefAnswer;
+  answer: NoticeBriefAnswer | null;
   body: NoticeBriefBody;
   schedule: NoticeScheduleItem[] | null;
   refs: NoticeBriefRefs;

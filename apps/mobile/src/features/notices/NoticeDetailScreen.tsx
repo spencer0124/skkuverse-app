@@ -17,7 +17,7 @@ import { NoticeRefsSection } from './components/NoticeRefsSection';
 import { NoticeSourcesSheet } from './components/NoticeSourcesSheet';
 import { useCollapsingTitle } from './components/useCollapsingTitle';
 import { useNoticeDetailHeaderOptions } from './components/useNoticeDetailHeaderOptions';
-import { hasNoticeBriefRefs } from './notice-brief.rules';
+import { hasNoticeBriefAnswerSection, hasNoticeBriefRefs } from './notice-brief.rules';
 import { useNoticeDetailScreen } from './useNoticeDetailScreen';
 
 interface Props {
@@ -37,6 +37,8 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
     source,
     reviewIcon: <BookmarkSimpleIcon size={32} color={color.fg.brandContrast} weight="fill" />,
   });
+  const hasSchedule = vm.status === 'ready' && vm.notice.schedule !== null && vm.notice.schedule.length > 0;
+  const hasAnswer = vm.status === 'ready' && hasNoticeBriefAnswerSection(vm.notice, vm.hasFullBody);
   const collapsing = useCollapsingTitle();
   const headerOptions = useNoticeDetailHeaderOptions({
     tombstone: vm.status === 'deleted',
@@ -75,26 +77,28 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
             onSourcePress={vm.openSources}
             onTitleLayout={collapsing.onTitleLayout}
           />
-          <NoticeAnswerSection
-            answer={vm.notice.answer}
-            posters={vm.notice.body.posters}
-            sourceUrl={vm.notice.source.url}
-            onPosterPress={vm.openFullBody}
-            onViewAll={vm.hasFullBody ? vm.openFullBody : null}
-          />
           {vm.notice.schedule !== null && vm.notice.schedule.length > 0 ? (
+            <NoticeScheduleSection
+              schedule={vm.notice.schedule}
+              now={now}
+              onMapPress={vm.onScheduleMapPress}
+            />
+          ) : null}
+          {hasAnswer ? (
             <>
-              <Border variant="height16" />
-              <NoticeScheduleSection
-                schedule={vm.notice.schedule}
-                now={now}
-                onMapPress={vm.onScheduleMapPress}
+              {hasSchedule ? <Border variant="height16" /> : null}
+              <NoticeAnswerSection
+                answer={vm.notice.answer}
+                posters={vm.notice.body.posters}
+                sourceUrl={vm.notice.source.url}
+                onPosterPress={vm.openFullBody}
+                onViewAll={vm.hasFullBody ? vm.openFullBody : null}
               />
             </>
           ) : null}
           {hasNoticeBriefRefs(vm.notice) ? (
             <>
-              <Border variant="height16" />
+              {hasSchedule || hasAnswer ? <Border variant="height16" /> : null}
               <NoticeRefsSection
                 refs={vm.notice.refs}
                 onAttachmentPress={vm.onAttachmentPress}

@@ -164,6 +164,7 @@ describe('the notice schemas over the server fixtures', () => {
           },
         ],
         "author": "인공지능혁신공유대학사업단",
+        "brief": null,
         "category": null,
         "contentMarkdown": "인공지능혁신융합대학사업의 협력교와 학점교류를 희망하는 학생은 아래 안내에 따라 신청하시기 바랍니다.
 
