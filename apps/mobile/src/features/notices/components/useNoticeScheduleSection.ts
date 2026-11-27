@@ -3,7 +3,6 @@ import { useT, type TranslationKey } from '@skkuverse/shared';
 import {
   decideSchedulePhase,
   hasScheduleDetail,
-  sortNoticeSchedule,
   toScheduleDateLabel,
   toScheduleDay,
   toScheduleTimeText,
@@ -11,9 +10,12 @@ import {
 import type {
   NoticeScheduleDateLabel,
   NoticeScheduleDay,
+  NoticeScheduleEntry,
   NoticeScheduleItem,
   NoticeSchedulePhase,
+  NoticeSchedulePointLabel,
   NoticeScheduleStatus,
+  NoticeScheduleTenDays,
 } from '../notice-schedule.types';
 
 const MONTH_KEYS = [
@@ -47,7 +49,6 @@ const WEEK_ORDINAL_KEYS = [
   'notices.schedule.weekOrdinal2',
   'notices.schedule.weekOrdinal3',
   'notices.schedule.weekOrdinal4',
-  'notices.schedule.weekOrdinal5',
 ] as const satisfies readonly TranslationKey[];
 
 const STATUS_KEYS = {
@@ -57,11 +58,28 @@ const STATUS_KEYS = {
   suspended: 'notices.schedule.status.suspended',
 } as const satisfies Partial<Record<NoticeScheduleStatus, TranslationKey>>;
 
+const TEN_DAYS_KEYS = {
+  early: 'notices.schedule.tenDays.early',
+  mid: 'notices.schedule.tenDays.mid',
+  late: 'notices.schedule.tenDays.late',
+} as const satisfies Record<NoticeScheduleTenDays, TranslationKey>;
+
 const META_SEPARATOR = ' · ';
+const TEXT_SEPARATOR = ' ';
 
 export interface NoticeScheduleMapTarget {
   skkuId: number;
   spaceCd: string | null;
+}
+
+export interface NoticeSchedulePartModel {
+  id: string;
+  title: string;
+  meta: string | null;
+  status: NoticeScheduleStatus;
+  statusText: string | null;
+  isStruck: boolean;
+  mapTarget: NoticeScheduleMapTarget | null;
 }
 
 export interface NoticeScheduleRowModel {
@@ -75,9 +93,10 @@ export interface NoticeScheduleRowModel {
   isStruck: boolean;
   isExpandable: boolean;
   isExpanded: boolean;
-  slots: string[];
-  quote: string | null;
+  occurrenceTexts: string[];
+  moreText: string | null;
   exceptText: string | null;
+  parts: NoticeSchedulePartModel[];
   mapTarget: NoticeScheduleMapTarget | null;
 }
 
@@ -110,7 +129,7 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
       return year === null ? name : tpl('notices.schedule.withYear', year, name);
     };
 
-    const labelText = (label: NoticeScheduleDateLabel): string => {
+    const pointText = (label: NoticeSchedulePointLabel, withWeekday: boolean): string => {
       switch (label.kind) {
         case 'relative':
           return label.day === 'today'
@@ -119,17 +138,30 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
               ? t('notices.schedule.tomorrow')
               : t('notices.day.yesterday');
         case 'day':
-          return dayText(label.date, true);
-        case 'range':
+          return dayText(label.date, withWeekday);
+        case 'dayRange':
           return tpl('notices.schedule.range', dayText(label.from, false), dayText(label.to, false));
         case 'month':
           return monthText(label.year, label.month);
+        case 'tenDays':
+          return tpl(TEN_DAYS_KEYS[label.tenDays], monthText(label.year, label.month));
         case 'week':
           return tpl(
             'notices.schedule.weekOf',
             monthText(label.year, label.month),
             t(WEEK_ORDINAL_KEYS[label.week - 1]),
           );
+        case 'lastWeek':
+          return tpl('notices.schedule.lastWeekOf', monthText(label.year, label.month));
+      }
+    };
+
+    const labelText = (label: NoticeScheduleDateLabel): string => {
+      switch (label.kind) {
+        case 'range':
+          return tpl('notices.schedule.range', pointText(label.from, false), pointText(label.to, false));
+        case 'deadline':
+          return tpl('notices.schedule.until', pointText(label.to, true));
         case 'repeat': {
           const base =
             label.freq === 'daily'
@@ -142,33 +174,71 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
             ? base
             : tpl('notices.schedule.repeatWithUntil', base, tpl('notices.schedule.until', dayText(label.until, false)));
         }
+        default:
+          return pointText(label, true);
       }
     };
 
-    return sortNoticeSchedule(schedule).map((item) => {
-      const timeText = toScheduleTimeText(item);
-      const meta = [timeText, item.place?.text ?? null].filter((part): part is string => part !== null && part !== '');
-      const statusKey = item.status === 'scheduled' ? null : STATUS_KEYS[item.status];
+    const joined = (parts: readonly (string | null | undefined)[], separator: string): string | null => {
+      const present = parts.filter((part): part is string => part !== null && part !== undefined && part !== '');
+      return present.length > 0 ? present.join(separator) : null;
+    };
+
+    const statusText = (entry: NoticeScheduleEntry): string | null =>
+      entry.status === 'scheduled' ? null : t(STATUS_KEYS[entry.status]);
+
+    const isStruck = (entry: NoticeScheduleEntry): boolean => entry.status === 'cancelled' || entry.status === 'suspended';
+
+    return schedule.map((item) => {
+      const occurrenceTexts =
+        item.occurrences.length > 1
+          ? item.occurrences.map(
+              (occurrence) =>
+                joined(
+                  [labelText(toScheduleDateLabel(occurrence, now)), toScheduleTimeText(occurrence)],
+                  TEXT_SEPARATOR,
+                ) ?? '',
+            )
+          : [];
+      const omitted = item.omittedCount ?? 0;
       return {
         id: item.id,
         dateText: labelText(toScheduleDateLabel(item, now)),
         title: item.title,
-        meta: meta.length > 0 ? meta.join(META_SEPARATOR) : null,
+        meta: joined([toScheduleTimeText(item), item.place?.text], META_SEPARATOR),
         phase: decideSchedulePhase(item, now),
         status: item.status,
-        statusText: statusKey === null ? null : t(statusKey),
-        isStruck: item.status === 'cancelled' || item.status === 'suspended',
+        statusText: statusText(item),
+        isStruck: isStruck(item),
         isExpandable: hasScheduleDetail(item),
         isExpanded: expandedIds.has(item.id),
-        slots: item.slots.map((slot) => slot.text),
-        quote: item.quote ?? null,
+        occurrenceTexts,
+        moreText: omitted > 0 ? tpl('notices.schedule.moreOccurrences', omitted) : null,
         exceptText:
-          item.except.length > 0
+          item.exdate !== undefined && item.exdate.length > 0
             ? tpl(
                 'notices.schedule.except',
-                item.except.map((date) => dayText(toScheduleDay(date, now), false)).join(', '),
+                item.exdate.map((date) => dayText(toScheduleDay(date, now), false)).join(', '),
               )
             : null,
+        parts: (item.parts ?? []).map((part) => ({
+          id: part.id,
+          title: part.title,
+          meta: joined(
+            [
+              part.rrule !== undefined || part.start?.date !== item.start?.date
+                ? labelText(toScheduleDateLabel(part, now))
+                : null,
+              toScheduleTimeText(part),
+              part.place?.text,
+            ],
+            META_SEPARATOR,
+          ),
+          status: part.status,
+          statusText: statusText(part),
+          isStruck: isStruck(part),
+          mapTarget: part.place?.mapTarget ?? null,
+        })),
         mapTarget: item.place?.mapTarget ?? null,
       };
     });

@@ -33,7 +33,12 @@
       ]
     },
     "body": { "markdown": "안녕하세요. 학생성공센터입니다.\n\n계열제 학생 대상으로 … ", "posters": [] },
-    "schedule": [{"id": "p1", "title": "신청서 제출 마감", "start": {"date": "2026-11-20", "time": "18:00"}, "except": [], "slots": [], "status": "scheduled"}, {"id": "t1", "title": "특강 사전 안내 메일 발송", "start": {"date": "2026-11-26", "time": "15:00"}, "end": {"date": "2026-11-26", "time": "17:00"}, "except": [], "slots": [], "status": "scheduled"}, {"id": "u1", "title": "특강 신청 기간", "start": {"date": "2026-11-30"}, "end": {"date": "2026-12-04"}, "except": [], "slots": [], "status": "scheduled"}],
+    "schedule": [
+      {"id": "p1", "title": "신청서 제출 마감", "status": "scheduled", "end": {"date": "2026-11-20", "time": "18:00"}, "occurrences": [{"end": {"date": "2026-11-20", "time": "18:00"}}], "omittedCount": 0},
+      {"id": "t1", "title": "특강 사전 안내 메일 발송", "status": "scheduled", "start": {"date": "2026-11-27", "time": "15:00"}, "end": {"date": "2026-11-27", "time": "17:00"}, "occurrences": [{"start": {"date": "2026-11-27", "time": "15:00"}, "end": {"date": "2026-11-27", "time": "17:00"}}], "omittedCount": 0},
+      {"id": "d1", "title": "챌린지스퀘어 신청 마감", "status": "scheduled", "end": {"date": "2026-11-27", "time": "24:00"}, "occurrences": [{"end": {"date": "2026-11-27", "time": "24:00"}}], "omittedCount": 0},
+      {"id": "u1", "title": "특강 신청 기간", "status": "scheduled", "start": {"date": "2026-11-30"}, "end": {"date": "2026-12-04"}, "occurrences": [{"start": {"date": "2026-11-30"}, "end": {"date": "2026-12-04"}}], "omittedCount": 0}
+    ],
     "refs": {
       "attachments": [],
       "links": [ { "url": "https://chsquarem.skku.edu/challengeM/nxuiM/index.html", "domain": "chsquarem.skku.edu" } ],
@@ -54,7 +59,12 @@
       ]
     },
     "body": { "markdown": "2027 채용연계형 장학생을 아래와 같이 모집합니다.\n\n1. 지원 기간: 2026. 11. 3.(월) ~ 11. 28.(금) 17:00\n2. 지원 방법: 채용 홈페이지 온라인 지원\n3. 제출 서류: 지원서, 성적증명서", "posters": [] },
-    "schedule": [{"id": "m1", "title": "채용 설명회", "start": {"date": "2026-12-01"}, "precision": "month", "except": [], "slots": [], "status": "scheduled"}, {"id": "w1", "title": "서류 접수", "start": {"date": "2026-12-08"}, "precision": "week", "except": [], "slots": [], "status": "scheduled"}, {"id": "r1", "title": "직무 멘토링", "start": {"date": "2026-12-07", "time": "16:00"}, "end": {"date": "2026-12-07", "time": "17:30"}, "repeat": {"freq": "weekly", "byDay": ["MO", "WE"], "until": "2026-12-21"}, "except": ["2026-12-09"], "slots": [], "status": "scheduled"}, {"id": "r2", "title": "온라인 과제 제출", "start": {"date": "2026-11-25", "time": "09:00"}, "end": {"date": "2026-11-25", "time": "18:00"}, "repeat": {"freq": "daily", "until": "2026-12-20"}, "except": [], "slots": [], "status": "scheduled"}],
+    "schedule": [
+      {"id": "r2", "title": "온라인 과제 제출", "status": "scheduled", "start": {"date": "2026-11-25", "time": "09:00"}, "end": {"date": "2026-11-25", "time": "18:00"}, "occurrences": [{"start": {"date": "2026-11-25", "time": "09:00"}, "end": {"date": "2026-11-25", "time": "18:00"}}, {"start": {"date": "2026-11-26", "time": "09:00"}, "end": {"date": "2026-11-26", "time": "18:00"}}, {"start": {"date": "2026-11-27", "time": "09:00"}, "end": {"date": "2026-11-27", "time": "18:00"}}, {"start": {"date": "2026-11-28", "time": "09:00"}, "end": {"date": "2026-11-28", "time": "18:00"}}, {"start": {"date": "2026-11-29", "time": "09:00"}, "end": {"date": "2026-11-29", "time": "18:00"}}, {"start": {"date": "2026-11-30", "time": "09:00"}, "end": {"date": "2026-11-30", "time": "18:00"}}, {"start": {"date": "2026-12-01", "time": "09:00"}, "end": {"date": "2026-12-01", "time": "18:00"}}, {"start": {"date": "2026-12-02", "time": "09:00"}, "end": {"date": "2026-12-02", "time": "18:00"}}, {"start": {"date": "2026-12-03", "time": "09:00"}, "end": {"date": "2026-12-03", "time": "18:00"}}, {"start": {"date": "2026-12-04", "time": "09:00"}, "end": {"date": "2026-12-04", "time": "18:00"}}, {"start": {"date": "2026-12-05", "time": "09:00"}, "end": {"date": "2026-12-05", "time": "18:00"}}, {"start": {"date": "2026-12-06", "time": "09:00"}, "end": {"date": "2026-12-06", "time": "18:00"}}, {"start": {"date": "2026-12-07", "time": "09:00"}, "end": {"date": "2026-12-07", "time": "18:00"}}, {"start": {"date": "2026-12-08", "time": "09:00"}, "end": {"date": "2026-12-08", "time": "18:00"}}, {"start": {"date": "2026-12-09", "time": "09:00"}, "end": {"date": "2026-12-09", "time": "18:00"}}, {"start": {"date": "2026-12-10", "time": "09:00"}, "end": {"date": "2026-12-10", "time": "18:00"}}, {"start": {"date": "2026-12-11", "time": "09:00"}, "end": {"date": "2026-12-11", "time": "18:00"}}, {"start": {"date": "2026-12-12", "time": "09:00"}, "end": {"date": "2026-12-12", "time": "18:00"}}, {"start": {"date": "2026-12-13", "time": "09:00"}, "end": {"date": "2026-12-13", "time": "18:00"}}, {"start": {"date": "2026-12-14", "time": "09:00"}, "end": {"date": "2026-12-14", "time": "18:00"}}, {"start": {"date": "2026-12-15", "time": "09:00"}, "end": {"date": "2026-12-15", "time": "18:00"}}, {"start": {"date": "2026-12-16", "time": "09:00"}, "end": {"date": "2026-12-16", "time": "18:00"}}, {"start": {"date": "2026-12-17", "time": "09:00"}, "end": {"date": "2026-12-17", "time": "18:00"}}, {"start": {"date": "2026-12-18", "time": "09:00"}, "end": {"date": "2026-12-18", "time": "18:00"}}, {"start": {"date": "2026-12-19", "time": "09:00"}, "end": {"date": "2026-12-19", "time": "18:00"}}, {"start": {"date": "2026-12-20", "time": "09:00"}, "end": {"date": "2026-12-20", "time": "18:00"}}, {"start": {"date": "2026-12-21", "time": "09:00"}, "end": {"date": "2026-12-21", "time": "18:00"}}, {"start": {"date": "2026-12-22", "time": "09:00"}, "end": {"date": "2026-12-22", "time": "18:00"}}, {"start": {"date": "2026-12-23", "time": "09:00"}, "end": {"date": "2026-12-23", "time": "18:00"}}, {"start": {"date": "2026-12-24", "time": "09:00"}, "end": {"date": "2026-12-24", "time": "18:00"}}, {"start": {"date": "2026-12-25", "time": "09:00"}, "end": {"date": "2026-12-25", "time": "18:00"}}], "omittedCount": 37, "rrule": {"freq": "daily", "until": "2027-01-31"}},
+      {"id": "r1", "title": "직무 멘토링", "status": "scheduled", "start": {"date": "2026-12-07", "time": "16:00"}, "end": {"date": "2026-12-07", "time": "17:30"}, "occurrences": [{"start": {"date": "2026-12-07", "time": "16:00"}, "end": {"date": "2026-12-07", "time": "17:30"}}, {"start": {"date": "2026-12-14", "time": "16:00"}, "end": {"date": "2026-12-14", "time": "17:30"}}, {"start": {"date": "2026-12-16", "time": "16:00"}, "end": {"date": "2026-12-16", "time": "17:30"}}, {"start": {"date": "2026-12-21", "time": "16:00"}, "end": {"date": "2026-12-21", "time": "17:30"}}], "omittedCount": 0, "rrule": {"freq": "weekly", "byDay": ["MO", "WE"], "until": "2026-12-21"}, "exdate": ["2026-12-09"]},
+      {"id": "w1", "title": "서류 접수", "status": "scheduled", "start": {"date": "2026-12-08", "latest": "2026-12-14"}, "occurrences": [{"start": {"date": "2026-12-08", "latest": "2026-12-14"}}], "omittedCount": 0},
+      {"id": "m1", "title": "채용 설명회", "status": "scheduled", "start": {"date": "2026-12-01", "latest": "2026-12-31"}, "occurrences": [{"start": {"date": "2026-12-01", "latest": "2026-12-31"}}], "omittedCount": 0}
+    ],
     "refs": {
       "attachments": [
         { "name": "2027 채용연계형 장학생 모집요강.pdf", "url": "https://example.edu/files/139412-guide.pdf", "isForm": false },
@@ -80,7 +90,13 @@
       ]
     },
     "body": { "markdown": "학과 사무실 위치가 아래와 같이 이전됩니다.\n\n- 이전 일자: 2026. 11. 24.(월)\n- 이전 장소: 제2공학관 27동 26310호\n\n이전 작업으로 11. 21.(금)은 업무를 하지 않습니다.", "posters": [] },
-    "schedule": [{"id": "s1", "title": "사무실 이전 작업", "start": {"date": "2026-12-14"}, "quote": "정확한 이전 일자는 추후 공지 예정입니다", "except": [], "slots": [], "status": "tentative"}, {"id": "s2", "title": "신규 사무실 운영 시작", "start": {"date": "2026-12-16", "time": "09:00"}, "quote": "12월 15일에서 12월 16일로 변경되었습니다", "except": [], "slots": [], "status": "rescheduled"}, {"id": "s3", "title": "임시 사무실 안내 데스크", "start": {"date": "2026-12-09", "time": "10:00"}, "end": {"date": "2026-12-09", "time": "12:00"}, "quote": "담당자 사정으로 취소되었습니다", "except": [], "slots": [], "status": "cancelled"}, {"id": "s4", "title": "학과 상담", "start": {"date": "2026-12-10"}, "end": {"date": "2026-12-11"}, "quote": "이전 작업 기간에는 상담을 중단합니다", "except": [], "slots": [], "status": "suspended"}],
+    "schedule": [
+      {"id": "s5", "title": "학과 사무실 임시 운영", "status": "scheduled", "start": {"date": "2026-12-02"}, "end": {"date": "2026-12-08"}, "occurrences": [{"start": {"date": "2026-12-02"}, "end": {"date": "2026-12-08"}}], "omittedCount": 0},
+      {"id": "s3", "title": "임시 사무실 안내 데스크", "status": "cancelled", "start": {"date": "2026-12-09", "time": "10:00"}, "end": {"date": "2026-12-09", "time": "12:00"}, "occurrences": [{"start": {"date": "2026-12-09", "time": "10:00"}, "end": {"date": "2026-12-09", "time": "12:00"}}], "omittedCount": 0},
+      {"id": "s4", "title": "학과 상담", "status": "suspended", "start": {"date": "2026-12-10"}, "end": {"date": "2026-12-11"}, "occurrences": [{"start": {"date": "2026-12-10"}, "end": {"date": "2026-12-11"}}], "omittedCount": 0},
+      {"id": "s1", "title": "사무실 이전 작업", "status": "tentative", "start": {"date": "2026-12-14"}, "occurrences": [{"start": {"date": "2026-12-14"}}], "omittedCount": 0},
+      {"id": "s2", "title": "신규 사무실 운영 시작", "status": "rescheduled", "start": {"date": "2026-12-16", "time": "09:00"}, "occurrences": [{"start": {"date": "2026-12-16", "time": "09:00"}}], "omittedCount": 0}
+    ],
     "refs": { "attachments": [], "links": [], "phones": [], "emails": [ { "address": "swoffice@example.edu", "label": "소프트웨어학과 사무실" } ] }
   },
   {
@@ -89,7 +105,11 @@
     "source": { "boardName": "학부통합(학사)", "postedAt": "2026-11-12T00:00:00+09:00", "firstSeenAt": "2026-11-12T16:20:00+09:00", "isEdited": false, "url": "https://example.edu/notice/139500" },
     "answer": null,
     "body": { "markdown": "2026학년도 동계 계절수업 운영 방식이 일부 변경되었습니다.\n\n변경된 내용은 학사 일정과 수강 편람을 참고하시기 바랍니다.", "posters": [] },
-    "schedule": [{"id": "k1", "title": "수강 신청 설명회", "start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "17:00"}, "slots": [{"start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "15:30"}, "text": "15:00 ~ 15:30 : 변경 사항 안내"}, {"start": {"date": "2026-12-02", "time": "15:30"}, "end": {"date": "2026-12-02", "time": "17:00"}, "text": "15:30 ~ 17:00 : 질의응답"}], "place": {"text": "국제관 9B217", "name": "국제관 9B217", "mapTarget": {"skkuId": 9, "spaceCd": "9B217"}}, "except": [], "status": "scheduled"}, {"id": "k2", "title": "계절수업 개강", "start": {"date": "2026-12-21"}, "place": {"text": "인문사회과학캠퍼스(서울)", "name": null, "mapTarget": null}, "except": [], "slots": [], "status": "scheduled"}, {"id": "k3", "title": "정정 기간", "start": {"date": "2026-12-22"}, "end": {"date": "2026-12-23"}, "quote": "변경 시 공지에서 다시 안내합니다", "except": [], "slots": [], "status": "scheduled"}],
+    "schedule": [
+      {"id": "k1", "title": "수강 신청 설명회", "status": "scheduled", "start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "17:00"}, "place": {"text": "국제관 9B217", "name": "국제관 9B217", "mapTarget": {"skkuId": 9, "spaceCd": "9B217"}}, "occurrences": [{"start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "17:00"}}], "omittedCount": 0, "parts": [{"id": "k1a", "title": "변경 사항 안내", "status": "scheduled", "start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "15:30"}, "occurrences": [{"start": {"date": "2026-12-02", "time": "15:00"}, "end": {"date": "2026-12-02", "time": "15:30"}}], "omittedCount": 0}, {"id": "k1b", "title": "질의응답", "status": "scheduled", "start": {"date": "2026-12-02", "time": "15:30"}, "end": {"date": "2026-12-02", "time": "17:00"}, "place": {"text": "국제관 9B217", "name": "국제관 9B217", "mapTarget": {"skkuId": 9, "spaceCd": "9B217"}}, "occurrences": [{"start": {"date": "2026-12-02", "time": "15:30"}, "end": {"date": "2026-12-02", "time": "17:00"}}], "omittedCount": 0}]},
+      {"id": "k2", "title": "계절수업 개강", "status": "scheduled", "start": {"date": "2026-12-21"}, "place": {"text": "인문사회과학캠퍼스(서울)", "name": null, "mapTarget": null}, "occurrences": [{"start": {"date": "2026-12-21"}}], "omittedCount": 0},
+      {"id": "k3", "title": "정정 기간", "status": "scheduled", "start": {"date": "2026-12-22"}, "end": {"date": "2026-12-23"}, "occurrences": [{"start": {"date": "2026-12-22"}, "end": {"date": "2026-12-23"}}], "omittedCount": 0}
+    ],
     "refs": { "attachments": [], "links": [], "phones": [], "emails": [] }
   },
   {
@@ -110,8 +130,49 @@
         { "url": "https://picsum.photos/seed/skku-fair-2/600/850", "width": 600, "height": 850 }
       ]
     },
-    "schedule": [{"id": "f1", "title": "지원서 제출 마감", "start": {"date": "2026-11-24", "time": "00:00"}, "except": [], "slots": [], "status": "scheduled"}, {"id": "f2", "title": "진로 박람회", "start": {"date": "2026-12-03", "time": "16:00"}, "end": {"date": "2026-12-03", "time": "09:00"}, "place": {"text": "600주년기념관", "name": null, "mapTarget": null}, "except": [], "slots": [], "status": "scheduled"}],
+    "schedule": [
+      {"id": "f1", "title": "지원서 제출 마감", "status": "scheduled", "end": {"date": "2026-11-24", "time": "24:00"}, "occurrences": [{"end": {"date": "2026-11-24", "time": "24:00"}}], "omittedCount": 0},
+      {"id": "f2", "title": "진로 박람회", "status": "scheduled", "start": {"date": "2026-12-03", "time": "16:00"}, "end": {"date": "2026-12-03", "time": "09:00"}, "place": {"text": "600주년기념관", "name": null, "mapTarget": null}, "occurrences": [{"start": {"date": "2026-12-03", "time": "16:00"}, "end": {"date": "2026-12-03", "time": "09:00"}}], "omittedCount": 0}
+    ],
     "refs": { "attachments": [], "links": [], "phones": [], "emails": [] }
+  },
+  {
+    "id": "skku-main-139700",
+    "title": "2027학년도 1학기 학사 일정 안내",
+    "source": {
+      "boardName": "학부통합(학사)",
+      "postedAt": "2026-11-25T00:00:00+09:00",
+      "firstSeenAt": "2026-11-25T09:30:00+09:00",
+      "isEdited": false,
+      "url": "https://example.edu/notice/139700"
+    },
+    "answer": {
+      "question": "언제 무엇을 할까?",
+      "bullets": [
+        {
+          "text": "12월 초순에 수강편람이 열리고, 중순에 예비 수강신청을 해요"
+        },
+        {
+          "text": "성적 이의 신청은 12월 마지막 주, 휴학 신청은 1월 하순이에요"
+        }
+      ]
+    },
+    "body": {
+      "markdown": "2027학년도 1학기 학사 일정을 안내합니다.\n\n- 수강편람 공개: 12월 초\n- 예비 수강신청: 12월 중순\n- 성적 이의 신청: 12월 마지막 주\n- 휴학 신청: 1월 하순",
+      "posters": []
+    },
+    "schedule": [
+      {"id": "l1", "title": "수강편람 공개", "status": "scheduled", "start": {"date": "2026-12-01", "latest": "2026-12-10"}, "occurrences": [{"start": {"date": "2026-12-01", "latest": "2026-12-10"}}], "omittedCount": 0},
+      {"id": "l2", "title": "예비 수강신청", "status": "scheduled", "start": {"date": "2026-12-11", "latest": "2026-12-20"}, "occurrences": [{"start": {"date": "2026-12-11", "latest": "2026-12-20"}}], "omittedCount": 0},
+      {"id": "l3", "title": "성적 이의 신청", "status": "scheduled", "start": {"date": "2026-12-25", "latest": "2026-12-31"}, "occurrences": [{"start": {"date": "2026-12-25", "latest": "2026-12-31"}}], "omittedCount": 0},
+      {"id": "l4", "title": "휴학 신청", "status": "scheduled", "start": {"date": "2027-01-21", "latest": "2027-01-31"}, "occurrences": [{"start": {"date": "2027-01-21", "latest": "2027-01-31"}}], "omittedCount": 0}
+    ],
+    "refs": {
+      "attachments": [],
+      "links": [],
+      "phones": [],
+      "emails": []
+    }
   },
   {
     "id": "skku-main-139601",

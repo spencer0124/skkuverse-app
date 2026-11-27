@@ -253,7 +253,16 @@ describe('the dummy briefs', () => {
 
   it('carries the schedule a live notice came with', () => {
     // Arrange
-    const schedule = [{ id: 'a', title: '설명회', start: { date: '2026-12-02' }, except: [], slots: [], status: 'scheduled' as const }];
+    const schedule = [
+      {
+        id: 'a',
+        title: '설명회',
+        status: 'scheduled' as const,
+        start: { date: '2026-12-02' },
+        occurrences: [{ start: { date: '2026-12-02' } }],
+        omittedCount: 0,
+      },
+    ];
     const notice = { ...parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail'), schedule };
 
     // Act

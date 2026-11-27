@@ -3,9 +3,13 @@ import { SCHEDULE_WEEKDAYS } from './notice-schedule.constants';
 import type {
   NoticeScheduleDateLabel,
   NoticeScheduleDay,
+  NoticeScheduleEntry,
   NoticeScheduleItem,
   NoticeSchedulePhase,
   NoticeSchedulePoint,
+  NoticeSchedulePointLabel,
+  NoticeScheduleRrule,
+  NoticeScheduleSpan,
 } from './notice-schedule.types';
 
 const MS_PER_DAY = 86_400_000;
@@ -19,106 +23,67 @@ function dayMs(date: string): number {
   return Date.UTC(year, month - 1, day);
 }
 
-function addDays(date: string, days: number): string {
-  return new Date(dayMs(date) + days * MS_PER_DAY).toISOString().slice(0, 10);
-}
-
 function weekdayOf(date: string): number {
   return new Date(dayMs(date)).getUTCDay();
 }
 
-function lastDayOfMonth(date: string): string {
-  const [year, month] = date.split('-').map(Number);
-  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-/** WHY: not `toMinutesOfDay`, which refuses "24:00", a stored deadline spelling that still has to order after "23:59". */
+/** WHY: not `toMinutesOfDay`, which refuses "24:00", the end of a deadline's day that still has to order after "23:59". */
 function minutesOf(time: string | undefined): number | null {
   if (time === undefined) return null;
   const match = TIME_RE.exec(time);
   return match === null ? null : Number(match[1]) * MINUTES_PER_HOUR + Number(match[2]);
 }
 
-const NO_TIME = -1;
-
-function compareStamp(a: { date: string; minutes: number }, b: { date: string; minutes: number }): number {
-  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-  return a.minutes - b.minutes;
+/** WHY: a point with a latest day is some day in `date..latest`, so the day it is over by is `latest`. */
+function lastDayOf(point: NoticeSchedulePoint): string {
+  return point.latest !== undefined && point.latest > point.date ? point.latest : point.date;
 }
 
 /** WHY: an end before its start is a stored mistake, so it reads as no end rather than a negative span. */
-function validEnd(item: NoticeScheduleItem): NoticeSchedulePoint | null {
-  const { start, end } = item;
+function validEnd({ start, end }: NoticeScheduleSpan): NoticeSchedulePoint | null {
   if (end === undefined) return null;
-  const startStamp = { date: start.date, minutes: minutesOf(start.time) ?? NO_TIME };
-  const endStamp = { date: end.date, minutes: minutesOf(end.time) ?? NO_TIME };
-  if (startStamp.minutes === NO_TIME || endStamp.minutes === NO_TIME) {
-    return end.date < start.date ? null : end;
-  }
-  return compareStamp(endStamp, startStamp) < 0 ? null : end;
+  if (start === undefined) return end;
+  const endDay = lastDayOf(end);
+  if (endDay !== start.date) return endDay < start.date ? null : end;
+  const startMinutes = minutesOf(start.time);
+  const endMinutes = minutesOf(end.time);
+  return startMinutes !== null && endMinutes !== null && endMinutes < startMinutes ? null : end;
 }
 
-/** WHY: a month or a week item is stored at its first day, but it lasts to the period's last. */
-function lastDayOf(item: NoticeScheduleItem): string {
-  if (item.precision === 'month') return lastDayOfMonth(item.start.date);
-  if (item.precision === 'week') return addDays(item.start.date, DAYS_PER_WEEK - 1);
-  return validEnd(item)?.date ?? item.start.date;
+type Occurrence = NoticeScheduleSpan & { first: NoticeSchedulePoint; last: NoticeSchedulePoint };
+
+function toOccurrence(span: NoticeScheduleSpan): Occurrence | null {
+  const first = span.start ?? span.end;
+  const last = span.end ?? span.start;
+  return first === undefined || last === undefined ? null : { ...span, first, last };
 }
 
-function endStamp(item: NoticeScheduleItem): { date: string; minutes: number } {
-  if (item.precision !== undefined) return { date: lastDayOf(item), minutes: NO_TIME };
-  const end = validEnd(item) ?? item.start;
-  return { date: end.date, minutes: minutesOf(end.time) ?? NO_TIME };
+function decideOccurrencePhase(occurrence: Occurrence, today: string, nowMinutes: number): NoticeSchedulePhase {
+  const { first, last } = occurrence;
+  const lastDay = lastDayOf(last);
+  const lastMinutes = last.latest === undefined ? minutesOf(last.time) : null;
+  if (today > lastDay || (today === lastDay && lastMinutes !== null && nowMinutes >= lastMinutes)) return 'past';
+  return today < first.date ? 'upcoming' : 'ongoing';
 }
 
-function startStamp(item: NoticeScheduleItem): { date: string; minutes: number } {
-  return { date: item.start.date, minutes: minutesOf(item.start.time) ?? NO_TIME };
-}
-
-/** WHY: ends on the input position, so items equal on every key keep their stored order. */
-export function sortNoticeSchedule(items: readonly NoticeScheduleItem[]): NoticeScheduleItem[] {
-  return items
-    .map((entry, index) => ({ entry, index }))
-    .sort(
-      (a, b) =>
-        compareStamp(endStamp(a.entry), endStamp(b.entry)) ||
-        compareStamp(startStamp(a.entry), startStamp(b.entry)) ||
-        a.index - b.index,
-    )
-    .map(({ entry }) => entry);
-}
-
-function weekdaysOf(item: NoticeScheduleItem): number[] {
-  const byDay = item.repeat?.byDay ?? [];
-  if (byDay.length === 0) return [weekdayOf(item.start.date)];
-  const numbers = byDay.map((code) => SCHEDULE_WEEKDAYS.indexOf(code) + 1).map((n) => n % DAYS_PER_WEEK);
-  return [...new Set(numbers)].sort((a, b) => (a || DAYS_PER_WEEK) - (b || DAYS_PER_WEEK));
-}
-
-function decideRepeatPhase(item: NoticeScheduleItem, today: string): NoticeSchedulePhase {
-  const { repeat } = item;
-  if (repeat?.until !== undefined && today > repeat.until) return 'past';
-  if (today < item.start.date) return 'upcoming';
-  if (item.except.includes(today)) return 'upcoming';
-  const isOccurrenceDay = repeat?.freq === 'daily' || weekdaysOf(item).includes(weekdayOf(today));
-  return isOccurrenceDay ? 'ongoing' : 'upcoming';
-}
-
-/** WHY: day granularity, with one refinement: an item that ends at a time today is past once that time has come. */
-export function decideSchedulePhase(item: NoticeScheduleItem, now: Date): NoticeSchedulePhase {
+/**
+ * WHY: day granularity, but a point with a time is over once that minute has come, as a 22:59 deadline is at 23:00.
+ * A series is past only when the server listed every occurrence and all are over.
+ */
+export function decideSchedulePhase(entry: NoticeScheduleEntry, now: Date): NoticeSchedulePhase {
   const today = kstDate(now.getTime());
-  if (item.repeat !== undefined) return decideRepeatPhase(item, today);
-  const { start } = item;
-  const lastDay = lastDayOf(item);
-  if (today < start.date) return 'upcoming';
-  if (today > lastDay) return 'past';
-  if (item.except.includes(today)) return today < lastDay ? 'upcoming' : 'past';
-  const closing = endStamp(item);
-  if (item.precision === undefined && today === closing.date && closing.minutes !== NO_TIME && validEnd(item) !== null) {
-    const nowMinutes = Math.floor(((now.getTime() + KST_OFFSET_MS) % MS_PER_DAY) / MS_PER_MINUTE);
-    if (nowMinutes >= closing.minutes) return 'past';
-  }
-  return 'ongoing';
+  const nowMinutes = Math.floor(((now.getTime() + KST_OFFSET_MS) % MS_PER_DAY) / MS_PER_MINUTE);
+  const listed = entry.occurrences.map(toOccurrence).filter((occurrence) => occurrence !== null);
+  const own = toOccurrence(entry);
+  const occurrences = listed.length > 0 ? listed : own === null ? [] : [own];
+  const phases = occurrences.map((occurrence) => decideOccurrencePhase(occurrence, today, nowMinutes));
+  if (phases.includes('ongoing')) return 'ongoing';
+  if (phases.length > 0 && phases.every((phase) => phase === 'past') && entry.omittedCount === 0) return 'past';
+  return 'upcoming';
 }
 
 function toDay(date: string, todayYear: number): NoticeScheduleDay {
@@ -130,46 +95,91 @@ export function toScheduleDay(date: string, now: Date): NoticeScheduleDay {
   return toDay(date, Number(kstDate(now.getTime()).slice(0, 4)));
 }
 
-export function toScheduleDateLabel(item: NoticeScheduleItem, now: Date): NoticeScheduleDateLabel {
+/** WHY: the label is read off the range, never stored: a stretch that is no month, ten days or week reads as its two days. */
+function toPeriodLabel(point: NoticeSchedulePoint, todayYear: number): NoticeSchedulePointLabel {
+  const first = toDay(point.date, todayYear);
+  const last = toDay(lastDayOf(point), todayYear);
+  const [year, month] = point.date.split('-').map(Number);
+  const lastOfMonth = lastDayOfMonth(year, month);
+  const sameMonth = point.date.slice(0, 7) === lastDayOf(point).slice(0, 7);
+  if (sameMonth) {
+    const from = first.day;
+    const to = last.day;
+    if (from === 1 && to === lastOfMonth) return { kind: 'month', year: first.year, month };
+    if (to - from === DAYS_PER_WEEK - 1 && to === lastOfMonth) return { kind: 'lastWeek', year: first.year, month };
+    if (from === 1 && to === 10) return { kind: 'tenDays', year: first.year, month, tenDays: 'early' };
+    if (from === 11 && to === 20) return { kind: 'tenDays', year: first.year, month, tenDays: 'mid' };
+    if (from === 21 && to === lastOfMonth) return { kind: 'tenDays', year: first.year, month, tenDays: 'late' };
+    if (to - from === DAYS_PER_WEEK - 1 && (from - 1) % DAYS_PER_WEEK === 0) {
+      return { kind: 'week', year: first.year, month, week: (from - 1) / DAYS_PER_WEEK + 1 };
+    }
+  }
+  return { kind: 'dayRange', from: first, to: last };
+}
+
+function toPointLabel(point: NoticeSchedulePoint, now: Date, isRelativeAllowed: boolean): NoticeSchedulePointLabel {
   const today = kstDate(now.getTime());
   const todayYear = Number(today.slice(0, 4));
-  const { start, repeat } = item;
-  if (repeat !== undefined) {
+  if (point.latest !== undefined && point.latest > point.date) return toPeriodLabel(point, todayYear);
+  if (isRelativeAllowed) {
+    const daysAway = Math.round((dayMs(point.date) - dayMs(today)) / MS_PER_DAY);
+    if (daysAway === 0) return { kind: 'relative', day: 'today' };
+    if (daysAway === 1) return { kind: 'relative', day: 'tomorrow' };
+    if (daysAway === -1) return { kind: 'relative', day: 'yesterday' };
+  }
+  return { kind: 'day', date: toDay(point.date, todayYear) };
+}
+
+/** WHY: with no byDay the series falls on its start's weekday; Sunday sorts last, as a Korean week reads. */
+function weekdaysOf(rrule: NoticeScheduleRrule, start: NoticeSchedulePoint | undefined): number[] {
+  if (rrule.freq === 'daily') return [];
+  const byDay = rrule.byDay ?? [];
+  if (byDay.length === 0) return start === undefined ? [] : [weekdayOf(start.date)];
+  const numbers = byDay.map((code) => (SCHEDULE_WEEKDAYS.indexOf(code) + 1) % DAYS_PER_WEEK);
+  return [...new Set(numbers)].sort((a, b) => (a || DAYS_PER_WEEK) - (b || DAYS_PER_WEEK));
+}
+
+function isSamePoint(a: NoticeSchedulePoint, b: NoticeSchedulePoint): boolean {
+  return a.date === b.date && lastDayOf(a) === lastDayOf(b);
+}
+
+export function toScheduleDateLabel(
+  span: NoticeScheduleSpan & { rrule?: NoticeScheduleRrule },
+  now: Date,
+): NoticeScheduleDateLabel {
+  const { start, rrule } = span;
+  const end = validEnd(span);
+  if (rrule !== undefined) {
+    const todayYear = Number(kstDate(now.getTime()).slice(0, 4));
     return {
       kind: 'repeat',
-      freq: repeat.freq,
-      weekdays: repeat.freq === 'weekly' ? weekdaysOf(item) : [],
-      until: repeat.until === undefined ? null : toDay(repeat.until, todayYear),
+      freq: rrule.freq,
+      weekdays: weekdaysOf(rrule, start),
+      until: rrule.until === undefined ? null : toDay(rrule.until, todayYear),
     };
   }
-  const first = toDay(start.date, todayYear);
-  if (item.precision === 'month') return { kind: 'month', year: first.year, month: first.month };
-  if (item.precision === 'week') {
-    return { kind: 'week', year: first.year, month: first.month, week: Math.ceil(first.day / DAYS_PER_WEEK) };
+  if (start === undefined) {
+    return { kind: 'deadline', to: toPointLabel(end ?? { date: kstDate(now.getTime()) }, now, true) };
   }
-  const end = validEnd(item);
-  if (end !== null && end.date !== start.date) {
-    return { kind: 'range', from: first, to: toDay(end.date, todayYear) };
+  if (end === null || isSamePoint(start, end) || (end.latest === undefined && end.date === start.date)) {
+    return toPointLabel(start, now, true);
   }
-  const daysAway = Math.round((dayMs(start.date) - dayMs(today)) / MS_PER_DAY);
-  if (daysAway === 0) return { kind: 'relative', day: 'today' };
-  if (daysAway === 1) return { kind: 'relative', day: 'tomorrow' };
-  if (daysAway === -1) return { kind: 'relative', day: 'yesterday' };
-  return { kind: 'day', date: first };
+  return { kind: 'range', from: toPointLabel(start, now, false), to: toPointLabel(end, now, false) };
 }
 
-export function toScheduleTimeText(item: NoticeScheduleItem): string | null {
-  const { time } = item.start;
-  if (time === undefined) return null;
-  const endTime = validEnd(item)?.time;
-  return endTime === undefined ? time : `${time}–${endTime}`;
+export function toScheduleTimeText(span: NoticeScheduleSpan): string | null {
+  const startTime = span.start?.time;
+  const endTime = validEnd(span)?.time;
+  if (startTime === undefined) return endTime ?? null;
+  return endTime === undefined ? startTime : `${startTime}–${endTime}`;
 }
 
-export function hasScheduleDetail(item: NoticeScheduleItem): boolean {
+export function hasScheduleDetail(entry: NoticeScheduleItem): boolean {
   return (
-    item.slots.length > 0 ||
-    item.quote !== undefined ||
-    item.except.length > 0 ||
-    (item.place?.mapTarget ?? null) !== null
+    (entry.parts?.length ?? 0) > 0 ||
+    entry.occurrences.length > 1 ||
+    (entry.omittedCount ?? 0) > 0 ||
+    (entry.exdate?.length ?? 0) > 0 ||
+    (entry.place?.mapTarget ?? null) !== null
   );
 }

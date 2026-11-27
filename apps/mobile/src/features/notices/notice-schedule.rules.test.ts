@@ -2,208 +2,172 @@ import { describe, expect, it } from 'vitest';
 import {
   decideSchedulePhase,
   hasScheduleDetail,
-  sortNoticeSchedule,
   toScheduleDateLabel,
   toScheduleDay,
   toScheduleTimeText,
 } from './notice-schedule.rules';
-import type { NoticeScheduleItem } from './notice-schedule.types';
+import type {
+  NoticeScheduleDateLabel,
+  NoticeScheduleDay,
+  NoticeScheduleEntry,
+  NoticeScheduleItem,
+  NoticeSchedulePoint,
+  NoticeScheduleSpan,
+} from './notice-schedule.types';
 
 const kst = (iso: string) => new Date(`${iso}+09:00`);
 // 2026-11-26 is a Thursday.
 const NOW = kst('2026-11-26T14:00:00');
 
-function item(overrides: Partial<NoticeScheduleItem> & { id: string }): NoticeScheduleItem {
-  return {
-    title: overrides.id,
-    start: { date: '2026-11-26' },
-    except: [],
-    slots: [],
-    status: 'scheduled',
-    ...overrides,
-  };
+function entry(overrides: Partial<NoticeScheduleEntry> = {}): NoticeScheduleEntry {
+  return { id: 'x', title: 'x', status: 'scheduled', occurrences: [], omittedCount: 0, ...overrides };
 }
 
-const ids = (items: NoticeScheduleItem[]) => items.map((i) => i.id);
+/** WHY: the server fills `occurrences` for a plain item with its own span, so a test spells the span once. */
+function plain(start?: NoticeSchedulePoint, end?: NoticeSchedulePoint): NoticeScheduleEntry {
+  return entry({ start, end, occurrences: [{ start, end }] });
+}
 
-describe('sortNoticeSchedule', () => {
-  it('orders by the effective end, so a short deadline is not buried by a long span', () => {
-    // Arrange
-    const long = item({ id: 'long', start: { date: '2026-11-01' }, end: { date: '2026-12-31' } });
-    const deadline = item({ id: 'deadline', start: { date: '2026-12-01', time: '18:00' } });
-    const early = item({ id: 'early', start: { date: '2026-11-20' } });
-
-    // Act
-    const sorted = sortNoticeSchedule([long, deadline, early]);
-
-    // Assert
-    expect(ids(sorted)).toEqual(['early', 'deadline', 'long']);
-  });
-
-  it('breaks an effective-end tie by start, then keeps the input order', () => {
-    // Arrange
-    const lateStart = item({ id: 'a', start: { date: '2026-12-05' }, end: { date: '2026-12-10' } });
-    const earlyStart = item({ id: 'b', start: { date: '2026-12-01' }, end: { date: '2026-12-10' } });
-    const sameFirst = item({ id: 'c', start: { date: '2026-12-10' } });
-    const sameSecond = item({ id: 'd', start: { date: '2026-12-10' } });
-
-    // Act
-    const sorted = sortNoticeSchedule([lateStart, earlyStart, sameFirst, sameSecond]);
-
-    // Assert
-    expect(ids(sorted)).toEqual(['b', 'a', 'c', 'd']);
-  });
-
-  it('orders by time within a day, a day with no time first', () => {
-    // Arrange
-    const evening = item({ id: 'evening', start: { date: '2026-12-02', time: '18:00' } });
-    const morning = item({ id: 'morning', start: { date: '2026-12-02', time: '09:00' } });
-    const allDay = item({ id: 'allDay', start: { date: '2026-12-02' } });
-
-    // Act
-    const sorted = sortNoticeSchedule([evening, morning, allDay]);
-
-    // Assert
-    expect(ids(sorted)).toEqual(['allDay', 'morning', 'evening']);
-  });
-
-  it('reads an end before the start as no end', () => {
-    // Arrange
-    const backwards = item({
-      id: 'backwards',
-      start: { date: '2026-12-03', time: '16:00' },
-      end: { date: '2026-12-03', time: '09:00' },
-    });
-    const other = item({ id: 'other', start: { date: '2026-12-04' } });
-
-    // Act
-    const sorted = sortNoticeSchedule([other, backwards]);
-
-    // Assert
-    expect(ids(sorted)).toEqual(['backwards', 'other']);
-  });
-
-  it('puts a month at its last day and a week at its seventh', () => {
-    // Arrange
-    const month = item({ id: 'month', start: { date: '2026-12-01' }, precision: 'month' });
-    const week = item({ id: 'week', start: { date: '2026-12-08' }, precision: 'week' });
-    const day = item({ id: 'day', start: { date: '2026-12-20' } });
-    const lateDay = item({ id: 'lateDay', start: { date: '2026-12-31' } });
-
-    // Act
-    const sorted = sortNoticeSchedule([lateDay, month, day, week]);
-
-    // Assert
-    expect(ids(sorted)).toEqual(['week', 'day', 'month', 'lateDay']);
-  });
-
-  it('does not change its input', () => {
-    // Arrange
-    const items = [item({ id: 'b', start: { date: '2026-12-02' } }), item({ id: 'a', start: { date: '2026-12-01' } })];
-
-    // Act
-    sortNoticeSchedule(items);
-
-    // Assert
-    expect(ids(items)).toEqual(['b', 'a']);
-  });
+const at = (date: string, time?: string): NoticeSchedulePoint => (time === undefined ? { date } : { date, time });
+const day = (month: number, dayOfMonth: number, weekday: number, year: number | null = null): NoticeScheduleDay => ({
+  year,
+  month,
+  day: dayOfMonth,
+  weekday,
 });
 
 describe('decideSchedulePhase', () => {
-  it.each<[string, NoticeScheduleItem, string]>([
-    ['a day before today', item({ id: 'x', start: { date: '2026-11-25' } }), 'past'],
-    ['today', item({ id: 'x', start: { date: '2026-11-26' } }), 'ongoing'],
-    ['today, before its time', item({ id: 'x', start: { date: '2026-11-26', time: '18:00' } }), 'ongoing'],
-    ['a day after today', item({ id: 'x', start: { date: '2026-11-27' } }), 'upcoming'],
-    [
-      'today, its end time one minute ahead',
-      item({ id: 'x', start: { date: '2026-11-26', time: '13:00' }, end: { date: '2026-11-26', time: '14:01' } }),
-      'ongoing',
-    ],
-    [
-      'today, its end time now',
-      item({ id: 'x', start: { date: '2026-11-26', time: '13:00' }, end: { date: '2026-11-26', time: '14:00' } }),
-      'past',
-    ],
-    [
-      'a range that holds today',
-      item({ id: 'x', start: { date: '2026-11-24' }, end: { date: '2026-11-30' } }),
-      'ongoing',
-    ],
-    [
-      'a range that ended yesterday',
-      item({ id: 'x', start: { date: '2026-11-20' }, end: { date: '2026-11-25' } }),
-      'past',
-    ],
-    [
-      'a range that starts tomorrow',
-      item({ id: 'x', start: { date: '2026-11-27' }, end: { date: '2026-11-30' } }),
-      'upcoming',
-    ],
-    [
-      'a range with today skipped, days still to come',
-      item({ id: 'x', start: { date: '2026-11-24' }, end: { date: '2026-11-30' }, except: ['2026-11-26'] }),
-      'upcoming',
-    ],
-    [
-      'a backwards end reads as the start alone',
-      item({ id: 'x', start: { date: '2026-11-26', time: '16:00' }, end: { date: '2026-11-26', time: '09:00' } }),
-      'ongoing',
-    ],
-    ['this month', item({ id: 'x', start: { date: '2026-11-01' }, precision: 'month' }), 'ongoing'],
-    ['last month', item({ id: 'x', start: { date: '2026-10-01' }, precision: 'month' }), 'past'],
-    ['next month', item({ id: 'x', start: { date: '2026-12-01' }, precision: 'month' }), 'upcoming'],
-    ['this week', item({ id: 'x', start: { date: '2026-11-23' }, precision: 'week' }), 'ongoing'],
-    ['a week that ended yesterday', item({ id: 'x', start: { date: '2026-11-19' }, precision: 'week' }), 'past'],
-    [
-      'a daily series inside its span',
-      item({ id: 'x', start: { date: '2026-11-20' }, repeat: { freq: 'daily', until: '2026-12-20' } }),
-      'ongoing',
-    ],
-    [
-      'a daily series past its until',
-      item({ id: 'x', start: { date: '2026-11-01' }, repeat: { freq: 'daily', until: '2026-11-25' } }),
-      'past',
-    ],
-    [
-      'a daily series not yet started',
-      item({ id: 'x', start: { date: '2026-12-01' }, repeat: { freq: 'daily' } }),
-      'upcoming',
-    ],
-    [
-      'a daily series with today skipped',
-      item({ id: 'x', start: { date: '2026-11-01' }, repeat: { freq: 'daily' }, except: ['2026-11-26'] }),
-      'upcoming',
-    ],
-    [
-      'a weekly series on one of its days (Thursday)',
-      item({ id: 'x', start: { date: '2026-11-01' }, repeat: { freq: 'weekly', byDay: ['MO', 'TH'] } }),
-      'ongoing',
-    ],
-    [
-      'a weekly series on another day',
-      item({ id: 'x', start: { date: '2026-11-01' }, repeat: { freq: 'weekly', byDay: ['MO'] } }),
-      'upcoming',
-    ],
-    [
-      'a weekly series with no days, on the start weekday',
-      item({ id: 'x', start: { date: '2026-11-19' }, repeat: { freq: 'weekly' } }),
-      'ongoing',
-    ],
-  ])('%s', (_name, scheduleItem, expected) => {
+  it.each<[string, NoticeScheduleEntry, string]>([
+    ['a day before today', plain(at('2026-11-25')), 'past'],
+    ['today with no time', plain(at('2026-11-26')), 'ongoing'],
+    ['a day after today', plain(at('2026-11-27')), 'upcoming'],
+    ['a range that holds today', plain(at('2026-11-24'), at('2026-11-30')), 'ongoing'],
+    ['a range that ended yesterday', plain(at('2026-11-20'), at('2026-11-25')), 'past'],
+    ['a range that starts tomorrow', plain(at('2026-11-27'), at('2026-11-30')), 'upcoming'],
+    ['an end today one minute ahead', plain(at('2026-11-26', '13:00'), at('2026-11-26', '14:01')), 'ongoing'],
+    ['an end today now', plain(at('2026-11-26', '13:00'), at('2026-11-26', '14:00')), 'past'],
+    ['an end today a minute ago', plain(at('2026-11-26', '13:00'), at('2026-11-26', '13:59')), 'past'],
+    ['a start-only time already gone today', plain(at('2026-11-26', '09:00')), 'past'],
+    ['a start-only time still ahead today', plain(at('2026-11-26', '18:00')), 'ongoing'],
+  ])('reads %s', (_name, input, expected) => {
     // Act
-    const phase = decideSchedulePhase(scheduleItem, NOW);
+    const phase = decideSchedulePhase(input, NOW);
 
     // Assert
     expect(phase).toBe(expected);
   });
 
-  it('reads today in Seoul, not UTC', () => {
+  it.each<[string, NoticeScheduleEntry, string]>([
+    ['a deadline of 24:00 today, still open', plain(undefined, at('2026-11-26', '24:00')), 'ongoing'],
+    ['a deadline of 24:00 yesterday, over', plain(undefined, at('2026-11-25', '24:00')), 'past'],
+    ['a deadline of 24:00 tomorrow', plain(undefined, at('2026-11-27', '24:00')), 'upcoming'],
+    ['a deadline of 13:59 today, over', plain(undefined, at('2026-11-26', '13:59')), 'past'],
+    ['a deadline of 14:01 today, open', plain(undefined, at('2026-11-26', '14:01')), 'ongoing'],
+    ['a deadline with no time today', plain(undefined, at('2026-11-26')), 'ongoing'],
+  ])('reads %s', (_name, input, expected) => {
+    // Act
+    const phase = decideSchedulePhase(input, NOW);
+
+    // Assert
+    expect(phase).toBe(expected);
+  });
+
+  it.each<[string, NoticeScheduleEntry, string]>([
+    ['a late-November point', plain({ date: '2026-11-21', latest: '2026-11-30' }), 'ongoing'],
+    ['a point whose latest day was yesterday', plain({ date: '2026-11-20', latest: '2026-11-25' }), 'past'],
+    ['a point whose latest day is today', plain({ date: '2026-11-20', latest: '2026-11-26' }), 'ongoing'],
+    ['a point that starts tomorrow', plain({ date: '2026-11-27', latest: '2026-12-05' }), 'upcoming'],
+    ['a deadline that falls some day in a range', plain(undefined, { date: '2026-11-20', latest: '2026-11-25' }), 'past'],
+  ])('decides on the latest day for %s', (_name, input, expected) => {
+    // Act
+    const phase = decideSchedulePhase(input, NOW);
+
+    // Assert
+    expect(phase).toBe(expected);
+  });
+
+  it('reads KST, not UTC, at an instant where the two are on different days', () => {
     // Arrange
-    const justAfterSeoulMidnight = kst('2026-11-27T00:30:00');
+    const justAfterMidnight = kst('2026-11-27T00:30:00');
+    const deadline = plain(undefined, at('2026-11-26', '24:00'));
+    const lateEvening = plain(at('2026-11-26', '22:00'), at('2026-11-26', '23:59'));
 
     // Act
-    const phase = decideSchedulePhase(item({ id: 'x', start: { date: '2026-11-26' } }), justAfterSeoulMidnight);
+    const phases = [deadline, lateEvening].map((input) => decideSchedulePhase(input, justAfterMidnight));
+
+    // Assert
+    expect(phases).toEqual(['past', 'past']);
+  });
+
+  describe('a series', () => {
+    const weekly = (dates: string[], omittedCount: number | null) =>
+      entry({
+        start: at(dates[0], '19:00'),
+        end: at(dates[0], '21:00'),
+        rrule: { freq: 'weekly', byDay: ['WE'] },
+        occurrences: dates.map((date) => ({ start: at(date, '19:00'), end: at(date, '21:00') })),
+        omittedCount,
+      });
+
+    it.each<[string, NoticeScheduleEntry, string]>([
+      ['every listed occurrence past and none left', weekly(['2026-11-04', '2026-11-11'], 0), 'past'],
+      ['every listed occurrence past but more beyond the list', weekly(['2026-11-04', '2026-11-11'], 5), 'upcoming'],
+      ['every listed occurrence past with no end to the series', weekly(['2026-11-04', '2026-11-11'], null), 'upcoming'],
+      ['an occurrence still to come, today not one of them', weekly(['2026-11-04', '2026-12-02'], 0), 'upcoming'],
+      ['an occurrence today, before its time', weekly(['2026-11-04', '2026-11-26'], 0), 'ongoing'],
+      ['an occurrence today with another still to come', weekly(['2026-11-26', '2026-12-03'], 0), 'ongoing'],
+    ])('reads %s', (_name, input, expected) => {
+      // Act
+      const phase = decideSchedulePhase(input, NOW);
+
+      // Assert
+      expect(phase).toBe(expected);
+    });
+
+    it('reads today as passed once its occurrence ended and only later ones remain', () => {
+      // Arrange
+      const evening = kst('2026-11-26T21:30:00');
+      const series = entry({
+        rrule: { freq: 'weekly', byDay: ['TH'] },
+        occurrences: [
+          { start: at('2026-11-26', '19:00'), end: at('2026-11-26', '21:00') },
+          { start: at('2026-12-03', '19:00'), end: at('2026-12-03', '21:00') },
+        ],
+      });
+
+      // Act
+      const phase = decideSchedulePhase(series, evening);
+
+      // Assert
+      expect(phase).toBe('upcoming');
+    });
+
+    it('reads the day a skipped date falls on as upcoming, not ongoing', () => {
+      // Arrange
+      const span = entry({
+        start: at('2026-11-24'),
+        end: at('2026-11-30'),
+        exdate: ['2026-11-26'],
+        occurrences: [
+          { start: at('2026-11-24'), end: at('2026-11-25', '24:00') },
+          { start: at('2026-11-27'), end: at('2026-11-30') },
+        ],
+      });
+
+      // Act
+      const phase = decideSchedulePhase(span, NOW);
+
+      // Assert
+      expect(phase).toBe('upcoming');
+    });
+  });
+
+  it('falls back to the entry itself when the server listed no occurrence', () => {
+    // Arrange
+    const bare = entry({ start: at('2026-11-20'), end: at('2026-11-25'), occurrences: [] });
+
+    // Act
+    const phase = decideSchedulePhase(bare, NOW);
 
     // Assert
     expect(phase).toBe('past');
@@ -211,133 +175,220 @@ describe('decideSchedulePhase', () => {
 });
 
 describe('toScheduleDateLabel', () => {
-  const day = (year: number | null, month: number, d: number, weekday: number) => ({ year, month, day: d, weekday });
-
-  it.each<[string, NoticeScheduleItem, unknown]>([
-    ['today', item({ id: 'x', start: { date: '2026-11-26' } }), { kind: 'relative', day: 'today' }],
-    ['tomorrow', item({ id: 'x', start: { date: '2026-11-27' } }), { kind: 'relative', day: 'tomorrow' }],
-    ['yesterday', item({ id: 'x', start: { date: '2026-11-25' } }), { kind: 'relative', day: 'yesterday' }],
-    ['a later day', item({ id: 'x', start: { date: '2026-12-02' } }), { kind: 'day', date: day(null, 12, 2, 3) }],
-    ['another year', item({ id: 'x', start: { date: '2027-01-05' } }), { kind: 'day', date: day(2027, 1, 5, 2) }],
+  it.each<[string, NoticeScheduleSpan, NoticeScheduleDateLabel]>([
+    ['today', { start: at('2026-11-26') }, { kind: 'relative', day: 'today' }],
+    ['tomorrow', { start: at('2026-11-27') }, { kind: 'relative', day: 'tomorrow' }],
+    ['yesterday', { start: at('2026-11-25') }, { kind: 'relative', day: 'yesterday' }],
+    ['a later day', { start: at('2026-12-02') }, { kind: 'day', date: day(12, 2, 3) }],
+    ['a day in another year', { start: at('2027-01-04') }, { kind: 'day', date: day(1, 4, 1, 2027) }],
+    ['a start and an end on one day', { start: at('2026-12-02', '15:00'), end: at('2026-12-02', '17:00') }, { kind: 'day', date: day(12, 2, 3) }],
     [
-      'a range',
-      item({ id: 'x', start: { date: '2026-11-24' }, end: { date: '2026-11-30' } }),
-      { kind: 'range', from: day(null, 11, 24, 2), to: day(null, 11, 30, 1) },
+      'a range over two days',
+      { start: at('2026-11-30'), end: at('2026-12-04') },
+      { kind: 'range', from: { kind: 'day', date: day(11, 30, 1) }, to: { kind: 'day', date: day(12, 4, 5) } },
     ],
-    [
-      'an end on the start day',
-      item({ id: 'x', start: { date: '2026-12-02', time: '15:00' }, end: { date: '2026-12-02', time: '17:00' } }),
-      { kind: 'day', date: day(null, 12, 2, 3) },
-    ],
-    [
-      'an end before the start, shown as the start alone',
-      item({ id: 'x', start: { date: '2026-12-02', time: '16:00' }, end: { date: '2026-12-02', time: '09:00' } }),
-      { kind: 'day', date: day(null, 12, 2, 3) },
-    ],
-    [
-      'an end date before the start date, shown as the start alone',
-      item({ id: 'x', start: { date: '2026-12-02' }, end: { date: '2026-12-01' } }),
-      { kind: 'day', date: day(null, 12, 2, 3) },
-    ],
-    ['a month, with no day', item({ id: 'x', start: { date: '2026-12-01' }, precision: 'month' }), { kind: 'month', year: null, month: 12 }],
-    ['a month of another year', item({ id: 'x', start: { date: '2027-02-01' }, precision: 'month' }), { kind: 'month', year: 2027, month: 2 }],
-    ['the first week', item({ id: 'x', start: { date: '2026-12-01' }, precision: 'week' }), { kind: 'week', year: null, month: 12, week: 1 }],
-    ['the second week', item({ id: 'x', start: { date: '2026-12-08' }, precision: 'week' }), { kind: 'week', year: null, month: 12, week: 2 }],
-    [
-      'a daily series with an until',
-      item({ id: 'x', start: { date: '2026-12-01' }, repeat: { freq: 'daily', until: '2026-12-20' } }),
-      { kind: 'repeat', freq: 'daily', weekdays: [], until: day(null, 12, 20, 0) },
-    ],
-    [
-      'a daily series with no until',
-      item({ id: 'x', start: { date: '2026-12-01' }, repeat: { freq: 'daily' } }),
-      { kind: 'repeat', freq: 'daily', weekdays: [], until: null },
-    ],
-    [
-      'a weekly series, its days from Monday',
-      item({ id: 'x', start: { date: '2026-12-01' }, repeat: { freq: 'weekly', byDay: ['WE', 'MO', 'SU'] } }),
-      { kind: 'repeat', freq: 'weekly', weekdays: [1, 3, 0], until: null },
-    ],
-    [
-      'a weekly series with no days, on the start weekday',
-      item({ id: 'x', start: { date: '2026-12-02' }, repeat: { freq: 'weekly' } }),
-      { kind: 'repeat', freq: 'weekly', weekdays: [3], until: null },
-    ],
-  ])('%s', (_name, scheduleItem, expected) => {
+  ])('names %s', (_name, span, expected) => {
     // Act
-    const label = toScheduleDateLabel(scheduleItem, NOW);
+    const label = toScheduleDateLabel(span, NOW);
 
     // Assert
     expect(label).toEqual(expected);
   });
 
-  it('never names a day for a month', () => {
+  it('keeps a range endpoint a plain day, even when it is today', () => {
     // Act
-    const label = toScheduleDateLabel(item({ id: 'x', start: { date: '2026-12-01' }, precision: 'month' }), NOW);
+    const label = toScheduleDateLabel({ start: at('2026-11-26'), end: at('2026-11-30') }, NOW);
 
     // Assert
-    expect(label).not.toHaveProperty('day');
-    expect(label).not.toHaveProperty('date');
+    expect(label).toEqual({
+      kind: 'range',
+      from: { kind: 'day', date: day(11, 26, 4) },
+      to: { kind: 'day', date: day(11, 30, 1) },
+    });
   });
 
-  it('reads today in Seoul, not UTC', () => {
-    // Arrange
-    const justAfterSeoulMidnight = kst('2026-11-27T00:30:00');
-
+  it('reads an end alone as a deadline, relative when it is near', () => {
     // Act
-    const label = toScheduleDateLabel(item({ id: 'x', start: { date: '2026-11-27' } }), justAfterSeoulMidnight);
+    const labels = [
+      toScheduleDateLabel({ end: at('2026-11-26', '24:00') }, NOW),
+      toScheduleDateLabel({ end: at('2026-12-06', '24:00') }, NOW),
+    ];
 
     // Assert
-    expect(label).toEqual({ kind: 'relative', day: 'today' });
+    expect(labels).toEqual([
+      { kind: 'deadline', to: { kind: 'relative', day: 'today' } },
+      { kind: 'deadline', to: { kind: 'day', date: day(12, 6, 0) } },
+    ]);
   });
-});
 
-describe('toScheduleDay', () => {
-  it('names the weekday, and the year only when it is not this year', () => {
-    // Act & Assert
-    expect(toScheduleDay('2026-12-09', NOW)).toEqual({ year: null, month: 12, day: 9, weekday: 3 });
-    expect(toScheduleDay('2027-01-05', NOW)).toEqual({ year: 2027, month: 1, day: 5, weekday: 2 });
+  it.each<[string, NoticeScheduleSpan, NoticeScheduleDateLabel]>([
+    ['a start after the end', { start: at('2026-12-05'), end: at('2026-12-01') }, { kind: 'day', date: day(12, 5, 6) }],
+    [
+      'an end before the start on one day',
+      { start: at('2026-12-03', '16:00'), end: at('2026-12-03', '09:00') },
+      { kind: 'day', date: day(12, 3, 4) },
+    ],
+  ])('ignores %s', (_name, span, expected) => {
+    // Act
+    const label = toScheduleDateLabel(span, NOW);
+
+    // Assert
+    expect(label).toEqual(expected);
+  });
+
+  describe('a point with a latest day', () => {
+    const point = (date: string, latest: string): NoticeScheduleSpan => ({ start: { date, latest } });
+
+    it.each<[string, string, string, NoticeScheduleDateLabel]>([
+      ['the first ten days', '2026-12-01', '2026-12-10', { kind: 'tenDays', year: null, month: 12, tenDays: 'early' }],
+      ['the middle ten days', '2026-12-11', '2026-12-20', { kind: 'tenDays', year: null, month: 12, tenDays: 'mid' }],
+      ['the rest of a 31-day month', '2026-12-21', '2026-12-31', { kind: 'tenDays', year: null, month: 12, tenDays: 'late' }],
+      ['the rest of a 30-day month', '2026-11-21', '2026-11-30', { kind: 'tenDays', year: null, month: 11, tenDays: 'late' }],
+      ['the rest of February', '2027-02-21', '2027-02-28', { kind: 'tenDays', year: 2027, month: 2, tenDays: 'late' }],
+      ['the rest of a leap February', '2028-02-21', '2028-02-29', { kind: 'tenDays', year: 2028, month: 2, tenDays: 'late' }],
+      ['the first week', '2026-12-01', '2026-12-07', { kind: 'week', year: null, month: 12, week: 1 }],
+      ['the second week', '2026-12-08', '2026-12-14', { kind: 'week', year: null, month: 12, week: 2 }],
+      ['the third week', '2026-12-15', '2026-12-21', { kind: 'week', year: null, month: 12, week: 3 }],
+      ['the fourth week', '2026-12-22', '2026-12-28', { kind: 'week', year: null, month: 12, week: 4 }],
+      ['the last seven days of a 31-day month', '2026-12-25', '2026-12-31', { kind: 'lastWeek', year: null, month: 12 }],
+      ['the last seven days of a 30-day month', '2026-11-24', '2026-11-30', { kind: 'lastWeek', year: null, month: 11 }],
+      ['the last seven days of February, which is also its fourth week', '2027-02-22', '2027-02-28', { kind: 'lastWeek', year: 2027, month: 2 }],
+      ['the whole month', '2026-12-01', '2026-12-31', { kind: 'month', year: null, month: 12 }],
+      ['the whole of February', '2027-02-01', '2027-02-28', { kind: 'month', year: 2027, month: 2 }],
+    ])('names %s', (_name, date, latest, expected) => {
+      // Act
+      const label = toScheduleDateLabel(point(date, latest), NOW);
+
+      // Assert
+      expect(label).toEqual(expected);
+    });
+
+    it.each<[string, string, string, NoticeScheduleDateLabel]>([
+      [
+        'a stretch that is no ten days and no week',
+        '2026-12-03',
+        '2026-12-09',
+        { kind: 'dayRange', from: day(12, 3, 4), to: day(12, 9, 3) },
+      ],
+      [
+        'a stretch across two months',
+        '2026-11-25',
+        '2026-12-05',
+        { kind: 'dayRange', from: day(11, 25, 3), to: day(12, 5, 6) },
+      ],
+      ['a latest day equal to the date', '2026-12-02', '2026-12-02', { kind: 'day', date: day(12, 2, 3) }],
+      ['a latest day before the date', '2026-12-09', '2026-12-02', { kind: 'day', date: day(12, 9, 3) }],
+    ])('falls back for %s', (_name, date, latest, expected) => {
+      // Act
+      const label = toScheduleDateLabel(point(date, latest), NOW);
+
+      // Assert
+      expect(label).toEqual(expected);
+    });
+
+    it('labels a range from a day to a period', () => {
+      // Act
+      const label = toScheduleDateLabel(
+        { start: at('2026-11-30'), end: { date: '2026-12-21', latest: '2026-12-31' } },
+        NOW,
+      );
+
+      // Assert
+      expect(label).toEqual({
+        kind: 'range',
+        from: { kind: 'day', date: day(11, 30, 1) },
+        to: { kind: 'tenDays', year: null, month: 12, tenDays: 'late' },
+      });
+    });
+
+    it('labels a deadline that has a latest day', () => {
+      // Act
+      const label = toScheduleDateLabel({ end: { date: '2026-12-21', latest: '2026-12-31' } }, NOW);
+
+      // Assert
+      expect(label).toEqual({ kind: 'deadline', to: { kind: 'tenDays', year: null, month: 12, tenDays: 'late' } });
+    });
+  });
+
+  describe('a series', () => {
+    const series = (rrule: NoticeScheduleEntry['rrule'], start = at('2026-11-26', '19:00')) =>
+      entry({ start, rrule });
+
+    it.each<[string, NoticeScheduleEntry, NoticeScheduleDateLabel]>([
+      [
+        'its byDay days in week order, Sunday last',
+        series({ freq: 'weekly', byDay: ['SU', 'TH', 'TU'] }),
+        { kind: 'repeat', freq: 'weekly', weekdays: [2, 4, 0], until: null },
+      ],
+      [
+        'the weekday of its start when it has no byDay',
+        series({ freq: 'weekly' }),
+        { kind: 'repeat', freq: 'weekly', weekdays: [4], until: null },
+      ],
+      [
+        'every day',
+        series({ freq: 'daily' }),
+        { kind: 'repeat', freq: 'daily', weekdays: [], until: null },
+      ],
+      [
+        'its last day',
+        series({ freq: 'weekly', byDay: ['WE'], until: '2026-12-16' }),
+        { kind: 'repeat', freq: 'weekly', weekdays: [3], until: day(12, 16, 3) },
+      ],
+    ])('names %s', (_name, input, expected) => {
+      // Act
+      const label = toScheduleDateLabel(input, NOW);
+
+      // Assert
+      expect(label).toEqual(expected);
+    });
   });
 });
 
 describe('toScheduleTimeText', () => {
-  it.each<[string, NoticeScheduleItem, string | null]>([
-    ['no time', item({ id: 'x' }), null],
-    ['a start time', item({ id: 'x', start: { date: '2026-12-02', time: '15:00' } }), '15:00'],
-    [
-      'a start and an end time',
-      item({ id: 'x', start: { date: '2026-12-02', time: '15:00' }, end: { date: '2026-12-02', time: '17:00' } }),
-      '15:00–17:00',
-    ],
-    [
-      'an end before the start',
-      item({ id: 'x', start: { date: '2026-12-02', time: '16:00' }, end: { date: '2026-12-02', time: '09:00' } }),
-      '16:00',
-    ],
-    ['midnight as stored', item({ id: 'x', start: { date: '2026-12-02', time: '00:00' } }), '00:00'],
-    ['an end time with no start time', item({ id: 'x', end: { date: '2026-12-03', time: '18:00' } }), null],
-  ])('%s', (_name, scheduleItem, expected) => {
+  it.each<[string, NoticeScheduleSpan, string | null]>([
+    ['a start and an end time', { start: at('2026-12-02', '15:00'), end: at('2026-12-02', '17:00') }, '15:00–17:00'],
+    ['a start time alone', { start: at('2026-12-02', '15:00') }, '15:00'],
+    ['a deadline at the end of the day', { end: at('2026-11-23', '24:00') }, '24:00'],
+    ['no time', { start: at('2026-12-02') }, null],
+    ['a point with a latest day', { start: { date: '2026-12-01', latest: '2026-12-10' } }, null],
+    ['an end before its start', { start: at('2026-12-02', '17:00'), end: at('2026-12-02', '15:00') }, '17:00'],
+    ['a range with a time at each end', { start: at('2026-12-01', '09:00'), end: at('2026-12-05', '18:00') }, '09:00–18:00'],
+  ])('reads %s', (_name, span, expected) => {
     // Act
-    const text = toScheduleTimeText(scheduleItem);
+    const text = toScheduleTimeText(span);
 
     // Assert
     expect(text).toBe(expected);
   });
 });
 
+describe('toScheduleDay', () => {
+  it('drops the year in the current year only', () => {
+    // Act
+    const days = [toScheduleDay('2026-11-25', NOW), toScheduleDay('2027-01-04', NOW)];
+
+    // Assert
+    expect(days).toEqual([day(11, 25, 3), day(1, 4, 1, 2027)]);
+  });
+});
+
 describe('hasScheduleDetail', () => {
-  const slot = { start: { date: '2026-11-26' }, text: 'a' };
+  const once = at('2026-12-02');
+  const part = entry({ id: 'p' });
 
   it.each<[string, NoticeScheduleItem, boolean]>([
-    ['nothing more', item({ id: 'x' }), false],
-    ['a slot', item({ id: 'x', slots: [slot] }), true],
-    ['a quote', item({ id: 'x', quote: 'q' }), true],
-    ['an except day', item({ id: 'x', except: ['2026-11-27'] }), true],
-    ['a pinned place', item({ id: 'x', place: { text: 'p', name: 'n', mapTarget: { skkuId: 9, spaceCd: null } } }), true],
-    ['an unpinned place', item({ id: 'x', place: { text: 'p', name: null, mapTarget: null } }), false],
-  ])('%s', (_name, scheduleItem, expected) => {
+    ['nothing more to show', plain(once), false],
+    ['parts', { ...plain(once), parts: [part] }, true],
+    ['an empty parts list', { ...plain(once), parts: [] }, false],
+    ['more than one occurrence', entry({ start: once, occurrences: [{ start: once }, { start: at('2026-12-09') }] }), true],
+    ['a skipped day', { ...plain(once), exdate: ['2026-12-09'] }, true],
+    ['a pinned place', { ...plain(once), place: { text: '국제관', name: '국제관', mapTarget: { skkuId: 9, spaceCd: null } } }, true],
+    ['an unpinned place', { ...plain(once), place: { text: '온라인', name: null, mapTarget: null } }, false],
+    ['omitted occurrences', { ...plain(once), omittedCount: 4 }, true],
+  ])('is %s', (_name, input, expected) => {
     // Act
-    const result = hasScheduleDetail(scheduleItem);
+    const result = hasScheduleDetail(input);
 
     // Assert
     expect(result).toBe(expected);

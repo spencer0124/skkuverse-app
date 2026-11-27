@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { CaretDownIcon, CaretUpIcon } from 'phosphor-react-native';
 import { useT, SdsRadius, SdsSpacing } from '@skkuverse/shared';
 import { Badge, Pressable, TextButton, Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
+import type { NoticeScheduleStatus } from '../notice-schedule.types';
 import type { NoticeScheduleMapTarget, NoticeScheduleRowModel } from './useNoticeScheduleSection';
 
 const RAIL_WIDTH = SdsSpacing.x6;
@@ -18,6 +19,31 @@ const STATUS_BADGE = {
   suspended: { color: 'neutralMuted', backgroundColor: 'neutralWeak' },
 } as const;
 
+function StatusBadge({ status, text }: { status: NoticeScheduleStatus; text: string | null }) {
+  const badge = STATUS_BADGE[status];
+  if (badge === null || text === null) return null;
+  return (
+    <Badge size="xsmall" color={badge.color} backgroundColor={badge.backgroundColor} fontWeight="bold">
+      {text}
+    </Badge>
+  );
+}
+
+interface MapButtonProps {
+  target: NoticeScheduleMapTarget;
+  label: string;
+  onPress: (target: NoticeScheduleMapTarget) => void;
+}
+
+function MapButton({ target, label, onPress }: MapButtonProps) {
+  const styles = useStyles();
+  return (
+    <TextButton typography="t6" variant="arrow" color="brand" onPress={() => onPress(target)} style={styles.mapButton}>
+      {label}
+    </TextButton>
+  );
+}
+
 interface Props {
   row: NoticeScheduleRowModel;
   isFirst: boolean;
@@ -30,7 +56,6 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
   const styles = useStyles();
   const color = useSemanticColors();
   const { t } = useT();
-  const badge = STATUS_BADGE[row.status];
   const isMuted = row.phase === 'past' || row.isStruck;
   const dotStyle = row.phase === 'past' ? styles.dotPast : styles.dotActive;
 
@@ -58,11 +83,7 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
           >
             {row.title}
           </Txt>
-          {badge !== null && row.statusText !== null ? (
-            <Badge size="xsmall" color={badge.color} backgroundColor={badge.backgroundColor} fontWeight="bold">
-              {row.statusText}
-            </Badge>
-          ) : null}
+          <StatusBadge status={row.status} text={row.statusText} />
         </View>
         {row.meta !== null ? (
           <Txt typography="t5" color="neutralMuted">
@@ -71,36 +92,52 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
         ) : null}
         {row.isExpanded ? (
           <View style={styles.detail}>
-            {row.quote !== null ? (
-              <Txt typography="t6" color="neutralMuted" lineBreakStrategyIOS="hangul-word">
-                {`“${row.quote}”`}
-              </Txt>
-            ) : null}
-            {row.slots.map((slot, index) => (
+            {row.parts.map((part) => (
+              <View key={part.id} style={styles.part}>
+                <View style={styles.titleRow}>
+                  <Txt
+                    typography="t6"
+                    fontWeight="bold"
+                    color={part.isStruck ? 'neutralSubtle' : 'neutral'}
+                    lineBreakStrategyIOS="hangul-word"
+                    style={[styles.shrink, part.isStruck ? styles.struck : null]}
+                  >
+                    {part.title}
+                  </Txt>
+                  <StatusBadge status={part.status} text={part.statusText} />
+                </View>
+                {part.meta !== null ? (
+                  <Txt typography="t5" color="neutralMuted">
+                    {part.meta}
+                  </Txt>
+                ) : null}
+                {part.mapTarget !== null ? (
+                  <MapButton target={part.mapTarget} onPress={onMapPress} label={t('notices.schedule.showOnMap')} />
+                ) : null}
+              </View>
+            ))}
+            {row.occurrenceTexts.map((text, index) => (
               <View key={index} style={styles.bullet}>
                 <Txt typography="t6" color="neutralMuted" style={styles.bulletDot}>
                   {'•'}
                 </Txt>
                 <Txt typography="t6" color="neutralMuted" lineBreakStrategyIOS="hangul-word" style={styles.shrink}>
-                  {slot}
+                  {text}
                 </Txt>
               </View>
             ))}
+            {row.moreText !== null ? (
+              <Txt typography="t5" color="neutralSubtle">
+                {row.moreText}
+              </Txt>
+            ) : null}
             {row.exceptText !== null ? (
               <Txt typography="t5" color="neutralSubtle">
                 {row.exceptText}
               </Txt>
             ) : null}
             {row.mapTarget !== null ? (
-              <TextButton
-                typography="t6"
-                variant="arrow"
-                color="brand"
-                onPress={() => onMapPress(row.mapTarget!)}
-                style={styles.mapButton}
-              >
-                {t('notices.schedule.showOnMap')}
-              </TextButton>
+              <MapButton target={row.mapTarget} onPress={onMapPress} label={t('notices.schedule.showOnMap')} />
             ) : null}
           </View>
         ) : null}
@@ -202,6 +239,9 @@ const useStyles = createThemedStyles(({ color }) => ({
   detail: {
     paddingTop: SdsSpacing.x3,
     gap: SdsSpacing.x3,
+  },
+  part: {
+    gap: SdsSpacing.x1,
   },
   bullet: {
     flexDirection: 'row',
