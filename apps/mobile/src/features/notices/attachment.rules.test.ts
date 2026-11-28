@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import detail from './__fixtures__/notice-detail.json';
-import { buildAttachmentUrl, canPreview } from './attachment.rules';
+import { buildAttachmentUrl, canPreview, isImageAttachment } from './attachment.rules';
 
 const attachment = detail.data.attachments[0]!;
 
@@ -47,5 +47,26 @@ describe('previews', () => {
     expect(canPreview('a.pdf')).toBe(true);
     expect(canPreview('a.hwp')).toBe(false);
     expect(canPreview('README')).toBe(true);
+  });
+});
+
+describe('isImageAttachment', () => {
+  it.each([
+    ['poster.jpg', 'https://x.skku.edu/download.do?id=1', true],
+    ['poster.JPEG', 'https://x.skku.edu/download.do?id=1', true],
+    ['a.png', 'https://x.skku.edu/a', true],
+    ['a.gif', 'https://x.skku.edu/a', true],
+    ['a.webp', 'https://x.skku.edu/a', true],
+    ['a.HEIC', 'https://x.skku.edu/a', true],
+    ['a.heif', 'https://x.skku.edu/a', true],
+    ['a.pdf', 'https://x.skku.edu/a.png', false],
+    ['a.svg', 'https://x.skku.edu/a', false],
+    ['a.png.zip', 'https://x.skku.edu/a', false],
+    ['포스터', 'https://x.skku.edu/files/poster.PNG?v=2', true],
+    ['포스터', 'https://x.skku.edu/download.do?file=poster.png', false],
+    ['포스터', 'not a url', false],
+  ])('reads %s at %s as an image: %s', (name, url, isImage) => {
+    // Act & Assert
+    expect(isImageAttachment({ name, url })).toBe(isImage);
   });
 });

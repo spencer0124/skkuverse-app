@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { SdsRadius, SdsSpacing } from '@skkuverse/shared';
-import { Skeleton, Txt, createThemedStyles } from '@skkuverse/sds';
+import { Pressable, Skeleton, Txt, createThemedStyles } from '@skkuverse/sds';
 
 interface RefererImageProps {
   uri: string;
@@ -10,6 +10,11 @@ interface RefererImageProps {
   referer?: string;
   hintWidth?: number;
   hintHeight?: number;
+  /** WHY: `fill` scales a smaller image up to the container, where `natural` never draws it past its own width. */
+  sizing?: 'natural' | 'fill';
+  /** WHY: `hidden` leaves no box where an image could not load, where `alt` says it could not. */
+  failure?: 'alt' | 'hidden';
+  onPress?: () => void;
 }
 
 export function RefererImage({
@@ -19,6 +24,9 @@ export function RefererImage({
   referer,
   hintWidth,
   hintHeight,
+  sizing = 'natural',
+  failure = 'alt',
+  onPress,
 }: RefererImageProps) {
   const styles = useStyles();
   const headers = useMemo<Record<string, string>>(() => {
@@ -58,6 +66,7 @@ export function RefererImage({
   }, [uri, headers, request]);
 
   if (failed) {
+    if (failure === 'hidden') return null;
     return (
       <View style={styles.imageFallback}>
         <Txt typography="t3" color="neutralSubtle">
@@ -77,10 +86,10 @@ export function RefererImage({
   }
 
   const aspect = dimSource.h / dimSource.w;
-  const renderedWidth = Math.min(dimSource.w, containerWidth);
+  const renderedWidth = sizing === 'fill' ? containerWidth : Math.min(dimSource.w, containerWidth);
   const renderedHeight = renderedWidth * aspect;
 
-  return (
+  const image = (
     <View style={{ width: renderedWidth, height: renderedHeight, marginVertical: SdsSpacing.x2 }}>
       {size ? (
         <Image
@@ -104,6 +113,13 @@ export function RefererImage({
         </View>
       ) : null}
     </View>
+  );
+
+  if (!onPress) return image;
+  return (
+    <Pressable onPress={onPress} bg="transparent" accessibilityRole="imagebutton" accessibilityLabel={alt}>
+      {image}
+    </Pressable>
   );
 }
 

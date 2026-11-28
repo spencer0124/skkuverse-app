@@ -93,6 +93,9 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
                 vm.notice.answer !== null ? (
                   <NoticeAnswerSection
                     answer={vm.notice.answer}
+                    images={vm.notice.images}
+                    sourceUrl={vm.notice.source.url}
+                    onImagePress={vm.openFullBody}
                     onViewAll={hasViewAllUnderBullets(vm.notice, vm.hasFullBody) ? vm.openFullBody : null}
                   />
                 ) : null
@@ -106,9 +109,9 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
                 />
               ) : (
                 <NoticeBodySection
-                  posters={vm.notice.body.posters}
+                  images={vm.notice.images}
                   sourceUrl={vm.notice.source.url}
-                  onPosterPress={vm.openFullBody}
+                  onImagePress={vm.openFullBody}
                   onViewAll={vm.hasFullBody && !hasViewAllUnderBullets(vm.notice, vm.hasFullBody) ? vm.openFullBody : null}
                 />
               )}

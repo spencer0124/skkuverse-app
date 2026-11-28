@@ -1,25 +1,25 @@
 import { View } from 'react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
 import { Border, TextButton, createThemedStyles } from '@skkuverse/sds';
-import type { NoticeBriefPoster } from '../notice-brief.types';
-import { NoticePosterStrip } from './NoticePosterStrip';
+import type { NoticeBriefAttachment } from '../notice-brief.types';
+import { NoticeImageAttachments } from './NoticeImageAttachments';
 
 interface Props {
-  posters: NoticeBriefPoster[];
+  images: NoticeBriefAttachment[];
   sourceUrl: string;
-  onPosterPress: () => void;
+  onImagePress: () => void;
   onViewAll: (() => void) | null;
 }
 
-export function NoticeBodySection({ posters, sourceUrl, onPosterPress, onViewAll }: Props) {
+export function NoticeBodySection({ images, sourceUrl, onImagePress, onViewAll }: Props) {
   const styles = useStyles();
   const { t } = useT();
 
   return (
     <View>
-      {posters.length > 0 ? (
-        <View style={styles.posters}>
-          <NoticePosterStrip posters={posters} sourceUrl={sourceUrl} onPress={onPosterPress} />
+      {images.length > 0 ? (
+        <View style={styles.images}>
+          <NoticeImageAttachments images={images} sourceUrl={sourceUrl} onPress={onImagePress} />
         </View>
       ) : null}
       {onViewAll ? (
@@ -41,9 +41,9 @@ export function NoticeBodySection({ posters, sourceUrl, onPosterPress, onViewAll
 }
 
 const useStyles = createThemedStyles(() => ({
-  posters: {
-    paddingTop: SdsSpacing.x8,
-    paddingBottom: SdsSpacing.x6,
+  images: {
+    paddingTop: SdsSpacing.x6,
+    paddingBottom: SdsSpacing.x4,
   },
   viewAll: {
     alignSelf: 'center',

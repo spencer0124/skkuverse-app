@@ -814,6 +814,54 @@
     "refs": null
   },
   {
+    "id": "dummy-skku-main-139801",
+    "sourceId": "skku-main",
+    "articleNo": 139801,
+    "title": "2026 성균관대학교 상징 이미지 활용 안내",
+    "category": null,
+    "author": null,
+    "department": "학부통합(행사)",
+    "date": "2026-11-27",
+    "contentMarkdown": "학교 상징 이미지의 활용 기준을 안내합니다.\n\n이미지 파일은 첨부를 참고해 주세요.",
+    "attachments": [
+      {
+        "name": "명륜당 일러스트.jpg",
+        "url": "https://www.skku.edu/_res/skku/img/common/gnb_img.jpg"
+      },
+      {
+        "name": "상징 이미지 활용 기준.pdf",
+        "url": "https://example.edu/files/139801-guide.pdf"
+      },
+      {
+        "name": "국문 로고.png",
+        "url": "https://www.skku.edu/_res/skku/img/common/logo_250401.png"
+      },
+      {
+        "name": "삭제된 이미지.png",
+        "url": "https://www.skku.edu/_res/skku/img/common/missing-139801.png"
+      }
+    ],
+    "sourceUrl": "https://www.skku.edu/skku/campus/skk_comm/notice01.do?mode=view&articleNo=139801",
+    "lastModified": null,
+    "crawledAt": "2026-11-27T01:00:00.000Z",
+    "editInfo": null,
+    "schedule": null,
+    "brief": {
+      "language": "ko",
+      "bullets": [
+        {
+          "text": "명륜당 일러스트와 국문 로고를 학교 행사 홍보물에 쓸 수 있어요"
+        },
+        {
+          "text": "색상과 비율을 바꾸지 말고 원본 그대로 써야 해요"
+        }
+      ],
+      "version": "brief-2"
+    },
+    "audience": null,
+    "refs": null
+  },
+  {
     "id": "dummy-skku-main-139700",
     "sourceId": "skku-main",
     "articleNo": 139700,

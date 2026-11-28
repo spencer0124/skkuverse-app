@@ -1,14 +1,18 @@
 import { View } from 'react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
 import { Border, TextButton, Txt, createThemedStyles } from '@skkuverse/sds';
-import type { NoticeBriefAnswer } from '../notice-brief.types';
+import type { NoticeBriefAnswer, NoticeBriefAttachment } from '../notice-brief.types';
+import { NoticeImageAttachments } from './NoticeImageAttachments';
 
 interface Props {
   answer: NoticeBriefAnswer;
+  images: NoticeBriefAttachment[];
+  sourceUrl: string;
+  onImagePress: () => void;
   onViewAll: (() => void) | null;
 }
 
-export function NoticeAnswerSection({ answer, onViewAll }: Props) {
+export function NoticeAnswerSection({ answer, images, sourceUrl, onImagePress, onViewAll }: Props) {
   const styles = useStyles();
   const { t } = useT();
 
@@ -32,6 +36,7 @@ export function NoticeAnswerSection({ answer, onViewAll }: Props) {
           </View>
         ))}
       </View>
+      {images.length > 0 ? <NoticeImageAttachments images={images} sourceUrl={sourceUrl} onPress={onImagePress} /> : null}
       {onViewAll ? (
         <>
           <Border variant="full" />

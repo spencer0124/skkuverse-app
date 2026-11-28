@@ -18,15 +18,8 @@ export interface NoticeBriefAnswer {
   bullets: { text: string }[];
 }
 
-export interface NoticeBriefPoster {
-  url: string;
-  width: number | null;
-  height: number | null;
-}
-
 export interface NoticeBriefBody {
   markdown: string | null;
-  posters: NoticeBriefPoster[];
 }
 
 export interface NoticeBriefAttachment {
@@ -48,6 +41,8 @@ export interface NoticeBrief {
   answer: NoticeBriefAnswer | null;
   audience: NoticeAudience | null;
   body: NoticeBriefBody;
+  /** WHY: the attachments whose extension names an image, drawn inline as well as listed in `refs.attachments`. */
+  images: NoticeBriefAttachment[];
   schedule: NoticeScheduleItem[] | null;
   refs: NoticeBriefRefs;
 }

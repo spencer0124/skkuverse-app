@@ -1,4 +1,5 @@
 import { KST_OFFSET_MS } from '@skkuverse/shared';
+import { isImageAttachment } from './attachment.rules';
 import { startOfLocalDay } from './notice-date.rules';
 import type { NoticeBrief, NoticeBriefBody, NoticeBriefPart, NoticeBriefPartSlot } from './notice-brief.types';
 import type { NoticeDetail } from './notices.types';
@@ -32,14 +33,17 @@ export function hasViewAllUnderBullets(brief: NoticeBrief, hasFullBody: boolean)
   return hasFullBody && brief.answer !== null;
 }
 
-/** WHY: the audience and the timeline read as one block under the title, so no divider parts them. */
+/**
+ * WHY: the audience and the timeline read as one block under the title, so no divider parts them; the image
+ * attachments ride under the bullets, or take the full text's place at the end when there are none.
+ */
 export function toNoticeBriefParts(brief: NoticeBrief, hasFullBody: boolean): NoticeBriefPartSlot[] {
   const shown: Record<NoticeBriefPart, boolean> = {
     audience: brief.audience !== null,
     schedule: brief.schedule !== null && brief.schedule.length > 0,
     bullets: brief.answer !== null,
     refs: hasNoticeBriefRefs(brief),
-    body: brief.body.posters.length > 0 || (hasFullBody && !hasViewAllUnderBullets(brief, hasFullBody)),
+    body: brief.answer === null && (brief.images.length > 0 || hasFullBody),
   };
   const order: NoticeBriefPart[] = ['audience', 'schedule', 'bullets', 'refs', 'body'];
   const parts = order.filter((part) => shown[part]);
@@ -50,11 +54,7 @@ export function toNoticeBriefParts(brief: NoticeBrief, hasFullBody: boolean): No
 }
 
 export function toFullBodyMarkdown(body: NoticeBriefBody): string | null {
-  const posters = body.posters.map((poster) =>
-    poster.width && poster.height ? `![{${poster.width}x${poster.height}}](${poster.url})` : `![](${poster.url})`,
-  );
-  const parts = [...posters, body.markdown ?? ''].filter((part) => part.trim().length > 0);
-  return parts.length > 0 ? parts.join('\n\n') : null;
+  return body.markdown !== null && body.markdown.trim().length > 0 ? body.markdown : null;
 }
 
 export interface ToNoticeBriefInputs {
@@ -79,7 +79,8 @@ export function toNoticeBrief({ notice, boardName }: ToNoticeBriefInputs): Notic
     },
     answer: toAnswer(notice.brief),
     audience: notice.audience,
-    body: { markdown: notice.contentMarkdown, posters: [] },
+    body: { markdown: notice.contentMarkdown },
+    images: notice.attachments.filter(isImageAttachment).map(({ name, url }) => ({ name, url })),
     schedule: notice.schedule,
     refs: {
       attachments: notice.attachments.map(({ name, url }) => ({ name, url })),

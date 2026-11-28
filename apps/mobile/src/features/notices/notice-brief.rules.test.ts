@@ -35,27 +35,15 @@ describe('toPostedMonthDay', () => {
 });
 
 describe('toFullBodyMarkdown', () => {
-  it('puts the posters above the body, with their size hint', () => {
-    // Arrange
-    const body = {
-      markdown: 'See the poster.',
-      posters: [
-        { url: 'https://example.com/a.png', width: 600, height: 850 },
-        { url: 'https://example.com/b.png', width: null, height: null },
-      ],
-    };
-
-    // Act
-    const markdown = toFullBodyMarkdown(body);
-
-    // Assert
-    expect(markdown).toBe('![{600x850}](https://example.com/a.png)\n\n![](https://example.com/b.png)\n\nSee the poster.');
+  it('is the body as sent', () => {
+    // Act & Assert
+    expect(toFullBodyMarkdown({ markdown: '**See** the notice.' })).toBe('**See** the notice.');
   });
 
-  it('is null when there is neither a body nor a poster', () => {
+  it('is null when the body is blank or missing', () => {
     // Act & Assert
-    expect(toFullBodyMarkdown({ markdown: '  ', posters: [] })).toBeNull();
-    expect(toFullBodyMarkdown({ markdown: null, posters: [] })).toBeNull();
+    expect(toFullBodyMarkdown({ markdown: '  ' })).toBeNull();
+    expect(toFullBodyMarkdown({ markdown: null })).toBeNull();
   });
 });
 
@@ -87,12 +75,13 @@ describe('toNoticeBriefParts', () => {
     expect(hasViewAllUnderBullets({ ...bare, answer }, false)).toBe(false);
   });
 
-  it('keeps a poster at the end, under the refs, even with bullets', () => {
+  it('puts the image attachments under the bullets, and at the end only when there are no bullets', () => {
     // Arrange
-    const poster = { url: 'https://example.com/a.png', width: null, height: null };
+    const images = [{ name: 'poster.jpg', url: 'https://example.com/a' }];
 
     // Act & Assert
-    expect(partsOf({ ...bare, answer, body: { markdown: null, posters: [poster] } }, true)).toEqual(['bullets', 'body']);
+    expect(partsOf({ ...bare, answer, images, refs: links }, false)).toEqual(['bullets', 'refs']);
+    expect(partsOf({ ...bare, images, refs: links }, false)).toEqual(['refs', 'body']);
   });
 
   it('draws a divider between parts, except between the audience and the timeline', () => {
@@ -127,6 +116,22 @@ describe('toNoticeBrief', () => {
     expect(brief.source.url).toBe(notice.sourceUrl);
     expect(brief.refs).toEqual({ attachments: notice.attachments, ...refs });
     expect(brief.audience).toEqual(audience);
+  });
+
+  it('lists every attachment, and draws the images among them in their order', () => {
+    // Arrange
+    const attachments = [
+      { name: 'a.jpg', url: 'https://x.example/1' },
+      { name: 'form.hwp', url: 'https://x.example/2' },
+      { name: 'b.PNG', url: 'https://x.example/3' },
+    ];
+
+    // Act
+    const brief = briefOf({ attachments });
+
+    // Assert
+    expect(brief.refs.attachments).toEqual(attachments);
+    expect(brief.images).toEqual([attachments[0], attachments[2]]);
   });
 
   it('has only the attachments when the notice has no refs', () => {
