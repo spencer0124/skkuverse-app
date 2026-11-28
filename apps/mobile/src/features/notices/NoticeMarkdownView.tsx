@@ -3,11 +3,9 @@
  * Referer, and neither RN's `<Image>` nor the renderer's `Image.getSize` sends one.
  */
 
-import { Fragment, isValidElement, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { Fragment, isValidElement, type ReactNode, useMemo } from 'react';
 import {
-  Image,
   type ImageStyle,
-  StyleSheet,
   Text,
   type TextStyle,
   useWindowDimensions,
@@ -21,10 +19,11 @@ import {
   type RendererInterface,
 } from 'react-native-marked';
 import { SdsRadius, SdsSpacing, SdsTypeScale, SdsTypo, wantedSans, type SemanticColors } from '@skkuverse/shared';
-import { Pressable, Skeleton, Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
+import { Pressable, useSemanticColors } from '@skkuverse/sds';
 import { logNoticesContentSelect } from '@/platform/analytics';
 import { openExternalUrl } from '@/platform/handoff';
 import { markdownLinkAction, type MarkdownLinkAction } from './markdown-link.rules';
+import { RefererImage } from './components/RefererImage';
 
 interface Props {
   markdown: string | null;
@@ -50,110 +49,6 @@ function parseDimHint(alt?: string): {
   const hOnly = alt.match(/^\{h(\d+)\}\s?(.*)/s);
   if (hOnly) return { height: +hOnly[1], cleanAlt: hOnly[2] };
   return { cleanAlt: alt };
-}
-
-interface RefererImageProps {
-  uri: string;
-  alt?: string;
-  containerWidth: number;
-  referer?: string;
-  hintWidth?: number;
-  hintHeight?: number;
-}
-
-function RefererImage({
-  uri,
-  alt,
-  containerWidth,
-  referer,
-  hintWidth,
-  hintHeight,
-}: RefererImageProps) {
-  const styles = useStyles();
-  const headers = useMemo<Record<string, string>>(() => {
-    const h: Record<string, string> = {};
-    if (referer) h.Referer = referer;
-    return h;
-  }, [referer]);
-  // WHY: a result stamped with another request reads as "nothing yet", so a new uri or referer starts
-  // clean in the same render, with no effect resetting state behind it.
-  const request = `${referer ?? ''}\n${uri}`;
-  const [measured, setMeasured] = useState<{ request: string; w: number; h: number } | null>(
-    null,
-  );
-  const [loadedRequest, setLoadedRequest] = useState<string | null>(null);
-  const [failedRequest, setFailedRequest] = useState<string | null>(null);
-  const size = measured?.request === request ? { w: measured.w, h: measured.h } : null;
-  const loaded = loadedRequest === request;
-  const failed = failedRequest === request;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    Image.getSizeWithHeaders(
-      uri,
-      headers,
-      (w, h) => {
-        if (!cancelled) setMeasured({ request, w, h });
-      },
-      () => {
-        if (!cancelled) setFailedRequest(request);
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [uri, headers, request]);
-
-  if (failed) {
-    return (
-      <View style={styles.imageFallback}>
-        <Txt typography="t3" color="neutralSubtle">
-          {alt ? alt : '이미지를 불러올 수 없어요'}
-        </Txt>
-      </View>
-    );
-  }
-
-  // WHY: the hint reserves the exact area before the size fetch returns.
-  const dimSource = size ?? (hintWidth && hintHeight ? { w: hintWidth, h: hintHeight } : null);
-
-  if (!dimSource) {
-    return (
-      <View style={[styles.imagePlaceholder, { width: containerWidth }]} />
-    );
-  }
-
-  const aspect = dimSource.h / dimSource.w;
-  const renderedWidth = Math.min(dimSource.w, containerWidth);
-  const renderedHeight = renderedWidth * aspect;
-
-  return (
-    <View style={{ width: renderedWidth, height: renderedHeight, marginVertical: SdsSpacing.x2 }}>
-      {size ? (
-        <Image
-          source={{ uri, headers }}
-          accessibilityLabel={alt}
-          resizeMode="contain"
-          onLoad={() => setLoadedRequest(request)}
-          onError={() => setFailedRequest(request)}
-          style={{ width: renderedWidth, height: renderedHeight }}
-        />
-      ) : null}
-      {!loaded ? (
-        <View style={StyleSheet.absoluteFill}>
-          <Skeleton.Animate>
-            <Skeleton
-              width={renderedWidth}
-              height={renderedHeight}
-              borderRadius={SdsRadius.r2}
-            />
-          </Skeleton.Animate>
-        </View>
-      ) : null}
-    </View>
-  );
 }
 
 class NoticeRenderer extends Renderer implements RendererInterface {
@@ -357,18 +252,3 @@ export function NoticeMarkdownView({ markdown, sourceUrl, onCopyText }: Props) {
     </View>
   );
 }
-
-const useStyles = createThemedStyles(({ color }) => ({
-  imagePlaceholder: {
-    height: 1,
-    marginVertical: SdsSpacing.x1,
-  },
-  imageFallback: {
-    paddingVertical: SdsSpacing.x3,
-    paddingHorizontal: SdsSpacing.x3_5,
-    marginVertical: SdsSpacing.x2,
-    backgroundColor: color.bg.neutralMuted,
-    borderRadius: SdsRadius.r2,
-    alignItems: 'center',
-  },
-}));
