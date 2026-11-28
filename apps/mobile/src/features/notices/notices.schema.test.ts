@@ -353,7 +353,7 @@ describe('parseNoticePage', () => {
     expect(n.isEdited).toBe(true);
   });
 
-  it('drops the summary, row and views an older server still sends', () => {
+  it('drops the summary and views the server sends', () => {
     const raw = envelope({
       notices: [
         {
@@ -371,7 +371,6 @@ describe('parseNoticePage', () => {
           hasAttachments: false,
           isEdited: false,
           summary: { oneLiner: 'o', type: 'action_required', endAt: { date: '2026-04-12', time: null } },
-          row: { title: 't', when: 'D-3', board: '학사' },
         },
       ],
       nextCursor: null,
@@ -379,7 +378,6 @@ describe('parseNoticePage', () => {
     });
     const [notice] = parseNoticePage(raw).notices;
     expect(notice).not.toHaveProperty('summary');
-    expect(notice).not.toHaveProperty('row');
     expect(notice).not.toHaveProperty('views');
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { noticeDetailSchema } from './notices.schema';
-import serverSchedule from './__fixtures__/notice-schedule.detail-v2.json';
+import scheduleDetail from './__fixtures__/notice-detail.schedule.json';
 import dummyBriefs from './__fixtures__/notice-briefs.json';
 
 const base = {
@@ -49,10 +49,10 @@ const v1Item = {
 describe('noticeDetailSchema schedule', () => {
   it('keeps what it draws of the schedule the server serves: a series, a deadline, a gap, parts and a latest day', () => {
     // Act
-    const detail = noticeDetailSchema.parse({ ...base, schedule: serverSchedule.data });
+    const detail = noticeDetailSchema.parse(scheduleDetail.data);
 
     // Assert
-    expect(detail.schedule).toEqual(serverSchedule.data.map(({ rdate: _rdate, gaps: _gaps, ...read }) => read));
+    expect(detail.schedule).toEqual(scheduleDetail.data.schedule.map(({ rdate: _rdate, gaps: _gaps, ...read }) => read));
   });
 
   it('keeps a plain item as the server sent it', () => {

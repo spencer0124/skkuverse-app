@@ -103,6 +103,10 @@
     "server": "contracts/produced/fixtures/notices-detail.noticeDetail/production.json"
   },
   {
+    "local": "apps/mobile/src/features/notices/__fixtures__/notice-detail.schedule.json",
+    "server": "contracts/produced/fixtures/notices-detail.noticeDetail/schedule.json"
+  },
+  {
     "local": "apps/mobile/src/features/notices/__fixtures__/notice-list.json",
     "server": "contracts/produced/fixtures/notices-list.noticeList/production.json"
   },
