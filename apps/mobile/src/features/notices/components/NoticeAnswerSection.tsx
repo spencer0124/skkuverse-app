@@ -1,8 +1,9 @@
 import { View } from 'react-native';
-import { useT, SdsSpacing } from '@skkuverse/shared';
-import { Border, TextButton, Txt, createThemedStyles } from '@skkuverse/sds';
+import { SdsSpacing } from '@skkuverse/shared';
+import { Txt, createThemedStyles } from '@skkuverse/sds';
 import type { NoticeBriefAnswer, NoticeBriefAttachment } from '../notice-brief.types';
 import { NoticeImageAttachments } from './NoticeImageAttachments';
+import { NoticeViewAllButton } from './NoticeViewAllButton';
 
 interface Props {
   answer: NoticeBriefAnswer;
@@ -14,7 +15,6 @@ interface Props {
 
 export function NoticeAnswerSection({ answer, images, sourceUrl, onImagePress, onViewAll }: Props) {
   const styles = useStyles();
-  const { t } = useT();
 
   return (
     <View style={[styles.wrap, onViewAll ? styles.wrapWithViewAll : null]}>
@@ -37,20 +37,7 @@ export function NoticeAnswerSection({ answer, images, sourceUrl, onImagePress, o
         ))}
       </View>
       {images.length > 0 ? <NoticeImageAttachments images={images} sourceUrl={sourceUrl} onPress={onImagePress} /> : null}
-      {onViewAll ? (
-        <>
-          <Border variant="full" />
-          <TextButton
-            typography="t6"
-            variant="arrow"
-            color="neutralMuted"
-            onPress={onViewAll}
-            style={styles.viewAll}
-          >
-            {t('notices.brief.viewAll')}
-          </TextButton>
-        </>
-      ) : null}
+      {onViewAll ? <NoticeViewAllButton onPress={onViewAll} /> : null}
     </View>
   );
 }
@@ -77,10 +64,6 @@ const useStyles = createThemedStyles(() => ({
   // WHY: the gap of one bullet to the next, so the way to the full text reads as part of the bullets.
   bulletsAboveViewAll: {
     paddingBottom: SdsSpacing.x3,
-  },
-  viewAll: {
-    alignSelf: 'center',
-    paddingVertical: SdsSpacing.x5,
   },
   dot: {
     width: SdsSpacing.x5,

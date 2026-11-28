@@ -1,8 +1,9 @@
 import { View } from 'react-native';
-import { useT, SdsSpacing } from '@skkuverse/shared';
-import { Border, TextButton, createThemedStyles } from '@skkuverse/sds';
+import { SdsSpacing } from '@skkuverse/shared';
+import { createThemedStyles } from '@skkuverse/sds';
 import type { NoticeBriefAttachment } from '../notice-brief.types';
 import { NoticeImageAttachments } from './NoticeImageAttachments';
+import { NoticeViewAllButton } from './NoticeViewAllButton';
 
 interface Props {
   images: NoticeBriefAttachment[];
@@ -13,7 +14,6 @@ interface Props {
 
 export function NoticeBodySection({ images, sourceUrl, onImagePress, onViewAll }: Props) {
   const styles = useStyles();
-  const { t } = useT();
 
   return (
     <View>
@@ -22,20 +22,7 @@ export function NoticeBodySection({ images, sourceUrl, onImagePress, onViewAll }
           <NoticeImageAttachments images={images} sourceUrl={sourceUrl} onPress={onImagePress} />
         </View>
       ) : null}
-      {onViewAll ? (
-        <>
-          <Border variant="full" />
-          <TextButton
-            typography="t6"
-            variant="arrow"
-            color="neutralMuted"
-            onPress={onViewAll}
-            style={styles.viewAll}
-          >
-            {t('notices.brief.viewAll')}
-          </TextButton>
-        </>
-      ) : null}
+      {onViewAll ? <NoticeViewAllButton onPress={onViewAll} /> : null}
     </View>
   );
 }
@@ -44,9 +31,5 @@ const useStyles = createThemedStyles(() => ({
   images: {
     paddingTop: SdsSpacing.x6,
     paddingBottom: SdsSpacing.x4,
-  },
-  viewAll: {
-    alignSelf: 'center',
-    paddingVertical: SdsSpacing.x5,
   },
 }));
