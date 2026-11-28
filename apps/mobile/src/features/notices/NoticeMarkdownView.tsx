@@ -35,7 +35,7 @@ interface Props {
 
 /**
  * CONTRACT(skkuverse-crawler): skkuverse-crawler/py/src/skkuverse_crawler/shared/html_to_markdown.py prefixes
- * an image's alt with `{WxH}`, `{wN}` or `{hN}`; content-refs.rules' parseDimHint reads it too, so change both.
+ * an image's alt with `{WxH}`, `{wN}` or `{hN}`.
  */
 function parseDimHint(alt?: string): {
   width?: number;

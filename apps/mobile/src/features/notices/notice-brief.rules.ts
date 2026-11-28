@@ -62,7 +62,7 @@ export interface ToNoticeBriefInputs {
   boardName: string | null;
 }
 
-/** WHY: a brief with no bullets reads as none, since a question over nothing is a heading with no answer; the server sends null for it too. */
+/** WHY: a brief with no bullets reads as none; the server sends null for it too. */
 function toAnswer(brief: NoticeDetail['brief']): NoticeBrief['answer'] {
   return brief !== null && brief.bullets.length > 0 ? brief : null;
 }

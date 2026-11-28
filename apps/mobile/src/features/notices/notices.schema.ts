@@ -5,7 +5,6 @@ import { openUnionArray, parsedBy, text, tolerantArray } from '@skkuverse/shared
 import { noticeAudienceSchema } from './notice-audience.schema';
 import { noticeBriefSchema } from './notice-brief.schema';
 import { noticeRefsSchema } from './notice-refs.schema';
-import { toBodyRefs } from './notice-refs.rules';
 import { noticeScheduleSchema } from './notice-schedule.schema';
 import type { NoticeAttachment, NoticeDetail, NoticeEditInfo, NoticeListItem, NoticePage, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
@@ -88,12 +87,7 @@ export const noticeDetailSchema = z
     audience: noticeAudienceSchema,
     refs: noticeRefsSchema,
   })
-  .transform(
-    ({ refs, ...detail }): NoticeDetail => ({
-      ...detail,
-      refs: refs === undefined ? toBodyRefs(detail.contentMarkdown, detail.attachments.map((a) => a.url)) : refs,
-    }),
-  );
+  .transform((detail): NoticeDetail => detail);
 
 const tabSourceSchema = z
   .object({

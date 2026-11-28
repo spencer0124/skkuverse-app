@@ -162,7 +162,7 @@ describe('toNoticeBrief answer', () => {
     expect(briefOf({ brief: null }).answer).toBeNull();
   });
 
-  it('has no answer when the brief has no bullets, since a heading over nothing says nothing', () => {
+  it('has no answer when the brief has no bullets', () => {
     // Act & Assert
     expect(briefOf({ brief: { language: 'ko', bullets: [] } }).answer).toBeNull();
   });
@@ -185,18 +185,6 @@ describe('the dummy notices', () => {
 
     // Assert
     expect(dummy).toMatchObject({ schedule: null, brief: null, audience: null, refs: null });
-  });
-
-  it("cover today's server: a brief in its shape, and refs found in the body", () => {
-    // Arrange
-    const today = dummies.filter((raw) => !('refs' in raw));
-
-    // Act
-    const parsed = today.map((raw) => parseOrThrow(noticeDetailSchema, raw, 'notices.dummy'));
-
-    // Assert
-    expect(parsed.length).toBeGreaterThan(0);
-    expect(parsed.some((d) => d.brief !== null && d.refs !== null)).toBe(true);
   });
 
   it('cover the next wire: an English brief, an exclusion, a link with no scheme, two phones, a long title', () => {

@@ -39,26 +39,15 @@ describe('noticeDetailSchema refs', () => {
     });
   });
 
-  it('finds the refs in the body when the key is absent, as today\'s server sends it', () => {
-    // Act
-    const detail = noticeDetailSchema.parse(base);
-
-    // Assert
-    expect(detail.refs).toEqual({
-      links: [{ url: 'https://apply.example.edu/form', domain: 'apply.example.edu' }],
-      phones: [{ value: '02-760-1234' }],
-      emails: [{ value: 'help@example.edu' }],
-    });
-  });
-
-  it('shows nothing for null, for an empty block and for a malformed one, never reading the body', () => {
+  it('shows nothing for a missing block, null, an empty block and a malformed one, never reading the body', () => {
     // Act & Assert
+    expect(noticeDetailSchema.parse(base).refs).toBeNull();
     expect(noticeDetailSchema.parse({ ...base, refs: null }).refs).toBeNull();
     expect(noticeDetailSchema.parse({ ...base, refs: { links: [], phones: [], emails: [] } }).refs).toBeNull();
     expect(noticeDetailSchema.parse({ ...base, refs: 'x' }).refs).toBeNull();
   });
 
-  it('drops an item with no string value alone', () => {
+  it('drops an item with no string value alone, and keeps every string as sent', () => {
     // Act
     const detail = noticeDetailSchema.parse({
       ...base,
@@ -66,16 +55,16 @@ describe('noticeDetailSchema refs', () => {
     });
 
     // Assert
-    expect(detail.refs).toEqual({ links: [], phones: [{ value: '02-1' }], emails: [{ value: 'x@y.z' }] });
+    expect(detail.refs).toEqual({ links: [], phones: [{ value: '없음' }, { value: '02-1' }], emails: [{ value: 'x@y.z' }] });
   });
 
-  it('keeps one phone per digits and one email per address in any case, the first as written', () => {
+  it('keeps every phone and email as sent, in order, with no merging', () => {
     // Act
     const detail = noticeDetailSchema.parse({
       ...base,
       refs: {
         links: [],
-        phones: [{ value: '02-760-1092' }, { value: '02.760.1092' }, { value: '+82-2-760-1092' }],
+        phones: [{ value: '02-760-1092' }, { value: '02.760.1092' }],
         emails: [{ value: 'janghak@example.edu' }, { value: 'Janghak@Example.edu' }],
       },
     });
@@ -83,8 +72,8 @@ describe('noticeDetailSchema refs', () => {
     // Assert
     expect(detail.refs).toEqual({
       links: [],
-      phones: [{ value: '02-760-1092' }, { value: '+82-2-760-1092' }],
-      emails: [{ value: 'janghak@example.edu' }],
+      phones: [{ value: '02-760-1092' }, { value: '02.760.1092' }],
+      emails: [{ value: 'janghak@example.edu' }, { value: 'Janghak@Example.edu' }],
     });
   });
 });

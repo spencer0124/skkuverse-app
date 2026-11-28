@@ -31,7 +31,7 @@ const goodItem = {
   omittedCount: 0,
 };
 
-/** WHY: what production sends until the server ships v2, from the v1 timeline this build replaced. */
+/** WHY: the v1 item the server sent before v2, which this build drops. */
 const v1Item = {
   id: 'a1',
   title: '설명회',
