@@ -128,7 +128,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     setSourcesOpen(false);
     if (!sourceAfterDismiss.current || !sourceUrl) return;
     sourceAfterDismiss.current = false;
-    logNoticesContentSelect({ content_type: 'detail_view_source', item_id: itemId });
+    logNoticesContentSelect({ content_type: 'detail_source_original', item_id: itemId });
     void openInAppBrowser(sourceUrl, {
       ...noticeInAppBrowserOptions,
       controlsColor: color.fg.brand,

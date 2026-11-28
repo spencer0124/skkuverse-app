@@ -140,6 +140,7 @@ export type NoticesContentType =
   | 'search_back'
   | 'detail_share'
   | 'detail_view_source'
+  | 'detail_source_original'
   | 'detail_sibling_prev'
   | 'detail_sibling_next'
   | 'detail_attachment_preview'
