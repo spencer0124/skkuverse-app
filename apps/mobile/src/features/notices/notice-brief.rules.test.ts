@@ -9,6 +9,7 @@ import {
   toFullBodyMarkdown,
   toNoticeBrief,
   toNoticeBriefParts,
+  toPostedDateLabel,
   toPostedMonthDay,
 } from './notice-brief.rules';
 import type { NoticeBrief } from './notice-brief.types';
@@ -31,6 +32,46 @@ describe('toPostedMonthDay', () => {
     // Act & Assert
     expect(toPostedMonthDay('')).toBeNull();
     expect(toPostedMonthDay('not a date')).toBeNull();
+  });
+});
+
+describe('toPostedDateLabel', () => {
+  const now = new Date('2026-11-28T03:00:00Z');
+
+  it.each([
+    { postedAt: '2026-11-04', expected: { kind: 'thisYear', month: 11, day: 4 } },
+    { postedAt: '2026-01-01', expected: { kind: 'thisYear', month: 1, day: 1 } },
+    { postedAt: '2025-12-31', expected: { kind: 'otherYear', label: '25.12.31' } },
+    { postedAt: '2024-03-05', expected: { kind: 'otherYear', label: '24.03.05' } },
+  ])('reads $postedAt as $expected.kind', ({ postedAt, expected }) => {
+    // Act & Assert
+    expect(toPostedDateLabel(postedAt, now)).toEqual(expected);
+  });
+
+  it('takes this year from the Seoul calendar, where the new year starts nine hours before UTC', () => {
+    // Arrange
+    const kstNewYearsDay = new Date('2026-12-31T15:30:00Z');
+
+    // Act & Assert
+    expect(toPostedDateLabel('2026-12-31', kstNewYearsDay)).toEqual({ kind: 'otherYear', label: '26.12.31' });
+    expect(toPostedDateLabel('2027-01-01', kstNewYearsDay)).toEqual({ kind: 'thisYear', month: 1, day: 1 });
+  });
+
+  it('shows the day alone for a board that sends a time with it', () => {
+    // Arrange
+    const parsed = parseOrThrow(noticeDetailSchema, { ...detail.data, date: '2025-10-01 11:25' }, 'notices.detail');
+
+    // Act
+    const brief = toNoticeBrief({ notice: parsed, boardName: null });
+
+    // Assert
+    expect(toPostedDateLabel(brief.source.postedAt, now)).toEqual({ kind: 'otherYear', label: '25.10.01' });
+  });
+
+  it('gives null for a date it cannot read, so the pill drops the segment', () => {
+    // Act & Assert
+    expect(toPostedDateLabel('', now)).toBeNull();
+    expect(toPostedDateLabel('not a date', now)).toBeNull();
   });
 });
 

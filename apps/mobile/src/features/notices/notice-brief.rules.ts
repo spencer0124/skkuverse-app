@@ -1,6 +1,6 @@
 import { KST_OFFSET_MS } from '@skkuverse/shared';
 import { isImageAttachment } from './attachment.rules';
-import { startOfLocalDay } from './notice-date.rules';
+import { formatDisplayDate, startOfLocalDay } from './notice-date.rules';
 import type { NoticeBrief, NoticeBriefBody, NoticeBriefPart, NoticeBriefPartSlot } from './notice-brief.types';
 import type { NoticeDetail } from './notices.types';
 
@@ -11,11 +11,30 @@ function toKstDate(ms: number): string {
 }
 
 /** WHY: `postedAt` is a KST day, sent as a bare date or as KST midnight; either reads as the same calendar day here. */
-export function toPostedMonthDay(postedAt: string): { month: number; day: number } | null {
+function toPostedKstDate(postedAt: string): string | null {
   const ms = Date.parse(postedAt);
-  if (Number.isNaN(ms)) return null;
-  const [, month, day] = toKstDate(ms).split('-').map(Number);
+  return Number.isNaN(ms) ? null : toKstDate(ms);
+}
+
+function toMonthDay(kstDate: string): { month: number; day: number } {
+  const [, month, day] = kstDate.split('-').map(Number);
   return { month, day };
+}
+
+export function toPostedMonthDay(postedAt: string): { month: number; day: number } | null {
+  const date = toPostedKstDate(postedAt);
+  return date === null ? null : toMonthDay(date);
+}
+
+export type PostedDateLabel =
+  | { kind: 'thisYear'; month: number; day: number }
+  | { kind: 'otherYear'; label: string };
+
+export function toPostedDateLabel(postedAt: string, now: Date): PostedDateLabel | null {
+  const date = toPostedKstDate(postedAt);
+  if (date === null) return null;
+  const isThisYear = date.slice(0, 4) === toKstDate(now.getTime()).slice(0, 4);
+  return isThisYear ? { kind: 'thisYear', ...toMonthDay(date) } : { kind: 'otherYear', label: formatDisplayDate(date) };
 }
 
 export function hasNoticeBriefRefs(brief: NoticeBrief): boolean {

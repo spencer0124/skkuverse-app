@@ -13,6 +13,9 @@ const nullableStr = z.string().nullable().catch(null);
 const num = (fallback: number) => z.number().catch(fallback);
 const bool = (fallback: boolean) => z.boolean().catch(fallback);
 
+// WHY: some sources send "YYYY-MM-DD HH:MM"; the first ten characters are the contract's date.
+const postingDate = str().transform((date) => date.slice(0, 10));
+
 // WHY: a missing or non-list field reads as an empty list.
 const listOrEmpty = parsedBy((raw) => (Array.isArray(raw) ? raw : []));
 
@@ -33,8 +36,7 @@ const listItemSchema = z
     category: nullableStr,
     author: nullableStr,
     department: nullableStr,
-    // WHY: some sources send "YYYY-MM-DD HH:MM"; the first ten characters are the contract's date.
-    date: str().transform((date) => date.slice(0, 10)),
+    date: postingDate,
     sourceUrl: str(),
     hasContent: bool(false),
     hasAttachments: bool(false),
@@ -75,7 +77,7 @@ export const noticeDetailSchema = z
     category: nullableStr,
     author: nullableStr,
     department: nullableStr,
-    date: str(),
+    date: postingDate,
     contentMarkdown: nullableStr,
     attachments: listOrEmpty.pipe(tolerantArray(attachmentSchema, 'notices.detail.attachments')),
     sourceUrl: str(),

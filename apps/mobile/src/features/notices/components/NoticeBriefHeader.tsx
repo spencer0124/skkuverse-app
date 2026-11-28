@@ -1,6 +1,7 @@
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useT, SdsRadius, SdsSpacing } from '@skkuverse/shared';
 import { Pressable, Txt, createThemedStyles } from '@skkuverse/sds';
+import { toPostedDateLabel, type PostedDateLabel } from '../notice-brief.rules';
 import type { NoticeBriefSource } from '../notice-brief.types';
 
 const EMBLEM = require('../../../../assets/images/skku-emblem.png');
@@ -10,14 +11,20 @@ const SOURCE_COUNT = 1;
 interface Props {
   title: string;
   source: NoticeBriefSource;
+  now: Date;
   onSourcePress: () => void;
   onTitleLayout: (event: LayoutChangeEvent) => void;
 }
 
-export function NoticeBriefHeader({ title, source, onSourcePress, onTitleLayout }: Props) {
+export function NoticeBriefHeader({ title, source, now, onSourcePress, onTitleLayout }: Props) {
   const styles = useStyles();
   const { t, tpl } = useT();
-  const meta = [tpl('notices.brief.sourceCount', SOURCE_COUNT), source.isEdited ? t('notices.edited') : null]
+  const posted = toPostedDateLabel(source.postedAt, now);
+  const meta = [
+    tpl('notices.brief.sourceCount', SOURCE_COUNT),
+    posted ? formatPostedDate(posted, tpl) : null,
+    source.isEdited ? t('notices.edited') : null,
+  ]
     .filter((part) => part)
     .join(' · ');
 
@@ -46,6 +53,10 @@ export function NoticeBriefHeader({ title, source, onSourcePress, onTitleLayout 
       </Pressable>
     </View>
   );
+}
+
+function formatPostedDate(posted: PostedDateLabel, tpl: ReturnType<typeof useT>['tpl']): string {
+  return posted.kind === 'thisYear' ? tpl('notices.brief.sourceDate', posted.month, posted.day) : posted.label;
 }
 
 const useStyles = createThemedStyles(({ color }) => ({

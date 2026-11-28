@@ -442,6 +442,20 @@ describe('parseNoticeDetail', () => {
     expect(detail.editInfo?.count).toBe(1);
   });
 
+  it('keeps only the posting day when a board sends a time with it', () => {
+    const raw = envelope({
+      id: 'abc',
+      sourceId: 'skku-main',
+      articleNo: 1,
+      title: 't',
+      date: '2026-10-01 11:25',
+      sourceUrl: 'https://x',
+      crawledAt: '2026-10-01T02:25:00Z',
+    });
+
+    expect(parseNoticeDetail(raw).date).toBe('2026-10-01');
+  });
+
   it('tolerates missing optional fields', () => {
     const raw = envelope({
       id: 'abc',

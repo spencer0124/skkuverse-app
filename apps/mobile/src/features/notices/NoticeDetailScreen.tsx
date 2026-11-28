@@ -74,6 +74,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
           <NoticeBriefHeader
             title={vm.notice.title}
             source={vm.notice.source}
+            now={now}
             onSourcePress={vm.openSources}
             onTitleLayout={collapsing.onTitleLayout}
           />
