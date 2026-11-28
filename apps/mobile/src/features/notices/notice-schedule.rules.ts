@@ -10,6 +10,7 @@ import type {
   NoticeSchedulePointLabel,
   NoticeScheduleRrule,
   NoticeScheduleSpan,
+  NoticeScheduleWhen,
 } from './notice-schedule.types';
 
 const MS_PER_DAY = 86_400_000;
@@ -172,6 +173,19 @@ export function toScheduleTimeText(span: NoticeScheduleSpan): string | null {
   const endTime = validEnd(span)?.time;
   if (startTime === undefined) return endTime ?? null;
   return endTime === undefined ? startTime : `${startTime}–${endTime}`;
+}
+
+export function toScheduleWhen(
+  span: NoticeScheduleSpan & { rrule?: NoticeScheduleRrule },
+  now: Date,
+): NoticeScheduleWhen {
+  const date = toScheduleDateLabel(span, now);
+  const endTime = validEnd(span)?.time ?? null;
+  if (date.kind === 'range') {
+    return { kind: 'range', from: date.from, fromTime: span.start?.time ?? null, to: date.to, toTime: endTime };
+  }
+  if (date.kind === 'deadline') return { kind: 'deadline', to: date.to, time: endTime };
+  return { kind: 'at', date, time: toScheduleTimeText(span) };
 }
 
 export function hasScheduleDetail(entry: NoticeScheduleItem): boolean {

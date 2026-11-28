@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { BookmarkSimpleIcon } from 'phosphor-react-native';
@@ -11,13 +11,15 @@ import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './NoticeEmptyState';
 import { DeletedNoticeTombstone } from './DeletedNoticeTombstone';
 import { NoticeAnswerSection } from './components/NoticeAnswerSection';
+import { NoticeAudienceTable } from './components/NoticeAudienceTable';
+import { NoticeBodySection } from './components/NoticeBodySection';
 import { NoticeBriefHeader } from './components/NoticeBriefHeader';
 import { NoticeScheduleSection } from './components/NoticeScheduleSection';
 import { NoticeRefsSection } from './components/NoticeRefsSection';
 import { NoticeSourcesSheet } from './components/NoticeSourcesSheet';
 import { useCollapsingTitle } from './components/useCollapsingTitle';
 import { useNoticeDetailHeaderOptions } from './components/useNoticeDetailHeaderOptions';
-import { hasNoticeBriefAnswerSection, hasNoticeBriefRefs } from './notice-brief.rules';
+import { hasViewAllUnderBullets, toNoticeBriefParts } from './notice-brief.rules';
 import { useNoticeDetailScreen } from './useNoticeDetailScreen';
 
 interface Props {
@@ -37,8 +39,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
     source,
     reviewIcon: <BookmarkSimpleIcon size={32} color={color.fg.brandContrast} weight="fill" />,
   });
-  const hasSchedule = vm.status === 'ready' && vm.notice.schedule !== null && vm.notice.schedule.length > 0;
-  const hasAnswer = vm.status === 'ready' && hasNoticeBriefAnswerSection(vm.notice, vm.hasFullBody);
+  const parts = vm.status === 'ready' ? toNoticeBriefParts(vm.notice, vm.hasFullBody) : [];
   const collapsing = useCollapsingTitle();
   const headerOptions = useNoticeDetailHeaderOptions({
     tombstone: vm.status === 'deleted',
@@ -73,41 +74,46 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
           <NoticeBriefHeader
             title={vm.notice.title}
             source={vm.notice.source}
-            now={now}
             onSourcePress={vm.openSources}
             onTitleLayout={collapsing.onTitleLayout}
           />
-          {vm.notice.schedule !== null && vm.notice.schedule.length > 0 ? (
-            <NoticeScheduleSection
-              schedule={vm.notice.schedule}
-              now={now}
-              onMapPress={vm.onScheduleMapPress}
-            />
-          ) : null}
-          {hasAnswer ? (
-            <>
-              {hasSchedule ? <Border variant="height16" /> : null}
-              <NoticeAnswerSection
-                answer={vm.notice.answer}
-                posters={vm.notice.body.posters}
-                sourceUrl={vm.notice.source.url}
-                onPosterPress={vm.openFullBody}
-                onViewAll={vm.hasFullBody ? vm.openFullBody : null}
-              />
-            </>
-          ) : null}
-          {hasNoticeBriefRefs(vm.notice) ? (
-            <>
-              {hasSchedule || hasAnswer ? <Border variant="height16" /> : null}
-              <NoticeRefsSection
-                refs={vm.notice.refs}
-                onAttachmentPress={vm.onAttachmentPress}
-                onLinkPress={vm.onLinkPress}
-                onPhonePress={vm.onPhonePress}
-                onEmailPress={vm.onEmailPress}
-              />
-            </>
-          ) : null}
+          {parts.map(({ part, hasDividerBefore }, index) => (
+            <Fragment key={part}>
+              {hasDividerBefore ? <Border variant="height16" /> : null}
+              {part === 'audience' ? (
+                vm.notice.audience !== null ? <NoticeAudienceTable audience={vm.notice.audience} /> : null
+              ) : part === 'schedule' ? (
+                <NoticeScheduleSection
+                  schedule={vm.notice.schedule ?? []}
+                  now={now}
+                  onMapPress={vm.onScheduleMapPress}
+                  isJoinedAbove={index > 0 && !hasDividerBefore}
+                />
+              ) : part === 'bullets' ? (
+                vm.notice.answer !== null ? (
+                  <NoticeAnswerSection
+                    answer={vm.notice.answer}
+                    onViewAll={hasViewAllUnderBullets(vm.notice, vm.hasFullBody) ? vm.openFullBody : null}
+                  />
+                ) : null
+              ) : part === 'refs' ? (
+                <NoticeRefsSection
+                  refs={vm.notice.refs}
+                  onAttachmentPress={vm.onAttachmentPress}
+                  onLinkPress={vm.onLinkPress}
+                  onPhonePress={vm.onPhonePress}
+                  onEmailPress={vm.onEmailPress}
+                />
+              ) : (
+                <NoticeBodySection
+                  posters={vm.notice.body.posters}
+                  sourceUrl={vm.notice.source.url}
+                  onPosterPress={vm.openFullBody}
+                  onViewAll={vm.hasFullBody && !hasViewAllUnderBullets(vm.notice, vm.hasFullBody) ? vm.openFullBody : null}
+                />
+              )}
+            </Fragment>
+          ))}
           <Border variant="height16" />
           {/* WHY: maxHeight reserves the slot, since a late load pushing content is a misclick. */}
           <InlineBanner unitId={AdUnitIds.noticeDetailBanner} maxHeight={250} />
@@ -118,7 +124,7 @@ export function NoticeDetailScreen({ sourceId, articleNo, source }: Props) {
           open={vm.sourcesOpen}
           title={vm.notice.title}
           source={vm.notice.source}
-          onRowPress={vm.openBodyFromSources}
+          onRowPress={vm.openSourceFromSources}
           onClose={vm.closeSources}
           onDismiss={vm.onSourcesDismiss}
         />

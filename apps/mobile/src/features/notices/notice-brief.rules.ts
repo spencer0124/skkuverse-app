@@ -1,38 +1,12 @@
 import { KST_OFFSET_MS } from '@skkuverse/shared';
-import type { ContentRefs } from './content-refs.rules';
-import { diffDays, formatDisplayDate, formatListDate, startOfLocalDay } from './notice-date.rules';
-import type { NoticeBrief, NoticeBriefAttachment, NoticeBriefBody } from './notice-brief.types';
+import { startOfLocalDay } from './notice-date.rules';
+import type { NoticeBrief, NoticeBriefBody, NoticeBriefPart, NoticeBriefPartSlot } from './notice-brief.types';
 import type { NoticeDetail } from './notices.types';
 
-export type NoticeBriefAge =
-  | { kind: 'justNow' }
-  | { kind: 'minutes'; count: number }
-  | { kind: 'hours'; count: number }
-  | { kind: 'yesterday' }
-  | { kind: 'date'; label: string };
-
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
 const KST_DATE_LENGTH = 10;
 
 function toKstDate(ms: number): string {
   return new Date(startOfLocalDay(new Date(ms)) + KST_OFFSET_MS).toISOString().slice(0, KST_DATE_LENGTH);
-}
-
-export function toNoticeBriefAge(firstSeenAt: string, now: Date): NoticeBriefAge {
-  const seen = Date.parse(firstSeenAt);
-  if (Number.isNaN(seen)) return { kind: 'date', label: '' };
-  const elapsed = Math.max(0, now.getTime() - seen);
-  const days = diffDays(startOfLocalDay(new Date(seen)), startOfLocalDay(now));
-  if (days <= 0) {
-    if (elapsed < MINUTE_MS) return { kind: 'justNow' };
-    if (elapsed < HOUR_MS) return { kind: 'minutes', count: Math.floor(elapsed / MINUTE_MS) };
-    return { kind: 'hours', count: Math.floor(elapsed / HOUR_MS) };
-  }
-  if (days === 1) return { kind: 'yesterday' };
-  const date = toKstDate(seen);
-  const sameYear = date.slice(0, 4) === toKstDate(now.getTime()).slice(0, 4);
-  return { kind: 'date', label: sameYear ? formatListDate(date) : formatDisplayDate(date) };
 }
 
 /** WHY: `postedAt` is a KST day, sent as a bare date or as KST midnight; either reads as the same calendar day here. */
@@ -41,10 +15,6 @@ export function toPostedMonthDay(postedAt: string): { month: number; day: number
   if (Number.isNaN(ms)) return null;
   const [, month, day] = toKstDate(ms).split('-').map(Number);
   return { month, day };
-}
-
-export function sortFormsFirst(attachments: readonly NoticeBriefAttachment[]): NoticeBriefAttachment[] {
-  return [...attachments.filter((a) => a.isForm), ...attachments.filter((a) => !a.isForm)];
 }
 
 export function hasNoticeBriefRefs(brief: NoticeBrief): boolean {
@@ -57,8 +27,26 @@ export function hasNoticeBriefRefs(brief: NoticeBrief): boolean {
   );
 }
 
-export function hasNoticeBriefAnswerSection(brief: NoticeBrief, hasFullBody: boolean): boolean {
-  return brief.answer !== null || brief.body.posters.length > 0 || hasFullBody;
+/** WHY: the way to the full text follows the bullets when there are some, and closes the page when there are none. */
+export function hasViewAllUnderBullets(brief: NoticeBrief, hasFullBody: boolean): boolean {
+  return hasFullBody && brief.answer !== null;
+}
+
+/** WHY: the audience and the timeline read as one block under the title, so no divider parts them. */
+export function toNoticeBriefParts(brief: NoticeBrief, hasFullBody: boolean): NoticeBriefPartSlot[] {
+  const shown: Record<NoticeBriefPart, boolean> = {
+    audience: brief.audience !== null,
+    schedule: brief.schedule !== null && brief.schedule.length > 0,
+    bullets: brief.answer !== null,
+    refs: hasNoticeBriefRefs(brief),
+    body: brief.body.posters.length > 0 || (hasFullBody && !hasViewAllUnderBullets(brief, hasFullBody)),
+  };
+  const order: NoticeBriefPart[] = ['audience', 'schedule', 'bullets', 'refs', 'body'];
+  const parts = order.filter((part) => shown[part]);
+  return parts.map((part, index) => ({
+    part,
+    hasDividerBefore: index > 0 && !(part === 'schedule' && parts[index - 1] === 'audience'),
+  }));
 }
 
 export function toFullBodyMarkdown(body: NoticeBriefBody): string | null {
@@ -69,18 +57,9 @@ export function toFullBodyMarkdown(body: NoticeBriefBody): string | null {
   return parts.length > 0 ? parts.join('\n\n') : null;
 }
 
-export function findNoticeBrief(
-  briefs: readonly NoticeBrief[],
-  sourceId: string,
-  articleNo: number,
-): NoticeBrief | null {
-  return briefs.find((brief) => brief.id === `${sourceId}-${articleNo}`) ?? null;
-}
-
 export interface ToNoticeBriefInputs {
   notice: NoticeDetail;
   boardName: string | null;
-  refs: ContentRefs;
 }
 
 /** WHY: a brief with no bullets reads as none, since a question over nothing is a heading with no answer; the server sends null for it too. */
@@ -88,25 +67,25 @@ function toAnswer(brief: NoticeDetail['brief']): NoticeBrief['answer'] {
   return brief !== null && brief.bullets.length > 0 ? brief : null;
 }
 
-export function toNoticeBrief({ notice, boardName, refs }: ToNoticeBriefInputs): NoticeBrief {
+export function toNoticeBrief({ notice, boardName }: ToNoticeBriefInputs): NoticeBrief {
   return {
     id: `${notice.sourceId}-${notice.articleNo}`,
     title: notice.title,
     source: {
       boardName: boardName ?? notice.department ?? '',
       postedAt: notice.date,
-      firstSeenAt: notice.crawledAt,
       isEdited: (notice.editInfo?.count ?? 0) > 0,
       url: notice.sourceUrl,
     },
     answer: toAnswer(notice.brief),
+    audience: notice.audience,
     body: { markdown: notice.contentMarkdown, posters: [] },
     schedule: notice.schedule,
     refs: {
-      attachments: notice.attachments.map((a) => ({ name: a.name, url: a.url, isForm: false })),
-      links: refs.links.map((link) => ({ url: link.url, domain: link.domain })),
-      phones: refs.phones.map((number) => ({ number, label: null })),
-      emails: refs.emails.map((address) => ({ address, label: null })),
+      attachments: notice.attachments.map(({ name, url }) => ({ name, url })),
+      links: notice.refs?.links ?? [],
+      phones: notice.refs?.phones ?? [],
+      emails: notice.refs?.emails ?? [],
     },
   };
 }

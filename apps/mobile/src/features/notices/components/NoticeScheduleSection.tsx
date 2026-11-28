@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
-import { ListHeader, createThemedStyles } from '@skkuverse/sds';
+import { createThemedStyles } from '@skkuverse/sds';
 import type { NoticeScheduleItem } from '../notice-schedule.types';
 import { NoticeScheduleRow } from './NoticeScheduleRow';
 import { useNoticeScheduleSection, type NoticeScheduleMapTarget } from './useNoticeScheduleSection';
@@ -9,23 +9,17 @@ interface Props {
   schedule: readonly NoticeScheduleItem[];
   now: Date;
   onMapPress: (target: NoticeScheduleMapTarget) => void;
+  /** WHY: under the audience table the table's own bottom space is the gap, so the timeline adds none. */
+  isJoinedAbove: boolean;
 }
 
-export function NoticeScheduleSection({ schedule, now, onMapPress }: Props) {
+export function NoticeScheduleSection({ schedule, now, onMapPress, isJoinedAbove }: Props) {
   const styles = useStyles();
   const { t } = useT();
   const { rows, onToggle } = useNoticeScheduleSection({ schedule, now });
 
   return (
-    <View>
-      <ListHeader
-        style={styles.header}
-        title={
-          <ListHeader.TitleParagraph typography="t9" fontWeight="bold">
-            {t('notices.schedule.title')}
-          </ListHeader.TitleParagraph>
-        }
-      />
+    <View style={isJoinedAbove ? null : styles.wrap} accessibilityRole="list" accessibilityLabel={t('notices.schedule.title')}>
       {rows.map((row, index) => (
         <NoticeScheduleRow
           key={row.id}
@@ -41,9 +35,7 @@ export function NoticeScheduleSection({ schedule, now, onMapPress }: Props) {
 }
 
 const useStyles = createThemedStyles(() => ({
-  header: {
-    paddingHorizontal: SdsSpacing.gutter,
-    paddingTop: SdsSpacing.x8,
-    paddingBottom: SdsSpacing.x3,
+  wrap: {
+    paddingTop: SdsSpacing.x6,
   },
 }));

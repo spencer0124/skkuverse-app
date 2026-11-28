@@ -2,7 +2,10 @@
 // cannot render without is required, and every other field keeps its default.
 import { z } from 'zod';
 import { openUnionArray, parsedBy, text, tolerantArray } from '@skkuverse/shared';
+import { noticeAudienceSchema } from './notice-audience.schema';
 import { noticeBriefSchema } from './notice-brief.schema';
+import { noticeRefsSchema } from './notice-refs.schema';
+import { toBodyRefs } from './notice-refs.rules';
 import { noticeScheduleSchema } from './notice-schedule.schema';
 import type { NoticeAttachment, NoticeDetail, NoticeEditInfo, NoticeListItem, NoticePage, NoticeTab, NoticeTabsConfig, PickerTabConfig, TabSource } from './notices.types';
 
@@ -34,18 +37,11 @@ const listItemSchema = z
     // WHY: some sources send "YYYY-MM-DD HH:MM"; the first ten characters are the contract's date.
     date: str().transform((date) => date.slice(0, 10)),
     sourceUrl: str(),
-    contentHash: z.unknown().optional(),
+    hasContent: bool(false),
     hasAttachments: bool(false),
-    editCount: num(0),
+    isEdited: bool(false),
   })
-  .transform(
-    ({ contentHash, editCount, ...item }): NoticeListItem => ({
-      ...item,
-      // WHY: read from contentHash, though the server also sends hasContent; switching is a separate change.
-      hasContent: contentHash !== null && contentHash !== undefined && contentHash !== '',
-      isEdited: editCount > 0,
-    }),
-  );
+  .transform((item): NoticeListItem => item);
 
 function noticePageSchemaFor(where: string) {
   return z
@@ -89,8 +85,15 @@ export const noticeDetailSchema = z
     editInfo: editInfoSchema,
     schedule: noticeScheduleSchema,
     brief: noticeBriefSchema,
+    audience: noticeAudienceSchema,
+    refs: noticeRefsSchema,
   })
-  .transform((detail): NoticeDetail => detail);
+  .transform(
+    ({ refs, ...detail }): NoticeDetail => ({
+      ...detail,
+      refs: refs === undefined ? toBodyRefs(detail.contentMarkdown, detail.attachments.map((a) => a.url)) : refs,
+    }),
+  );
 
 const tabSourceSchema = z
   .object({

@@ -3,12 +3,11 @@ import { useT, type TranslationKey } from '@skkuverse/shared';
 import {
   decideSchedulePhase,
   hasScheduleDetail,
-  toScheduleDateLabel,
   toScheduleDay,
   toScheduleTimeText,
+  toScheduleWhen,
 } from '../notice-schedule.rules';
 import type {
-  NoticeScheduleDateLabel,
   NoticeScheduleDay,
   NoticeScheduleEntry,
   NoticeScheduleItem,
@@ -16,6 +15,7 @@ import type {
   NoticeSchedulePointLabel,
   NoticeScheduleStatus,
   NoticeScheduleTenDays,
+  NoticeScheduleWhen,
 } from '../notice-schedule.types';
 
 const MONTH_KEYS = [
@@ -84,7 +84,6 @@ export interface NoticeSchedulePartModel {
 
 export interface NoticeScheduleRowModel {
   id: string;
-  dateText: string;
   title: string;
   meta: string | null;
   phase: NoticeSchedulePhase;
@@ -156,32 +155,40 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
       }
     };
 
-    const labelText = (label: NoticeScheduleDateLabel): string => {
-      switch (label.kind) {
-        case 'range':
-          return tpl('notices.schedule.range', pointText(label.from, false), pointText(label.to, false));
-        case 'deadline':
-          return tpl('notices.schedule.until', pointText(label.to, true));
-        case 'repeat': {
-          const base =
-            label.freq === 'daily'
-              ? t('notices.schedule.repeatDaily')
-              : tpl(
-                  'notices.schedule.repeatWeekly',
-                  label.weekdays.map((weekday) => t(WEEKDAY_KEYS[weekday])).join(t('notices.schedule.weekdaySeparator')),
-                );
-          return label.until === null
-            ? base
-            : tpl('notices.schedule.repeatWithUntil', base, tpl('notices.schedule.until', dayText(label.until, false)));
-        }
-        default:
-          return pointText(label, true);
-      }
-    };
 
     const joined = (parts: readonly (string | null | undefined)[], separator: string): string | null => {
       const present = parts.filter((part): part is string => part !== null && part !== undefined && part !== '');
       return present.length > 0 ? present.join(separator) : null;
+    };
+
+    const timed = (dateText: string, time: string | null): string => joined([dateText, time], TEXT_SEPARATOR) ?? '';
+
+    const whenText = (when: NoticeScheduleWhen): string => {
+      switch (when.kind) {
+        case 'range':
+          return tpl(
+            'notices.schedule.range',
+            timed(pointText(when.from, false), when.fromTime),
+            timed(pointText(when.to, false), when.toTime),
+          );
+        case 'deadline':
+          return tpl('notices.schedule.until', timed(pointText(when.to, true), when.time));
+        case 'at': {
+          const { date } = when;
+          if (date.kind !== 'repeat') return timed(pointText(date, true), when.time);
+          const days =
+            date.freq === 'daily'
+              ? t('notices.schedule.repeatDaily')
+              : tpl(
+                  'notices.schedule.repeatWeekly',
+                  date.weekdays.map((weekday) => t(WEEKDAY_KEYS[weekday])).join(t('notices.schedule.weekdaySeparator')),
+                );
+          const base = timed(days, when.time);
+          return date.until === null
+            ? base
+            : tpl('notices.schedule.repeatWithUntil', base, tpl('notices.schedule.until', dayText(date.until, false)));
+        }
+      }
     };
 
     const statusText = (entry: NoticeScheduleEntry): string | null =>
@@ -192,20 +199,13 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
     return schedule.map((item) => {
       const occurrenceTexts =
         item.occurrences.length > 1
-          ? item.occurrences.map(
-              (occurrence) =>
-                joined(
-                  [labelText(toScheduleDateLabel(occurrence, now)), toScheduleTimeText(occurrence)],
-                  TEXT_SEPARATOR,
-                ) ?? '',
-            )
+          ? item.occurrences.map((occurrence) => whenText(toScheduleWhen(occurrence, now)))
           : [];
       const omitted = item.omittedCount ?? 0;
       return {
         id: item.id,
-        dateText: labelText(toScheduleDateLabel(item, now)),
         title: item.title,
-        meta: joined([toScheduleTimeText(item), item.place?.text], META_SEPARATOR),
+        meta: joined([whenText(toScheduleWhen(item, now)), item.place?.text], META_SEPARATOR),
         phase: decideSchedulePhase(item, now),
         status: item.status,
         statusText: statusText(item),
@@ -227,9 +227,8 @@ export function useNoticeScheduleSection({ schedule, now }: Inputs) {
           meta: joined(
             [
               part.rrule !== undefined || part.start?.date !== item.start?.date
-                ? labelText(toScheduleDateLabel(part, now))
-                : null,
-              toScheduleTimeText(part),
+                ? whenText(toScheduleWhen(part, now))
+                : toScheduleTimeText(part),
               part.place?.text,
             ],
             META_SEPARATOR,

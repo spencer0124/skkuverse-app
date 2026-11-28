@@ -1,10 +1,11 @@
-// CONTRACT(skkuverse-server): skkuverse-server/src/notices/detail/notices-detail.wire.ts (`noticeBrief`) writes this shape.
 import { z } from 'zod';
-import { tolerantArray } from '@skkuverse/shared';
+import { openEnum, tolerantArray } from '@skkuverse/shared';
+import { BRIEF_LANGUAGES } from './notice-brief.constants';
 import type { NoticeBriefAnswer } from './notice-brief.types';
 
+/** WHY: today's server sends `{ question, bullets }` and the next wire `{ language, bullets, version }`; both read here, and no question shows. */
 const briefSchema = z.object({
-  question: z.string().nullable(),
+  language: openEnum(BRIEF_LANGUAGES),
   bullets: tolerantArray(z.object({ text: z.string() }), 'notices.detail.brief.bullets'),
 });
 
@@ -15,4 +16,7 @@ const briefSchema = z.object({
 export const noticeBriefSchema = briefSchema
   .nullable()
   .catch(null)
-  .transform((brief): NoticeBriefAnswer | null => brief);
+  .transform(
+    (brief): NoticeBriefAnswer | null =>
+      brief && { language: brief.language ?? null, bullets: brief.bullets },
+  );

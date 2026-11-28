@@ -1,44 +1,31 @@
 import type { ComponentType } from 'react';
 import { View } from 'react-native';
-import {
-  EnvelopeSimpleIcon,
-  FileTextIcon,
-  LinkSimpleIcon,
-  PaperclipIcon,
-  PhoneIcon,
-  type IconProps,
-} from 'phosphor-react-native';
+import { EnvelopeSimpleIcon, LinkSimpleIcon, PaperclipIcon, PhoneIcon, type IconProps } from 'phosphor-react-native';
 import { useT, SdsSpacing } from '@skkuverse/shared';
 import { ListRow, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
-import { sortFormsFirst } from '../notice-brief.rules';
-import type { NoticeBriefAttachment, NoticeBriefLink, NoticeBriefRefs } from '../notice-brief.types';
+import type { NoticeBriefAttachment, NoticeBriefRefs } from '../notice-brief.types';
+import type { NoticeRefLink } from '../notice-refs.types';
 
 interface Props {
   refs: NoticeBriefRefs;
   onAttachmentPress: (attachment: NoticeBriefAttachment) => void;
-  onLinkPress: (link: NoticeBriefLink) => void;
+  onLinkPress: (link: NoticeRefLink) => void;
   onPhonePress: (phone: string) => void;
   onEmailPress: (email: string) => void;
 }
 
-export function NoticeRefsSection({
-  refs,
-  onAttachmentPress,
-  onLinkPress,
-  onPhonePress,
-  onEmailPress,
-}: Props) {
+export function NoticeRefsSection({ refs, onAttachmentPress, onLinkPress, onPhonePress, onEmailPress }: Props) {
   const styles = useStyles();
   const { t } = useT();
 
   return (
     <View style={styles.wrap}>
-      {sortFormsFirst(refs.attachments).map((attachment) => (
+      {refs.attachments.map((attachment) => (
         <RefRow
           key={attachment.url}
-          Icon={attachment.isForm ? FileTextIcon : PaperclipIcon}
+          Icon={PaperclipIcon}
           title={attachment.name}
-          subtitle={attachment.isForm ? t('notices.brief.form') : t('notices.attachments')}
+          subtitle={t('notices.attachments')}
           onPress={() => onAttachmentPress(attachment)}
         />
       ))}
@@ -53,20 +40,20 @@ export function NoticeRefsSection({
       ))}
       {refs.phones.map((phone) => (
         <RefRow
-          key={phone.number}
+          key={phone.value}
           Icon={PhoneIcon}
-          title={phone.label ?? phone.number}
-          subtitle={phone.label ? phone.number : t('notices.refPhone')}
-          onPress={() => onPhonePress(phone.number)}
+          title={phone.value}
+          subtitle={t('notices.refPhone')}
+          onPress={() => onPhonePress(phone.value)}
         />
       ))}
       {refs.emails.map((email) => (
         <RefRow
-          key={email.address}
+          key={email.value}
           Icon={EnvelopeSimpleIcon}
-          title={email.label ?? email.address}
-          subtitle={email.label ? email.address : t('notices.refEmail')}
-          onPress={() => onEmailPress(email.address)}
+          title={email.value}
+          subtitle={t('notices.refEmail')}
+          onPress={() => onEmailPress(email.value)}
         />
       ))}
     </View>
@@ -90,15 +77,23 @@ function RefRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${subtitle} ${title}`}
-      verticalPadding="small"
-      left={<Icon size={22} color={color.fg.neutralSubtle} />}
+      verticalPadding="xsmall"
+      left={<Icon size={ICON_SIZE} color={color.fg.neutralSubtle} />}
       contents={
-        <ListRow.Texts layout="2RowTypeA" top={title} topProps={{ numberOfLines: 2 }} bottom={subtitle} />
+        <ListRow.Texts
+          layout="2RowTypeA"
+          top={title}
+          topProps={{ numberOfLines: 2, typography: 't6' }}
+          bottom={subtitle}
+          bottomProps={{ typography: 't4' }}
+        />
       }
       withArrow
     />
   );
 }
+
+const ICON_SIZE = 18;
 
 const useStyles = createThemedStyles(() => ({
   wrap: {

@@ -1,15 +1,20 @@
+import type { BRIEF_LANGUAGES } from './notice-brief.constants';
+import type { NoticeAudience } from './notice-audience.types';
+import type { NoticeRefContact, NoticeRefLink } from './notice-refs.types';
 import type { NoticeScheduleItem } from './notice-schedule.types';
+
+export type NoticeBriefLanguage = (typeof BRIEF_LANGUAGES)[number];
 
 export interface NoticeBriefSource {
   boardName: string;
   postedAt: string;
-  firstSeenAt: string;
   isEdited: boolean;
   url: string;
 }
 
 export interface NoticeBriefAnswer {
-  question: string | null;
+  /** WHY: the notice's language, not the reader's, so a screen reader speaks the bullets in it. */
+  language: NoticeBriefLanguage | null;
   bullets: { text: string }[];
 }
 
@@ -27,29 +32,13 @@ export interface NoticeBriefBody {
 export interface NoticeBriefAttachment {
   name: string;
   url: string;
-  isForm: boolean;
-}
-
-export interface NoticeBriefLink {
-  url: string;
-  domain: string;
-}
-
-export interface NoticeBriefPhone {
-  number: string;
-  label: string | null;
-}
-
-export interface NoticeBriefEmail {
-  address: string;
-  label: string | null;
 }
 
 export interface NoticeBriefRefs {
   attachments: NoticeBriefAttachment[];
-  links: NoticeBriefLink[];
-  phones: NoticeBriefPhone[];
-  emails: NoticeBriefEmail[];
+  links: NoticeRefLink[];
+  phones: NoticeRefContact[];
+  emails: NoticeRefContact[];
 }
 
 export interface NoticeBrief {
@@ -57,7 +46,15 @@ export interface NoticeBrief {
   title: string;
   source: NoticeBriefSource;
   answer: NoticeBriefAnswer | null;
+  audience: NoticeAudience | null;
   body: NoticeBriefBody;
   schedule: NoticeScheduleItem[] | null;
   refs: NoticeBriefRefs;
+}
+
+export type NoticeBriefPart = 'audience' | 'schedule' | 'bullets' | 'refs' | 'body';
+
+export interface NoticeBriefPartSlot {
+  part: NoticeBriefPart;
+  hasDividerBefore: boolean;
 }

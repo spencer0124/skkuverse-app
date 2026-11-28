@@ -73,3 +73,9 @@ export type NoticeScheduleDateLabel =
   | { kind: 'range'; from: NoticeSchedulePointLabel; to: NoticeSchedulePointLabel }
   | { kind: 'deadline'; to: NoticeSchedulePointLabel }
   | { kind: 'repeat'; freq: NoticeScheduleFrequency; weekdays: number[]; until: NoticeScheduleDay | null };
+
+/** WHY: each time sits beside the day it belongs to, so a lone end time under a range never reads as a start time. */
+export type NoticeScheduleWhen =
+  | { kind: 'at'; date: Exclude<NoticeScheduleDateLabel, { kind: 'range' | 'deadline' }>; time: string | null }
+  | { kind: 'range'; from: NoticeSchedulePointLabel; fromTime: string | null; to: NoticeSchedulePointLabel; toTime: string | null }
+  | { kind: 'deadline'; to: NoticeSchedulePointLabel; time: string | null };

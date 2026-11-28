@@ -5,6 +5,7 @@ import {
   toScheduleDateLabel,
   toScheduleDay,
   toScheduleTimeText,
+  toScheduleWhen,
 } from './notice-schedule.rules';
 import type {
   NoticeScheduleDateLabel,
@@ -360,6 +361,60 @@ describe('toScheduleTimeText', () => {
 
     // Assert
     expect(text).toBe(expected);
+  });
+});
+
+describe('toScheduleWhen', () => {
+  it('attaches an end time alone to the last day of a range', () => {
+    // Act
+    const when = toScheduleWhen({ start: at('2026-09-23'), end: at('2026-10-13', '17:00') }, NOW);
+
+    // Assert
+    expect(when).toEqual({ kind: 'range', from: { kind: 'day', date: day(9, 23, 3) }, fromTime: null, to: { kind: 'day', date: day(10, 13, 2) }, toTime: '17:00' });
+  });
+
+  it('attaches each time to its own day when a range spans days', () => {
+    // Act
+    const when = toScheduleWhen({ start: at('2026-09-23', '10:00'), end: at('2026-10-13', '17:00') }, NOW);
+
+    // Assert
+    expect(when).toMatchObject({ kind: 'range', fromTime: '10:00', toTime: '17:00' });
+  });
+
+  it('joins the times after the day when both fall on one day', () => {
+    // Act
+    const when = toScheduleWhen({ start: at('2026-11-13', '16:00'), end: at('2026-11-13', '18:00') }, NOW);
+
+    // Assert
+    expect(when).toEqual({ kind: 'at', date: { kind: 'day', date: day(11, 13, 5) }, time: '16:00–18:00' });
+  });
+
+  it('attaches the time to the day of a deadline', () => {
+    // Act
+    const when = toScheduleWhen({ end: at('2026-10-13', '17:00') }, NOW);
+
+    // Assert
+    expect(when).toEqual({ kind: 'deadline', to: { kind: 'day', date: day(10, 13, 2) }, time: '17:00' });
+  });
+
+  it('keeps the relative day and the repeat rule, with the time after them', () => {
+    // Act & Assert
+    expect(toScheduleWhen({ start: at('2026-11-26', '15:00') }, NOW)).toEqual({
+      kind: 'at',
+      date: { kind: 'relative', day: 'today' },
+      time: '15:00',
+    });
+    expect(
+      toScheduleWhen({ start: at('2026-12-01', '18:00'), rrule: { freq: 'weekly', byDay: ['TU'] } }, NOW),
+    ).toEqual({ kind: 'at', date: { kind: 'repeat', freq: 'weekly', weekdays: [2], until: null }, time: '18:00' });
+  });
+
+  it('drops an end before its start, and its time with it', () => {
+    // Act
+    const when = toScheduleWhen({ start: at('2026-10-13', '17:00'), end: at('2026-10-01', '09:00') }, NOW);
+
+    // Assert
+    expect(when).toEqual({ kind: 'at', date: { kind: 'day', date: day(10, 13, 2) }, time: '17:00' });
   });
 });
 

@@ -1,15 +1,17 @@
 import { View } from 'react-native';
 import { CaretDownIcon, CaretUpIcon } from 'phosphor-react-native';
-import { useT, SdsRadius, SdsSpacing } from '@skkuverse/shared';
+import { useT, SdsRadius, SdsSpacing, SdsTypeScale } from '@skkuverse/shared';
 import { Badge, Pressable, TextButton, Txt, createThemedStyles, useSemanticColors } from '@skkuverse/sds';
 import type { NoticeScheduleStatus } from '../notice-schedule.types';
 import type { NoticeScheduleMapTarget, NoticeScheduleRowModel } from './useNoticeScheduleSection';
 
-const RAIL_WIDTH = SdsSpacing.x6;
-const HALO_SIZE = SdsSpacing.x6;
-const DOT_SIZE = SdsSpacing.x2;
+const RAIL_WIDTH = SdsSpacing.x4;
+const HALO_SIZE = SdsSpacing.x4;
+const DOT_SIZE = SdsSpacing.x1_5;
 const LINE_WIDTH = SdsSpacing.x0_5;
-const DOT_CENTER = SdsSpacing.x0_5 + HALO_SIZE / 2;
+const TITLE_LINE_HEIGHT = SdsTypeScale.t6.lineHeight;
+const HALO_TOP = (TITLE_LINE_HEIGHT - HALO_SIZE) / 2;
+const DOT_CENTER = HALO_TOP + HALO_SIZE / 2;
 
 const STATUS_BADGE = {
   scheduled: null,
@@ -38,7 +40,7 @@ interface MapButtonProps {
 function MapButton({ target, label, onPress }: MapButtonProps) {
   const styles = useStyles();
   return (
-    <TextButton typography="t6" variant="arrow" color="brand" onPress={() => onPress(target)} style={styles.mapButton}>
+    <TextButton typography="t4" variant="arrow" color="brand" onPress={() => onPress(target)} style={styles.mapButton}>
       {label}
     </TextButton>
   );
@@ -70,13 +72,10 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
         </View>
       </View>
       <View style={styles.content}>
-        <Txt typography="t5" color="neutralSubtle">
-          {row.dateText}
-        </Txt>
         <View style={styles.titleRow}>
           <Txt
-            typography="t7"
-            fontWeight="bold"
+            typography="t6"
+            fontWeight="semiBold"
             color={isMuted ? 'neutralSubtle' : 'neutral'}
             lineBreakStrategyIOS="hangul-word"
             style={[styles.shrink, row.isStruck ? styles.struck : null]}
@@ -86,7 +85,7 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
           <StatusBadge status={row.status} text={row.statusText} />
         </View>
         {row.meta !== null ? (
-          <Txt typography="t5" color="neutralMuted">
+          <Txt typography="t4" color="neutralSubtle" lineBreakStrategyIOS="hangul-word">
             {row.meta}
           </Txt>
         ) : null}
@@ -96,8 +95,8 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
               <View key={part.id} style={styles.part}>
                 <View style={styles.titleRow}>
                   <Txt
-                    typography="t6"
-                    fontWeight="bold"
+                    typography="t4"
+                    fontWeight="semiBold"
                     color={part.isStruck ? 'neutralSubtle' : 'neutral'}
                     lineBreakStrategyIOS="hangul-word"
                     style={[styles.shrink, part.isStruck ? styles.struck : null]}
@@ -107,7 +106,7 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
                   <StatusBadge status={part.status} text={part.statusText} />
                 </View>
                 {part.meta !== null ? (
-                  <Txt typography="t5" color="neutralMuted">
+                  <Txt typography="t4" color="neutralSubtle">
                     {part.meta}
                   </Txt>
                 ) : null}
@@ -118,21 +117,21 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
             ))}
             {row.occurrenceTexts.map((text, index) => (
               <View key={index} style={styles.bullet}>
-                <Txt typography="t6" color="neutralMuted" style={styles.bulletDot}>
+                <Txt typography="t4" color="neutralMuted" style={styles.bulletDot}>
                   {'•'}
                 </Txt>
-                <Txt typography="t6" color="neutralMuted" lineBreakStrategyIOS="hangul-word" style={styles.shrink}>
+                <Txt typography="t4" color="neutralMuted" lineBreakStrategyIOS="hangul-word" style={styles.shrink}>
                   {text}
                 </Txt>
               </View>
             ))}
             {row.moreText !== null ? (
-              <Txt typography="t5" color="neutralSubtle">
+              <Txt typography="t4" color="neutralSubtle">
                 {row.moreText}
               </Txt>
             ) : null}
             {row.exceptText !== null ? (
-              <Txt typography="t5" color="neutralSubtle">
+              <Txt typography="t4" color="neutralSubtle">
                 {row.exceptText}
               </Txt>
             ) : null}
@@ -161,7 +160,7 @@ export function NoticeScheduleRow({ row, isFirst, isLast, onToggle, onMapPress }
       onPress={() => onToggle(row.id)}
       accessibilityRole="button"
       accessibilityState={{ expanded: row.isExpanded }}
-      accessibilityLabel={`${row.dateText}, ${row.title}`}
+      accessibilityLabel={row.meta === null ? row.title : `${row.title}, ${row.meta}`}
       style={styles.row}
     >
       {body}
@@ -173,7 +172,7 @@ const useStyles = createThemedStyles(({ color }) => ({
   row: {
     flexDirection: 'row',
     paddingHorizontal: SdsSpacing.gutter,
-    paddingVertical: SdsSpacing.x2,
+    paddingVertical: SdsSpacing.x1,
   },
   rail: {
     width: RAIL_WIDTH,
@@ -181,8 +180,8 @@ const useStyles = createThemedStyles(({ color }) => ({
   },
   line: {
     position: 'absolute',
-    top: -SdsSpacing.x2,
-    bottom: -SdsSpacing.x2,
+    top: -SdsSpacing.x1,
+    bottom: -SdsSpacing.x1,
     width: LINE_WIDTH,
     backgroundColor: color.bg.neutralMuted,
   },
@@ -191,12 +190,12 @@ const useStyles = createThemedStyles(({ color }) => ({
   },
   lineToDot: {
     bottom: undefined,
-    height: DOT_CENTER + SdsSpacing.x2,
+    height: DOT_CENTER + SdsSpacing.x1,
   },
   halo: {
     width: HALO_SIZE,
     height: HALO_SIZE,
-    marginTop: SdsSpacing.x0_5,
+    marginTop: HALO_TOP,
     borderRadius: SdsRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -218,7 +217,8 @@ const useStyles = createThemedStyles(({ color }) => ({
   content: {
     flex: 1,
     paddingLeft: SdsSpacing.x3,
-    paddingBottom: SdsSpacing.x4,
+    paddingBottom: SdsSpacing.x2,
+    gap: SdsSpacing.x0_5,
   },
   titleRow: {
     flexDirection: 'row',
@@ -234,20 +234,20 @@ const useStyles = createThemedStyles(({ color }) => ({
   },
   chevron: {
     paddingLeft: SdsSpacing.x2,
-    paddingTop: SdsSpacing.x4,
+    paddingTop: HALO_TOP,
   },
   detail: {
-    paddingTop: SdsSpacing.x3,
-    gap: SdsSpacing.x3,
+    paddingTop: SdsSpacing.x2,
+    gap: SdsSpacing.x2,
   },
   part: {
-    gap: SdsSpacing.x1,
+    gap: SdsSpacing.x0_5,
   },
   bullet: {
     flexDirection: 'row',
   },
   bulletDot: {
-    width: SdsSpacing.x5,
+    width: SdsSpacing.x4,
   },
   mapButton: {
     alignSelf: 'flex-start',

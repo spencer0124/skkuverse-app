@@ -21,7 +21,6 @@ export function useNoticeBodyScreen(sourceId: string, articleNo: number) {
 
   return {
     status: brief ? ('ready' as const) : isLoading ? ('loading' as const) : ('error' as const),
-    title: brief?.title ?? null,
     markdown,
     sourceUrl,
     toastText,

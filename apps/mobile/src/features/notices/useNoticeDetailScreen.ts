@@ -15,7 +15,9 @@ import { useNoticeBrief } from './useNoticeBrief';
 import { buildAttachmentUrl, canPreview } from './attachment.rules';
 import { decideNoticeDetailState } from './notice-detail.rules';
 import { toFullBodyMarkdown } from './notice-brief.rules';
-import type { NoticeBriefAttachment, NoticeBriefLink } from './notice-brief.types';
+import { toLinkHref, toMailtoHref, toTelHref } from './notice-refs.rules';
+import type { NoticeBriefAttachment } from './notice-brief.types';
+import type { NoticeRefLink } from './notice-refs.types';
 import type { NoticeScheduleMapTarget } from './components/useNoticeScheduleSection';
 
 export const noticeInAppBrowserOptions: WebBrowser.WebBrowserOpenOptions = {
@@ -41,7 +43,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   const [toastText, setToastText] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const bodyAfterDismiss = useRef(false);
+  const sourceAfterDismiss = useRef(false);
 
   const review = useReviewPrompt({
     reason: 'second_bookmark',
@@ -117,17 +119,22 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
 
   const openSources = useCallback(() => setSourcesOpen(true), []);
   const closeSources = useCallback(() => setSourcesOpen(false), []);
-  const openBodyFromSources = useCallback(() => {
-    bodyAfterDismiss.current = true;
+  const openSourceFromSources = useCallback(() => {
+    sourceAfterDismiss.current = true;
     setSourcesOpen(false);
   }, []);
-  // QUIRK(gorhom-bottom-sheet): a modal paints over a screen pushed beneath it, so the body route is pushed only once the sheet has dismissed.
+  // QUIRK(gorhom-bottom-sheet): a modal presented over the open sheet stacks under it, so the source opens only once the sheet has dismissed.
   const onSourcesDismiss = useCallback(() => {
     setSourcesOpen(false);
-    if (!bodyAfterDismiss.current) return;
-    bodyAfterDismiss.current = false;
-    openFullBody();
-  }, [openFullBody]);
+    if (!sourceAfterDismiss.current || !sourceUrl) return;
+    sourceAfterDismiss.current = false;
+    logNoticesContentSelect({ content_type: 'detail_view_source', item_id: itemId });
+    void openInAppBrowser(sourceUrl, {
+      ...noticeInAppBrowserOptions,
+      controlsColor: color.fg.brand,
+      toolbarColor: color.bg.layerDefault,
+    });
+  }, [sourceUrl, itemId, color]);
 
   const onAttachmentPress = useCallback(
     (a: NoticeBriefAttachment) => {
@@ -144,12 +151,12 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     [openAttachment],
   );
 
-  const onLinkPress = useCallback((link: NoticeBriefLink) => {
-    void openExternalUrl(link.url);
+  const onLinkPress = useCallback((link: NoticeRefLink) => {
+    void openExternalUrl(toLinkHref(link.url));
   }, []);
 
   const onPhonePress = useCallback((phone: string) => {
-    void openExternalUrl(`tel:${phone.replace(/[^\d+]/g, '')}`);
+    void openExternalUrl(toTelHref(phone));
   }, []);
 
   const onScheduleMapPress = useCallback(
@@ -165,7 +172,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
   );
 
   const onEmailPress = useCallback((email: string) => {
-    void openExternalUrl(`mailto:${email}`);
+    void openExternalUrl(toMailtoHref(email));
   }, []);
 
   const onSave = useCallback(() => {
@@ -213,7 +220,7 @@ export function useNoticeDetailScreen({ sourceId, articleNo, source, reviewIcon 
     openFullBody,
     openSources,
     closeSources,
-    openBodyFromSources,
+    openSourceFromSources,
     onSourcesDismiss,
     onAttachmentPress,
     onLinkPress,

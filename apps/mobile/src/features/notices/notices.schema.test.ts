@@ -331,9 +331,9 @@ describe('parseNoticePage', () => {
           department: '학사과',
           date: '2026-04-01',
           sourceUrl: 'https://www.skku.edu/notice/12345',
-          contentHash: 'abc',
+          hasContent: true,
           hasAttachments: true,
-          editCount: 2,
+          isEdited: true,
         },
       ],
       nextCursor: 'eyJkIjoiMjAyNi0wNC0wMSJ9',
@@ -348,9 +348,9 @@ describe('parseNoticePage', () => {
     expect(n.id).toBe('66f0a1b2c3d4e5f6a7b8c9d0');
     expect(n.articleNo).toBe(12345);
     expect(n.title).toBe('2026학년도 1학기 수강신청 안내');
-    expect(n.hasContent).toBe(true); // contentHash present
+    expect(n.hasContent).toBe(true);
     expect(n.hasAttachments).toBe(true);
-    expect(n.isEdited).toBe(true); // editCount > 0
+    expect(n.isEdited).toBe(true);
   });
 
   it('drops the summary, row and views an older server still sends', () => {
@@ -367,9 +367,9 @@ describe('parseNoticePage', () => {
           date: '2026-04-01',
           views: 1200,
           sourceUrl: 'https://x',
-          contentHash: 'h',
+          hasContent: true,
           hasAttachments: false,
-          editCount: 0,
+          isEdited: false,
           summary: { oneLiner: 'o', type: 'action_required', endAt: { date: '2026-04-12', time: null } },
           row: { title: 't', when: 'D-3', board: '학사' },
         },
@@ -383,7 +383,7 @@ describe('parseNoticePage', () => {
     expect(notice).not.toHaveProperty('views');
   });
 
-  it('derives hasContent=false when contentHash is null/missing', () => {
+  it('reads hasContent and isEdited as false when they are missing or not booleans', () => {
     const raw = envelope({
       notices: [
         {
@@ -396,9 +396,8 @@ describe('parseNoticePage', () => {
           department: null,
           date: '2026-04-01',
           sourceUrl: 'https://x',
-          contentHash: null,
+          hasContent: null,
           hasAttachments: false,
-          editCount: 0,
         },
       ],
       nextCursor: null,

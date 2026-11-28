@@ -1,5 +1,7 @@
 /** CONTRACT(skkuverse-server): skkuverse-server/docs/reference/notices-api.md */
+import type { NoticeAudience } from './notice-audience.types';
 import type { NoticeBriefAnswer } from './notice-brief.types';
+import type { NoticeRefs } from './notice-refs.types';
 import type { NoticeScheduleItem } from './notice-schedule.types';
 
 export interface NoticeSource {
@@ -105,4 +107,6 @@ export interface NoticeDetail {
   editInfo: NoticeEditInfo | null;
   schedule: NoticeScheduleItem[] | null;
   brief: NoticeBriefAnswer | null;
+  audience: NoticeAudience | null;
+  refs: NoticeRefs | null;
 }

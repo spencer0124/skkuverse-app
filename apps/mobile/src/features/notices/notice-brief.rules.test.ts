@@ -1,59 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { parseOrThrow } from '@skkuverse/shared';
-import briefs from './__fixtures__/notice-briefs.json';
+import dummies from './__fixtures__/notice-briefs.json';
 import detail from './__fixtures__/notice-detail.json';
 import { noticeDetailSchema } from './notices.schema';
 import {
-  findNoticeBrief,
-  hasNoticeBriefAnswerSection,
   hasNoticeBriefRefs,
-  sortFormsFirst,
+  hasViewAllUnderBullets,
   toFullBodyMarkdown,
   toNoticeBrief,
-  toNoticeBriefAge,
+  toNoticeBriefParts,
   toPostedMonthDay,
 } from './notice-brief.rules';
 import type { NoticeBrief } from './notice-brief.types';
+import type { NoticeDetail } from './notices.types';
 
-const all = briefs as NoticeBrief[];
-const kst = (iso: string) => new Date(`${iso}+09:00`);
-
-describe('toNoticeBriefAge', () => {
-  it('counts minutes and hours within the same KST day', () => {
-    // Arrange
-    const now = kst('2026-11-19T15:00:00');
-
-    // Act & Assert
-    expect(toNoticeBriefAge('2026-11-19T14:59:30+09:00', now)).toEqual({ kind: 'justNow' });
-    expect(toNoticeBriefAge('2026-11-19T14:35:00+09:00', now)).toEqual({ kind: 'minutes', count: 25 });
-    expect(toNoticeBriefAge('2026-11-19T12:00:00+09:00', now)).toEqual({ kind: 'hours', count: 3 });
-  });
-
-  it('says yesterday for the previous KST day, even under 24 hours ago', () => {
-    // Arrange
-    const now = kst('2026-11-19T00:30:00');
-
-    // Act & Assert
-    expect(toNoticeBriefAge('2026-11-18T23:00:00+09:00', now)).toEqual({ kind: 'yesterday' });
-  });
-
-  it('shows the month and day from two days back, and the year once it differs', () => {
-    // Arrange
-    const now = kst('2026-11-19T10:00:00');
-
-    // Act & Assert
-    expect(toNoticeBriefAge('2026-10-19T09:12:00+09:00', now)).toEqual({ kind: 'date', label: '10/19' });
-    expect(toNoticeBriefAge('2025-12-30T09:12:00+09:00', now)).toEqual({ kind: 'date', label: '25.12.30' });
-  });
-
-  it('reads the KST calendar day, not UTC', () => {
-    // Arrange
-    const now = kst('2026-11-19T10:00:00');
-
-    // Act & Assert
-    expect(toNoticeBriefAge('2026-11-17T01:00:00+09:00', now)).toEqual({ kind: 'date', label: '11/17' });
-  });
-});
+const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
+const all = dummies.map((raw) => parseOrThrow(noticeDetailSchema, raw, 'notices.dummy'));
+const briefs = all.map((dummy) => toNoticeBrief({ notice: dummy, boardName: null }));
+const briefOf = (overrides: Partial<NoticeDetail>): NoticeBrief =>
+  toNoticeBrief({ notice: { ...notice, ...overrides }, boardName: null });
 
 describe('toPostedMonthDay', () => {
   it('reads the KST calendar day from a bare date or from KST midnight', () => {
@@ -66,55 +31,6 @@ describe('toPostedMonthDay', () => {
     // Act & Assert
     expect(toPostedMonthDay('')).toBeNull();
     expect(toPostedMonthDay('not a date')).toBeNull();
-  });
-});
-
-describe('sortFormsFirst', () => {
-  it('puts forms first and keeps the order within each group', () => {
-    // Arrange
-    const files = [
-      { name: 'a.pdf', url: 'u1', isForm: false },
-      { name: 'form1.hwp', url: 'u2', isForm: true },
-      { name: 'b.pdf', url: 'u3', isForm: false },
-      { name: 'form2.hwp', url: 'u4', isForm: true },
-    ];
-
-    // Act
-    const sorted = sortFormsFirst(files);
-
-    // Assert
-    expect(sorted.map((f) => f.name)).toEqual(['form1.hwp', 'form2.hwp', 'a.pdf', 'b.pdf']);
-  });
-});
-
-describe('hasNoticeBriefRefs', () => {
-  it('hides the refs section when every group is empty, posters not counting as refs', () => {
-    // Arrange
-    const noRefs = findNoticeBrief(all, 'skku-main', 139500)!;
-    const postersOnly = findNoticeBrief(all, 'skku-main', 139533)!;
-    const phoneOnly = findNoticeBrief(all, 'cse-undergrad', 227019)!;
-
-    // Act & Assert
-    expect(hasNoticeBriefRefs(noRefs)).toBe(false);
-    expect(hasNoticeBriefRefs(postersOnly)).toBe(false);
-    expect(hasNoticeBriefRefs(phoneOnly)).toBe(true);
-  });
-});
-
-describe('hasNoticeBriefAnswerSection', () => {
-  const brief = findNoticeBrief(all, 'skku-main', 139500)!;
-
-  it('shows for an answer, a poster or the way to the full body, and hides when there is none of them', () => {
-    // Arrange
-    const poster = { url: 'https://example.com/a.png', width: null, height: null };
-    const answer = { question: null, bullets: [{ text: 'a' }] };
-    const bare = { ...brief, answer: null, body: { markdown: null, posters: [] } };
-
-    // Act & Assert
-    expect(hasNoticeBriefAnswerSection({ ...bare, answer }, false)).toBe(true);
-    expect(hasNoticeBriefAnswerSection({ ...bare, body: { markdown: null, posters: [poster] } }, false)).toBe(true);
-    expect(hasNoticeBriefAnswerSection(bare, true)).toBe(true);
-    expect(hasNoticeBriefAnswerSection(bare, false)).toBe(false);
   });
 });
 
@@ -143,132 +59,152 @@ describe('toFullBodyMarkdown', () => {
   });
 });
 
-describe('toNoticeBrief', () => {
-  it('carries a live notice over with its attachments and the refs found in its body', () => {
+describe('toNoticeBriefParts', () => {
+  const bare = briefOf({ schedule: null, brief: null, audience: null, refs: null, attachments: [], contentMarkdown: null });
+  const answer = { language: 'ko' as const, bullets: [{ text: 'a' }] };
+  const audience = { level: { include: ['grad' as const] }, status: { include: [], exclude: [] } };
+  const schedule = [
+    { id: 'a', title: '설명회', status: 'scheduled' as const, start: { date: '2026-12-02' }, occurrences: [], omittedCount: 0 },
+  ];
+
+  const partsOf = (brief: NoticeBrief, hasFullBody: boolean) => toNoticeBriefParts(brief, hasFullBody).map(({ part }) => part);
+  const links = { ...bare.refs, links: [{ url: 'a.example', domain: 'a.example' }] };
+
+  it('orders the audience, the timeline, the bullets, the refs and the full text, leaving out each one with nothing to show', () => {
+    // Act & Assert
+    expect(partsOf(bare, false)).toEqual([]);
+    expect(partsOf({ ...bare, answer }, false)).toEqual(['bullets']);
+    expect(partsOf({ ...bare, audience }, false)).toEqual(['audience']);
+    expect(partsOf({ ...bare, schedule, answer, audience, refs: links }, false)).toEqual(['audience', 'schedule', 'bullets', 'refs']);
+  });
+
+  it('puts the way to the full text under the bullets, and at the end only when there are no bullets', () => {
+    // Act & Assert
+    expect(hasViewAllUnderBullets({ ...bare, answer }, true)).toBe(true);
+    expect(partsOf({ ...bare, answer, refs: links }, true)).toEqual(['bullets', 'refs']);
+    expect(hasViewAllUnderBullets(bare, true)).toBe(false);
+    expect(partsOf({ ...bare, refs: links }, true)).toEqual(['refs', 'body']);
+    expect(hasViewAllUnderBullets({ ...bare, answer }, false)).toBe(false);
+  });
+
+  it('keeps a poster at the end, under the refs, even with bullets', () => {
     // Arrange
-    const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
-    const refs = { images: [], links: [{ url: 'https://a.example/x', text: '신청하기', domain: 'a.example' }], emails: ['a@b.c'], phones: ['02-1-2'] };
+    const poster = { url: 'https://example.com/a.png', width: null, height: null };
+
+    // Act & Assert
+    expect(partsOf({ ...bare, answer, body: { markdown: null, posters: [poster] } }, true)).toEqual(['bullets', 'body']);
+  });
+
+  it('draws a divider between parts, except between the audience and the timeline', () => {
+    // Act
+    const slots = toNoticeBriefParts({ ...bare, schedule, answer, audience }, false);
+
+    // Assert
+    expect(slots).toEqual([
+      { part: 'audience', hasDividerBefore: false },
+      { part: 'schedule', hasDividerBefore: false },
+      { part: 'bullets', hasDividerBefore: true },
+    ]);
+    expect(toNoticeBriefParts({ ...bare, schedule, answer }, false)).toEqual([
+      { part: 'schedule', hasDividerBefore: false },
+      { part: 'bullets', hasDividerBefore: true },
+    ]);
+  });
+});
+
+describe('toNoticeBrief', () => {
+  it('carries a notice over with its attachments, its refs and its audience', () => {
+    // Arrange
+    const refs = { links: [{ url: 'https://a.example/x', domain: 'a.example' }], phones: [{ value: '02-1-2' }], emails: [{ value: 'a@b.c' }] };
+    const audience = { level: { include: ['undergrad' as const] }, status: { include: [], exclude: [] } };
 
     // Act
-    const brief = toNoticeBrief({ notice, boardName: 'Board', refs });
+    const brief = toNoticeBrief({ notice: { ...notice, refs, audience }, boardName: 'Board' });
 
     // Assert
     expect(brief.title).toBe(notice.title);
     expect(brief.source.boardName).toBe('Board');
     expect(brief.source.url).toBe(notice.sourceUrl);
-    expect(brief.refs.attachments).toHaveLength(notice.attachments.length);
-    expect(brief.refs.links).toEqual([{ url: 'https://a.example/x', domain: 'a.example' }]);
-    expect(brief.refs.emails).toEqual([{ address: 'a@b.c', label: null }]);
-    expect(brief.refs.phones).toEqual([{ number: '02-1-2', label: null }]);
+    expect(brief.refs).toEqual({ attachments: notice.attachments, ...refs });
+    expect(brief.audience).toEqual(audience);
+  });
+
+  it('has only the attachments when the notice has no refs', () => {
+    // Act
+    const brief = briefOf({ refs: null });
+
+    // Assert
+    expect(brief.refs).toEqual({ attachments: notice.attachments, links: [], phones: [], emails: [] });
+  });
+
+  it('carries the schedule the notice came with', () => {
+    // Arrange
+    const schedule = [
+      { id: 'a', title: '설명회', status: 'scheduled' as const, start: { date: '2026-12-02' }, occurrences: [{ start: { date: '2026-12-02' } }], omittedCount: 0 },
+    ];
+
+    // Act & Assert
+    expect(briefOf({ schedule }).schedule).toEqual(schedule);
   });
 });
 
 describe('toNoticeBrief answer', () => {
-  const noRefs = { images: [], links: [], emails: [], phones: [] };
-  const notice = parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail');
-
-  it('takes the question and the bullets of the brief the server sent', () => {
+  it('takes the language and the bullets of the brief the server sent', () => {
     // Arrange
-    const sent = { question: '언제까지 낼까?', bullets: [{ text: '12/5까지' }] };
+    const sent = { language: null, bullets: [{ text: '12/5까지' }] };
 
-    // Act
-    const brief = toNoticeBrief({ notice: { ...notice, brief: sent }, boardName: null, refs: noRefs });
-
-    // Assert
-    expect(brief.answer).toEqual(sent);
-  });
-
-  it('keeps a null question with its bullets', () => {
-    // Act
-    const brief = toNoticeBrief({ notice: { ...notice, brief: { question: null, bullets: [{ text: 'a' }] } }, boardName: null, refs: noRefs });
-
-    // Assert
-    expect(brief.answer).toEqual({ question: null, bullets: [{ text: 'a' }] });
+    // Act & Assert
+    expect(briefOf({ brief: sent }).answer).toEqual(sent);
   });
 
   it('has no answer when the brief is null, so nothing shows, not even an empty-state line', () => {
-    // Act
-    const brief = toNoticeBrief({ notice: { ...notice, brief: null }, boardName: null, refs: noRefs });
-
-    // Assert
-    expect(brief.answer).toBeNull();
+    // Act & Assert
+    expect(briefOf({ brief: null }).answer).toBeNull();
   });
 
   it('has no answer when the brief has no bullets, since a heading over nothing says nothing', () => {
-    // Act
-    const brief = toNoticeBrief({ notice: { ...notice, brief: { question: '무엇을 할까?', bullets: [] } }, boardName: null, refs: noRefs });
-
-    // Assert
-    expect(brief.answer).toBeNull();
+    // Act & Assert
+    expect(briefOf({ brief: { language: 'ko', bullets: [] } }).answer).toBeNull();
   });
 });
 
-describe('the dummy briefs', () => {
-  it('keep the display rules: 0 to 5 bullets, a source URL, a unique id that a notice path can reach', () => {
+describe('the dummy notices', () => {
+  it('are read whole by the real parser, each at a unique notice path', () => {
     // Act & Assert
-    expect(new Set(all.map((b) => b.id)).size).toBe(all.length);
-    for (const brief of all) {
-      expect(brief.answer?.bullets.length ?? 0).toBeLessThanOrEqual(5);
-      expect(brief.source.url).toMatch(/^https:\/\//);
-      expect(brief.id).toMatch(/^[a-z0-9-]+-\d+$/);
+    expect(all).toHaveLength(dummies.length);
+    expect(new Set(all.map((d) => `${d.sourceId}/${d.articleNo}`)).size).toBe(all.length);
+    for (const dummy of all) {
+      expect(dummy.sourceUrl).toMatch(/^https:\/\//);
+      expect(dummy.brief?.bullets.length ?? 0).toBeLessThanOrEqual(3);
     }
   });
 
-  it('cover the null brief, the empty refs, the poster-only and the long title cases', () => {
-    // Act & Assert
-    expect(all.some((b) => b.answer === null && !hasNoticeBriefRefs(b))).toBe(true);
-    expect(all.some((b) => b.body.posters.length >= 2)).toBe(true);
-    expect(all.some((b) => b.title.length >= 60)).toBe(true);
-    expect(all.some((b) => b.refs.attachments.some((a) => a.isForm))).toBe(true);
-  });
-
-  it('cover every row shape: links as a URL and a domain alone, labelled and bare phones, a labelled email, a long label', () => {
-    // Arrange
-    const links = all.flatMap((b) => b.refs.links);
-    const phones = all.flatMap((b) => b.refs.phones);
-    const emails = all.flatMap((b) => b.refs.emails);
-
-    // Act & Assert
-    expect(links.length).toBeGreaterThan(0);
-    expect(links.every((l) => Object.keys(l).sort().join() === 'domain,url')).toBe(true);
-    expect(phones.some((p) => p.label)).toBe(true);
-    expect(phones.some((p) => !p.label)).toBe(true);
-    expect(phones.some((p) => (p.label?.length ?? 0) >= 16)).toBe(true);
-    expect(emails.some((e) => e.label)).toBe(true);
-  });
-
-  it('cover a notice with no question, and an English notice whose question and bullets are shown as sent', () => {
-    // Arrange
-    const english = all.filter((b) => /^[\x20-\x7E]+$/.test(b.title));
-
-    // Act & Assert
-    expect(all.some((b) => b.answer !== null && b.answer.question === null && b.answer.bullets.length > 0)).toBe(true);
-    expect(english.length).toBeGreaterThan(0);
-    for (const brief of english) {
-      expect(brief.answer?.question).toMatch(/^[\x20-\x7E]+$/);
-      expect(brief.answer?.bullets.length).toBeGreaterThanOrEqual(2);
-      expect(brief.answer?.bullets.every((b) => /^[\x20-\x7E]+$/.test(b.text))).toBe(true);
-    }
-  });
-
-  it('carries the schedule a live notice came with', () => {
-    // Arrange
-    const schedule = [
-      {
-        id: 'a',
-        title: '설명회',
-        status: 'scheduled' as const,
-        start: { date: '2026-12-02' },
-        occurrences: [{ start: { date: '2026-12-02' } }],
-        omittedCount: 0,
-      },
-    ];
-    const notice = { ...parseOrThrow(noticeDetailSchema, detail.data, 'notices.detail'), schedule };
-
+  it('keep skku-main 139500 with every block null', () => {
     // Act
-    const brief = toNoticeBrief({ notice, boardName: null, refs: { images: [], links: [], emails: [], phones: [] } });
+    const dummy = all.find((d) => d.sourceId === 'skku-main' && d.articleNo === 139500);
 
     // Assert
-    expect(brief.schedule).toEqual(schedule);
+    expect(dummy).toMatchObject({ schedule: null, brief: null, audience: null, refs: null });
+  });
+
+  it("cover today's server: a brief in its shape, and refs found in the body", () => {
+    // Arrange
+    const today = dummies.filter((raw) => !('refs' in raw));
+
+    // Act
+    const parsed = today.map((raw) => parseOrThrow(noticeDetailSchema, raw, 'notices.dummy'));
+
+    // Assert
+    expect(parsed.length).toBeGreaterThan(0);
+    expect(parsed.some((d) => d.brief !== null && d.refs !== null)).toBe(true);
+  });
+
+  it('cover the next wire: an English brief, an exclusion, a link with no scheme, two phones, a long title', () => {
+    // Act & Assert
+    expect(all.some((d) => d.brief?.language === 'en')).toBe(true);
+    expect(all.some((d) => (d.audience?.status.exclude.length ?? 0) > 0)).toBe(true);
+    expect(all.some((d) => d.refs?.links.some((l) => !/^https?:/.test(l.url)))).toBe(true);
+    expect(briefs.some((b) => hasNoticeBriefRefs(b) && b.refs.phones.length >= 2)).toBe(true);
+    expect(all.some((d) => d.title.length >= 60)).toBe(true);
   });
 });

@@ -1,7 +1,6 @@
 import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useT, SdsRadius, SdsSpacing } from '@skkuverse/shared';
 import { Pressable, Txt, createThemedStyles } from '@skkuverse/sds';
-import { toNoticeBriefAge, type NoticeBriefAge } from '../notice-brief.rules';
 import type { NoticeBriefSource } from '../notice-brief.types';
 
 const EMBLEM = require('../../../../assets/images/skku-emblem.png');
@@ -11,23 +10,21 @@ const SOURCE_COUNT = 1;
 interface Props {
   title: string;
   source: NoticeBriefSource;
-  now: Date;
   onSourcePress: () => void;
   onTitleLayout: (event: LayoutChangeEvent) => void;
 }
 
-export function NoticeBriefHeader({ title, source, now, onSourcePress, onTitleLayout }: Props) {
+export function NoticeBriefHeader({ title, source, onSourcePress, onTitleLayout }: Props) {
   const styles = useStyles();
   const { t, tpl } = useT();
-  const age = formatAge(toNoticeBriefAge(source.firstSeenAt, now), t, tpl);
-  const meta = [tpl('notices.brief.sourceCount', SOURCE_COUNT), age, source.isEdited ? t('notices.edited') : null]
+  const meta = [tpl('notices.brief.sourceCount', SOURCE_COUNT), source.isEdited ? t('notices.edited') : null]
     .filter((part) => part)
     .join(' · ');
 
   return (
     <View style={styles.wrap}>
       <Txt
-        typography="t10"
+        typography="t9"
         fontWeight="bold"
         color="neutral"
         lineBreakStrategyIOS="hangul-word"
@@ -49,25 +46,6 @@ export function NoticeBriefHeader({ title, source, now, onSourcePress, onTitleLa
       </Pressable>
     </View>
   );
-}
-
-function formatAge(
-  age: NoticeBriefAge,
-  t: ReturnType<typeof useT>['t'],
-  tpl: ReturnType<typeof useT>['tpl'],
-): string {
-  switch (age.kind) {
-    case 'justNow':
-      return t('notices.brief.justNow');
-    case 'minutes':
-      return tpl('notices.brief.minutesAgo', age.count);
-    case 'hours':
-      return tpl('notices.brief.hoursAgo', age.count);
-    case 'yesterday':
-      return t('notices.day.yesterday');
-    case 'date':
-      return age.label;
-  }
 }
 
 const useStyles = createThemedStyles(({ color }) => ({
