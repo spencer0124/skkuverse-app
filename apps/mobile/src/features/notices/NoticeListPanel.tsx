@@ -34,8 +34,6 @@ type Props = (
   | { sourceId?: never; sourceIds: string[] }
 ) & {
   listHeader?: ReactElement;
-  /** WHY: inside the list, so it scrolls with the rows; `listHeader` is fixed chrome. */
-  listContentHeader?: ReactElement;
   /** WHY: also forwarded to each row as `highlightQuery`, which marks the matched text. */
   q?: string;
   /** WHY: only a tab's root list scrolls to top on re-tap and drives the shared-map bar; a pushed page leaves both alone. */
@@ -54,7 +52,6 @@ export function NoticeListPanel(props: Props) {
   const styles = useStyles();
   const multi = 'sourceIds' in props && props.sourceIds != null;
   const listHeader = props.listHeader;
-  const listContentHeader = props.listContentHeader;
   const q = props.q;
   const router = useRouter();
   const { t } = useT();
@@ -145,7 +142,6 @@ export function NoticeListPanel(props: Props) {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         ItemSeparatorComponent={RowDivider}
-        ListHeaderComponent={listContentHeader}
         contentContainerStyle={[
           styles.listContent,
           isEmpty ? styles.emptyContent : null,

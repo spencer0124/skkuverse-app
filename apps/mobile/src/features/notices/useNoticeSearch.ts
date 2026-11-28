@@ -4,12 +4,10 @@ import {
   useNotificationStore,
   useT,
 } from '@skkuverse/shared';
-import { isGateOpen } from '@/platform/ota';
 import { useActiveNoticeTab } from './useActiveNoticeTab';
 import { useNoticesSearchPlaceholder } from './useNoticesSearchPlaceholder';
 import { resolvePickerSelection } from './picker.rules';
 import { useNoticeTabs } from './useNoticeTabs';
-import { canRequestOverview } from './overview/overview.rules';
 
 const DEBOUNCE_MS = 300;
 const KOREAN_SYLLABLE_START = 0xac00;
@@ -43,7 +41,6 @@ export function useNoticeSearch() {
   const placeholder = useNoticesSearchPlaceholder();
 
   const [query, setQuery] = useState('');
-  const [submittedQuery, setSubmittedQuery] = useState<string | undefined>(undefined);
   const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
   // WHY: below the gate the body stays blank; the unfiltered feed on entry looked like "search returned
   // everything" and misled users into thinking their query was ignored.
@@ -77,33 +74,14 @@ export function useNoticeSearch() {
     return [];
   }, [activeTab, pickerSelections]);
 
-  const onChangeQuery = (text: string) => {
-    setQuery(text);
-    if (submittedQuery !== undefined && text.trim() !== submittedQuery) {
-      setSubmittedQuery(undefined);
-    }
-  };
-
-  // WHY: the summary asks on submit only, so a query typed a syllable at a time costs one LLM call.
-  const onSubmitQuery = () => {
-    const trimmed = query.trim();
-    setSubmittedQuery(
-      isGateOpen('noticeSearchOverview') && isMinLengthMet(trimmed) && canRequestOverview(trimmed, sourceIds)
-        ? trimmed
-        : undefined,
-    );
-  };
-
   return {
     router,
     t,
     placeholder,
     query,
-    submittedQuery,
     effectiveQuery,
     sourceIds,
     isTabsLoading,
-    onChangeQuery,
-    onSubmitQuery,
+    onChangeQuery: setQuery,
   };
 }

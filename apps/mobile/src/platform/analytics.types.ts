@@ -10,7 +10,6 @@ import type { AppCheckFailureKind } from './app-check.rules';
 import type { HandoffKind } from './handoff.rules';
 import type { AnonTrigger } from '@/features/auth/anon-session.rules';
 import type { AnonFailureClass, AuthFailureClass } from '@/features/auth/sign-in-errors.rules';
-import type { OverviewOutcome } from '@/features/notices/overview/overview.rules';
 import type { ServiceSource } from '@/features/transit/schedule/schedule-config.rules';
 import type { TransitItemKind } from '@/features/transit/transit.types';
 import type { PromoParams } from '@/features/promo/promo.types';
@@ -52,14 +51,6 @@ export interface EventMap {
   transit_load_error: { surface: TransitLoadSurface; item_id?: string; op: 'error' | 'retry' };
   schedule_attachment_view: { kind: RunAttachmentKind; id: string; run_key: string };
   schedule_attachment_action: { kind: RunAttachmentKind; id: string; run_key: string };
-  // WHY: never the query, which is free text the user typed.
-  notice_overview: {
-    result: OverviewOutcome;
-    ms: number;
-    scope: number;
-    cached?: 'true' | 'false';
-    sources?: number;
-  };
   map_chip: { chip_id: string; source: ChipSource; op: 'select' | 'clear'; tab?: MapTabId; ran_in?: MapTabId };
   app_foreground: { bg_ms: number; handoff?: HandoffKind };
   push_sub: {
@@ -147,7 +138,6 @@ export type NoticesContentType =
   | 'picker_chip_remove'
   | 'picker_unsupported'
   | 'search_back'
-  | 'overview_source'
   | 'detail_share'
   | 'detail_view_source'
   | 'detail_sibling_prev'

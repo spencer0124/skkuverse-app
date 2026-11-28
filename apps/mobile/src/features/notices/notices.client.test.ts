@@ -7,7 +7,6 @@ import {
   multiSourceNoticeListQueryOptions,
   noticeDetailQueryOptions,
   noticeListQueryOptions,
-  noticeOverviewQueryOptions,
   noticeTabsQueryOptions,
 } from './notices.client';
 
@@ -18,8 +17,8 @@ describe('notice query keys', () => {
     const searched = noticeListQueryOptions({ sourceId: 'cse', q: '장학' }).queryKey;
 
     // Assert
-    expect(all).toStrictEqual(['notices', 'source', 'skku-notice02', { type: 'all', q: '' }]);
-    expect(searched).toStrictEqual(['notices', 'source', 'cse', { type: 'all', q: '장학' }]);
+    expect(all).toStrictEqual(['notices', 'source', 'skku-notice02', { q: '' }]);
+    expect(searched).toStrictEqual(['notices', 'source', 'cse', { q: '장학' }]);
   });
 
   it('keys a multi-source list by its sorted sources', () => {
@@ -27,7 +26,7 @@ describe('notice query keys', () => {
     const key = multiSourceNoticeListQueryOptions({ sourceIds: ['b', 'a'] }).queryKey;
 
     // Assert
-    expect(key).toStrictEqual(['notices', 'multi', 'a,b', { type: 'all', q: '' }]);
+    expect(key).toStrictEqual(['notices', 'multi', 'a,b', { q: '' }]);
   });
 
   it('keys a detail by source and article', () => {
@@ -44,15 +43,5 @@ describe('notice query keys', () => {
 
     // Assert
     expect(key).toStrictEqual(['notices', 'tabs']);
-  });
-
-  it('keys an overview by its sorted sources and the server-normalized query', () => {
-    // Act
-    const key = noticeOverviewQueryOptions({ q: '  Dorm   Fee ', sourceIds: ['b', 'a'] }).queryKey;
-    const none = noticeOverviewQueryOptions({ q: undefined, sourceIds: [] }).queryKey;
-
-    // Assert
-    expect(key).toStrictEqual(['notices', 'overview', 'a,b', 'dorm fee']);
-    expect(none).toStrictEqual(['notices', 'overview', '', '']);
   });
 });

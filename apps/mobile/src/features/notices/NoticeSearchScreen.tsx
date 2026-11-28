@@ -1,6 +1,5 @@
 /**
- * QUIRK(rnscreens): a separate route, since UITabAccessory has no keyboard avoidance. The AI summary is
- * requested only on submit; per keystroke would spend an LLM call on every prefix.
+ * QUIRK(rnscreens): a separate route, since UITabAccessory has no keyboard avoidance.
  */
 
 import { Stack } from 'expo-router';
@@ -13,7 +12,6 @@ import { logNoticesContentSelect } from '@/platform/analytics';
 import { NoticeListPanel } from './NoticeListPanel';
 import { NoticeListSkeleton } from './NoticeListSkeleton';
 import { NoticeEmptyState } from './NoticeEmptyState';
-import { NoticeOverviewSection } from './overview/NoticeOverviewSection';
 import { useNoticeSearch } from './useNoticeSearch';
 
 export function NoticeSearchScreen() {
@@ -25,18 +23,11 @@ export function NoticeSearchScreen() {
     t,
     placeholder,
     query,
-    submittedQuery,
     effectiveQuery,
     sourceIds,
     isTabsLoading,
     onChangeQuery,
-    onSubmitQuery,
   } = useNoticeSearch();
-
-  const overviewHeader =
-    submittedQuery !== undefined ? (
-      <NoticeOverviewSection key={submittedQuery} q={submittedQuery} sourceIds={sourceIds} />
-    ) : undefined;
 
   return (
     <View style={styles.container}>
@@ -59,7 +50,6 @@ export function NoticeSearchScreen() {
           <SearchField
             value={query}
             onChangeText={onChangeQuery}
-            onSubmitEditing={onSubmitQuery}
             placeholder={placeholder}
             hasClearButton
             autoFocus
@@ -84,13 +74,11 @@ export function NoticeSearchScreen() {
         <NoticeListPanel
           sourceId={sourceIds[0]}
           q={effectiveQuery}
-          listContentHeader={overviewHeader}
         />
       ) : (
         <NoticeListPanel
           sourceIds={sourceIds}
           q={effectiveQuery}
-          listContentHeader={overviewHeader}
         />
       )}
     </View>

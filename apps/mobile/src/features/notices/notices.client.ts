@@ -7,23 +7,18 @@ import {
 } from '@tanstack/react-query';
 import {
   ApiEndpoints,
-  API_TIMEOUT_MS,
   parseOrThrow,
   safeGet,
   type AppFailure,
 } from '@skkuverse/shared';
 import { multiSourceNoticePageSchema, noticeDetailSchema, noticePageSchema, noticeTabsSchema } from './notices.schema';
-import { canRequestOverview, normalizeOverviewQuery } from './overview/overview.rules';
-import { parseNoticeOverview } from './overview/overview.schema';
 import dummyDetails from './__fixtures__/notice-briefs.json';
 import type { NoticeDetail, NoticePage, NoticeTabsConfig } from './notices.types';
-import type { NoticeOverviewResult } from './overview/overview.types';
 
 export const NOTICE_LIST_KEY = ['notices', 'source'] as const;
 export const NOTICE_MULTI_KEY = ['notices', 'multi'] as const;
 export const NOTICE_DETAIL_KEY = ['notices', 'detail'] as const;
 export const NOTICE_TABS_KEY = ['notices', 'tabs'] as const;
-export const NOTICE_OVERVIEW_KEY = ['notices', 'overview'] as const;
 
 const PAGE_LIMIT = 20;
 
@@ -39,12 +34,6 @@ export interface MultiSourceNoticeListInputs {
   enabled?: boolean;
 }
 
-export interface NoticeOverviewInputs {
-  q: string | undefined;
-  sourceIds: readonly string[];
-  enabled?: boolean;
-}
-
 export function noticeListQueryOptions({ sourceId, q, enabled = true }: NoticeListInputs) {
   return infiniteQueryOptions<
     NoticePage,
@@ -54,7 +43,7 @@ export function noticeListQueryOptions({ sourceId, q, enabled = true }: NoticeLi
     string | null
   >({
     // WHY: q is part of the key, so two searches never share a cache.
-    queryKey: [...NOTICE_LIST_KEY, sourceId, { type: 'all', q: q ?? '' }],
+    queryKey: [...NOTICE_LIST_KEY, sourceId, { q: q ?? '' }],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = { limit: PAGE_LIMIT };
@@ -93,7 +82,7 @@ export function multiSourceNoticeListQueryOptions({
     readonly unknown[],
     string | null
   >({
-    queryKey: [...NOTICE_MULTI_KEY, sortedKey, { type: 'all', q: q ?? '' }],
+    queryKey: [...NOTICE_MULTI_KEY, sortedKey, { q: q ?? '' }],
     initialPageParam: null,
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string | number> = {
@@ -155,48 +144,5 @@ export function noticeTabsQueryOptions() {
     // CONTRACT(skkuverse-server): skkuverse-server/src/notices/tabs/notices-tabs.constants.ts sends
     // `Cache-Control: private, max-age=3600`.
     staleTime: 60 * 60_000,
-  });
-}
-
-function sortedSourceIds(sourceIds: readonly string[]): string {
-  return [...sourceIds].sort().join(',');
-}
-
-/**
- * CONTRACT(skkuverse-server): skkuverse-server/docs/reference/notices-api.md asks for a 25 s timeout (the
- * server waits up to 24 s on the LLM) and no retry of any kind, since each retry is another LLM call.
- */
-export async function fetchNoticeOverview(
-  q: string,
-  sourceIds: readonly string[],
-  signal?: AbortSignal,
-): Promise<NoticeOverviewResult> {
-  const result = await safeGet(ApiEndpoints.noticesOverview(), parseNoticeOverview, {
-    params: { q: q.trim(), sourceIds: sortedSourceIds(sourceIds) },
-    timeout: API_TIMEOUT_MS.overview,
-    'axios-retry': { retries: 0 },
-    signal,
-  });
-  if (result.ok) return result.data;
-  throw result.failure;
-}
-
-/** WHY: the caller enables it on submit only; this adds the server's own validation. */
-export function noticeOverviewQueryOptions({ q, sourceIds, enabled = true }: NoticeOverviewInputs) {
-  const sortedKey = sortedSourceIds(sourceIds);
-  const normalized = q === undefined ? '' : normalizeOverviewQuery(q);
-
-  return queryOptions<NoticeOverviewResult, AppFailure>({
-    queryKey: [...NOTICE_OVERVIEW_KEY, sortedKey, normalized],
-    queryFn: ({ signal }) => fetchNoticeOverview(q ?? '', sourceIds, signal),
-    enabled: enabled && q !== undefined && canRequestOverview(q, sourceIds),
-    // WHY: the route sends no Cache-Control, so nothing may be held as fresh.
-    // A resubmit shows the held answer at once and asks again; the server's
-    // 30-minute cache answers that quickly.
-    staleTime: 0,
-    // WHY: QueryProvider turns an app foreground into a focus refetch, which
-    // would ask the LLM again and could swap the answer under the reader.
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
   });
 }

@@ -13,7 +13,4 @@ export const API_TIMEOUT_MS = {
   // WHY: the instance default, for whatever bypasses the GET wrappers; a POST is never retried on a
   // timeout, so it gets the longest budget.
   write: 10_000,
-  // EVIDENCE: the server waits up to 24 s on the LLM, and the request is sent with retries off, since
-  // a retry is a second LLM call.
-  overview: 25_000,
 } as const;
